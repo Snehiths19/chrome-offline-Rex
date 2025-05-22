@@ -1,0 +1,12 @@
+body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh; /* Ensure full viewport height for centering */
+  margin: 0;
+  background-color: #f0f0f0; /* Optional: Light gray background */
+}
+
+#gameCanvas {
+  border: 1px solid black;
+}
