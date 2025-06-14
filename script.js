@@ -194,8 +194,8 @@ function gameLoop() {
     dino.y += dino.velocityY;
 
     // Check if dino has landed
-    if (dino.y >= 150) { // Assuming 150 is the ground level
-      dino.y = 150;
+    if (dino.y >= canvas.height - dino.height) { // Ground level based on canvas height
+      dino.y = canvas.height - dino.height;
       dino.isJumping = false;
       dino.velocityY = 0;
     }
