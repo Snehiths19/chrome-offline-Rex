@@ -10,13 +10,42 @@ function describe(description, testFn) {
 
 function it(description, testFn) {
   testsRun++;
-  try {
-    testFn();
+
+  const pass = () => {
     console.log(`%cPASSED: ${description}`, 'color: green;');
     testsPassed++;
+  };
+
+  const fail = (error) => {
+    console.error(`%cFAILED: ${description}`, 'color: red;', error && error.message);
+    if (error && error.stack) {
+      console.error(error.stack);
+    }
+  };
+
+  const handle = (maybePromise) => {
+    if (maybePromise && typeof maybePromise.then === 'function') {
+      // Promise returned
+      maybePromise.then(pass).catch(fail);
+    } else if (testFn.length === 0) {
+      // Synchronous test completed
+      pass();
+    }
+    // If testFn expected a callback, pass/fail will be handled when it calls done
+  };
+
+  try {
+    if (testFn.length > 0) {
+      // Asynchronous test using callback
+      const done = (err) => (err ? fail(err) : pass());
+      const maybePromise = testFn(done);
+      handle(maybePromise);
+    } else {
+      const maybePromise = testFn();
+      handle(maybePromise);
+    }
   } catch (error) {
-    console.error(`%cFAILED: ${description}`, 'color: red;', error.message);
-    console.error(error.stack);
+    fail(error);
   }
 }
 
@@ -154,22 +183,24 @@ describe('Collision Detection', () => {
 });
 
 describe('Scoring', () => {
-  it('should increment score after a few game loop updates', (done) => {
+  it('should increment score after a few game loop updates', () => {
     resetGame();
     assertEquals(score, 0, 'Score should be initially 0');
     gameRunning = true;
 
     let initialScore = score;
-    requestAnimationFrame(() => {
-      gameLoop(); // Frame 1
+    return new Promise(resolve => {
       requestAnimationFrame(() => {
-        gameLoop(); // Frame 2
+        gameLoop(); // Frame 1
         requestAnimationFrame(() => {
-          gameLoop(); // Frame 3
-          assert(score > initialScore, `Score (${score}) should be greater than initial score (${initialScore})`);
-          gameRunning = false; // Stop test loop
-          cancelAnimationFrame(animationFrameId);
-          done();
+          gameLoop(); // Frame 2
+          requestAnimationFrame(() => {
+            gameLoop(); // Frame 3
+            assert(score > initialScore, `Score (${score}) should be greater than initial score (${initialScore})`);
+            gameRunning = false; // Stop test loop
+            cancelAnimationFrame(animationFrameId);
+            resolve();
+          });
         });
       });
     });
