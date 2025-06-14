@@ -37,7 +37,7 @@ const totalImages = 2; // dino and cactus
 function onImageLoad() {
   imagesLoaded++;
   if (imagesLoaded === totalImages) {
-    // Set initial dino y position correctly based on canvas height AFTER image is loaded
+    // Set initial dino y position correctly based on canvas height after the image is loaded
     dino.y = canvas.height - dino.height; 
     // Draw initial dinosaur
     drawDino();
