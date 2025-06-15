@@ -1,3 +1,27 @@
+// --- Node Environment Setup ---
+if (typeof window === 'undefined') {
+  global.document = {
+    getElementById: (id) => {
+      if (id === 'gameCanvas') {
+        return {
+          width: 600,
+          height: 200,
+          getContext: () => ({
+            drawImage: () => {},
+            clearRect: () => {},
+            fillRect: () => {},
+            fillText: () => {},
+          }),
+        };
+      }
+      return {};
+    },
+    addEventListener: () => {},
+  };
+  require('../script.js');
+  window.document = global.document;
+}
+
 // --- Test Utilities ---
 let testsRun = 0;
 let testsPassed = 0;

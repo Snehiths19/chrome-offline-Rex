@@ -1,3 +1,33 @@
+// Minimal DOM stubs so the game can run in Node for tests
+if (typeof process !== 'undefined' && process.versions && process.versions.node) {
+  global.window = {};
+  global.document = {
+    getElementById: (id) => {
+      if (id === 'gameCanvas') {
+        return {
+          width: 600,
+          height: 200,
+          getContext: () => ({
+            drawImage: () => {},
+            clearRect: () => {},
+            fillRect: () => {},
+            fillText: () => {},
+          }),
+        };
+      }
+      return {};
+    },
+    addEventListener: () => {},
+  };
+  global.Image = class { constructor() { this.onload = null; this.src = ''; } };
+  global.requestAnimationFrame = (cb) => {
+    const id = setImmediate(() => cb(Date.now()));
+    return id;
+  };
+  global.cancelAnimationFrame = (id) => clearImmediate(id);
+  window.document = global.document;
+}
+
 // Get canvas and context
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -10,7 +40,8 @@ const dino = {
   height: 50, // Approximate height
   velocityY: 0,
   gravity: 0.5,
-  jumpPower: -10, // Negative value for upward jump
+  // Increased jump power so the dino can clear early obstacles more easily
+  jumpPower: -15, // Negative value for upward jump
   isJumping: false,
   image: new Image()
 };
@@ -222,3 +253,33 @@ function gameLoop() {
 // It's better to start the game loop once the image is loaded.
 // So, the call to gameLoop() is moved inside dino.image.onload.
 // gameLoop(); // Initial call to start the loop - moved
+
+// Expose variables and functions when running under Node
+if (typeof process !== 'undefined' && process.versions && process.versions.node) {
+  const expose = (name, getterSetter) => {
+    Object.defineProperty(global, name, {
+      get: getterSetter.get,
+      set: getterSetter.set,
+      configurable: true,
+    });
+  };
+
+  expose('canvas', { get: () => canvas });
+  expose('ctx', { get: () => ctx });
+  expose('dino', { get: () => dino });
+  expose('obstacles', { get: () => obstacles });
+  expose('score', { get: () => score, set: (v) => { score = v; } });
+  expose('gameRunning', { get: () => gameRunning, set: (v) => { gameRunning = v; } });
+  expose('animationFrameId', { get: () => animationFrameId, set: (v) => { animationFrameId = v; } });
+  expose('frameCount', { get: () => frameCount, set: (v) => { frameCount = v; } });
+  global.spawnObstacle = spawnObstacle;
+  global.updateObstacles = updateObstacles;
+  global.drawObstacles = drawObstacles;
+  global.drawScore = drawScore;
+  global.drawDino = drawDino;
+  global.checkCollision = checkCollision;
+  global.jump = jump;
+  global.resetGame = resetGame;
+  global.gameLoop = gameLoop;
+  global.drawGameOverScreen = drawGameOverScreen;
+}
