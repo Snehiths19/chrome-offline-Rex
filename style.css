@@ -1,12 +1,49 @@
+* { box-sizing: border-box; }
+
 body {
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
-  min-height: 100vh; /* Ensure full viewport height for centering */
+  min-height: 100vh;
   margin: 0;
-  background-color: #f0f0f0; /* Optional: Light gray background */
+  background-color: #f0f0f0;
+  overscroll-behavior: none; /* Prevent iOS bounce scroll */
+}
+
+#game-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 600px;
+  padding: 0 8px;
 }
 
 #gameCanvas {
   border: 1px solid black;
+  width: 100%;     /* Scales to screen width while keeping internal 600x200 coords */
+  height: auto;
+  display: block;
+  touch-action: none; /* Prevent scroll/zoom while playing */
+}
+
+#jump-btn {
+  display: none; /* Hidden on desktop */
+  margin-top: 12px;
+  padding: 16px 48px;
+  font-size: 18px;
+  font-weight: bold;
+  background: #555;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Show jump button only on touchscreen devices */
+@media (hover: none) and (pointer: coarse) {
+  #jump-btn { display: block; }
 }
