@@ -13,13 +13,14 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
             fillRect: () => {},
             fillText: () => {},
           }),
+          addEventListener: () => {},
         };
       }
-      return {};
+      return { addEventListener: () => {} };
     },
     addEventListener: () => {},
   };
-  global.Image = class { constructor() { this.onload = null; this.src = ''; } };
+  global.Image = class { constructor() { this.onload = null; this.onerror = null; this.src = ''; } };
   global.requestAnimationFrame = (cb) => {
     const id = setImmediate(() => cb(Date.now()));
     return id;
@@ -35,65 +36,107 @@ const ctx = canvas.getContext('2d');
 // Dinosaur properties
 const dino = {
   x: 50,
-  y: 150, // Initial y position (bottom of canvas - height)
-  width: 40, // Approximate width
-  height: 50, // Approximate height
+  y: 150,
+  width: 40,
+  height: 50,
   velocityY: 0,
   gravity: 0.5,
-  // Increased jump power so the dino can clear early obstacles more easily
-  jumpPower: -15, // Negative value for upward jump
+  jumpPower: -15,
   isJumping: false,
   image: new Image()
 };
 
-// Load dinosaur image
+// Load dinosaur images
 dino.image.src = 'assets/dino-stationary.png';
+
+const dinoRunImages = [new Image(), new Image()];
+dinoRunImages[0].src = 'assets/dino-run-0.png';
+dinoRunImages[1].src = 'assets/dino-run-1.png';
+
+const dinoLoseImage = new Image();
+dinoLoseImage.src = 'assets/dino-lose.png';
+
+const groundImage = new Image();
+groundImage.src = 'assets/ground.png';
 
 // Obstacle properties
 const obstacleImage = new Image();
 obstacleImage.src = 'assets/cactus.png';
 const obstacles = [];
-const obstacleWidth = 20; // Approximate width of cactus
-const obstacleHeight = 40; // Approximate height of cactus
-const obstacleSpeed = 2;
-let frameCount = 0; // Used for periodic spawning
-let gameRunning = true; // To control game loop
-let animationFrameId; // To store requestAnimationFrame ID for cancellation
-let score = 0; // Score variable
+const obstacleWidth = 20;
+const obstacleHeight = 40;
+const obstacleSpeed = 2; // base speed (kept for test compatibility)
+let currentSpeed = 2;   // actual speed used, updated with difficulty
+let spawnInterval = 120; // frames between spawns, updated with difficulty
+let frameCount = 0;
+let gameRunning = true;
+let animationFrameId;
+let score = 0;
 
-// Load all images and then start game
+// Animation / visual state
+let animFrame = 0;  // increments each game loop tick
+let groundX = 0;    // scrolling offset for ground sprite
+
+// Image loading — wait for all 6 assets before starting
 let imagesLoaded = 0;
-const totalImages = 2; // dino and cactus
+const totalImages = 6;
 
 function onImageLoad() {
   imagesLoaded++;
   if (imagesLoaded === totalImages) {
-    // Set initial dino y position correctly based on canvas height after the image is loaded
-    dino.y = canvas.height - dino.height; 
-    // Draw initial dinosaur
+    dino.y = canvas.height - dino.height;
     drawDino();
-    // Start game loop after all images are loaded
     gameLoop();
   }
 }
 
+function onImageError() {
+  console.warn('A game asset failed to load. Continuing with fallback rendering.');
+  onImageLoad(); // still count it so the game starts
+}
+
 dino.image.onload = onImageLoad;
+dino.image.onerror = onImageError;
+dinoRunImages[0].onload = onImageLoad;
+dinoRunImages[0].onerror = onImageError;
+dinoRunImages[1].onload = onImageLoad;
+dinoRunImages[1].onerror = onImageError;
+dinoLoseImage.onload = onImageLoad;
+dinoLoseImage.onerror = onImageError;
+groundImage.onload = onImageLoad;
+groundImage.onerror = onImageError;
 obstacleImage.onload = onImageLoad;
+obstacleImage.onerror = onImageError;
 
-
-// Draw dinosaur function
+// Draw dinosaur — uses animated run frames on ground, stationary in air, lose sprite on game over
 function drawDino() {
-  ctx.drawImage(dino.image, dino.x, dino.y, dino.width, dino.height);
+  let img;
+  if (!gameRunning) {
+    img = dinoLoseImage;
+  } else if (dino.isJumping) {
+    img = dino.image; // stationary sprite looks fine mid-air
+  } else {
+    img = dinoRunImages[Math.floor(animFrame / 10) % 2];
+  }
+  ctx.drawImage(img, dino.x, dino.y, dino.width, dino.height);
+}
+
+// Draw scrolling ground
+function drawGround() {
+  if (!groundImage.width) return; // fallback: skip if image not loaded
+  const groundY = canvas.height - groundImage.height;
+  ctx.drawImage(groundImage, groundX, groundY, groundImage.width, groundImage.height);
+  ctx.drawImage(groundImage, groundX + groundImage.width, groundY, groundImage.width, groundImage.height);
 }
 
 // Spawn obstacle function
 function spawnObstacle() {
   const obstacle = {
-    x: canvas.width, // Start from the right edge
-    y: canvas.height - obstacleHeight, // Position on the ground
+    x: canvas.width,
+    y: canvas.height - obstacleHeight,
     width: obstacleWidth,
     height: obstacleHeight,
-    speed: obstacleSpeed
+    speed: currentSpeed
   };
   obstacles.push(obstacle);
 }
@@ -109,7 +152,7 @@ function drawObstacles() {
 function updateObstacles() {
   for (let i = obstacles.length - 1; i >= 0; i--) {
     obstacles[i].x -= obstacles[i].speed;
-    if (obstacles[i].x + obstacles[i].width < 0) { // If obstacle is off-screen to the left
+    if (obstacles[i].x + obstacles[i].width < 0) {
       obstacles.splice(i, 1);
     }
   }
@@ -119,12 +162,11 @@ function updateObstacles() {
 function drawScore() {
   ctx.fillStyle = 'black';
   ctx.font = '20px Arial';
-  ctx.fillText('Score: ' + Math.floor(score), canvas.width - 150, 30); // Position in top-right
+  ctx.fillText('Score: ' + Math.floor(score), canvas.width - 150, 30);
 }
 
 // Collision detection function
 function checkCollision(dino, obstacle) {
-  // Check for overlap in x-axis and y-axis
   return (
     dino.x < obstacle.x + obstacle.width &&
     dino.x + dino.width > obstacle.x &&
@@ -132,7 +174,6 @@ function checkCollision(dino, obstacle) {
     dino.y + dino.height > obstacle.y
   );
 }
-
 
 // Jump function
 function jump() {
@@ -142,21 +183,46 @@ function jump() {
   }
 }
 
-// Event listener for spacebar press
+// Shared handler for any "action" input (jump while running, restart while dead)
+function handleAction() {
+  if (gameRunning) {
+    jump();
+  } else {
+    resetGame();
+    gameLoop();
+  }
+}
+
+// Keyboard input — Space, ArrowUp, W
 document.addEventListener('keydown', (event) => {
-  if (event.code === 'Space') {
-    if (gameRunning) {
-      jump();
-    } else {
-      resetGame();
-      gameLoop(); // Start a new game loop
-    }
+  if (event.code === 'Space' || event.code === 'ArrowUp' || event.code === 'KeyW') {
+    event.preventDefault(); // prevent page scroll on spacebar/arrow
+    handleAction();
   }
 });
 
+// Mouse click on canvas (desktop)
+canvas.addEventListener('click', handleAction);
+
+// Touch on canvas (mobile)
+canvas.addEventListener('touchstart', (event) => {
+  event.preventDefault();
+  handleAction();
+}, { passive: false });
+
+// On-screen jump button (mobile)
+const jumpBtn = document.getElementById('jump-btn');
+if (jumpBtn) {
+  jumpBtn.addEventListener('touchstart', (event) => {
+    event.preventDefault();
+    handleAction();
+  }, { passive: false });
+  jumpBtn.addEventListener('click', handleAction);
+}
+
 // Function to draw Game Over screen
 function drawGameOverScreen() {
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.75)'; // Semi-transparent black background
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   ctx.fillStyle = 'white';
@@ -166,9 +232,9 @@ function drawGameOverScreen() {
 
   ctx.font = '20px Arial';
   ctx.fillText('Final Score: ' + Math.floor(score), canvas.width / 2, canvas.height / 2);
-  
+
   ctx.font = '16px Arial';
-  ctx.fillText('Press Space to Restart', canvas.width / 2, canvas.height / 2 + 40);
+  ctx.fillText('Tap / Press Space to Restart', canvas.width / 2, canvas.height / 2 + 40);
 }
 
 // Function to reset game state
@@ -176,85 +242,79 @@ function resetGame() {
   dino.y = canvas.height - dino.height;
   dino.velocityY = 0;
   dino.isJumping = false;
-  
-  obstacles.length = 0; // Clear obstacles array
+
+  obstacles.length = 0;
   score = 0;
   frameCount = 0;
+  animFrame = 0;
+  groundX = 0;
+  currentSpeed = 2;
+  spawnInterval = 120;
   gameRunning = true;
-  // It's important that gameLoop is called *after* resetting, 
-  // which is handled by the keydown listener.
 }
 
 // Game loop
 function gameLoop() {
   if (!gameRunning) {
-    drawGameOverScreen(); // Draw game over screen when game is not running
+    drawGameOverScreen();
     return;
   }
 
   frameCount++;
-  score += 0.1; // Increment score (adjust increment value for desired speed)
+  score += 0.1;
+  animFrame++;
+
+  // Difficulty scaling — every 100 points increase speed and reduce spawn interval
+  const level = Math.floor(score / 100);
+  currentSpeed = 2 + level * 0.5;
+  spawnInterval = Math.max(60, 120 - level * 10);
+
+  // Scroll ground
+  groundX -= currentSpeed;
+  if (groundImage.width && groundX <= -groundImage.width) groundX = 0;
 
   // Clear canvas
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Spawn new obstacles periodically (e.g., every 120 frames, adjust as needed)
-  if (frameCount % 120 === 0) {
+  // Render: ground → obstacles → dino → score
+  drawGround();
+
+  if (frameCount % spawnInterval === 0) {
     spawnObstacle();
   }
 
-  // Update and draw obstacles
   updateObstacles();
   drawObstacles();
 
   // Check for collisions
   for (let i = 0; i < obstacles.length; i++) {
     if (checkCollision(dino, obstacles[i])) {
-      gameRunning = false; // This will trigger drawGameOverScreen in the next frame
-      cancelAnimationFrame(animationFrameId); // Stop current animation loop
-      // No need to console log here anymore, as it's handled by drawGameOverScreen
-      // console.log('Game Over. Final Score: ' + Math.floor(score));
-      drawGameOverScreen(); // Draw immediately once before exiting
-      return; // Exit gameLoop
+      gameRunning = false;
+      cancelAnimationFrame(animationFrameId);
+      drawGameOverScreen();
+      return;
     }
   }
 
-  // Update dinosaur position (apply gravity)
+  // Apply gravity
   if (dino.isJumping) {
     dino.velocityY += dino.gravity;
     dino.y += dino.velocityY;
 
-    // Check if dino has landed
-    if (dino.y >= canvas.height - dino.height) { // Ground level based on canvas height
+    if (dino.y >= canvas.height - dino.height) {
       dino.y = canvas.height - dino.height;
       dino.isJumping = false;
       dino.velocityY = 0;
     }
   }
 
-  // Draw dinosaur
   drawDino();
-
-  // Draw score
   drawScore();
 
-  // Request next frame
   animationFrameId = requestAnimationFrame(gameLoop);
 }
 
-// Adjust dino.y to be on the "ground" (canvas height - dino height)
-// This is now handled in onImageLoad to ensure dino.height is available.
-// dino.y = canvas.height - dino.height; 
-
-// Ensure the image source is set before onload if not already.
-// dino.image.src = 'assets/dino-stationary.png'; // Already done above
-// obstacleImage.src = 'assets/cactus.png'; // Already done above
-
-// It's better to start the game loop once the image is loaded.
-// So, the call to gameLoop() is moved inside dino.image.onload.
-// gameLoop(); // Initial call to start the loop - moved
-
-// Expose variables and functions when running under Node
+// Expose variables and functions when running under Node (for tests)
 if (typeof process !== 'undefined' && process.versions && process.versions.node) {
   const expose = (name, getterSetter) => {
     Object.defineProperty(global, name, {
