@@ -4,13 +4,23 @@
 
 **Goal:** Fix jump feel, obstacle clustering, and difficulty ramping; add clouds, day/night cycle, and a high-score Game Over screen.
 
-**Architecture:** All changes live in `script.js`. Tests live in `tests/game.test.js` using the existing custom `describe`/`it` runner (Node-compatible, no external dependencies). Each task is one self-contained behaviour change followed by a commit.
+**Architecture:** All changes live in `script.js`. Tests live in `tests/game.test.js` using the existing custom `describe`/`it` runner. Each task is one self-contained behaviour change followed by a commit.
 
-**Tech Stack:** Vanilla JS, HTML5 Canvas, Node for tests (`node tests/game.test.js`), localStorage for high score persistence.
+**Tech Stack:** Vanilla JS, HTML5 Canvas, Node for tests, localStorage for high score persistence.
 
-**Commit message format:** `feat(dino): Task N — <description>` (e.g. `feat(dino): Task 1 — fix jump height`)
+**Commit message format:** `feat(dino): Task N — <description>`
 
 **TDD guard:** If a test passes BEFORE you write the implementation, the test is wrong — rewrite it so it fails first.
+
+---
+
+## Test Command
+
+```bash
+node tests/game.test.js
+```
+
+**Why this works in Node:** `script.js` has a Node guard at the top that stubs `document`, `requestAnimationFrame` (via `setImmediate`), `cancelAnimationFrame`, `Image`, and `window`. These stubs are already present. The `window.onload` summary block in the test file does NOT fire in Node (it just sets a property on the `{}` stub). To verify results, scan the output for `PASSED:` and `FAILED:` lines — if all lines say `PASSED:`, the suite is green.
 
 ---
 
@@ -36,7 +46,7 @@ git checkout initial-chrome-dino-game
 node tests/game.test.js
 ```
 
-Expected: all 4 existing test suites pass (Dinosaur Jump, Obstacle Spawning, Collision Detection, Scoring).
+Expected output: four `PASSED:` lines (Jump, Obstacle Spawning, Collision Detection, Scoring). No `FAILED:` lines.
 
 ### Expand the Node ctx mock
 
@@ -76,7 +86,7 @@ getContext: () => ({
 
 ### Add localStorage stub
 
-Inside the same `if (typeof process !== 'undefined' ...)` block, add a `localStorage` stub. Add it after the `global.cancelAnimationFrame` line:
+Inside the same `if (typeof process !== 'undefined' ...)` block, after `global.cancelAnimationFrame`, add:
 
 ```js
 global.localStorage = {
@@ -92,34 +102,31 @@ global.localStorage = {
 ```bash
 git add script.js
 git commit -m "chore: expand Node ctx mock and add localStorage stub for tests"
-```
-
-Confirm tests still pass after this commit:
-
-```bash
-node tests/game.test.js
+node tests/game.test.js  # confirm still all PASSED
 ```
 
 ---
 
 ## Task 1: Fix Jump Feel
 
+**What is currently broken:** `jumpPower = -15`, `gravity = 0.5` → peak height = 225px on a 200px canvas. The dino visually flies off the top of the screen.
+
+**What the fix is:** `jumpPower = -10`, `gravity = 0.8` → peak height = 62.5px.
+
 **Files:**
 - Modify: `script.js` — `jumpPower`, `gravity` constants; confirm ground check uses `canvas.height - dino.height`
-- Test: `tests/game.test.js` — peak height assertion
-
-**Goal:** `jumpPower = -10`, `gravity = 0.8` → peak height exactly ~62.5px by formula `v² / (2g)`.
+- Test: `tests/game.test.js`
 
 - [ ] **Step 1: Write the failing test**
 
-Append this `it` block inside the existing `describe('Dinosaur Jump', ...)` in `tests/game.test.js`:
+Append inside the existing `describe('Dinosaur Jump', ...)` in `tests/game.test.js`:
 
 ```js
-it('should have a peak jump height of ~62.5px (jumpPower^2 / (2 * gravity))', () => {
+it('should have a peak jump height of ~62.5px', () => {
   resetGame();
-  // Formula: peak = jumpPower^2 / (2 * gravity)
-  // With jumpPower=-10, gravity=0.8: peak = 100 / 1.6 = 62.5px
-  const expectedPeak = (dino.jumpPower * dino.jumpPower) / (2 * dino.gravity);
+  // Target: jumpPower=-10, gravity=0.8 → peak = 10^2 / (2*0.8) = 62.5px
+  // This test is written against the TARGET values, so it fails until constants are updated.
+  const expectedPeak = 62.5;
   jump();
   let minY = dino.y;
   const groundY = canvas.height - dino.height;
@@ -130,9 +137,9 @@ it('should have a peak jump height of ~62.5px (jumpPower^2 / (2 * gravity))', ()
     if (dino.y >= groundY) { dino.y = groundY; dino.isJumping = false; break; }
   }
   const actualPeak = groundY - minY;
-  // Allow 2px tolerance for integer rounding in the physics loop
   assert(Math.abs(actualPeak - expectedPeak) <= 2,
-    `Peak height ${actualPeak.toFixed(1)}px should be ~${expectedPeak}px (jumpPower^2 / 2g)`);
+    `Peak height ${actualPeak.toFixed(1)}px should be ~${expectedPeak}px. ` +
+    `If this passes before changing constants, the test is wrong — rewrite it.`);
 });
 ```
 
@@ -142,7 +149,7 @@ it('should have a peak jump height of ~62.5px (jumpPower^2 / (2 * gravity))', ()
 node tests/game.test.js
 ```
 
-Expected: FAILED — actual peak ~225px, expected ~62.5px.
+Expected: FAILED — actual peak ~225, expected ~62.5. If it passes, the test is wrong — see TDD guard above.
 
 - [ ] **Step 3: Fix constants in `script.js`**
 
@@ -158,17 +165,15 @@ Change to:
   gravity: 0.8,
 ```
 
-- [ ] **Step 4: Confirm ground check is dynamic (not hardcoded)**
+- [ ] **Step 4: Confirm ground check is dynamic**
 
-Search `script.js` for `>= 150`. If found in the jump landing block, replace with `>= canvas.height - dino.height`. The correct form should already be there from a prior commit; this is a verify step.
+Search `script.js` for the jump landing block. It should read `dino.y >= canvas.height - dino.height`, not `dino.y >= 150`. If you find the hardcoded `150`, replace it with `canvas.height - dino.height`.
 
 - [ ] **Step 5: Run tests — confirm all pass**
 
 ```bash
 node tests/game.test.js
 ```
-
-Expected: all pass, including the new jump height test.
 
 - [ ] **Step 6: Commit**
 
@@ -185,7 +190,7 @@ git commit -m "feat(dino): Task 1 — fix jump height (jumpPower=-10, gravity=0.
 - Modify: `script.js` — add `lastObstacleX`, replace frame-timer spawn with gap check, update `updateObstacles` and `resetGame`
 - Test: `tests/game.test.js`
 
-**Goal:** Obstacles only spawn once the previous one is ≥300px from the right edge. No more clusters at high speed.
+**Goal:** Obstacles only spawn once the previous one is ≥300px from the right edge. This task does NOT remove the per-obstacle `.speed` property — that is handled in Task 3.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -196,26 +201,23 @@ describe('Obstacle Gap Enforcement', () => {
   it('should not spawn a second obstacle until the first is 300px from right edge', () => {
     resetGame();
 
-    // Spawn first obstacle
     spawnObstacle();
     assertEquals(obstacles.length, 1, 'Should have 1 obstacle after first spawn');
 
-    // First obstacle is at canvas.width (600). It has NOT moved 300px inward yet.
-    // lastObstacleX should be 600 → 600 <= 600 - 300 (300) is false → no spawn
-    lastObstacleX = obstacles[0].x; // manually sync
-    const shouldSpawnEarly = lastObstacleX <= canvas.width - 300;
-    assert(!shouldSpawnEarly, 'Should NOT spawn when gap is not met');
+    // Obstacle spawns at canvas.width (600). Gap check: lastObstacleX <= canvas.width - 300 (300)
+    // 600 <= 300 is false → should not spawn
+    lastObstacleX = obstacles[0].x; // sync manually
+    assert(!(lastObstacleX <= canvas.width - 300), 'Gap not met — should not spawn yet');
 
-    // Move past threshold: x = 299 (moved 301px inward)
-    obstacles[0].x = canvas.width - 301;
+    // Move obstacle past threshold (301px inward from right edge)
+    obstacles[0].x = canvas.width - 301; // x = 299
     lastObstacleX = obstacles[0].x;
-    const shouldSpawnNow = lastObstacleX <= canvas.width - 300;
-    assert(shouldSpawnNow, 'Should spawn when gap threshold is met');
+    assert(lastObstacleX <= canvas.width - 300, 'Gap met — should spawn now');
   });
 });
 ```
 
-- [ ] **Step 2: Run to confirm it fails**
+- [ ] **Step 2: Run to confirm failure**
 
 ```bash
 node tests/game.test.js
@@ -223,9 +225,9 @@ node tests/game.test.js
 
 Expected: FAILED — `lastObstacleX is not defined`
 
-- [ ] **Step 3: Add `lastObstacleX` to module scope in `script.js`**
+- [ ] **Step 3: Add `lastObstacleX` to module scope**
 
-Near the other module-level variables (`score`, `gameRunning`, etc.), add:
+With the other module-level variables, add:
 
 ```js
 let lastObstacleX = -300; // Negative so first spawn triggers on frame 1
@@ -236,11 +238,12 @@ let lastObstacleX = -300; // Negative so first spawn triggers on frame 1
 At the end of `updateObstacles`, after the existing `for` loop, add:
 
 ```js
-  // Track most recently spawned obstacle (last item in push-append array)
+  // Track rightmost (most recently spawned) obstacle for gap enforcement
+  // obstacles is push-append: [oldest ... newest]; [length-1] is always newest
   lastObstacleX = obstacles.length > 0 ? obstacles[obstacles.length - 1].x : -300;
 ```
 
-- [ ] **Step 5: Replace frame-timer spawn with gap check in `gameLoop`**
+- [ ] **Step 5: Replace frame-timer spawn in `gameLoop`**
 
 Find:
 ```js
@@ -253,13 +256,13 @@ Replace with:
 ```js
   if (lastObstacleX <= canvas.width - 300) {
     spawnObstacle();
-    lastObstacleX = canvas.width; // Prevent double-spawn on same frame
+    lastObstacleX = canvas.width; // Prevent double-spawn same frame
   }
 ```
 
-- [ ] **Step 6: Remove `frameCount` and `spawnInterval` from `script.js`**
+- [ ] **Step 6: Remove `frameCount` and `spawnInterval` declarations**
 
-Remove the declarations:
+Remove:
 ```js
 let spawnInterval = 120;
 let frameCount = 0;
@@ -271,9 +274,9 @@ Remove `frameCount = 0; spawnInterval = 120;` from `resetGame()`.
 
 Add `lastObstacleX = -300;` to `resetGame()`.
 
-- [ ] **Step 7: Remove stale Node expose lines (if present)**
+- [ ] **Step 7: Clean up Node expose block**
 
-At the bottom of `script.js`, in the Node expose block, remove any `expose('frameCount', ...)` or `expose('spawnInterval', ...)` calls if they exist.
+At the bottom of `script.js`, remove any `expose('frameCount', ...)` or `expose('spawnInterval', ...)` if present.
 
 Add:
 ```js
@@ -297,13 +300,13 @@ git commit -m "feat(dino): Task 2 — replace frame-timer spawning with 300px ga
 
 ## Task 3: Difficulty Curve Cap
 
-**Prerequisite:** Task 2 must be complete. Obstacle objects must NOT have a `.speed` property after Task 2 (the spawn function no longer sets one). Verify with `node -e "require('./script.js'); spawnObstacle(); console.log(obstacles[0].speed)"` — should print `undefined`.
-
 **Files:**
-- Modify: `script.js` — remove `obstacleSpeed` const, remove `.speed` from obstacle objects, update `updateObstacles` to use `currentSpeed`, cap and ramp
+- Modify: `script.js` — remove `obstacleSpeed` const, remove `.speed` from spawned obstacle objects, update `updateObstacles` to use `currentSpeed`, update ramp and cap
 - Test: `tests/game.test.js`
 
-**Goal:** Speed caps at 5, ramps +0.3/100pts. All obstacles share `currentSpeed` (no stale per-obstacle speed).
+**Goal:** Speed caps at 5, ramps +0.3/100pts. All obstacles share `currentSpeed` looked up each frame — no stale per-obstacle speed.
+
+**Note on current state:** After Task 2, obstacles still have a `.speed` property set in `spawnObstacle`. This task removes it. The Task 3 test verifies the removal.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -311,19 +314,19 @@ Append to `tests/game.test.js`:
 
 ```js
 describe('Difficulty Curve', () => {
-  it('should cap currentSpeed at 5 regardless of score', () => {
+  it('should cap speed at 5 regardless of score', () => {
     resetGame();
     score = 2000;
     const level = Math.floor(score / 100);
     const simulatedSpeed = Math.min(2 + level * 0.3, 5);
-    assertEquals(simulatedSpeed, 5, `Speed at score 2000 should be capped at 5, got ${simulatedSpeed}`);
+    assertEquals(simulatedSpeed, 5, `Speed at score 2000 should be 5, got ${simulatedSpeed}`);
   });
 
   it('should not set a .speed property on spawned obstacles', () => {
     resetGame();
     spawnObstacle();
     assert(obstacles[0].speed === undefined,
-      `Obstacle should not have a .speed property (got: ${obstacles[0].speed})`);
+      `Obstacle should not have .speed (got: ${obstacles[0].speed}). Remove 'speed' from spawnObstacle().`);
   });
 });
 ```
@@ -334,13 +337,13 @@ describe('Difficulty Curve', () => {
 node tests/game.test.js
 ```
 
-Expected: second test fails if `.speed` is still set on obstacles.
+Expected: second test fails — obstacle has `.speed` set.
 
-- [ ] **Step 3: Remove `obstacleSpeed` const from `script.js`**
+- [ ] **Step 3: Remove `obstacleSpeed` const**
 
 Find and delete:
 ```js
-const obstacleSpeed = 2; // base speed (kept for test compatibility)
+const obstacleSpeed = 2;
 ```
 
 - [ ] **Step 4: Remove `.speed` from `spawnObstacle`**
@@ -355,7 +358,7 @@ In `spawnObstacle`, the obstacle object should be:
   };
 ```
 
-Remove the `speed: currentSpeed` line if present.
+Remove the `speed: ...` line.
 
 - [ ] **Step 5: Update `updateObstacles` to use `currentSpeed`**
 
@@ -396,7 +399,7 @@ node tests/game.test.js
 
 ```bash
 git add script.js tests/game.test.js
-git commit -m "feat(dino): Task 3 — cap speed at 5, ramp +0.3/100pts, use currentSpeed for all obstacles"
+git commit -m "feat(dino): Task 3 — cap speed at 5, ramp +0.3/100pts, remove per-obstacle speed"
 ```
 
 ---
@@ -404,12 +407,12 @@ git commit -m "feat(dino): Task 3 — cap speed at 5, ramp +0.3/100pts, use curr
 ## Task 4: Clouds
 
 **Files:**
-- Modify: `script.js` — add `clouds` array, `initClouds()`, `updateClouds()`, `drawClouds()`; expose via existing Node pattern
+- Modify: `script.js` — add `clouds` array, `initClouds()`, `updateClouds()`, `drawClouds()`; call in game loop and reset; expose via existing patterns
 - Test: `tests/game.test.js`
 
-**Goal:** 3 parallax clouds, arc-drawn, scroll at 0.3–0.6× speed. No new image assets.
+**Goal:** 3 parallax clouds, arc-drawn, scroll at 0.3–0.6× `currentSpeed` (speed is fixed at init — does not re-scale as difficulty increases). No new image assets.
 
-**Export pattern in `script.js`:** The existing code uses `Object.defineProperty(global, name, { get, set })` via a helper called `expose()` for variables, and direct `global.fnName = fnName` for functions. Use the same pattern.
+**Export pattern:** `script.js` already has an `expose()` helper (defined inside the Node guard at the bottom) and uses `global.fnName = fnName` for functions. Use the same pattern for new additions.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -418,22 +421,20 @@ Append to `tests/game.test.js`:
 ```js
 describe('Clouds', () => {
   it('should initialise 3 clouds with x, y, speed', () => {
-    resetGame();
+    resetGame(); // calls initClouds after this task
     assertEquals(clouds.length, 3, 'Should have 3 clouds after resetGame');
     clouds.forEach((c, i) => {
       assert(typeof c.x === 'number', `Cloud ${i} missing x`);
       assert(c.y >= 10 && c.y <= 50, `Cloud ${i} y=${c.y} should be 10–50`);
-      assert(c.speed > 0, `Cloud ${i} speed should be > 0`);
+      assert(c.speed > 0, `Cloud ${i} speed should be positive`);
     });
   });
 
   it('should move clouds left each frame via updateClouds', () => {
     resetGame();
-    const x0 = clouds[0].x;
-    // Place cloud well inside the canvas so it won't wrap
-    clouds[0].x = 300;
+    clouds[0].x = 300; // Place well inside canvas to avoid wrap
     updateClouds();
-    assert(clouds[0].x < 300, `Cloud x (${clouds[0].x}) should be less than 300 after updateClouds`);
+    assert(clouds[0].x < 300, `Cloud x (${clouds[0].x}) should be < 300 after updateClouds`);
   });
 });
 ```
@@ -489,7 +490,7 @@ function drawClouds() {
 
 - [ ] **Step 4: Call `initClouds()` at game start and in `resetGame()`**
 
-In `onImageLoad` (the function called after all assets load), add after `dino.y = canvas.height - dino.height`:
+In `onImageLoad`, after `dino.y = canvas.height - dino.height`, add:
 ```js
     initClouds();
 ```
@@ -501,15 +502,15 @@ In `resetGame()`, add:
 
 - [ ] **Step 5: Call `updateClouds()` and `drawClouds()` in `gameLoop`**
 
-In `gameLoop`, after `drawGround()` (and before `drawObstacles()`), add:
+In `gameLoop`, after `drawGround()` and before `drawObstacles()`, add:
 ```js
   updateClouds();
   drawClouds();
 ```
 
-- [ ] **Step 6: Expose clouds and functions for Node tests**
+- [ ] **Step 6: Expose for Node tests**
 
-In the Node expose block at the bottom of `script.js`, add:
+In the Node expose block at the bottom, add:
 ```js
   expose('clouds', { get: () => clouds });
   global.initClouds = initClouds;
@@ -527,7 +528,7 @@ node tests/game.test.js
 
 ```bash
 git add script.js tests/game.test.js
-git commit -m "feat(dino): Task 4 — add parallax clouds (3 arc-drawn, no new assets)"
+git commit -m "feat(dino): Task 4 — add parallax clouds (arc-drawn, no new assets)"
 ```
 
 ---
@@ -538,9 +539,9 @@ git commit -m "feat(dino): Task 4 — add parallax clouds (3 arc-drawn, no new a
 - Modify: `script.js` — add `getBackgroundColor()`, `stars` array, `starsInitialised` flag, `drawBackground()`; replace `ctx.clearRect` in `gameLoop`; update `drawScore` text color; reset stars in `resetGame`
 - Test: `tests/game.test.js`
 
-**Goal:** White background at score 0–299, smooth interpolation to `#1a1a2e` at 300–399, full night with 12 static stars at 400+. Text switches to white at score 300. Stars are initialised **once lazily** when score first crosses 400, then held static (no flicker). Stars are cleared and the flag reset in `resetGame()` so a new game starts clean.
+**Goal:** White at score 0–299, smooth interpolation to `#1a1a2e` at 300–399, full night with 12 static stars at 400+. Text switches to white at score 300. High score is shown **only on the Game Over screen** (Task 6) — NOT during active play.
 
-High score is shown **only on the Game Over screen** (Task 6) — it is NOT displayed during active play.
+**Star lifecycle:** Stars are initialised lazily once when `score >= 400` inside `drawBackground()`, stored in `stars[]`, rendered every frame (static — no flicker). On `resetGame()`, `stars.length = 0` and `starsInitialised = false` so the next game starts clean. `drawBackground()` is called as the very first draw call each frame (before clouds, obstacles, dino), so the sky fill clears the canvas.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -561,27 +562,27 @@ describe('Day/Night Cycle', () => {
   it('should return an intermediate color at score 350', () => {
     const color = getBackgroundColor(350);
     assert(color !== '#ffffff' && color !== '#1a1a2e',
-      `Score 350 should produce intermediate color, got ${color}`);
+      `Score 350 should be intermediate, got ${color}`);
   });
 
-  it('should initialise stars once and only once when score crosses 400', () => {
+  it('should initialise stars once at score 400 and not re-init on second call', () => {
     resetGame();
     assert(!starsInitialised, 'starsInitialised should be false after reset');
     assertEquals(stars.length, 0, 'stars should be empty after reset');
 
-    // Simulate lazy init (as drawBackground does internally)
+    // Simulate first init
     if (!starsInitialised) {
       for (let i = 0; i < 12; i++) stars.push({ x: Math.random() * 600, y: Math.random() * 100 });
       starsInitialised = true;
     }
-    assertEquals(stars.length, 12, 'Should have 12 stars after first init');
+    assertEquals(stars.length, 12, 'Should have 12 stars after init');
 
-    // Second init attempt should be blocked
-    const countBefore = stars.length;
+    // Second attempt — should be blocked
+    const before = stars.length;
     if (!starsInitialised) {
-      for (let i = 0; i < 12; i++) stars.push({ x: Math.random() * 600, y: Math.random() * 100 });
+      for (let i = 0; i < 12; i++) stars.push({ x: 0, y: 0 });
     }
-    assertEquals(stars.length, countBefore, 'Stars should not be re-initialised');
+    assertEquals(stars.length, before, 'Stars should not be re-initialised');
   });
 });
 ```
@@ -594,7 +595,7 @@ node tests/game.test.js
 
 Expected: FAILED — `getBackgroundColor is not defined`
 
-- [ ] **Step 3: Add star state and `getBackgroundColor` to `script.js`**
+- [ ] **Step 3: Add night state and functions**
 
 After the cloud declarations, add:
 
@@ -606,18 +607,15 @@ let starsInitialised = false;
 function getBackgroundColor(s) {
   if (s < 300) return '#ffffff';
   if (s >= 400) return '#1a1a2e';
-  const t = (s - 300) / 100; // 0 at score 300, 1 at score 400
+  const t = (s - 300) / 100;
   const r = Math.round(255 + (26 - 255) * t);
   const g = Math.round(255 + (26 - 255) * t);
   const b = Math.round(255 + (46 - 255) * t);
   return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
 }
-```
 
-- [ ] **Step 4: Add `drawBackground()` function**
-
-```js
 function drawBackground() {
+  // Fill sky — this clears the canvas each frame
   ctx.fillStyle = getBackgroundColor(score);
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -629,7 +627,7 @@ function drawBackground() {
     starsInitialised = true;
   }
 
-  // Draw static stars at night
+  // Draw static stars
   if (starsInitialised) {
     ctx.fillStyle = '#ffffff';
     stars.forEach(s => ctx.fillRect(s.x, s.y, 2, 2));
@@ -637,19 +635,19 @@ function drawBackground() {
 }
 ```
 
-- [ ] **Step 5: Replace `ctx.clearRect` in `gameLoop` with `drawBackground()`**
+- [ ] **Step 4: Replace `ctx.clearRect` in `gameLoop` with `drawBackground()`**
 
-Find in `gameLoop`:
+Find:
 ```js
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 ```
 
 Replace with:
 ```js
-  drawBackground();
+  drawBackground(); // sky fill + stars; must be first draw call each frame
 ```
 
-- [ ] **Step 6: Update `drawScore` text color for night**
+- [ ] **Step 5: Update `drawScore` text color**
 
 Find:
 ```js
@@ -661,15 +659,15 @@ Replace with:
   ctx.fillStyle = score >= 300 ? '#ffffff' : '#000000';
 ```
 
-- [ ] **Step 7: Reset star state in `resetGame()`**
+- [ ] **Step 6: Reset star state in `resetGame()`**
 
-Add to `resetGame()`:
+Add:
 ```js
   stars.length = 0;
   starsInitialised = false;
 ```
 
-- [ ] **Step 8: Expose for Node tests**
+- [ ] **Step 7: Expose for Node tests**
 
 In the Node expose block, add:
 ```js
@@ -679,13 +677,13 @@ In the Node expose block, add:
   global.drawBackground = drawBackground;
 ```
 
-- [ ] **Step 9: Run tests — confirm all pass**
+- [ ] **Step 8: Run tests — confirm all pass**
 
 ```bash
 node tests/game.test.js
 ```
 
-- [ ] **Step 10: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add script.js tests/game.test.js
@@ -697,10 +695,10 @@ git commit -m "feat(dino): Task 5 — day/night cycle with smooth transition and
 ## Task 6: Game Over Overlay + High Score
 
 **Files:**
-- Modify: `script.js` — add `highScore` from localStorage, update on collision, rewrite `drawGameOverScreen`
+- Modify: `script.js` — add `highScore` loaded from localStorage, update on collision, rewrite `drawGameOverScreen`
 - Test: `tests/game.test.js`
 
-**Scope note:** High score is displayed **only on the Game Over screen**. It is NOT shown during active play (no HUD change).
+**Scope:** High score is displayed ONLY on the Game Over screen. It is NOT shown as a HUD element during active play.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -711,7 +709,7 @@ describe('High Score', () => {
   it('should update highScore and localStorage when score exceeds best', () => {
     resetGame();
     localStorage.setItem('dino-high-score', '50');
-    highScore = 50; // sync the in-memory value
+    highScore = 50;
     score = 100;
 
     if (Math.floor(score) > highScore) {
@@ -721,19 +719,18 @@ describe('High Score', () => {
 
     assertEquals(highScore, 100, `highScore should be 100, got ${highScore}`);
     assertEquals(localStorage.getItem('dino-high-score'), '100',
-      'localStorage should store updated high score');
+      'localStorage should store updated value');
   });
 
-  it('should NOT update highScore when current score is lower', () => {
+  it('should NOT update highScore when score is lower', () => {
     highScore = 200;
     score = 50;
 
     if (Math.floor(score) > highScore) {
       highScore = Math.floor(score);
-      localStorage.setItem('dino-high-score', highScore);
     }
 
-    assertEquals(highScore, 200, 'highScore should remain 200');
+    assertEquals(highScore, 200, 'highScore should stay at 200');
   });
 });
 ```
@@ -748,15 +745,15 @@ Expected: FAILED — `highScore is not defined`
 
 - [ ] **Step 3: Add `highScore` to module scope**
 
-With the other module-level variable declarations, add:
+With the other module-level variables, add:
 
 ```js
 let highScore = parseInt(localStorage.getItem('dino-high-score') || '0');
 ```
 
-- [ ] **Step 4: Update high score on game over (in `gameLoop`)**
+- [ ] **Step 4: Update high score on game over**
 
-In the collision block, before `drawGameOverScreen()`, add:
+In the collision block in `gameLoop`, before `drawGameOverScreen()`:
 
 ```js
       if (Math.floor(score) > highScore) {
@@ -766,8 +763,6 @@ In the collision block, before `drawGameOverScreen()`, add:
 ```
 
 - [ ] **Step 5: Rewrite `drawGameOverScreen`**
-
-Replace the entire function body:
 
 ```js
 function drawGameOverScreen() {
@@ -791,8 +786,6 @@ function drawGameOverScreen() {
 
 - [ ] **Step 6: Expose `highScore` for Node tests**
 
-In the Node expose block, add:
-
 ```js
   expose('highScore', { get: () => highScore, set: v => { highScore = v; } });
 ```
@@ -803,18 +796,18 @@ In the Node expose block, add:
 node tests/game.test.js
 ```
 
-Expected: all tests pass.
+Expected: all tests pass. Count `PASSED:` lines — should match total test count.
 
 - [ ] **Step 8: Browser smoke test**
 
 Open `index.html` in a browser. Verify:
 - [ ] Dino jumps to a reasonable height (not off-screen)
 - [ ] Obstacles do not cluster
-- [ ] Clouds scroll in the background at a parallax depth
-- [ ] Sky darkens gradually past score 300; stars appear at 400
+- [ ] Clouds scroll in the background
+- [ ] Sky darkens past score 300; stars appear at score 400
 - [ ] Score text turns white at score 300
 - [ ] Game Over shows "Score: X" and "Best: Y"
-- [ ] Reload the page — "Best: Y" persists from previous run
+- [ ] Reload the page — "Best: Y" persists from previous session
 
 - [ ] **Step 9: Commit**
 
@@ -829,8 +822,8 @@ git commit -m "feat(dino): Task 6 — high score persistence and updated Game Ov
 
 All 6 tasks complete. The game now has:
 - Tuned jump arc (~62.5px peak, snappy feel)
-- Gap-enforced obstacle spawning (no clusters, 300px minimum gap)
-- Capped difficulty curve (speed 2→5, plateaus at ~score 1000)
+- Gap-enforced obstacle spawning (300px minimum, no clusters)
+- Capped difficulty curve (speed 2→5, plateaus at score ~1000)
 - Parallax clouds (3 arc-drawn, no new assets)
 - Day/night cycle with smooth transition and static stars at score 400+
 - High score on Game Over screen, persisted across sessions via localStorage
