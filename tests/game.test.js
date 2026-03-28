@@ -141,6 +141,26 @@ describe('Dinosaur Jump', () => {
       });
     });
   });
+
+  it('should have a peak jump height of ~62.5px', () => {
+    resetGame();
+    // Target: jumpPower=-10, gravity=0.8 → peak = 10^2 / (2*0.8) = 62.5px
+    // This test is written against the TARGET values, so it fails until constants are updated.
+    const expectedPeak = 62.5;
+    jump();
+    let minY = dino.y;
+    const groundY = canvas.height - dino.height;
+    for (let i = 0; i < 60; i++) {
+      dino.velocityY += dino.gravity;
+      dino.y += dino.velocityY;
+      if (dino.y < minY) minY = dino.y;
+      if (dino.y >= groundY) { dino.y = groundY; dino.isJumping = false; break; }
+    }
+    const actualPeak = groundY - minY;
+    assert(Math.abs(actualPeak - expectedPeak) <= 5,
+      `Peak height ${actualPeak.toFixed(1)}px should be ~${expectedPeak}px. ` +
+      `If this passes before changing constants, the test is wrong — rewrite it.`);
+  });
 });
 
 describe('Obstacle Spawning & Movement', () => {
