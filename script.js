@@ -128,6 +128,40 @@ function drawClouds() {
   });
 }
 
+// Day/Night state
+const stars = [];
+let starsInitialised = false;
+
+function getBackgroundColor(s) {
+  if (s < 300) return '#ffffff';
+  if (s >= 400) return '#1a1a2e';
+  const t = (s - 300) / 100;
+  const r = Math.round(255 + (26 - 255) * t);
+  const g = Math.round(255 + (26 - 255) * t);
+  const b = Math.round(255 + (46 - 255) * t);
+  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+function drawBackground() {
+  // Fill sky — this clears the canvas each frame
+  ctx.fillStyle = getBackgroundColor(score);
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Lazy init stars once when score crosses 400
+  if (score >= 400 && !starsInitialised) {
+    for (let i = 0; i < 12; i++) {
+      stars.push({ x: Math.random() * canvas.width, y: Math.random() * 100 });
+    }
+    starsInitialised = true;
+  }
+
+  // Draw static stars
+  if (starsInitialised) {
+    ctx.fillStyle = '#ffffff';
+    stars.forEach(s => ctx.fillRect(s.x, s.y, 2, 2));
+  }
+}
+
 // Image loading — wait for all 6 assets before starting
 let imagesLoaded = 0;
 const totalImages = 6;
@@ -215,7 +249,7 @@ function updateObstacles() {
 
 // Draw score function
 function drawScore() {
-  ctx.fillStyle = 'black';
+  ctx.fillStyle = score >= 300 ? '#ffffff' : '#000000';
   ctx.font = '20px Arial';
   ctx.fillText('Score: ' + Math.floor(score), canvas.width - 150, 30);
 }
@@ -305,6 +339,8 @@ function resetGame() {
   currentSpeed = 2;
   lastObstacleX = -300;
   gameRunning = true;
+  stars.length = 0;
+  starsInitialised = false;
   initClouds();
 }
 
@@ -326,8 +362,7 @@ function gameLoop() {
   groundX -= currentSpeed;
   if (groundImage.width && groundX <= -groundImage.width) groundX = 0;
 
-  // Clear canvas
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawBackground(); // sky fill + stars; must be first draw call each frame
 
   // Render: ground → clouds → obstacles → dino → score
   drawGround();
@@ -392,6 +427,10 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   expose('lastObstacleX', { get: () => lastObstacleX, set: v => { lastObstacleX = v; } });
   expose('currentSpeed', { get: () => currentSpeed, set: v => { currentSpeed = v; } });
   expose('clouds', { get: () => clouds });
+  expose('stars', { get: () => stars });
+  expose('starsInitialised', { get: () => starsInitialised, set: v => { starsInitialised = v; } });
+  global.getBackgroundColor = getBackgroundColor;
+  global.drawBackground = drawBackground;
   global.initClouds = initClouds;
   global.updateClouds = updateClouds;
   global.drawClouds = drawClouds;

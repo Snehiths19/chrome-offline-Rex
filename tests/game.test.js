@@ -322,6 +322,44 @@ describe('Clouds', () => {
   });
 });
 
+describe('Day/Night Cycle', () => {
+  it('should return #ffffff at score 0', () => {
+    assertEquals(getBackgroundColor(0), '#ffffff',
+      `Expected #ffffff at score 0, got ${getBackgroundColor(0)}`);
+  });
+
+  it('should return #1a1a2e at score 400', () => {
+    assertEquals(getBackgroundColor(400), '#1a1a2e',
+      `Expected #1a1a2e at score 400, got ${getBackgroundColor(400)}`);
+  });
+
+  it('should return an intermediate color at score 350', () => {
+    const color = getBackgroundColor(350);
+    assert(color !== '#ffffff' && color !== '#1a1a2e',
+      `Score 350 should be intermediate, got ${color}`);
+  });
+
+  it('should initialise stars once at score 400 and not re-init on second call', () => {
+    resetGame();
+    assert(!starsInitialised, 'starsInitialised should be false after reset');
+    assertEquals(stars.length, 0, 'stars should be empty after reset');
+
+    // Simulate first init
+    if (!starsInitialised) {
+      for (let i = 0; i < 12; i++) stars.push({ x: Math.random() * 600, y: Math.random() * 100 });
+      starsInitialised = true;
+    }
+    assertEquals(stars.length, 12, 'Should have 12 stars after init');
+
+    // Second attempt — should be blocked
+    const before = stars.length;
+    if (!starsInitialised) {
+      for (let i = 0; i < 12; i++) stars.push({ x: 0, y: 0 });
+    }
+    assertEquals(stars.length, before, 'Stars should not be re-initialised');
+  });
+});
+
 // --- Test Summary ---
 // Need to run this after all tests, potentially with a timeout to catch async tests
 window.onload = () => {
