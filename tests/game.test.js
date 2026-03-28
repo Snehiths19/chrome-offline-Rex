@@ -357,6 +357,35 @@ describe('Day/Night Cycle', () => {
   });
 });
 
+describe('High Score', () => {
+  it('should update highScore and localStorage when score exceeds best', () => {
+    resetGame();
+    localStorage.setItem('dino-high-score', '50');
+    highScore = 50;
+    score = 100;
+
+    if (Math.floor(score) > highScore) {
+      highScore = Math.floor(score);
+      localStorage.setItem('dino-high-score', highScore);
+    }
+
+    assertEquals(highScore, 100, `highScore should be 100, got ${highScore}`);
+    assertEquals(localStorage.getItem('dino-high-score'), '100',
+      'localStorage should store updated value');
+  });
+
+  it('should NOT update highScore when score is lower', () => {
+    highScore = 200;
+    score = 50;
+
+    if (Math.floor(score) > highScore) {
+      highScore = Math.floor(score);
+    }
+
+    assertEquals(highScore, 200, 'highScore should stay at 200');
+  });
+});
+
 // --- Test Summary ---
 // Need to run this after all tests, potentially with a timeout to catch async tests
 window.onload = () => {

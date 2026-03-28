@@ -88,6 +88,7 @@ let lastObstacleX = -300; // Negative so first spawn triggers on frame 1
 let gameRunning = true;
 let animationFrameId;
 let score = 0;
+let highScore = parseInt(localStorage.getItem('dino-high-score') || '0');
 
 // Animation / visual state
 let animFrame = 0;  // increments each game loop tick
@@ -315,15 +316,17 @@ function drawGameOverScreen() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   ctx.fillStyle = 'white';
-  ctx.font = '40px Arial';
   ctx.textAlign = 'center';
-  ctx.fillText('Game Over', canvas.width / 2, canvas.height / 2 - 40);
+
+  ctx.font = '40px Arial';
+  ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 50);
 
   ctx.font = '20px Arial';
-  ctx.fillText('Final Score: ' + Math.floor(score), canvas.width / 2, canvas.height / 2);
+  ctx.fillText('Score: ' + Math.floor(score), canvas.width / 2, canvas.height / 2 - 10);
+  ctx.fillText('Best: ' + highScore, canvas.width / 2, canvas.height / 2 + 20);
 
   ctx.font = '16px Arial';
-  ctx.fillText('Tap / Press Space to Restart', canvas.width / 2, canvas.height / 2 + 40);
+  ctx.fillText('Tap / Press Space to Restart', canvas.width / 2, canvas.height / 2 + 55);
 }
 
 // Function to reset game state
@@ -384,6 +387,10 @@ function gameLoop() {
     if (checkCollision(dino, obstacles[i])) {
       gameRunning = false;
       cancelAnimationFrame(animationFrameId);
+      if (Math.floor(score) > highScore) {
+        highScore = Math.floor(score);
+        localStorage.setItem('dino-high-score', highScore);
+      }
       drawGameOverScreen();
       return;
     }
@@ -422,6 +429,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   expose('dino', { get: () => dino });
   expose('obstacles', { get: () => obstacles });
   expose('score', { get: () => score, set: (v) => { score = v; } });
+  expose('highScore', { get: () => highScore, set: v => { highScore = v; } });
   expose('gameRunning', { get: () => gameRunning, set: (v) => { gameRunning = v; } });
   expose('animationFrameId', { get: () => animationFrameId, set: (v) => { animationFrameId = v; } });
   expose('lastObstacleX', { get: () => lastObstacleX, set: v => { lastObstacleX = v; } });
