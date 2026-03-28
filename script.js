@@ -83,7 +83,6 @@ obstacleImage.src = 'assets/cactus.png';
 const obstacles = [];
 const obstacleWidth = 20;
 const obstacleHeight = 40;
-const obstacleSpeed = 2; // base speed (kept for test compatibility)
 let currentSpeed = 2;   // actual speed used, updated with difficulty
 let lastObstacleX = -300; // Negative so first spawn triggers on frame 1
 let gameRunning = true;
@@ -153,7 +152,6 @@ function spawnObstacle() {
     y: canvas.height - obstacleHeight,
     width: obstacleWidth,
     height: obstacleHeight,
-    speed: currentSpeed
   };
   obstacles.push(obstacle);
 }
@@ -168,7 +166,7 @@ function drawObstacles() {
 // Update obstacles function (moves and removes off-screen ones)
 function updateObstacles() {
   for (let i = obstacles.length - 1; i >= 0; i--) {
-    obstacles[i].x -= obstacles[i].speed;
+    obstacles[i].x -= currentSpeed;
     if (obstacles[i].x + obstacles[i].width < 0) {
       obstacles.splice(i, 1);
     }
@@ -285,7 +283,7 @@ function gameLoop() {
 
   // Difficulty scaling — every 100 points increase speed
   const level = Math.floor(score / 100);
-  currentSpeed = 2 + level * 0.5;
+  currentSpeed = Math.min(2 + level * 0.3, 5);
 
   // Scroll ground
   groundX -= currentSpeed;

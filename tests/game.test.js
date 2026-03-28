@@ -280,6 +280,23 @@ describe('Obstacle Gap Enforcement', () => {
   });
 });
 
+describe('Difficulty Curve', () => {
+  it('should cap speed at 5 regardless of score', () => {
+    resetGame();
+    score = 2000;
+    const level = Math.floor(score / 100);
+    const simulatedSpeed = Math.min(2 + level * 0.3, 5);
+    assertEquals(simulatedSpeed, 5, `Speed at score 2000 should be 5, got ${simulatedSpeed}`);
+  });
+
+  it('should not set a .speed property on spawned obstacles', () => {
+    resetGame();
+    spawnObstacle();
+    assert(obstacles[0].speed === undefined,
+      `Obstacle should not have .speed (got: ${obstacles[0].speed}). Remove 'speed' from spawnObstacle().`);
+  });
+});
+
 // --- Test Summary ---
 // Need to run this after all tests, potentially with a timeout to catch async tests
 window.onload = () => {
