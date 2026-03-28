@@ -252,21 +252,31 @@ describe('Scoring', () => {
 });
 
 describe('Obstacle Gap Enforcement', () => {
-  it('should not spawn a second obstacle until the first is 300px from right edge', () => {
+  it('should not spawn a second obstacle until the first has moved 300px from right edge', () => {
     resetGame();
+    gameRunning = true;
 
-    spawnObstacle();
-    assertEquals(obstacles.length, 1, 'Should have 1 obstacle after first spawn');
+    // Frame 1: lastObstacleX starts at -300, so gap check passes → first obstacle spawns
+    gameLoop();
+    assertEquals(obstacles.length, 1, 'Should have 1 obstacle after first gameLoop frame');
 
-    // Obstacle spawns at canvas.width (600). Gap check: lastObstacleX <= canvas.width - 300 (300)
-    // 600 <= 300 is false → should not spawn
-    lastObstacleX = obstacles[0].x; // sync manually
-    assert(!(lastObstacleX <= canvas.width - 300), 'Gap not met — should not spawn yet');
+    // Frame 2: first obstacle just spawned at canvas.width (600)
+    // lastObstacleX was set to canvas.width (600) at spawn
+    // After updateObstacles moves it by currentSpeed (~2px), it's at ~598 — still far from threshold (300)
+    // So no second spawn
+    gameLoop();
+    assertEquals(obstacles.length, 1, 'Should still be 1 obstacle — gap not yet met');
 
-    // Move obstacle past threshold (301px inward from right edge)
+    // Now force the obstacle to just past the threshold
     obstacles[0].x = canvas.width - 301; // x = 299
-    lastObstacleX = obstacles[0].x;
-    assert(lastObstacleX <= canvas.width - 300, 'Gap met — should spawn now');
+    lastObstacleX = obstacles[0].x; // sync (simulating what updateObstacles would set)
+
+    // Next frame should spawn a second obstacle
+    gameLoop();
+    assertEquals(obstacles.length, 2, 'Should now be 2 obstacles — gap threshold met');
+
+    gameRunning = false;
+    cancelAnimationFrame(animationFrameId);
   });
 });
 

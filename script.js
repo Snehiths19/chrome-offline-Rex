@@ -297,12 +297,13 @@ function gameLoop() {
   // Render: ground → obstacles → dino → score
   drawGround();
 
+  updateObstacles();
+
   if (lastObstacleX <= canvas.width - 300) {
     spawnObstacle();
     lastObstacleX = canvas.width; // Prevent double-spawn same frame
   }
 
-  updateObstacles();
   drawObstacles();
 
   // Check for collisions
