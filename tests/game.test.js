@@ -303,6 +303,25 @@ describe('Difficulty Curve', () => {
   });
 });
 
+describe('Clouds', () => {
+  it('should initialise 3 clouds with x, y, speed', () => {
+    resetGame(); // calls initClouds after this task
+    assertEquals(clouds.length, 3, 'Should have 3 clouds after resetGame');
+    clouds.forEach((c, i) => {
+      assert(typeof c.x === 'number', `Cloud ${i} missing x`);
+      assert(c.y >= 10 && c.y <= 50, `Cloud ${i} y=${c.y} should be 10–50`);
+      assert(c.speed > 0, `Cloud ${i} speed should be positive`);
+    });
+  });
+
+  it('should move clouds left each frame via updateClouds', () => {
+    resetGame();
+    clouds[0].x = 300; // Place well inside canvas to avoid wrap
+    updateClouds();
+    assert(clouds[0].x < 300, `Cloud x (${clouds[0].x}) should be < 300 after updateClouds`);
+  });
+});
+
 // --- Test Summary ---
 // Need to run this after all tests, potentially with a timeout to catch async tests
 window.onload = () => {

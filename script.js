@@ -93,6 +93,41 @@ let score = 0;
 let animFrame = 0;  // increments each game loop tick
 let groundX = 0;    // scrolling offset for ground sprite
 
+// Clouds
+const clouds = [];
+
+function initClouds() {
+  clouds.length = 0;
+  for (let i = 0; i < 3; i++) {
+    clouds.push({
+      x: Math.random() * canvas.width,
+      y: 10 + Math.random() * 40,
+      speed: (0.3 + Math.random() * 0.3) * currentSpeed, // static after init
+    });
+  }
+}
+
+function updateClouds() {
+  clouds.forEach(c => {
+    c.x -= c.speed;
+    if (c.x + 60 < 0) {
+      c.x = canvas.width + 20;
+      c.y = 10 + Math.random() * 40;
+    }
+  });
+}
+
+function drawClouds() {
+  ctx.fillStyle = '#e8e8e8';
+  clouds.forEach(c => {
+    [[0, 0, 18], [-18, 8, 14], [18, 8, 14]].forEach(([dx, dy, r]) => {
+      ctx.beginPath();
+      ctx.arc(c.x + dx, c.y + dy, r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  });
+}
+
 // Image loading — wait for all 6 assets before starting
 let imagesLoaded = 0;
 const totalImages = 6;
@@ -101,6 +136,7 @@ function onImageLoad() {
   imagesLoaded++;
   if (imagesLoaded === totalImages) {
     dino.y = canvas.height - dino.height;
+    initClouds();
     drawDino();
     gameLoop();
   }
@@ -269,6 +305,7 @@ function resetGame() {
   currentSpeed = 2;
   lastObstacleX = -300;
   gameRunning = true;
+  initClouds();
 }
 
 // Game loop
@@ -292,8 +329,11 @@ function gameLoop() {
   // Clear canvas
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Render: ground → obstacles → dino → score
+  // Render: ground → clouds → obstacles → dino → score
   drawGround();
+
+  updateClouds();
+  drawClouds();
 
   updateObstacles();
 
@@ -351,6 +391,10 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   expose('animationFrameId', { get: () => animationFrameId, set: (v) => { animationFrameId = v; } });
   expose('lastObstacleX', { get: () => lastObstacleX, set: v => { lastObstacleX = v; } });
   expose('currentSpeed', { get: () => currentSpeed, set: v => { currentSpeed = v; } });
+  expose('clouds', { get: () => clouds });
+  global.initClouds = initClouds;
+  global.updateClouds = updateClouds;
+  global.drawClouds = drawClouds;
   global.spawnObstacle = spawnObstacle;
   global.updateObstacles = updateObstacles;
   global.drawObstacles = drawObstacles;
