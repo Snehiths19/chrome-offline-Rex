@@ -333,10 +333,13 @@ describe('Day/Night Cycle', () => {
       `Expected #1a1a2e at score 400, got ${getBackgroundColor(400)}`);
   });
 
-  it('should return an intermediate color at score 350', () => {
-    const color = getBackgroundColor(350);
-    assert(color !== '#ffffff' && color !== '#1a1a2e',
-      `Score 350 should be intermediate, got ${color}`);
+  it('should return the correct interpolated color at score 350', () => {
+    // t = (350 - 300) / 100 = 0.5
+    // r = round(255 + (26 - 255) * 0.5) = round(255 - 114.5) = round(140.5) = 141 = 0x8d
+    // g = round(255 + (26 - 255) * 0.5) = 141 = 0x8d
+    // b = round(255 + (46 - 255) * 0.5) = round(255 - 104.5) = round(150.5) = 151 = 0x97
+    assertEquals(getBackgroundColor(350), '#8d8d97',
+      `Score 350 (t=0.5) should produce midpoint color #8d8d97`);
   });
 
   it('should initialise stars once at score 400 and not re-init on second call', () => {
@@ -344,19 +347,13 @@ describe('Day/Night Cycle', () => {
     assert(!starsInitialised, 'starsInitialised should be false after reset');
     assertEquals(stars.length, 0, 'stars should be empty after reset');
 
-    // Simulate first init
-    if (!starsInitialised) {
-      for (let i = 0; i < 12; i++) stars.push({ x: Math.random() * 600, y: Math.random() * 100 });
-      starsInitialised = true;
-    }
-    assertEquals(stars.length, 12, 'Should have 12 stars after init');
+    score = 400;
+    drawBackground(); // triggers real init path in production code
+    assertEquals(stars.length, 12, 'Should have 12 stars after first drawBackground at score 400');
+    assert(starsInitialised, 'starsInitialised should be true');
 
-    // Second attempt — should be blocked
-    const before = stars.length;
-    if (!starsInitialised) {
-      for (let i = 0; i < 12; i++) stars.push({ x: 0, y: 0 });
-    }
-    assertEquals(stars.length, before, 'Stars should not be re-initialised');
+    drawBackground(); // second call — must not push more stars
+    assertEquals(stars.length, 12, 'Stars should not be re-initialised on second call');
   });
 });
 
