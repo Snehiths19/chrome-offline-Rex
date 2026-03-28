@@ -102,7 +102,7 @@ function initClouds() {
     clouds.push({
       x: Math.random() * canvas.width,
       y: 10 + Math.random() * 40,
-      speed: (0.3 + Math.random() * 0.3) * currentSpeed, // static after init
+      speed: 0.3 + Math.random() * 0.3, // px/frame, fixed parallax (always slower than obstacles)
     });
   }
 }
