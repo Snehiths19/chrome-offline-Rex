@@ -85,8 +85,7 @@ const obstacleWidth = 20;
 const obstacleHeight = 40;
 const obstacleSpeed = 2; // base speed (kept for test compatibility)
 let currentSpeed = 2;   // actual speed used, updated with difficulty
-let spawnInterval = 120; // frames between spawns, updated with difficulty
-let frameCount = 0;
+let lastObstacleX = -300; // Negative so first spawn triggers on frame 1
 let gameRunning = true;
 let animationFrameId;
 let score = 0;
@@ -174,6 +173,10 @@ function updateObstacles() {
       obstacles.splice(i, 1);
     }
   }
+
+  // Track rightmost (most recently spawned) obstacle for gap enforcement
+  // obstacles is push-append: [oldest ... newest]; [length-1] is always newest
+  lastObstacleX = obstacles.length > 0 ? obstacles[obstacles.length - 1].x : -300;
 }
 
 // Draw score function
@@ -263,11 +266,10 @@ function resetGame() {
 
   obstacles.length = 0;
   score = 0;
-  frameCount = 0;
   animFrame = 0;
   groundX = 0;
   currentSpeed = 2;
-  spawnInterval = 120;
+  lastObstacleX = -300;
   gameRunning = true;
 }
 
@@ -278,14 +280,12 @@ function gameLoop() {
     return;
   }
 
-  frameCount++;
   score += 0.1;
   animFrame++;
 
-  // Difficulty scaling — every 100 points increase speed and reduce spawn interval
+  // Difficulty scaling — every 100 points increase speed
   const level = Math.floor(score / 100);
   currentSpeed = 2 + level * 0.5;
-  spawnInterval = Math.max(60, 120 - level * 10);
 
   // Scroll ground
   groundX -= currentSpeed;
@@ -297,8 +297,9 @@ function gameLoop() {
   // Render: ground → obstacles → dino → score
   drawGround();
 
-  if (frameCount % spawnInterval === 0) {
+  if (lastObstacleX <= canvas.width - 300) {
     spawnObstacle();
+    lastObstacleX = canvas.width; // Prevent double-spawn same frame
   }
 
   updateObstacles();
@@ -349,7 +350,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   expose('score', { get: () => score, set: (v) => { score = v; } });
   expose('gameRunning', { get: () => gameRunning, set: (v) => { gameRunning = v; } });
   expose('animationFrameId', { get: () => animationFrameId, set: (v) => { animationFrameId = v; } });
-  expose('frameCount', { get: () => frameCount, set: (v) => { frameCount = v; } });
+  expose('lastObstacleX', { get: () => lastObstacleX, set: v => { lastObstacleX = v; } });
   global.spawnObstacle = spawnObstacle;
   global.updateObstacles = updateObstacles;
   global.drawObstacles = drawObstacles;

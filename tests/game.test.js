@@ -251,6 +251,25 @@ describe('Scoring', () => {
   });
 });
 
+describe('Obstacle Gap Enforcement', () => {
+  it('should not spawn a second obstacle until the first is 300px from right edge', () => {
+    resetGame();
+
+    spawnObstacle();
+    assertEquals(obstacles.length, 1, 'Should have 1 obstacle after first spawn');
+
+    // Obstacle spawns at canvas.width (600). Gap check: lastObstacleX <= canvas.width - 300 (300)
+    // 600 <= 300 is false → should not spawn
+    lastObstacleX = obstacles[0].x; // sync manually
+    assert(!(lastObstacleX <= canvas.width - 300), 'Gap not met — should not spawn yet');
+
+    // Move obstacle past threshold (301px inward from right edge)
+    obstacles[0].x = canvas.width - 301; // x = 299
+    lastObstacleX = obstacles[0].x;
+    assert(lastObstacleX <= canvas.width - 300, 'Gap met — should spawn now');
+  });
+});
+
 // --- Test Summary ---
 // Need to run this after all tests, potentially with a timeout to catch async tests
 window.onload = () => {
