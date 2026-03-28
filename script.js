@@ -350,6 +350,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   expose('gameRunning', { get: () => gameRunning, set: (v) => { gameRunning = v; } });
   expose('animationFrameId', { get: () => animationFrameId, set: (v) => { animationFrameId = v; } });
   expose('lastObstacleX', { get: () => lastObstacleX, set: v => { lastObstacleX = v; } });
+  expose('currentSpeed', { get: () => currentSpeed, set: v => { currentSpeed = v; } });
   global.spawnObstacle = spawnObstacle;
   global.updateObstacles = updateObstacles;
   global.drawObstacles = drawObstacles;

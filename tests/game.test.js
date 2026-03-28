@@ -281,12 +281,18 @@ describe('Obstacle Gap Enforcement', () => {
 });
 
 describe('Difficulty Curve', () => {
-  it('should cap speed at 5 regardless of score', () => {
+  it('should cap currentSpeed at 5 regardless of score', () => {
     resetGame();
+    gameRunning = true;
+
+    // Set score high enough to trigger max speed
     score = 2000;
-    const level = Math.floor(score / 100);
-    const simulatedSpeed = Math.min(2 + level * 0.3, 5);
-    assertEquals(simulatedSpeed, 5, `Speed at score 2000 should be 5, got ${simulatedSpeed}`);
+    gameLoop(); // one frame to recalculate currentSpeed from score
+
+    gameRunning = false;
+    cancelAnimationFrame(animationFrameId);
+
+    assertEquals(currentSpeed, 5, `currentSpeed at score 2000 should be 5, got ${currentSpeed}`);
   });
 
   it('should not set a .speed property on spawned obstacles', () => {
