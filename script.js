@@ -12,6 +12,18 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
             clearRect: () => {},
             fillRect: () => {},
             fillText: () => {},
+            arc: () => {},
+            beginPath: () => {},
+            closePath: () => {},
+            fill: () => {},
+            stroke: () => {},
+            moveTo: () => {},
+            lineTo: () => {},
+            measureText: () => ({ width: 0 }),
+            fillStyle: '',
+            strokeStyle: '',
+            font: '',
+            textAlign: '',
           }),
           addEventListener: () => {},
         };
@@ -26,6 +38,12 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
     return id;
   };
   global.cancelAnimationFrame = (id) => clearImmediate(id);
+  global.localStorage = {
+    _store: {},
+    getItem(k) { return this._store[k] !== undefined ? this._store[k] : null; },
+    setItem(k, v) { this._store[k] = String(v); },
+    removeItem(k) { delete this._store[k]; },
+  };
   window.document = global.document;
 }
 
