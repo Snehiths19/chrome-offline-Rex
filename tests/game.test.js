@@ -360,14 +360,14 @@ describe('Day/Night Cycle', () => {
 describe('High Score', () => {
   it('should update highScore and localStorage when score exceeds best', () => {
     resetGame();
-    localStorage.setItem('dino-high-score', '50');
-    highScore = 50;
+    // Place a colliding obstacle at the dino's position so gameLoop triggers collision path
+    obstacles.push({ x: 50, y: canvas.height - 40, width: 20, height: 40 });
+    gameRunning = true;
     score = 100;
+    highScore = 50;
+    localStorage.setItem('dino-high-score', '50');
 
-    if (Math.floor(score) > highScore) {
-      highScore = Math.floor(score);
-      localStorage.setItem('dino-high-score', highScore);
-    }
+    gameLoop(); // collision detected → high score update path runs
 
     assertEquals(highScore, 100, `highScore should be 100, got ${highScore}`);
     assertEquals(localStorage.getItem('dino-high-score'), '100',
@@ -375,12 +375,14 @@ describe('High Score', () => {
   });
 
   it('should NOT update highScore when score is lower', () => {
-    highScore = 200;
+    resetGame();
+    // Place a colliding obstacle at the dino's position so gameLoop triggers collision path
+    obstacles.push({ x: 50, y: canvas.height - 40, width: 20, height: 40 });
+    gameRunning = true;
     score = 50;
+    highScore = 200;
 
-    if (Math.floor(score) > highScore) {
-      highScore = Math.floor(score);
-    }
+    gameLoop(); // collision detected → high score branch skipped (50 < 200)
 
     assertEquals(highScore, 200, 'highScore should stay at 200');
   });
