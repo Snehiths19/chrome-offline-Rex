@@ -360,9 +360,11 @@ describe('Day/Night Cycle', () => {
 describe('High Score', () => {
   it('should update highScore and localStorage when score exceeds best', () => {
     resetGame();
+    localStorage.removeItem('dino-high-score'); // clear any state from prior tests
     // Place a colliding obstacle at the dino's position so gameLoop triggers collision path
     obstacles.push({ x: 50, y: canvas.height - 40, width: 20, height: 40 });
     gameRunning = true;
+    // gameLoop() increments score by 0.1 before the collision check; Math.floor(100.1) = 100
     score = 100;
     highScore = 50;
     localStorage.setItem('dino-high-score', '50');
@@ -376,6 +378,7 @@ describe('High Score', () => {
 
   it('should NOT update highScore when score is lower', () => {
     resetGame();
+    localStorage.removeItem('dino-high-score'); // clear any state from prior tests
     // Place a colliding obstacle at the dino's position so gameLoop triggers collision path
     obstacles.push({ x: 50, y: canvas.height - 40, width: 20, height: 40 });
     gameRunning = true;
@@ -385,6 +388,8 @@ describe('High Score', () => {
     gameLoop(); // collision detected → high score branch skipped (50 < 200)
 
     assertEquals(highScore, 200, 'highScore should stay at 200');
+    assertEquals(localStorage.getItem('dino-high-score'), null,
+      'localStorage should not be written when score is lower');
   });
 });
 
