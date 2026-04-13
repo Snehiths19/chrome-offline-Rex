@@ -142,10 +142,11 @@ describe('Dinosaur Jump', () => {
     });
   });
 
-  it('should have a peak jump height of ~99px', () => {
+  it('should have a peak jump height of ~115px', () => {
     resetGame();
-    // Target: jumpPower=-13, gravity=0.8 → peak ≈ 13^2 / (2*0.8) = 105px (formula approx); simulation gives ~99px
-    const expectedPeak = 99;
+    // Target: jumpPower=-11, gravity=0.5 → peak ≈ 115.5px
+    // gravity=0.5 keeps dino airborne ~34 frames; obstacle needs 30 frames to cross — 4-frame timing margin
+    const expectedPeak = 115;
     jump();
     let minY = dino.y;
     const groundY = canvas.height - dino.height;
