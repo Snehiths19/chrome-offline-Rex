@@ -85,6 +85,7 @@ const obstacleWidth = 20;
 const obstacleHeight = 40;
 let currentSpeed = 2;   // actual speed used, updated with difficulty
 let lastObstacleX = -300; // Negative so first spawn triggers on frame 1
+let graceFrames = 180;   // ~3 s at 60 fps before first obstacle spawns
 let gameRunning = true;
 let animationFrameId;
 let score = 0;
@@ -341,6 +342,7 @@ function resetGame() {
   groundX = 0;
   currentSpeed = 2;
   lastObstacleX = -300;
+  graceFrames = 180;
   gameRunning = true;
   stars.length = 0;
   starsInitialised = false;
@@ -375,9 +377,15 @@ function gameLoop() {
 
   updateObstacles();
 
-  if (lastObstacleX <= canvas.width - 300) {
-    spawnObstacle();
-    lastObstacleX = canvas.width; // Prevent double-spawn same frame
+  if (graceFrames > 0) {
+    graceFrames--;
+  } else {
+    // Gap shrinks from 500px (easy start) down to 300px minimum as speed climbs
+    const spawnGap = Math.max(300, Math.round(500 - (currentSpeed - 2) * 100));
+    if (lastObstacleX <= canvas.width - spawnGap) {
+      spawnObstacle();
+      lastObstacleX = canvas.width;
+    }
   }
 
   drawObstacles();
@@ -434,6 +442,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   expose('animationFrameId', { get: () => animationFrameId, set: (v) => { animationFrameId = v; } });
   expose('lastObstacleX', { get: () => lastObstacleX, set: v => { lastObstacleX = v; } });
   expose('currentSpeed', { get: () => currentSpeed, set: v => { currentSpeed = v; } });
+  expose('graceFrames', { get: () => graceFrames, set: v => { graceFrames = v; } });
   expose('clouds', { get: () => clouds });
   expose('stars', { get: () => stars });
   expose('starsInitialised', { get: () => starsInitialised, set: v => { starsInitialised = v; } });

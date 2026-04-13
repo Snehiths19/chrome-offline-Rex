@@ -252,28 +252,27 @@ describe('Scoring', () => {
 });
 
 describe('Obstacle Gap Enforcement', () => {
-  it('should not spawn a second obstacle until the first has moved 300px from right edge', () => {
+  it('should not spawn a second obstacle until the dynamic gap threshold is met', () => {
     resetGame();
+    graceFrames = 0; // bypass 3-second grace period so spawning is active
     gameRunning = true;
 
-    // Frame 1: lastObstacleX starts at -300, so gap check passes → first obstacle spawns
+    // Frame 1: grace period is 0 and lastObstacleX=-300 ≤ canvas.width-spawnGap → first spawn
     gameLoop();
     assertEquals(obstacles.length, 1, 'Should have 1 obstacle after first gameLoop frame');
 
-    // Frame 2: first obstacle just spawned at canvas.width (600)
-    // lastObstacleX was set to canvas.width (600) at spawn
-    // After updateObstacles moves it by currentSpeed (~2px), it's at ~598 — still far from threshold (300)
-    // So no second spawn
+    // Frame 2: obstacle just spawned at x=600; at speed=2 the dynamic gap is 500px
+    // threshold = canvas.width - 500 = 100; obstacle is at ~598 — well above threshold
     gameLoop();
-    assertEquals(obstacles.length, 1, 'Should still be 1 obstacle — gap not yet met');
+    assertEquals(obstacles.length, 1, 'Should still be 1 obstacle — dynamic gap (500px at speed 2) not met');
 
-    // Now force the obstacle to just past the threshold
-    obstacles[0].x = canvas.width - 301; // x = 299
-    lastObstacleX = obstacles[0].x; // sync (simulating what updateObstacles would set)
+    // Force obstacle just past the dynamic threshold (canvas.width - 500 - 1 = 99)
+    obstacles[0].x = canvas.width - 501; // x = 99
+    lastObstacleX = obstacles[0].x;
 
     // Next frame should spawn a second obstacle
     gameLoop();
-    assertEquals(obstacles.length, 2, 'Should now be 2 obstacles — gap threshold met');
+    assertEquals(obstacles.length, 2, 'Should now be 2 obstacles — dynamic gap threshold met');
 
     gameRunning = false;
     cancelAnimationFrame(animationFrameId);
