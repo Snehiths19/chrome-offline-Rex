@@ -59,7 +59,7 @@ const dino = {
   height: 50,
   velocityY: 0,
   gravity: 0.8,
-  jumpPower: -10,
+  jumpPower: -13,
   isJumping: false,
   image: new Image()
 };

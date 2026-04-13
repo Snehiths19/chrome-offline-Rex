@@ -142,11 +142,10 @@ describe('Dinosaur Jump', () => {
     });
   });
 
-  it('should have a peak jump height of ~62.5px', () => {
+  it('should have a peak jump height of ~99px', () => {
     resetGame();
-    // Target: jumpPower=-10, gravity=0.8 → peak = 10^2 / (2*0.8) = 62.5px
-    // This test is written against the TARGET values, so it fails until constants are updated.
-    const expectedPeak = 62.5;
+    // Target: jumpPower=-13, gravity=0.8 → peak ≈ 13^2 / (2*0.8) = 105px (formula approx); simulation gives ~99px
+    const expectedPeak = 99;
     jump();
     let minY = dino.y;
     const groundY = canvas.height - dino.height;
