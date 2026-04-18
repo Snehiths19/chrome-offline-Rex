@@ -1,25 +1,5 @@
-// --- Node Environment Setup ---
 if (typeof window === 'undefined') {
-  global.document = {
-    getElementById: (id) => {
-      if (id === 'gameCanvas') {
-        return {
-          width: 600,
-          height: 200,
-          getContext: () => ({
-            drawImage: () => {},
-            clearRect: () => {},
-            fillRect: () => {},
-            fillText: () => {},
-          }),
-        };
-      }
-      return {};
-    },
-    addEventListener: () => {},
-  };
   require('../script.js');
-  window.document = global.document;
 }
 
 // --- Test Utilities ---
@@ -98,7 +78,7 @@ function assertNotEquals(actual, unexpected, message = `Expected value not to be
 
 // Prevent game from auto-starting if it does so on image load
 if (typeof cancelAnimationFrame === 'function' && typeof animationFrameId !== 'undefined') {
-    cancelAnimationFrame(animationFrameId); 
+    cancelAnimationFrame(animationFrameId);
 }
 gameRunning = false; // Stop game loop if it was started
 
@@ -107,7 +87,7 @@ describe('Dinosaur Jump', () => {
   it('should change Y position upwards then downwards when jump is called', (done) => {
     resetGame(); // Reset game state
     gameRunning = true; // Allow one controlled loop
-    
+
     const initialY = dino.y;
     jump(); // Initiate jump
     assert(dino.isJumping, 'Dino should be in jumping state');
@@ -117,14 +97,14 @@ describe('Dinosaur Jump', () => {
     requestAnimationFrame(() => {
       gameLoop(); // First frame: dino moves up
       assert(dino.y < initialY, `Dino Y (${dino.y}) should be less than initial Y (${initialY}) after 1st frame`);
-      
+
       requestAnimationFrame(() => {
         gameLoop(); // Second frame: gravity starts affecting
         // Depending on gravity and jumpPower, it might still be going up or start coming down.
         // The key is that its position is being updated by the physics.
-        
+
         let frames = 0;
-        const maxFrames = 20; // Wait for dino to land or maxFrames
+        const maxFrames = 60; // Wait for dino to land or maxFrames (new airtime ~50 frames)
         function waitForLanding() {
             if (frames++ >= maxFrames || !dino.isJumping) {
                 assert(!dino.isJumping, `Dino should have landed (isJumping is false). Current Y: ${dino.y}, VelocityY: ${dino.velocityY}`);
@@ -142,11 +122,11 @@ describe('Dinosaur Jump', () => {
     });
   });
 
-  it('should have a peak jump height of ~115px', () => {
+  it('should have a peak jump height of ~144px', () => {
+    // jumpPower=-12, gravity=0.48 → peak ≈ 144px
     resetGame();
-    // Target: jumpPower=-11, gravity=0.5 → peak ≈ 115.5px
-    // gravity=0.5 keeps dino airborne ~34 frames; obstacle needs 30 frames to cross — 4-frame timing margin
-    const expectedPeak = 115;
+    gameRunning = true; // needed so jump() guard passes (gameState must be RUNNING)
+    const expectedPeak = 144;
     jump();
     let minY = dino.y;
     const groundY = canvas.height - dino.height;
@@ -254,20 +234,20 @@ describe('Scoring', () => {
 describe('Obstacle Gap Enforcement', () => {
   it('should not spawn a second obstacle until the dynamic gap threshold is met', () => {
     resetGame();
-    graceFrames = 0; // bypass 3-second grace period so spawning is active
+    graceFrames = 0; // bypass grace period so spawning is active
     gameRunning = true;
 
-    // Frame 1: grace period is 0 and lastObstacleX=-300 ≤ canvas.width-spawnGap → first spawn
+    // Frame 1: lastObstacleX=-300 ≤ canvas.width-spawnGap(600) → first spawn
     gameLoop();
     assertEquals(obstacles.length, 1, 'Should have 1 obstacle after first gameLoop frame');
 
-    // Frame 2: obstacle just spawned at x=600; at speed=2 the dynamic gap is 500px
-    // threshold = canvas.width - 500 = 100; obstacle is at ~598 — well above threshold
+    // Frame 2: obstacle just spawned at x=600; dynamic gap is 600px at speed=2
+    // threshold = canvas.width - 600 = 0; obstacle is at ~598 — well above threshold
     gameLoop();
-    assertEquals(obstacles.length, 1, 'Should still be 1 obstacle — dynamic gap (500px at speed 2) not met');
+    assertEquals(obstacles.length, 1, 'Should still be 1 obstacle — dynamic gap (600px at speed 2) not met');
 
-    // Force obstacle just past the dynamic threshold (canvas.width - 500 - 1 = 99)
-    obstacles[0].x = canvas.width - 501; // x = 99
+    // Force obstacle just past the dynamic threshold (canvas.width - 600 - 1 = -1)
+    obstacles[0].x = canvas.width - 601; // x = -1
     lastObstacleX = obstacles[0].x;
 
     // Next frame should spawn a second obstacle
@@ -347,12 +327,16 @@ describe('Day/Night Cycle', () => {
     assertEquals(stars.length, 0, 'stars should be empty after reset');
 
     score = 400;
-    drawBackground(); // triggers real init path in production code
-    assertEquals(stars.length, 12, 'Should have 12 stars after first drawBackground at score 400');
+    gameRunning = true;  // → gameState = STATE.RUNNING via shim
+    graceFrames = 0;
+    gameLoop();          // triggers star init in RUNNING branch
+    assertEquals(stars.length, 12, 'Should have 12 stars after first gameLoop at score 400');
     assert(starsInitialised, 'starsInitialised should be true');
 
-    drawBackground(); // second call — must not push more stars
+    gameLoop();          // second call — must not re-init
     assertEquals(stars.length, 12, 'Stars should not be re-initialised on second call');
+    gameRunning = false;
+    cancelAnimationFrame(animationFrameId);
   });
 });
 

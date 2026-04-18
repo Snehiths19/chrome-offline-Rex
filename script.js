@@ -1,4 +1,4 @@
-// Minimal DOM stubs so the game can run in Node for tests
+// == SECTION 1: NODE STUBS ==
 if (typeof process !== 'undefined' && process.versions && process.versions.node) {
   global.window = {};
   global.document = {
@@ -20,10 +20,14 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
             moveTo: () => {},
             lineTo: () => {},
             measureText: () => ({ width: 0 }),
+            save: () => {},
+            restore: () => {},
+            translate: () => {},
             fillStyle: '',
             strokeStyle: '',
             font: '',
             textAlign: '',
+            globalAlpha: 1,
           }),
           addEventListener: () => {},
         };
@@ -47,24 +51,80 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   window.document = global.document;
 }
 
-// Get canvas and context
+// == SECTION 2: CONFIGURATION ==
+
+const GAME_CONFIG = Object.freeze({
+  // Physics
+  JUMP_POWER:              -12,
+  GRAVITY:                  0.48,
+  INITIAL_SPEED:            2.0,
+  SPEED_CAP:                5.0,
+  SPEED_INCREMENT:          0.3,
+  SCORE_PER_LEVEL:        100,
+  SCORE_INCREMENT:          0.1,
+
+  // Hitbox forgiveness (rendering uses full sprite; collision uses shrunken box)
+  DINO_PAD_X:               8,
+  DINO_PAD_Y_TOP:           8,
+  DINO_PAD_Y_BOT:           2,
+  OBS_PAD_X:                3,
+  OBS_PAD_Y:                2,
+
+  // Spawning
+  GRACE_FRAMES:           240,
+  MAX_SPAWN_GAP:          600,
+  MIN_SPAWN_GAP:          340,
+  SPAWN_GAP_SPEED_FACTOR: 100,
+
+  // Obstacle sprite
+  OBS_WIDTH:               20,
+  OBS_HEIGHT:              40,
+
+  // Dino sprite
+  DINO_X:                  50,
+  DINO_WIDTH:              40,
+  DINO_HEIGHT:             50,
+
+  // Clouds
+  CLOUD_COUNT:              3,
+  CLOUD_MIN_Y:             10,
+  CLOUD_Y_RANGE:           40,
+  CLOUD_MIN_SPEED:          0.3,
+  CLOUD_SPEED_RANGE:        0.3,
+
+  // Day / Night
+  DAY_NIGHT_START:        300,
+  DAY_NIGHT_END:          400,
+  STAR_COUNT:              12,
+
+  // Animation
+  RUN_FRAME_PERIOD:        10,
+});
+
+const STATE = Object.freeze({
+  LOADING: 'LOADING',
+  WAITING: 'WAITING',
+  RUNNING: 'RUNNING',
+  DEAD:    'DEAD',
+});
+
+// == SECTION 3: ASSET LOADING ==
+
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// Dinosaur properties
 const dino = {
-  x: 50,
+  x: GAME_CONFIG.DINO_X,
   y: 150,
-  width: 40,
-  height: 50,
+  width: GAME_CONFIG.DINO_WIDTH,
+  height: GAME_CONFIG.DINO_HEIGHT,
   velocityY: 0,
-  gravity: 0.5,
-  jumpPower: -11,
+  gravity: GAME_CONFIG.GRAVITY,
+  jumpPower: GAME_CONFIG.JUMP_POWER,
   isJumping: false,
-  image: new Image()
+  image: new Image(),
 };
 
-// Load dinosaur images
 dino.image.src = 'assets/dino-stationary.png';
 
 const dinoRunImages = [new Image(), new Image()];
@@ -77,94 +137,9 @@ dinoLoseImage.src = 'assets/dino-lose.png';
 const groundImage = new Image();
 groundImage.src = 'assets/ground.png';
 
-// Obstacle properties
 const obstacleImage = new Image();
 obstacleImage.src = 'assets/cactus.png';
-const obstacles = [];
-const obstacleWidth = 20;
-const obstacleHeight = 40;
-let currentSpeed = 2;   // actual speed used, updated with difficulty
-let lastObstacleX = -300; // Negative so first spawn triggers on frame 1
-let graceFrames = 180;   // ~3 s at 60 fps before first obstacle spawns
-let gameRunning = true;
-let animationFrameId;
-let score = 0;
-let highScore = parseInt(localStorage.getItem('dino-high-score') || '0');
 
-// Animation / visual state
-let animFrame = 0;  // increments each game loop tick
-let groundX = 0;    // scrolling offset for ground sprite
-
-// Clouds
-const clouds = [];
-
-function initClouds() {
-  clouds.length = 0;
-  for (let i = 0; i < 3; i++) {
-    clouds.push({
-      x: Math.random() * canvas.width,
-      y: 10 + Math.random() * 40,
-      speed: 0.3 + Math.random() * 0.3, // px/frame, fixed parallax (always slower than obstacles)
-    });
-  }
-}
-
-function updateClouds() {
-  clouds.forEach(c => {
-    c.x -= c.speed;
-    if (c.x + 60 < 0) {
-      c.x = canvas.width + 20;
-      c.y = 10 + Math.random() * 40;
-    }
-  });
-}
-
-function drawClouds() {
-  ctx.fillStyle = '#e8e8e8';
-  clouds.forEach(c => {
-    [[0, 0, 18], [-18, 8, 14], [18, 8, 14]].forEach(([dx, dy, r]) => {
-      ctx.beginPath();
-      ctx.arc(c.x + dx, c.y + dy, r, 0, Math.PI * 2);
-      ctx.fill();
-    });
-  });
-}
-
-// Day/Night state
-const stars = [];
-let starsInitialised = false;
-
-function getBackgroundColor(s) {
-  if (s < 300) return '#ffffff';
-  if (s >= 400) return '#1a1a2e';
-  const t = (s - 300) / 100;
-  const r = Math.round(255 + (26 - 255) * t);
-  const g = Math.round(255 + (26 - 255) * t);
-  const b = Math.round(255 + (46 - 255) * t);
-  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
-}
-
-function drawBackground() {
-  // Fill sky — this clears the canvas each frame
-  ctx.fillStyle = getBackgroundColor(score);
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // Lazy init stars once when score crosses 400
-  if (score >= 400 && !starsInitialised) {
-    for (let i = 0; i < 12; i++) {
-      stars.push({ x: Math.random() * canvas.width, y: Math.random() * 100 });
-    }
-    starsInitialised = true;
-  }
-
-  // Draw static stars
-  if (starsInitialised) {
-    ctx.fillStyle = '#ffffff';
-    stars.forEach(s => ctx.fillRect(s.x, s.y, 2, 2));
-  }
-}
-
-// Image loading — wait for all 6 assets before starting
 let imagesLoaded = 0;
 const totalImages = 6;
 
@@ -174,13 +149,14 @@ function onImageLoad() {
     dino.y = canvas.height - dino.height;
     initClouds();
     drawDino();
+    gameState = STATE.WAITING;
     gameLoop();
   }
 }
 
 function onImageError() {
   console.warn('A game asset failed to load. Continuing with fallback rendering.');
-  onImageLoad(); // still count it so the game starts
+  onImageLoad();
 }
 
 dino.image.onload = onImageLoad;
@@ -196,122 +172,129 @@ groundImage.onerror = onImageError;
 obstacleImage.onload = onImageLoad;
 obstacleImage.onerror = onImageError;
 
-// Draw dinosaur — uses animated run frames on ground, stationary in air, lose sprite on game over
-function drawDino() {
-  let img;
-  if (!gameRunning) {
-    img = dinoLoseImage;
-  } else if (dino.isJumping) {
-    img = dino.image; // stationary sprite looks fine mid-air
-  } else {
-    img = dinoRunImages[Math.floor(animFrame / 10) % 2];
-  }
-  ctx.drawImage(img, dino.x, dino.y, dino.width, dino.height);
+// == SECTION 4: GAME STATE ==
+
+let gameState = STATE.LOADING;
+const obstacles = [];
+let currentSpeed = GAME_CONFIG.INITIAL_SPEED;
+let lastObstacleX = -300;
+let graceFrames = GAME_CONFIG.GRACE_FRAMES;
+let animationFrameId;
+let score = 0;
+let highScore = parseInt(localStorage.getItem('dino-high-score') || '0');
+let animFrame = 0;
+let groundX = 0;
+const clouds = [];
+const stars = [];
+let starsInitialised = false;
+let deathShakeFrames = 0;
+let milestoneText = '';
+let milestoneFrames = 0;
+let newBestFrames = 0;
+let newBestShown = false;
+
+// == SECTION 5: RENDERING ==
+
+function getBackgroundColor(s) {
+  if (s < GAME_CONFIG.DAY_NIGHT_START) return '#ffffff';
+  if (s >= GAME_CONFIG.DAY_NIGHT_END) return '#1a1a2e';
+  const t = (s - GAME_CONFIG.DAY_NIGHT_START) / (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
+  const r = Math.round(255 + (26 - 255) * t);
+  const g = Math.round(255 + (26 - 255) * t);
+  const b = Math.round(255 + (46 - 255) * t);
+  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
 }
 
-// Draw scrolling ground
+function drawBackground() {
+  ctx.fillStyle = getBackgroundColor(score);
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  if (starsInitialised) {
+    ctx.fillStyle = '#ffffff';
+    stars.forEach(s => ctx.fillRect(s.x, s.y, 2, 2));
+  }
+}
+
+function initClouds() {
+  clouds.length = 0;
+  for (let i = 0; i < GAME_CONFIG.CLOUD_COUNT; i++) {
+    clouds.push({
+      x: Math.random() * canvas.width,
+      y: GAME_CONFIG.CLOUD_MIN_Y + Math.random() * GAME_CONFIG.CLOUD_Y_RANGE,
+      speed: GAME_CONFIG.CLOUD_MIN_SPEED + Math.random() * GAME_CONFIG.CLOUD_SPEED_RANGE,
+    });
+  }
+}
+
+function updateClouds() {
+  clouds.forEach(c => {
+    c.x -= c.speed;
+    if (c.x + 60 < 0) {
+      c.x = canvas.width + 20;
+      c.y = GAME_CONFIG.CLOUD_MIN_Y + Math.random() * GAME_CONFIG.CLOUD_Y_RANGE;
+    }
+  });
+}
+
+function drawClouds() {
+  ctx.fillStyle = '#e8e8e8';
+  clouds.forEach(c => {
+    [[0, 0, 18], [-18, 8, 14], [18, 8, 14]].forEach(([dx, dy, r]) => {
+      ctx.beginPath();
+      ctx.arc(c.x + dx, c.y + dy, r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  });
+}
+
 function drawGround() {
-  if (!groundImage.width) return; // fallback: skip if image not loaded
+  if (!groundImage.width) return;
   const groundY = canvas.height - groundImage.height;
   ctx.drawImage(groundImage, groundX, groundY, groundImage.width, groundImage.height);
   ctx.drawImage(groundImage, groundX + groundImage.width, groundY, groundImage.width, groundImage.height);
 }
 
-// Spawn obstacle function
-function spawnObstacle() {
-  const obstacle = {
-    x: canvas.width,
-    y: canvas.height - obstacleHeight,
-    width: obstacleWidth,
-    height: obstacleHeight,
-  };
-  obstacles.push(obstacle);
-}
-
-// Draw obstacles function
 function drawObstacles() {
   obstacles.forEach(obstacle => {
     ctx.drawImage(obstacleImage, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
   });
 }
 
-// Update obstacles function (moves and removes off-screen ones)
-function updateObstacles() {
-  for (let i = obstacles.length - 1; i >= 0; i--) {
-    obstacles[i].x -= currentSpeed;
-    if (obstacles[i].x + obstacles[i].width < 0) {
-      obstacles.splice(i, 1);
-    }
+function drawDino() {
+  let img;
+  if (gameState === STATE.DEAD) {
+    img = dinoLoseImage;
+  } else if (dino.isJumping) {
+    img = dino.image;
+  } else {
+    img = dinoRunImages[Math.floor(animFrame / GAME_CONFIG.RUN_FRAME_PERIOD) % 2];
   }
-
-  // Track rightmost (most recently spawned) obstacle for gap enforcement
-  // obstacles is push-append: [oldest ... newest]; [length-1] is always newest
-  lastObstacleX = obstacles.length > 0 ? obstacles[obstacles.length - 1].x : -300;
+  ctx.drawImage(img, dino.x, dino.y, dino.width, dino.height);
 }
 
-// Draw score function
 function drawScore() {
-  ctx.fillStyle = score >= 300 ? '#ffffff' : '#000000';
+  ctx.fillStyle = score >= GAME_CONFIG.DAY_NIGHT_START ? '#ffffff' : '#000000';
   ctx.font = '20px Arial';
+  ctx.textAlign = 'left';
   ctx.fillText('Score: ' + Math.floor(score), canvas.width - 150, 30);
 }
 
-// Collision detection function
-function checkCollision(dino, obstacle) {
-  return (
-    dino.x < obstacle.x + obstacle.width &&
-    dino.x + dino.width > obstacle.x &&
-    dino.y < obstacle.y + obstacle.height &&
-    dino.y + dino.height > obstacle.y
-  );
-}
-
-// Jump function
-function jump() {
-  if (!dino.isJumping) {
-    dino.velocityY = dino.jumpPower;
-    dino.isJumping = true;
-  }
-}
-
-// Shared handler for any "action" input (jump while running, restart while dead)
-function handleAction() {
-  if (gameRunning) {
-    jump();
+function drawGetReadyOverlay() {
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  if (graceFrames > GAME_CONFIG.GRACE_FRAMES * 0.33) {
+    ctx.font = '28px Arial';
+    ctx.fillText('GET READY', canvas.width / 2, canvas.height / 2 - 10);
+    ctx.font = '14px Arial';
+    ctx.fillText('Press Space / Tap to jump', canvas.width / 2, canvas.height / 2 + 16);
   } else {
-    resetGame();
-    gameLoop();
+    const step = Math.ceil(GAME_CONFIG.GRACE_FRAMES / 9);
+    const count = Math.ceil(graceFrames / step);
+    ctx.font = '48px Arial';
+    ctx.fillText(count || 'GO!', canvas.width / 2, canvas.height / 2 + 16);
   }
 }
 
-// Keyboard input — Space, ArrowUp, W
-document.addEventListener('keydown', (event) => {
-  if (event.code === 'Space' || event.code === 'ArrowUp' || event.code === 'KeyW') {
-    event.preventDefault(); // prevent page scroll on spacebar/arrow
-    handleAction();
-  }
-});
-
-// Mouse click on canvas (desktop)
-canvas.addEventListener('click', handleAction);
-
-// Touch on canvas (mobile)
-canvas.addEventListener('touchstart', (event) => {
-  event.preventDefault();
-  handleAction();
-}, { passive: false });
-
-// On-screen jump button (mobile)
-const jumpBtn = document.getElementById('jump-btn');
-if (jumpBtn) {
-  jumpBtn.addEventListener('touchstart', (event) => {
-    event.preventDefault();
-    handleAction();
-  }, { passive: false });
-  jumpBtn.addEventListener('click', handleAction);
-}
-
-// Function to draw Game Over screen
 function drawGameOverScreen() {
   ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -330,7 +313,108 @@ function drawGameOverScreen() {
   ctx.fillText('Tap / Press Space to Restart', canvas.width / 2, canvas.height / 2 + 55);
 }
 
-// Function to reset game state
+function drawMilestoneFlash() {
+  if (milestoneFrames <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = milestoneFrames / 90;
+  ctx.fillStyle = score >= GAME_CONFIG.DAY_NIGHT_START ? '#ffffff' : '#000000';
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 22px Arial';
+  ctx.fillText(milestoneText, canvas.width / 2, canvas.height / 2 - 30);
+  ctx.restore();
+  milestoneFrames--;
+}
+
+function drawNewBestBadge() {
+  if (newBestFrames <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = newBestFrames / 120;
+  ctx.fillStyle = '#ffd700';
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 14px Arial';
+  ctx.fillText('NEW BEST!', canvas.width - 150, 70);
+  ctx.restore();
+  newBestFrames--;
+}
+
+// == SECTION 6: PHYSICS & GAME LOGIC ==
+
+function spawnObstacle() {
+  obstacles.push({
+    x: canvas.width,
+    y: canvas.height - GAME_CONFIG.OBS_HEIGHT,
+    width: GAME_CONFIG.OBS_WIDTH,
+    height: GAME_CONFIG.OBS_HEIGHT,
+  });
+}
+
+function updateObstacles() {
+  for (let i = obstacles.length - 1; i >= 0; i--) {
+    obstacles[i].x -= currentSpeed;
+    if (obstacles[i].x + obstacles[i].width < 0) {
+      obstacles.splice(i, 1);
+    }
+  }
+  lastObstacleX = obstacles.length > 0 ? obstacles[obstacles.length - 1].x : -300;
+}
+
+function checkCollision(dino, obstacle) {
+  const dx = GAME_CONFIG.DINO_PAD_X,  dyt = GAME_CONFIG.DINO_PAD_Y_TOP,
+        dyb = GAME_CONFIG.DINO_PAD_Y_BOT;
+  const ox = GAME_CONFIG.OBS_PAD_X,   oy = GAME_CONFIG.OBS_PAD_Y;
+
+  const dl = dino.x + dx,        dr = dino.x + dino.width - dx;
+  const dt = dino.y + dyt,       db = dino.y + dino.height - dyb;
+  const ol = obstacle.x + ox,    or_ = obstacle.x + obstacle.width - ox;
+  const ot = obstacle.y + oy,    ob = obstacle.y + obstacle.height;
+
+  return dl < or_ && dr > ol && dt < ob && db > ot;
+}
+
+function jump() {
+  if (gameState !== STATE.RUNNING) return;
+  if (!dino.isJumping) {
+    dino.velocityY = dino.jumpPower;
+    dino.isJumping = true;
+  }
+}
+
+// == SECTION 7: INPUT HANDLERS ==
+
+function handleAction() {
+  if (gameState === STATE.RUNNING) {
+    jump();
+  } else if (gameState === STATE.DEAD) {
+    resetGame();
+    gameLoop();
+  }
+}
+
+document.addEventListener('keydown', (event) => {
+  if (event.code === 'Space' || event.code === 'ArrowUp' || event.code === 'KeyW') {
+    event.preventDefault();
+    handleAction();
+  }
+});
+
+canvas.addEventListener('click', handleAction);
+
+canvas.addEventListener('touchstart', (event) => {
+  event.preventDefault();
+  handleAction();
+}, { passive: false });
+
+const jumpBtn = document.getElementById('jump-btn');
+if (jumpBtn) {
+  jumpBtn.addEventListener('touchstart', (event) => {
+    event.preventDefault();
+    handleAction();
+  }, { passive: false });
+  jumpBtn.addEventListener('click', handleAction);
+}
+
+// == SECTION 8: GAME LOOP ==
+
 function resetGame() {
   dino.y = canvas.height - dino.height;
   dino.velocityY = 0;
@@ -340,66 +424,113 @@ function resetGame() {
   score = 0;
   animFrame = 0;
   groundX = 0;
-  currentSpeed = 2;
+  currentSpeed = GAME_CONFIG.INITIAL_SPEED;
   lastObstacleX = -300;
-  graceFrames = 180;
-  gameRunning = true;
+  graceFrames = GAME_CONFIG.GRACE_FRAMES;
+  gameState = STATE.WAITING;
   stars.length = 0;
   starsInitialised = false;
+  deathShakeFrames = 0;
+  milestoneFrames = 0;
+  newBestFrames = 0;
+  newBestShown = false;
   initClouds();
 }
 
-// Game loop
 function gameLoop() {
-  if (!gameRunning) {
-    drawGameOverScreen();
+  // DEAD — 12-frame screen shake, then game over overlay
+  if (gameState === STATE.DEAD) {
+    if (deathShakeFrames > 0) {
+      ctx.save();
+      ctx.translate(Math.sin(deathShakeFrames * 1.5) * 4, 0);
+      drawBackground();
+      drawGround();
+      drawClouds();
+      drawObstacles();
+      drawDino();
+      drawScore();
+      ctx.restore();
+      deathShakeFrames--;
+      animationFrameId = requestAnimationFrame(gameLoop);
+    } else {
+      drawGameOverScreen();
+    }
     return;
   }
 
-  score += 0.1;
+  // WAITING — grace period countdown + GET READY overlay
+  if (gameState === STATE.WAITING) {
+    graceFrames--;
+    if (graceFrames <= 0) gameState = STATE.RUNNING;
+    drawBackground();
+    drawGround();
+    updateClouds();
+    drawClouds();
+    drawDino();
+    drawScore();
+    drawGetReadyOverlay();
+    animationFrameId = requestAnimationFrame(gameLoop);
+    return;
+  }
+
+  // RUNNING — full game logic
+  const prevLevel = Math.floor(score / GAME_CONFIG.SCORE_PER_LEVEL);
+  score += GAME_CONFIG.SCORE_INCREMENT;
   animFrame++;
 
-  // Difficulty scaling — every 100 points increase speed
-  const level = Math.floor(score / 100);
-  currentSpeed = Math.min(2 + level * 0.3, 5);
+  const level = Math.floor(score / GAME_CONFIG.SCORE_PER_LEVEL);
+  currentSpeed = Math.min(
+    GAME_CONFIG.INITIAL_SPEED + level * GAME_CONFIG.SPEED_INCREMENT,
+    GAME_CONFIG.SPEED_CAP
+  );
+
+  // Milestone flash on level-up
+  if (level > prevLevel && level > 0) {
+    milestoneText = 'LEVEL ' + (level + 1);
+    milestoneFrames = 90;
+  }
 
   // Scroll ground
   groundX -= currentSpeed;
   if (groundImage.width && groundX <= -groundImage.width) groundX = 0;
 
-  drawBackground(); // sky fill + stars; must be first draw call each frame
+  // Lazy-init stars once when score enters night
+  if (score >= GAME_CONFIG.DAY_NIGHT_END && !starsInitialised) {
+    for (let i = 0; i < GAME_CONFIG.STAR_COUNT; i++) {
+      stars.push({ x: Math.random() * canvas.width, y: Math.random() * 100 });
+    }
+    starsInitialised = true;
+  }
 
-  // Render: ground → clouds → obstacles → dino → score
+  drawBackground();
   drawGround();
-
   updateClouds();
   drawClouds();
-
   updateObstacles();
 
-  if (graceFrames > 0) {
-    graceFrames--;
-  } else {
-    // Gap shrinks from 500px (easy start) down to 300px minimum as speed climbs
-    const spawnGap = Math.max(300, Math.round(500 - (currentSpeed - 2) * 100));
-    if (lastObstacleX <= canvas.width - spawnGap) {
-      spawnObstacle();
-      lastObstacleX = canvas.width;
-    }
+  // Obstacle spawning
+  const spawnGap = Math.max(
+    GAME_CONFIG.MIN_SPAWN_GAP,
+    Math.round(GAME_CONFIG.MAX_SPAWN_GAP - (currentSpeed - GAME_CONFIG.INITIAL_SPEED) * GAME_CONFIG.SPAWN_GAP_SPEED_FACTOR)
+  );
+  if (lastObstacleX <= canvas.width - spawnGap) {
+    spawnObstacle();
+    lastObstacleX = canvas.width;
   }
 
   drawObstacles();
 
-  // Check for collisions
+  // Collision detection
   for (let i = 0; i < obstacles.length; i++) {
     if (checkCollision(dino, obstacles[i])) {
-      gameRunning = false;
+      gameState = STATE.DEAD;
+      deathShakeFrames = 12;
       cancelAnimationFrame(animationFrameId);
       if (Math.floor(score) > highScore) {
         highScore = Math.floor(score);
         localStorage.setItem('dino-high-score', highScore);
       }
-      drawGameOverScreen();
+      animationFrameId = requestAnimationFrame(gameLoop);
       return;
     }
   }
@@ -416,13 +547,24 @@ function gameLoop() {
     }
   }
 
+  // NEW BEST badge — first time score exceeds high score this run
+  if (!newBestShown && highScore > 0 && Math.floor(score) > highScore) {
+    newBestShown = true;
+    newBestFrames = 120;
+  }
+
   drawDino();
   drawScore();
+  drawMilestoneFlash();
+  drawNewBestBadge();
 
   animationFrameId = requestAnimationFrame(gameLoop);
 }
 
-// Expose variables and functions when running under Node (for tests)
+// == SECTION 9: INITIALISATION ==
+// Game starts automatically once all assets fire onImageLoad / onImageError above.
+
+// == SECTION 10: TEST EXPOSURE (Node only) ==
 if (typeof process !== 'undefined' && process.versions && process.versions.node) {
   const expose = (name, getterSetter) => {
     Object.defineProperty(global, name, {
@@ -438,7 +580,11 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   expose('obstacles', { get: () => obstacles });
   expose('score', { get: () => score, set: (v) => { score = v; } });
   expose('highScore', { get: () => highScore, set: v => { highScore = v; } });
-  expose('gameRunning', { get: () => gameRunning, set: (v) => { gameRunning = v; } });
+  // Backward-compat shim: tests use gameRunning = true/false
+  expose('gameRunning', {
+    get: () => gameState === STATE.RUNNING,
+    set: v => { gameState = v ? STATE.RUNNING : STATE.DEAD; },
+  });
   expose('animationFrameId', { get: () => animationFrameId, set: (v) => { animationFrameId = v; } });
   expose('lastObstacleX', { get: () => lastObstacleX, set: v => { lastObstacleX = v; } });
   expose('currentSpeed', { get: () => currentSpeed, set: v => { currentSpeed = v; } });
