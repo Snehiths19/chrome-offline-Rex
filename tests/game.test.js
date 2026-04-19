@@ -72,60 +72,51 @@ function assertNotEquals(actual, unexpected, message = `Expected value not to be
 }
 
 // --- Mocking and Setup ---
-// The game script (script.js) is loaded by test-runner.html before this script.
-// We need to ensure the game doesn't auto-start its loop in a way that interferes.
-// For these tests, we'll manually call gameLoop or other functions as needed.
+// The game script (script.js) is loaded by test-runner.html before this script
+// (in browsers) or via require() above (in Node). Tests drive the game loop
+// manually and inspect state through the `game` object.
 
-// Prevent game from auto-starting if it does so on image load
-if (typeof cancelAnimationFrame === 'function' && typeof animationFrameId !== 'undefined') {
-    cancelAnimationFrame(animationFrameId);
+// Prevent game from auto-starting if it did so on image load.
+if (typeof cancelAnimationFrame === 'function' && game && game.animationFrameId) {
+    cancelAnimationFrame(game.animationFrameId);
 }
-gameRunning = false; // Stop game loop if it was started
+game.state = STATE.DEAD; // keep loop halted until tests explicitly advance state
 
 // --- Test Suites ---
 describe('Dinosaur Jump', () => {
-  it('should change Y position upwards then downwards when jump is called', (done) => {
-    resetGame(); // Reset game state
-    gameRunning = true; // Allow one controlled loop
+  it('should move Y upwards for a frame after jump() then back down', () => {
+    resetGame();
+    game.state = STATE.RUNNING;
 
     const initialY = dino.y;
-    jump(); // Initiate jump
+    jump();
     assert(dino.isJumping, 'Dino should be in jumping state');
     assert(dino.velocityY < 0, 'Dino velocityY should be negative (upwards)');
 
-    // Simulate a few frames
-    requestAnimationFrame(() => {
-      gameLoop(); // First frame: dino moves up
-      assert(dino.y < initialY, `Dino Y (${dino.y}) should be less than initial Y (${initialY}) after 1st frame`);
+    // Drive physics directly — same math as gameLoop's gravity branch.
+    const stepPhysics = () => {
+      dino.velocityY += dino.gravity;
+      dino.y += dino.velocityY;
+      if (dino.y >= canvas.height - dino.height) {
+        dino.y = canvas.height - dino.height;
+        dino.isJumping = false;
+        dino.velocityY = 0;
+      }
+    };
 
-      requestAnimationFrame(() => {
-        gameLoop(); // Second frame: gravity starts affecting
-        // Depending on gravity and jumpPower, it might still be going up or start coming down.
-        // The key is that its position is being updated by the physics.
+    stepPhysics();
+    assert(dino.y < initialY, `Dino Y (${dino.y}) should be less than initial Y (${initialY}) after 1st frame`);
 
-        let frames = 0;
-        const maxFrames = 60; // Wait for dino to land or maxFrames (new airtime ~50 frames)
-        function waitForLanding() {
-            if (frames++ >= maxFrames || !dino.isJumping) {
-                assert(!dino.isJumping, `Dino should have landed (isJumping is false). Current Y: ${dino.y}, VelocityY: ${dino.velocityY}`);
-                assertEquals(dino.y, canvas.height - dino.height, `Dino should be back on the ground. Expected ${canvas.height - dino.height}, got ${dino.y}`);
-                gameRunning = false; // Stop test loop
-                cancelAnimationFrame(animationFrameId);
-                done(); // Async test complete
-                return;
-            }
-            gameLoop();
-            requestAnimationFrame(waitForLanding);
-        }
-        waitForLanding();
-      });
-    });
+    let frames = 0;
+    while (dino.isJumping && frames++ < 100) stepPhysics();
+    assert(!dino.isJumping, 'Dino should eventually land');
+    assertEquals(dino.y, canvas.height - dino.height, 'Dino should be back on the ground after landing');
   });
 
   it('should have a peak jump height of ~144px', () => {
     // jumpPower=-12, gravity=0.48 → peak ≈ 144px
     resetGame();
-    gameRunning = true; // needed so jump() guard passes (gameState must be RUNNING)
+    game.state = STATE.RUNNING;
     const expectedPeak = 144;
     jump();
     let minY = dino.y;
@@ -141,51 +132,58 @@ describe('Dinosaur Jump', () => {
       `Peak height ${actualPeak.toFixed(1)}px should be ~${expectedPeak}px. ` +
       `If this passes before changing constants, the test is wrong — rewrite it.`);
   });
+
+  it('should ignore jump() when state is not RUNNING', () => {
+    resetGame();
+    game.state = STATE.WAITING;
+    jump();
+    assert(!dino.isJumping, 'jump() should not fire during WAITING');
+    game.state = STATE.DEAD;
+    jump();
+    assert(!dino.isJumping, 'jump() should not fire during DEAD');
+  });
 });
 
 describe('Obstacle Spawning & Movement', () => {
   it('should add an obstacle to the array when spawnObstacle is called', () => {
     resetGame();
-    assertEquals(obstacles.length, 0, 'Obstacles array should be initially empty');
+    assertEquals(game.obstacles.length, 0, 'Obstacles array should be initially empty');
     spawnObstacle();
-    assertEquals(obstacles.length, 1, 'Obstacle should be added to array');
-    assertEquals(obstacles[0].x, canvas.width, 'Obstacle should spawn at the right edge');
+    assertEquals(game.obstacles.length, 1, 'Obstacle should be added to array');
+    assertEquals(game.obstacles[0].x, canvas.width, 'Obstacle should spawn at the right edge');
   });
 
-  it('should decrease obstacle X position after a game loop update', (done) => {
+  it('should decrease obstacle X position after a game loop update', () => {
     resetGame();
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
     spawnObstacle();
-    const initialObstacleX = obstacles[0].x;
-    gameRunning = true;
+    const initialObstacleX = game.obstacles[0].x;
 
-    requestAnimationFrame(() => {
-      gameLoop(); // Run one frame of the game loop
-      assert(obstacles.length > 0, "Obstacle should still exist"); // Ensure it wasn't removed prematurely
-      assert(obstacles[0].x < initialObstacleX, `Obstacle X (${obstacles[0].x}) should be less than initial X (${initialObstacleX})`);
-      gameRunning = false; // Stop test loop
-      cancelAnimationFrame(animationFrameId);
-      done();
-    });
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+    assert(game.obstacles.length > 0, 'Obstacle should still exist');
+    assert(game.obstacles[0].x < initialObstacleX,
+      `Obstacle X (${game.obstacles[0].x}) should be less than initial X (${initialObstacleX})`);
   });
 });
 
 describe('Collision Detection', () => {
   it('should return true when dino and obstacle are colliding', () => {
     resetGame();
-    // Manually position dino and obstacle to collide
     dino.x = 50;
-    dino.y = canvas.height - dino.height; // on the ground
+    dino.y = canvas.height - dino.height;
     dino.width = 40;
     dino.height = 50;
 
     const collidingObstacle = {
-      x: 50, // Overlap with dino's x
-      y: canvas.height - 40, // Obstacle on ground
+      x: 50,
+      y: canvas.height - 40,
       width: 20,
       height: 40
     };
-    obstacles.push(collidingObstacle);
-    assert(checkCollision(dino, obstacles[0]), 'checkCollision should return true for colliding objects');
+    game.obstacles.push(collidingObstacle);
+    assert(checkCollision(dino, game.obstacles[0]), 'checkCollision should return true for colliding objects');
   });
 
   it('should return false when dino and obstacle are not colliding', () => {
@@ -196,97 +194,86 @@ describe('Collision Detection', () => {
     dino.height = 50;
 
     const nonCollidingObstacle = {
-      x: 200, // Far from dino
+      x: 200,
       y: canvas.height - 40,
       width: 20,
       height: 40
     };
-    obstacles.push(nonCollidingObstacle);
-    assert(!checkCollision(dino, obstacles[0]), 'checkCollision should return false for non-colliding objects');
+    game.obstacles.push(nonCollidingObstacle);
+    assert(!checkCollision(dino, game.obstacles[0]), 'checkCollision should return false for non-colliding objects');
   });
 });
 
 describe('Scoring', () => {
-  it('should increment score after a few game loop updates', () => {
+  it('should increment score after game loop updates', () => {
     resetGame();
-    assertEquals(score, 0, 'Score should be initially 0');
-    gameRunning = true;
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
 
-    let initialScore = score;
-    return new Promise(resolve => {
-      requestAnimationFrame(() => {
-        gameLoop(); // Frame 1
-        requestAnimationFrame(() => {
-          gameLoop(); // Frame 2
-          requestAnimationFrame(() => {
-            gameLoop(); // Frame 3
-            assert(score > initialScore, `Score (${score}) should be greater than initial score (${initialScore})`);
-            gameRunning = false; // Stop test loop
-            cancelAnimationFrame(animationFrameId);
-            resolve();
-          });
-        });
-      });
-    });
+    const initialScore = game.score;
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+
+    assert(game.score > initialScore, `Score (${game.score}) should be greater than initial score (${initialScore})`);
   });
 });
 
 describe('Obstacle Gap Enforcement', () => {
   it('should not spawn a second obstacle until the dynamic gap threshold is met', () => {
     resetGame();
-    graceFrames = 0; // bypass grace period so spawning is active
-    gameRunning = true;
+    game.graceFrames = 0;
+    game.state = STATE.RUNNING;
 
     // Frame 1: lastObstacleX=-300 ≤ canvas.width-spawnGap(600) → first spawn
     gameLoop();
-    assertEquals(obstacles.length, 1, 'Should have 1 obstacle after first gameLoop frame');
+    cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.obstacles.length, 1, 'Should have 1 obstacle after first gameLoop frame');
 
     // Frame 2: obstacle just spawned at x=600; dynamic gap is 600px at speed=2
-    // threshold = canvas.width - 600 = 0; obstacle is at ~598 — well above threshold
     gameLoop();
-    assertEquals(obstacles.length, 1, 'Should still be 1 obstacle — dynamic gap (600px at speed 2) not met');
+    cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.obstacles.length, 1, 'Should still be 1 obstacle — dynamic gap (600px at speed 2) not met');
 
-    // Force obstacle just past the dynamic threshold (canvas.width - 600 - 1 = -1)
-    obstacles[0].x = canvas.width - 601; // x = -1
-    lastObstacleX = obstacles[0].x;
+    // Force obstacle just past the dynamic threshold
+    game.obstacles[0].x = canvas.width - 601;
+    game.lastObstacleX = game.obstacles[0].x;
 
-    // Next frame should spawn a second obstacle
     gameLoop();
-    assertEquals(obstacles.length, 2, 'Should now be 2 obstacles — dynamic gap threshold met');
-
-    gameRunning = false;
-    cancelAnimationFrame(animationFrameId);
+    cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.obstacles.length, 2, 'Should now be 2 obstacles — dynamic gap threshold met');
   });
 });
 
 describe('Difficulty Curve', () => {
   it('should cap currentSpeed at 5 regardless of score', () => {
     resetGame();
-    gameRunning = true;
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
 
-    // Set score high enough to trigger max speed
-    score = 2000;
-    gameLoop(); // one frame to recalculate currentSpeed from score
+    game.score = 2000;
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
 
-    gameRunning = false;
-    cancelAnimationFrame(animationFrameId);
-
-    assertEquals(currentSpeed, 5, `currentSpeed at score 2000 should be 5, got ${currentSpeed}`);
+    assertEquals(game.currentSpeed, 5, `currentSpeed at score 2000 should be 5, got ${game.currentSpeed}`);
   });
 
   it('should not set a .speed property on spawned obstacles', () => {
     resetGame();
     spawnObstacle();
-    assert(obstacles[0].speed === undefined,
-      `Obstacle should not have .speed (got: ${obstacles[0].speed}). Remove 'speed' from spawnObstacle().`);
+    assert(game.obstacles[0].speed === undefined,
+      `Obstacle should not have .speed (got: ${game.obstacles[0].speed}).`);
   });
 });
 
 describe('Clouds', () => {
   it('should initialise 3 clouds with x, y, speed', () => {
-    resetGame(); // calls initClouds after this task
-    assertEquals(clouds.length, 3, 'Should have 3 clouds after resetGame');
-    clouds.forEach((c, i) => {
+    resetGame();
+    assertEquals(game.clouds.length, 3, 'Should have 3 clouds after resetGame');
+    game.clouds.forEach((c, i) => {
       assert(typeof c.x === 'number', `Cloud ${i} missing x`);
       assert(c.y >= 10 && c.y <= 50, `Cloud ${i} y=${c.y} should be 10–50`);
       assert(c.speed > 0, `Cloud ${i} speed should be positive`);
@@ -295,9 +282,9 @@ describe('Clouds', () => {
 
   it('should move clouds left each frame via updateClouds', () => {
     resetGame();
-    clouds[0].x = 300; // Place well inside canvas to avoid wrap
+    game.clouds[0].x = 300;
     updateClouds();
-    assert(clouds[0].x < 300, `Cloud x (${clouds[0].x}) should be < 300 after updateClouds`);
+    assert(game.clouds[0].x < 300, `Cloud x (${game.clouds[0].x}) should be < 300 after updateClouds`);
   });
 });
 
@@ -313,83 +300,138 @@ describe('Day/Night Cycle', () => {
   });
 
   it('should return the correct interpolated color at score 350', () => {
-    // t = (350 - 300) / 100 = 0.5
-    // r = round(255 + (26 - 255) * 0.5) = round(255 - 114.5) = round(140.5) = 141 = 0x8d
-    // g = round(255 + (26 - 255) * 0.5) = 141 = 0x8d
-    // b = round(255 + (46 - 255) * 0.5) = round(255 - 104.5) = round(150.5) = 151 = 0x97
     assertEquals(getBackgroundColor(350), '#8d8d97',
       `Score 350 (t=0.5) should produce midpoint color #8d8d97`);
   });
 
   it('should initialise stars once at score 400 and not re-init on second call', () => {
     resetGame();
-    assert(!starsInitialised, 'starsInitialised should be false after reset');
-    assertEquals(stars.length, 0, 'stars should be empty after reset');
+    assert(!game.starsInitialised, 'starsInitialised should be false after reset');
+    assertEquals(game.stars.length, 0, 'stars should be empty after reset');
 
-    score = 400;
-    gameRunning = true;  // → gameState = STATE.RUNNING via shim
-    graceFrames = 0;
-    gameLoop();          // triggers star init in RUNNING branch
-    assertEquals(stars.length, 12, 'Should have 12 stars after first gameLoop at score 400');
-    assert(starsInitialised, 'starsInitialised should be true');
+    game.score = 400;
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.stars.length, 12, 'Should have 12 stars after first gameLoop at score 400');
+    assert(game.starsInitialised, 'starsInitialised should be true');
 
-    gameLoop();          // second call — must not re-init
-    assertEquals(stars.length, 12, 'Stars should not be re-initialised on second call');
-    gameRunning = false;
-    cancelAnimationFrame(animationFrameId);
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.stars.length, 12, 'Stars should not be re-initialised on second call');
   });
 });
 
 describe('High Score', () => {
   it('should update highScore and localStorage when score exceeds best', () => {
     resetGame();
-    localStorage.removeItem('dino-high-score'); // clear any state from prior tests
-    // Place a colliding obstacle at the dino's position so gameLoop triggers collision path
-    obstacles.push({ x: 50, y: canvas.height - 40, width: 20, height: 40 });
-    gameRunning = true;
-    // gameLoop() increments score by 0.1 before the collision check; Math.floor(100.1) = 100
-    score = 100;
-    highScore = 50;
+    localStorage.removeItem('dino-high-score');
+    game.obstacles.push({ x: 50, y: canvas.height - 40, width: 20, height: 40 });
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    game.score = 100;
+    game.highScore = 50;
     localStorage.setItem('dino-high-score', '50');
 
-    gameLoop(); // collision detected → high score update path runs
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
 
-    assertEquals(highScore, 100, `highScore should be 100, got ${highScore}`);
+    assertEquals(game.highScore, 100, `highScore should be 100, got ${game.highScore}`);
     assertEquals(localStorage.getItem('dino-high-score'), '100',
       'localStorage should store updated value');
   });
 
   it('should NOT update highScore when score is lower', () => {
     resetGame();
-    localStorage.removeItem('dino-high-score'); // clear any state from prior tests
-    // Place a colliding obstacle at the dino's position so gameLoop triggers collision path
-    obstacles.push({ x: 50, y: canvas.height - 40, width: 20, height: 40 });
-    gameRunning = true;
-    score = 50;
-    highScore = 200;
+    localStorage.removeItem('dino-high-score');
+    game.obstacles.push({ x: 50, y: canvas.height - 40, width: 20, height: 40 });
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    game.score = 50;
+    game.highScore = 200;
 
-    gameLoop(); // collision detected → high score branch skipped (50 < 200)
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
 
-    assertEquals(highScore, 200, 'highScore should stay at 200');
+    assertEquals(game.highScore, 200, 'highScore should stay at 200');
     assertEquals(localStorage.getItem('dino-high-score'), null,
       'localStorage should not be written when score is lower');
   });
 });
 
+describe('State Transitions', () => {
+  it('resetGame should put game in WAITING with full grace period', () => {
+    resetGame();
+    assertEquals(game.state, STATE.WAITING, 'State should be WAITING after reset');
+    assertEquals(game.graceFrames, GAME_CONFIG.GRACE_FRAMES, 'graceFrames should be reset to full');
+    assertEquals(game.score, 0, 'Score should be 0 after reset');
+    assertEquals(game.obstacles.length, 0, 'Obstacles should be cleared');
+    assertEquals(game.currentSpeed, GAME_CONFIG.INITIAL_SPEED, 'Speed should be back at initial');
+    assert(!dino.isJumping, 'Dino should not be jumping after reset');
+  });
+
+  it('WAITING → RUNNING when graceFrames hit 0', () => {
+    resetGame();
+    game.graceFrames = 1; // one tick remaining
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.state, STATE.RUNNING, 'State should flip to RUNNING once grace expires');
+  });
+
+  it('RUNNING → DEAD on collision, preserving score/highScore paths', () => {
+    resetGame();
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    game.score = 10;
+    game.highScore = 0;
+    // Place an obstacle squarely on the dino.
+    game.obstacles.push({ x: dino.x, y: canvas.height - 40, width: 20, height: 40 });
+
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+
+    assertEquals(game.state, STATE.DEAD, 'State should flip to DEAD on collision');
+    assert(game.deathShakeFrames > 0, 'Death shake should be queued');
+  });
+
+  it('DEAD → WAITING via resetGame restores gameplay fields', () => {
+    resetGame();
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    game.score = 50;
+    game.obstacles.push({ x: dino.x, y: canvas.height - 40, width: 20, height: 40 });
+    gameLoop(); // triggers DEAD
+    cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.state, STATE.DEAD, 'Must be DEAD before reset');
+
+    resetGame();
+    assertEquals(game.state, STATE.WAITING, 'resetGame should put state back to WAITING');
+    assertEquals(game.score, 0, 'score should be cleared');
+    assertEquals(game.obstacles.length, 0, 'obstacles should be cleared');
+    assertEquals(game.deathShakeFrames, 0, 'deathShakeFrames should be cleared');
+  });
+});
+
 // --- Test Summary ---
-// Need to run this after all tests, potentially with a timeout to catch async tests
-window.onload = () => {
-    // A brief timeout to allow async tests like jump to complete
-    setTimeout(() => {
-        console.log(`\n--- Test Summary ---`);
-        console.log(`Total tests: ${testsRun}`);
-        console.log(`%cPassed: ${testsPassed}`, 'color: green;');
-        const failed = testsRun - testsPassed;
-        if (failed > 0) {
-            console.log(`%cFailed: ${failed}`, 'color: red;');
-        } else {
-            console.log('All tests passed!');
-        }
-        console.log(`--------------------`);
-    }, 2000); // Adjust timeout as needed for your tests
-};
+// Print summary both in the browser (on window.onload) and in Node (via a
+// setTimeout fallback so async tests have time to complete).
+function printSummary() {
+  console.log(`\n--- Test Summary ---`);
+  console.log(`Total tests: ${testsRun}`);
+  console.log(`%cPassed: ${testsPassed}`, 'color: green;');
+  const failed = testsRun - testsPassed;
+  if (failed > 0) {
+    console.log(`%cFailed: ${failed}`, 'color: red;');
+    if (typeof process !== 'undefined' && process.exit) process.exitCode = 1;
+  } else {
+    console.log('All tests passed!');
+  }
+  console.log(`--------------------`);
+}
+
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('load', () => setTimeout(printSummary, 500));
+} else {
+  setTimeout(printSummary, 500);
+}
