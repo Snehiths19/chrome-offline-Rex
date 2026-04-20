@@ -2,7 +2,7 @@
 
 A clone of the Chrome offline dinosaur game, built with vanilla JavaScript and HTML5 Canvas.
 
-**Play it here:** https://snehiths19.github.io/chrome-offline-rex/
+**Play it here:** https://snehiths19.github.io/chrome-offline-Rex/
 
 ## Controls
 
