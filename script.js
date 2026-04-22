@@ -77,8 +77,9 @@ const GAME_CONFIG = Object.freeze({
   // --- Spawning ---
   GRACE_FRAMES:           240,    // ~4 s at 60 fps before first obstacle appears
   MAX_SPAWN_GAP:          600,    // gap (px) between obstacles at INITIAL_SPEED
-  MIN_SPAWN_GAP:          340,    // gap (px) at SPEED_CAP
+  MIN_SPAWN_GAP:          340,    // gap (px) at SPEED_CAP — tuned minimum that's still clearable
   SPAWN_GAP_SPEED_FACTOR: 100,    // gap shrinks by this much per +1 speed above INITIAL_SPEED
+  SPAWN_GAP_JITTER:         0.2,  // ±20% randomization applied on top of baseGap; floored at MIN_SPAWN_GAP
 
   // --- Obstacle sprite ---
   OBS_WIDTH:               20,
@@ -237,6 +238,30 @@ if (typeof setTimeout !== 'undefined' && !isNode) {
 
 // == SECTION 4: GAME STATE ==
 
+// mulberry32 — tiny seeded PRNG (~32-bit state). Swappable via `game.rng` so
+// tests can pin it to a deterministic sequence.
+function mulberry32(seed) {
+  let s = seed >>> 0;
+  return function () {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Compute the gap (px) to the next obstacle, given current speed + an RNG.
+// Jitter is applied ±SPAWN_GAP_JITTER around baseGap, then floored at
+// MIN_SPAWN_GAP so the smallest possible gap is always clearable.
+function computeNextSpawnGap(rng, currentSpeed) {
+  const baseGap =
+    GAME_CONFIG.MAX_SPAWN_GAP -
+    (currentSpeed - GAME_CONFIG.INITIAL_SPEED) * GAME_CONFIG.SPAWN_GAP_SPEED_FACTOR;
+  const jitter = (rng() - 0.5) * 2 * GAME_CONFIG.SPAWN_GAP_JITTER; // range [-J, +J]
+  return Math.max(GAME_CONFIG.MIN_SPAWN_GAP, Math.round(baseGap * (1 + jitter)));
+}
+
 // All mutable game state lives on this object. Keeping it in one place prevents
 // stray top-level globals and makes resets + test inspection simpler.
 const game = {
@@ -244,6 +269,7 @@ const game = {
   obstacles:        [],
   currentSpeed:     GAME_CONFIG.INITIAL_SPEED,
   lastObstacleX:    -300,
+  nextSpawnGap:     GAME_CONFIG.MAX_SPAWN_GAP,
   graceFrames:      GAME_CONFIG.GRACE_FRAMES,
   animationFrameId: undefined,
   score:            0,
@@ -258,6 +284,7 @@ const game = {
   milestoneFrames:  0,
   newBestFrames:    0,
   newBestShown:     false,
+  rng:              mulberry32(Date.now() & 0xffffffff),
 };
 
 // == SECTION 5: RENDERING ==
@@ -518,6 +545,8 @@ function resetGame() {
   game.milestoneFrames = 0;
   game.newBestFrames = 0;
   game.newBestShown = false;
+  game.rng = mulberry32(Date.now() & 0xffffffff);
+  game.nextSpawnGap = computeNextSpawnGap(game.rng, game.currentSpeed);
   initClouds();
   announce('New game. Press space or tap to jump.');
 }
@@ -596,14 +625,12 @@ function gameLoop() {
   drawClouds();
   updateObstacles();
 
-  // Obstacle spawning — gap compresses linearly with speed.
-  const spawnGap = Math.max(
-    GAME_CONFIG.MIN_SPAWN_GAP,
-    Math.round(GAME_CONFIG.MAX_SPAWN_GAP - (game.currentSpeed - GAME_CONFIG.INITIAL_SPEED) * GAME_CONFIG.SPAWN_GAP_SPEED_FACTOR)
-  );
-  if (game.lastObstacleX <= canvas.width - spawnGap) {
+  // Obstacle spawning — gap is precomputed per-obstacle with ±SPAWN_GAP_JITTER
+  // so spacing doesn't feel metronomic. See computeNextSpawnGap().
+  if (game.lastObstacleX <= canvas.width - game.nextSpawnGap) {
     spawnObstacle();
     game.lastObstacleX = canvas.width;
+    game.nextSpawnGap = computeNextSpawnGap(game.rng, game.currentSpeed);
   }
 
   drawObstacles();
@@ -681,4 +708,6 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.resetGame = resetGame;
   global.gameLoop = gameLoop;
   global.drawGameOverScreen = drawGameOverScreen;
+  global.mulberry32 = mulberry32;
+  global.computeNextSpawnGap = computeNextSpawnGap;
 }
