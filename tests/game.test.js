@@ -227,24 +227,72 @@ describe('Obstacle Gap Enforcement', () => {
     resetGame();
     game.graceFrames = 0;
     game.state = STATE.RUNNING;
+    // Pin the RNG to the middle of the jitter range so nextSpawnGap is deterministic.
+    game.rng = () => 0.5;
+    game.nextSpawnGap = 600; // base gap at speed 2, zero jitter
 
-    // Frame 1: lastObstacleX=-300 ≤ canvas.width-spawnGap(600) → first spawn
+    // Frame 1: lastObstacleX=-300 ≤ canvas.width-600 → first spawn
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
     assertEquals(game.obstacles.length, 1, 'Should have 1 obstacle after first gameLoop frame');
 
-    // Frame 2: obstacle just spawned at x=600; dynamic gap is 600px at speed=2
+    // After spawn, nextSpawnGap was recomputed at zero-jitter → 600 at speed 2
+    assertEquals(game.nextSpawnGap, 600, 'Next gap should be baseGap 600 at speed 2 with zero jitter');
+
+    // Frame 2: obstacle at ~598; 598 > 600 - 600 = 0 — not yet
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
-    assertEquals(game.obstacles.length, 1, 'Should still be 1 obstacle — dynamic gap (600px at speed 2) not met');
+    assertEquals(game.obstacles.length, 1, 'Should still be 1 obstacle — 600px gap not met');
 
-    // Force obstacle just past the dynamic threshold
+    // Force obstacle just past the threshold
     game.obstacles[0].x = canvas.width - 601;
     game.lastObstacleX = game.obstacles[0].x;
 
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
-    assertEquals(game.obstacles.length, 2, 'Should now be 2 obstacles — dynamic gap threshold met');
+    assertEquals(game.obstacles.length, 2, 'Should now be 2 obstacles — gap threshold met');
+  });
+});
+
+describe('Spawn Gap Jitter', () => {
+  it('computeNextSpawnGap stays within [MIN_SPAWN_GAP, baseGap * (1 + JITTER)]', () => {
+    const speeds = [GAME_CONFIG.INITIAL_SPEED, 3.0, GAME_CONFIG.SPEED_CAP];
+    speeds.forEach(speed => {
+      const baseGap = Math.max(
+        GAME_CONFIG.MIN_SPAWN_GAP,
+        GAME_CONFIG.MAX_SPAWN_GAP - (speed - GAME_CONFIG.INITIAL_SPEED) * GAME_CONFIG.SPAWN_GAP_SPEED_FACTOR
+      );
+      const upperBound = Math.round(baseGap * (1 + GAME_CONFIG.SPAWN_GAP_JITTER));
+      const rng = mulberry32(12345);
+      for (let i = 0; i < 500; i++) {
+        const gap = computeNextSpawnGap(rng, speed);
+        assert(
+          gap >= GAME_CONFIG.MIN_SPAWN_GAP && gap <= upperBound,
+          `At speed ${speed}, gap ${gap} should be in [${GAME_CONFIG.MIN_SPAWN_GAP}, ${upperBound}]`
+        );
+      }
+    });
+  });
+
+  it('produces different gaps across spawns (breaks the metronome)', () => {
+    const rng = mulberry32(7);
+    const gaps = new Set();
+    for (let i = 0; i < 50; i++) gaps.add(computeNextSpawnGap(rng, 2.0));
+    assert(gaps.size >= 5, `Expected gap variety; got ${gaps.size} distinct values across 50 draws`);
+  });
+
+  it('smallest achievable gap is still at least MIN_SPAWN_GAP (always clearable)', () => {
+    // Exhaustively test by forcing rng to 0 (maximum negative jitter).
+    const worstCaseRng = () => 0;
+    const gap = computeNextSpawnGap(worstCaseRng, GAME_CONFIG.SPEED_CAP);
+    assert(gap >= GAME_CONFIG.MIN_SPAWN_GAP,
+      `At max negative jitter + cap speed, gap ${gap} must be >= MIN_SPAWN_GAP ${GAME_CONFIG.MIN_SPAWN_GAP}`);
+  });
+
+  it('mulberry32 is deterministic given same seed', () => {
+    const a = mulberry32(42);
+    const b = mulberry32(42);
+    for (let i = 0; i < 10; i++) assertEquals(a(), b(), 'Same seed should produce same sequence');
   });
 });
 
