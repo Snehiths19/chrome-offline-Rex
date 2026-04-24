@@ -61,9 +61,9 @@ const GAME_CONFIG = Object.freeze({
   // --- Physics ---
   JUMP_POWER:              -12,   // negative = upward impulse applied on jump
   GRAVITY:                  0.48, // added to velocityY each frame while airborne
-  INITIAL_SPEED:            2.0,  // obstacle scroll speed at score 0
-  SPEED_CAP:                5.0,  // max scroll speed; plateau hit around score 1000
-  SPEED_INCREMENT:          0.3,  // speed added per level
+  INITIAL_SPEED:            6.0,  // obstacle scroll speed at score 0 (matches Chrome T-Rex)
+  SPEED_CAP:               13.0,  // max scroll speed (matches Chrome T-Rex)
+  SPEED_INCREMENT:          1.0,  // speed added per level — 7 levels to cap
   SCORE_PER_LEVEL:        100,    // score points per level-up
   SCORE_INCREMENT:          0.1,  // score added per frame while RUNNING
 
@@ -78,12 +78,22 @@ const GAME_CONFIG = Object.freeze({
   GRACE_FRAMES:           240,    // ~4 s at 60 fps before first obstacle appears
   MAX_SPAWN_GAP:          600,    // gap (px) between obstacles at INITIAL_SPEED
   MIN_SPAWN_GAP:          340,    // gap (px) at SPEED_CAP — tuned minimum that's still clearable
-  SPAWN_GAP_SPEED_FACTOR: 100,    // gap shrinks by this much per +1 speed above INITIAL_SPEED
-  SPAWN_GAP_JITTER:         0.2,  // ±20% randomization applied on top of baseGap; floored at MIN_SPAWN_GAP
+  SPAWN_GAP_SPEED_FACTOR:  50,    // gap shrinks by this much per +1 speed above INITIAL_SPEED
+  SPAWN_GAP_JITTER:         0.3,  // ±30% randomization; floored at MIN_SPAWN_GAP
 
-  // --- Obstacle sprite ---
+  // --- Obstacle sprite (small cactus — baseline) ---
   OBS_WIDTH:               20,
   OBS_HEIGHT:              40,
+
+  // --- Obstacle types ---
+  // Each type unlocks at a score threshold and contributes its `weight` to the
+  // weighted random pick once unlocked. `render` controls how drawObstacles()
+  // paints it from the single cactus sprite.
+  OBSTACLE_TYPES: Object.freeze([
+    Object.freeze({ id: 'small',   width: 20, height: 40, unlockScore:   0, weight: 50, render: 'single' }),
+    Object.freeze({ id: 'big',     width: 30, height: 55, unlockScore: 100, weight: 30, render: 'single' }),
+    Object.freeze({ id: 'cluster', width: 50, height: 40, unlockScore: 250, weight: 20, render: 'double' }),
+  ]),
 
   // --- Dino sprite ---
   DINO_X:                  50,
@@ -262,6 +272,20 @@ function computeNextSpawnGap(rng, currentSpeed) {
   return Math.max(GAME_CONFIG.MIN_SPAWN_GAP, Math.round(baseGap * (1 + jitter)));
 }
 
+// Pick an obstacle type weighted by score-tier eligibility. Types with
+// unlockScore > score are excluded; among the rest, each contributes its
+// `weight` to a weighted random draw.
+function pickObstacleType(rng, score) {
+  const eligible = GAME_CONFIG.OBSTACLE_TYPES.filter(t => score >= t.unlockScore);
+  const totalWeight = eligible.reduce((sum, t) => sum + t.weight, 0);
+  let roll = rng() * totalWeight;
+  for (const t of eligible) {
+    roll -= t.weight;
+    if (roll <= 0) return t;
+  }
+  return eligible[eligible.length - 1]; // rounding guard
+}
+
 // All mutable game state lives on this object. Keeping it in one place prevents
 // stray top-level globals and makes resets + test inspection simpler.
 const game = {
@@ -357,11 +381,19 @@ function drawGround() {
 
 function drawObstacles() {
   game.obstacles.forEach(obstacle => {
-    if (imageReady(obstacleImage)) {
-      ctx.drawImage(obstacleImage, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
-    } else {
+    if (!imageReady(obstacleImage)) {
       ctx.fillStyle = '#2d7a2d';
       ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+      return;
+    }
+    if (obstacle.render === 'double') {
+      // Cluster: draw two small cacti side by side to fill the 50-wide box.
+      const half = obstacle.width / 2;
+      ctx.drawImage(obstacleImage, obstacle.x,         obstacle.y, half, obstacle.height);
+      ctx.drawImage(obstacleImage, obstacle.x + half,  obstacle.y, half, obstacle.height);
+    } else {
+      // Single (small, big): scale the sprite to the type's width/height.
+      ctx.drawImage(obstacleImage, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
     }
   });
 }
@@ -450,12 +482,16 @@ function drawNewBestBadge() {
 
 // == SECTION 6: PHYSICS & GAME LOGIC ==
 
-function spawnObstacle() {
+function spawnObstacle(type) {
+  // Default to a tier-appropriate random pick; tests may pass a specific type.
+  const t = type || pickObstacleType(game.rng, game.score);
   game.obstacles.push({
     x: canvas.width,
-    y: canvas.height - GAME_CONFIG.OBS_HEIGHT,
-    width: GAME_CONFIG.OBS_WIDTH,
-    height: GAME_CONFIG.OBS_HEIGHT,
+    y: canvas.height - t.height,
+    width: t.width,
+    height: t.height,
+    type: t.id,
+    render: t.render,
   });
 }
 
@@ -710,4 +746,5 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.drawGameOverScreen = drawGameOverScreen;
   global.mulberry32 = mulberry32;
   global.computeNextSpawnGap = computeNextSpawnGap;
+  global.pickObstacleType = pickObstacleType;
 }

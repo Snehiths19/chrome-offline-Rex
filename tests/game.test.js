@@ -229,17 +229,17 @@ describe('Obstacle Gap Enforcement', () => {
     game.state = STATE.RUNNING;
     // Pin the RNG to the middle of the jitter range so nextSpawnGap is deterministic.
     game.rng = () => 0.5;
-    game.nextSpawnGap = 600; // base gap at speed 2, zero jitter
+    game.nextSpawnGap = 600; // base gap at INITIAL_SPEED, zero jitter
 
     // Frame 1: lastObstacleX=-300 ≤ canvas.width-600 → first spawn
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
     assertEquals(game.obstacles.length, 1, 'Should have 1 obstacle after first gameLoop frame');
 
-    // After spawn, nextSpawnGap was recomputed at zero-jitter → 600 at speed 2
-    assertEquals(game.nextSpawnGap, 600, 'Next gap should be baseGap 600 at speed 2 with zero jitter');
+    // After spawn, nextSpawnGap was recomputed at zero-jitter → 600 at INITIAL_SPEED
+    assertEquals(game.nextSpawnGap, 600, 'Next gap should be baseGap 600 at INITIAL_SPEED with zero jitter');
 
-    // Frame 2: obstacle at ~598; 598 > 600 - 600 = 0 — not yet
+    // Frame 2: obstacle hasn't drifted 600 yet — not a spawn frame.
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
     assertEquals(game.obstacles.length, 1, 'Should still be 1 obstacle — 600px gap not met');
@@ -296,8 +296,64 @@ describe('Spawn Gap Jitter', () => {
   });
 });
 
+describe('Obstacle Types', () => {
+  it('only returns small cactus when score < 100', () => {
+    const rng = mulberry32(1);
+    for (let i = 0; i < 200; i++) {
+      const t = pickObstacleType(rng, 50);
+      assertEquals(t.id, 'small', `At score 50 expected small, got ${t.id}`);
+    }
+  });
+
+  it('can return big cactus at score 100+ but never cluster before 250', () => {
+    const rng = mulberry32(2);
+    const seen = new Set();
+    for (let i = 0; i < 500; i++) seen.add(pickObstacleType(rng, 150).id);
+    assert(seen.has('small') && seen.has('big'), `Expected small+big at score 150, saw ${[...seen]}`);
+    assert(!seen.has('cluster'), `Cluster should not appear before score 250, saw ${[...seen]}`);
+  });
+
+  it('can return all three types at score 250+', () => {
+    const rng = mulberry32(3);
+    const seen = new Set();
+    for (let i = 0; i < 2000; i++) seen.add(pickObstacleType(rng, 300).id);
+    assert(seen.has('small') && seen.has('big') && seen.has('cluster'),
+      `Expected all 3 types at score 300, saw ${[...seen]}`);
+  });
+
+  it('weighted distribution at score 300 is within 5% of declared weights', () => {
+    const rng = mulberry32(4);
+    const counts = { small: 0, big: 0, cluster: 0 };
+    const total = 20000;
+    for (let i = 0; i < total; i++) counts[pickObstacleType(rng, 300).id]++;
+    const expected = { small: 0.5, big: 0.3, cluster: 0.2 };
+    Object.keys(expected).forEach(id => {
+      const observed = counts[id] / total;
+      assert(Math.abs(observed - expected[id]) < 0.05,
+        `${id}: expected ~${expected[id]}, got ${observed.toFixed(3)}`);
+    });
+  });
+
+  it('spawnObstacle(type) respects the given type dimensions', () => {
+    resetGame();
+    const big = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'big');
+    spawnObstacle(big);
+    assertEquals(game.obstacles[0].width, big.width, 'Big cactus width');
+    assertEquals(game.obstacles[0].height, big.height, 'Big cactus height');
+    assertEquals(game.obstacles[0].type, 'big', 'Obstacle should carry its type id');
+  });
+
+  it('spawnObstacle() with no arg picks a score-appropriate type via rng', () => {
+    resetGame();
+    game.rng = () => 0.99; // nudges weighted pick toward last eligible option
+    game.score = 0; // only small is eligible
+    spawnObstacle();
+    assertEquals(game.obstacles[0].type, 'small', 'At score 0 only small is eligible');
+  });
+});
+
 describe('Difficulty Curve', () => {
-  it('should cap currentSpeed at 5 regardless of score', () => {
+  it('should cap currentSpeed at SPEED_CAP regardless of score', () => {
     resetGame();
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
@@ -306,7 +362,8 @@ describe('Difficulty Curve', () => {
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
 
-    assertEquals(game.currentSpeed, 5, `currentSpeed at score 2000 should be 5, got ${game.currentSpeed}`);
+    assertEquals(game.currentSpeed, GAME_CONFIG.SPEED_CAP,
+      `currentSpeed at score 2000 should equal SPEED_CAP (${GAME_CONFIG.SPEED_CAP}), got ${game.currentSpeed}`);
   });
 
   it('should not set a .speed property on spawned obstacles', () => {
