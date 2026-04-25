@@ -157,6 +157,67 @@ const STATE = Object.freeze({
 // when true, but core gameplay (dino + obstacles) is unaffected.
 const reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
+// --- Web Audio module (PR-B) ---
+// Synthesised SFX — no asset files. Lazy-creates AudioContext on first user
+// gesture (Chrome's autoplay policy) and silently no-ops if AudioContext is
+// unavailable (Node tests, very old browsers).
+const audio = {
+  ctx: null,
+  muted: localStorage.getItem('dino-muted') === '1',
+  ensure() {
+    if (this.ctx) return this.ctx;
+    const Ctx = (typeof AudioContext !== 'undefined') ? AudioContext
+              : (typeof webkitAudioContext !== 'undefined') ? webkitAudioContext
+              : null;
+    if (!Ctx) return null;
+    try { this.ctx = new Ctx(); } catch (e) { this.ctx = null; }
+    return this.ctx;
+  },
+  setMuted(v) {
+    this.muted = !!v;
+    localStorage.setItem('dino-muted', this.muted ? '1' : '0');
+  },
+  // Short envelope-shaped tone. Used by jump/land/milestone.
+  blip(freq, durationMs, type = 'sine', gain = 0.04) {
+    if (this.muted || !isUpdatedMode()) return;
+    const ctx = this.ensure();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    osc.connect(g).connect(ctx.destination);
+    const now = ctx.currentTime;
+    g.gain.setValueAtTime(gain, now);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + durationMs / 1000);
+    osc.start(now);
+    osc.stop(now + durationMs / 1000);
+  },
+  jump()      { this.blip(420 + (Math.random() - 0.5) * 40, 80, 'sine', 0.04); },
+  land()      { this.blip(140, 60, 'sine', 0.05); },
+  milestone() {
+    this.blip(880, 120, 'triangle', 0.05);
+    setTimeout(() => this.blip(1320, 120, 'triangle', 0.05), 80);
+  },
+  // Downward freq sweep for death — distinctly more dramatic than blip().
+  death() {
+    if (this.muted || !isUpdatedMode()) return;
+    const ctx = this.ensure();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = 'sawtooth';
+    const now = ctx.currentTime;
+    osc.frequency.setValueAtTime(440, now);
+    osc.frequency.exponentialRampToValueAtTime(80, now + 0.4);
+    g.gain.setValueAtTime(0.05, now);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.4);
+    osc.connect(g).connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.4);
+  },
+};
+
 // == SECTION 3: ASSET LOADING ==
 
 const canvas = document.getElementById('gameCanvas');
@@ -624,12 +685,14 @@ function jump() {
     dino.velocityY = dino.jumpPower;
     dino.isJumping = true;
     emitParticles('jump', dino.x + dino.width / 2, dino.y + dino.height);
+    audio.jump();
   }
 }
 
 // == SECTION 7: INPUT HANDLERS ==
 
 function handleAction() {
+  audio.ensure(); // unlock AudioContext on first user gesture (Chrome autoplay policy)
   if (game.state === STATE.RUNNING) {
     jump();
   } else if (game.state === STATE.DEAD) {
@@ -680,6 +743,24 @@ if (modeToggle && modeToggle.addEventListener) {
     announce(game.mode === MODES.CLASSIC ? 'Classic mode' : 'Updated mode');
   });
   refreshModeToggle();
+}
+
+// Mute button — single icon-button toggle (icons are universally legible).
+const muteBtn = document.getElementById('mute-btn');
+function refreshMuteButton() {
+  if (!muteBtn || !muteBtn.setAttribute) return;
+  muteBtn.textContent = audio.muted ? '🔇' : '🔊'; // 🔇 / 🔊
+  muteBtn.setAttribute('aria-pressed', String(audio.muted));
+  muteBtn.setAttribute('aria-label', audio.muted ? 'Unmute sound' : 'Mute sound');
+}
+if (muteBtn && muteBtn.addEventListener) {
+  muteBtn.addEventListener('click', () => {
+    audio.ensure(); // also unlocks AudioContext if not yet
+    audio.setMuted(!audio.muted);
+    refreshMuteButton();
+    announce(audio.muted ? 'Sound muted' : 'Sound on');
+  });
+  refreshMuteButton();
 }
 
 // == SECTION 8: GAME LOOP ==
@@ -768,6 +849,7 @@ function gameLoop() {
   if (level > prevLevel && level > 0) {
     game.milestoneText = 'LEVEL ' + (level + 1);
     game.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
+    audio.milestone();
   }
 
   // Scroll ground.
@@ -812,6 +894,7 @@ function gameLoop() {
       game.state = STATE.DEAD;
       game.deathShakeFrames = GAME_CONFIG.DEATH_SHAKE_FRAMES;
       emitParticles('collision', dino.x + dino.width / 2, dino.y + dino.height / 2);
+      audio.death();
       cancelAnimationFrame(game.animationFrameId);
       const finalScore = Math.floor(game.score);
       if (finalScore > game.highScore) {
@@ -834,6 +917,7 @@ function gameLoop() {
       dino.isJumping = false;
       dino.velocityY = 0;
       emitParticles('land', dino.x + dino.width / 2, dino.y + dino.height);
+      audio.land();
     }
   }
 
@@ -893,4 +977,5 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.emitParticles = emitParticles;
   global.updateParticles = updateParticles;
   global.drawParticles = drawParticles;
+  global.audio = audio;
 }
