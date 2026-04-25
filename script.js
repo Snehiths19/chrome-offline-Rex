@@ -36,7 +36,12 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
           addEventListener: () => {},
         };
       }
-      return { addEventListener: () => {}, textContent: '' };
+      return {
+        addEventListener: () => {},
+        setAttribute: () => {},
+        dataset: {},
+        textContent: '',
+      };
     },
     addEventListener: () => {},
   };
@@ -263,19 +268,25 @@ function mulberry32(seed) {
 
 // Compute the gap (px) to the next obstacle, given current speed + an RNG.
 // Jitter is applied ±SPAWN_GAP_JITTER around baseGap, then floored at
-// MIN_SPAWN_GAP so the smallest possible gap is always clearable.
-function computeNextSpawnGap(rng, currentSpeed) {
+// MIN_SPAWN_GAP so the smallest possible gap is always clearable. In classic
+// mode, jitter is skipped — gaps are deterministic.
+function computeNextSpawnGap(rng, currentSpeed, mode) {
   const baseGap =
     GAME_CONFIG.MAX_SPAWN_GAP -
     (currentSpeed - GAME_CONFIG.INITIAL_SPEED) * GAME_CONFIG.SPAWN_GAP_SPEED_FACTOR;
+  if (mode === 'classic') {
+    return Math.max(GAME_CONFIG.MIN_SPAWN_GAP, Math.round(baseGap));
+  }
   const jitter = (rng() - 0.5) * 2 * GAME_CONFIG.SPAWN_GAP_JITTER; // range [-J, +J]
   return Math.max(GAME_CONFIG.MIN_SPAWN_GAP, Math.round(baseGap * (1 + jitter)));
 }
 
 // Pick an obstacle type weighted by score-tier eligibility. Types with
 // unlockScore > score are excluded; among the rest, each contributes its
-// `weight` to a weighted random draw.
-function pickObstacleType(rng, score) {
+// `weight` to a weighted random draw. In classic mode, only the small cactus
+// is ever returned — matches the original Chrome T-Rex's spartan look.
+function pickObstacleType(rng, score, mode) {
+  if (mode === 'classic') return GAME_CONFIG.OBSTACLE_TYPES[0]; // small cactus
   const eligible = GAME_CONFIG.OBSTACLE_TYPES.filter(t => score >= t.unlockScore);
   const totalWeight = eligible.reduce((sum, t) => sum + t.weight, 0);
   let roll = rng() * totalWeight;
@@ -284,6 +295,15 @@ function pickObstacleType(rng, score) {
     if (roll <= 0) return t;
   }
   return eligible[eligible.length - 1]; // rounding guard
+}
+
+const MODES = Object.freeze({ CLASSIC: 'classic', UPDATED: 'updated' });
+
+// Read the saved mode (defaults to 'updated' for first-time players). Persists
+// across reload so the user's preference is remembered.
+function loadMode() {
+  const stored = localStorage.getItem('dino-mode');
+  return stored === MODES.CLASSIC ? MODES.CLASSIC : MODES.UPDATED;
 }
 
 // All mutable game state lives on this object. Keeping it in one place prevents
@@ -309,7 +329,18 @@ const game = {
   newBestFrames:    0,
   newBestShown:     false,
   rng:              mulberry32(Date.now() & 0xffffffff),
+  mode:             loadMode(),
 };
+
+function setMode(newMode) {
+  game.mode = newMode === MODES.CLASSIC ? MODES.CLASSIC : MODES.UPDATED;
+  localStorage.setItem('dino-mode', game.mode);
+  refreshModeButtonLabel();
+  // Restart the run cleanly so the new mode's spawn rules take effect immediately.
+  cancelAnimationFrame(game.animationFrameId);
+  resetGame();
+  gameLoop();
+}
 
 // == SECTION 5: RENDERING ==
 
@@ -560,6 +591,26 @@ if (jumpBtn) {
   jumpBtn.addEventListener('click', handleAction);
 }
 
+const modeBtn = document.getElementById('mode-btn');
+function refreshModeButtonLabel() {
+  if (!modeBtn) return;
+  const isClassic = game.mode === MODES.CLASSIC;
+  modeBtn.textContent = isClassic ? 'Classic' : 'Updated';
+  modeBtn.dataset.mode = game.mode;
+  modeBtn.setAttribute('aria-pressed', String(!isClassic));
+  modeBtn.setAttribute(
+    'aria-label',
+    isClassic ? 'Mode: Classic. Switch to Updated.' : 'Mode: Updated. Switch to Classic.'
+  );
+}
+if (modeBtn) {
+  modeBtn.addEventListener('click', () => {
+    setMode(game.mode === MODES.CLASSIC ? MODES.UPDATED : MODES.CLASSIC);
+    announce(game.mode === MODES.CLASSIC ? 'Classic mode' : 'Updated mode');
+  });
+  refreshModeButtonLabel();
+}
+
 // == SECTION 8: GAME LOOP ==
 
 function resetGame() {
@@ -582,7 +633,7 @@ function resetGame() {
   game.newBestFrames = 0;
   game.newBestShown = false;
   game.rng = mulberry32(Date.now() & 0xffffffff);
-  game.nextSpawnGap = computeNextSpawnGap(game.rng, game.currentSpeed);
+  game.nextSpawnGap = computeNextSpawnGap(game.rng, game.currentSpeed, game.mode);
   initClouds();
   announce('New game. Press space or tap to jump.');
 }
@@ -661,12 +712,13 @@ function gameLoop() {
   drawClouds();
   updateObstacles();
 
-  // Obstacle spawning — gap is precomputed per-obstacle with ±SPAWN_GAP_JITTER
-  // so spacing doesn't feel metronomic. See computeNextSpawnGap().
+  // Obstacle spawning — in updated mode the gap is precomputed per-obstacle
+  // with ±SPAWN_GAP_JITTER so spacing doesn't feel metronomic; in classic mode
+  // it's deterministic. See computeNextSpawnGap() / pickObstacleType().
   if (game.lastObstacleX <= canvas.width - game.nextSpawnGap) {
-    spawnObstacle();
+    spawnObstacle(pickObstacleType(game.rng, game.score, game.mode));
     game.lastObstacleX = canvas.width;
-    game.nextSpawnGap = computeNextSpawnGap(game.rng, game.currentSpeed);
+    game.nextSpawnGap = computeNextSpawnGap(game.rng, game.currentSpeed, game.mode);
   }
 
   drawObstacles();
@@ -747,4 +799,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.mulberry32 = mulberry32;
   global.computeNextSpawnGap = computeNextSpawnGap;
   global.pickObstacleType = pickObstacleType;
+  global.MODES = MODES;
+  global.setMode = setMode;
+  global.loadMode = loadMode;
 }
