@@ -36,6 +36,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Cache-bust asset URLs with commit SHA
+        run: sed -i "s/__VERSION__/${GITHUB_SHA::7}/g" index.html
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
