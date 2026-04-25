@@ -21,35 +21,43 @@ body {
   padding: 0 8px;
 }
 
-#mode-btn {
+#mode-toggle {
   position: absolute;
   top: 6px;
   right: 14px;
   z-index: 2;
+  display: inline-flex;
+  padding: 2px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #999;
+  border-radius: 999px;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#mode-toggle button {
+  appearance: none;
+  -webkit-appearance: none;
   padding: 4px 12px;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  background: rgba(255, 255, 255, 0.85);
-  color: #333;
-  border: 1px solid #999;
+  background: transparent;
+  color: #888;
+  border: 0;
   border-radius: 999px;
   cursor: pointer;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
-  transition: background-color 80ms ease-out, color 80ms ease-out, transform 80ms ease-out;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
 }
 
-#mode-btn[data-mode='classic'] {
-  background: rgba(40, 40, 40, 0.85);
-  color: #f0f0f0;
-  border-color: #444;
+#mode-toggle button[aria-pressed='true'] {
+  background: #333;
+  color: #fff;
 }
 
-#mode-btn:hover { transform: scale(1.04); }
-#mode-btn:active { transform: scale(0.96); }
-#mode-btn:focus-visible { outline: 2px solid #4a90e2; outline-offset: 2px; }
+#mode-toggle button:hover:not([aria-pressed='true']) { color: #555; }
+#mode-toggle button:focus-visible { outline: 2px solid #4a90e2; outline-offset: 2px; }
 
 #gameCanvas {
   border: 1px solid black;
