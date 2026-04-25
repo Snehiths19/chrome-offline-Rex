@@ -296,6 +296,62 @@ describe('Spawn Gap Jitter', () => {
   });
 });
 
+describe('Audio (PR-B)', () => {
+  it('audio.ensure() returns null in Node (no AudioContext)', () => {
+    const result = audio.ensure();
+    assertEquals(result, null, 'AudioContext is unavailable in Node — ensure should return null');
+  });
+
+  it('setMuted persists through localStorage', () => {
+    audio.setMuted(true);
+    assertEquals(audio.muted, true, 'muted flag should flip');
+    assertEquals(localStorage.getItem('dino-muted'), '1', 'mute persisted as "1"');
+    audio.setMuted(false);
+    assertEquals(localStorage.getItem('dino-muted'), '0', 'unmute persisted as "0"');
+  });
+
+  it('audio.jump() does not throw when ctx is unavailable (Node)', () => {
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    audio.setMuted(false);
+    // Should silently no-op since ensure() returns null in Node.
+    audio.jump();
+    audio.land();
+    audio.milestone();
+    audio.death();
+    // If we got here without throwing, the test passes.
+  });
+
+  it('audio.jump() short-circuits in classic mode before touching ctx', () => {
+    setMode(MODES.CLASSIC);
+    cancelAnimationFrame(game.animationFrameId);
+    audio.setMuted(false);
+    let ensureCalls = 0;
+    const originalEnsure = audio.ensure;
+    audio.ensure = function () { ensureCalls++; return null; };
+    audio.jump();
+    audio.land();
+    audio.death();
+    audio.ensure = originalEnsure;
+    assertEquals(ensureCalls, 0, 'Classic mode should not even call ensure() — full short-circuit');
+    setMode(MODES.UPDATED); // reset for siblings
+    cancelAnimationFrame(game.animationFrameId);
+  });
+
+  it('audio.jump() does not call ctx oscillator when muted', () => {
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    audio.setMuted(true);
+    let ensureCalls = 0;
+    const originalEnsure = audio.ensure;
+    audio.ensure = function () { ensureCalls++; return null; };
+    audio.jump();
+    audio.ensure = originalEnsure;
+    assertEquals(ensureCalls, 0, 'Muted should short-circuit before ensure()');
+    audio.setMuted(false);
+  });
+});
+
 describe('Particles (PR-A)', () => {
   function clearParticles() { for (let i = 0; i < particles.length; i++) particles[i].life = 0; }
 
