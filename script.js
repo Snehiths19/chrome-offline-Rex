@@ -27,6 +27,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
             save: () => {},
             restore: () => {},
             translate: () => {},
+            scale: () => {},
             fillStyle: '',
             strokeStyle: '',
             font: '',
@@ -131,6 +132,8 @@ const GAME_CONFIG = Object.freeze({
   // --- Effects ---
   DEATH_SHAKE_FRAMES:      12,
   DEATH_SHAKE_AMPLITUDE:    4,
+  DEATH_FLASH_FRAMES:       6,    // PR-C: white-flash overlay length on collision
+  SCORE_POP_FRAMES:        12,    // PR-C: HUD score scale-up duration during death shake
   MILESTONE_FRAMES:        90,
   NEW_BEST_FRAMES:        120,
 
@@ -385,6 +388,8 @@ const game = {
   stars:            [],
   starsInitialised: false,
   deathShakeFrames: 0,
+  deathFlashFrames: 0,
+  scorePopFrames:   0,
   milestoneText:    '',
   milestoneFrames:  0,
   newBestFrames:    0,
@@ -508,10 +513,34 @@ function drawDino() {
 }
 
 function drawScore() {
+  const popping = game.scorePopFrames > 0 && isUpdatedMode() && !reducedMotion;
+  if (popping) {
+    // Brief 1.0 → 1.4 ease-out scale around the score's centre on death.
+    const t = game.scorePopFrames / GAME_CONFIG.SCORE_POP_FRAMES; // 1 → 0
+    const scale = 1 + t * 0.4;
+    const cx = canvas.width - GAME_CONFIG.SCORE_X_OFFSET + 50;
+    const cy = GAME_CONFIG.SCORE_Y - 8;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(scale, scale);
+    ctx.translate(-cx, -cy);
+  }
   ctx.fillStyle = game.score >= GAME_CONFIG.DAY_NIGHT_START ? '#ffffff' : '#000000';
   ctx.font = '20px Arial';
   ctx.textAlign = 'left';
   ctx.fillText('Score: ' + Math.floor(game.score), canvas.width - GAME_CONFIG.SCORE_X_OFFSET, GAME_CONFIG.SCORE_Y);
+  if (popping) ctx.restore();
+}
+
+// PR-C: white-flash overlay drawn on top of the world during the first few
+// post-death frames. Mode-gated; reduce-motion caps it at 1 frame.
+function drawDeathFlash() {
+  if (game.deathFlashFrames <= 0) return;
+  const alpha = game.deathFlashFrames / GAME_CONFIG.DEATH_FLASH_FRAMES;
+  ctx.save();
+  ctx.fillStyle = 'rgba(255, 255, 255, ' + alpha.toFixed(3) + ')';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
 }
 
 function drawGetReadyOverlay() {
@@ -784,6 +813,8 @@ function resetGame() {
   game.state = STATE.WAITING;
   game.starsInitialised = false;
   game.deathShakeFrames = 0;
+  game.deathFlashFrames = 0;
+  game.scorePopFrames = 0;
   game.milestoneFrames = 0;
   game.newBestFrames = 0;
   game.newBestShown = false;
@@ -807,7 +838,10 @@ function gameLoop() {
       drawDino();
       drawScore();
       ctx.restore();
+      drawDeathFlash(); // white flash drawn outside the shake transform so it stays canvas-aligned
       updateParticles();
+      if (game.deathFlashFrames > 0) game.deathFlashFrames--;
+      if (game.scorePopFrames > 0) game.scorePopFrames--;
       game.deathShakeFrames--;
       game.animationFrameId = requestAnimationFrame(gameLoop);
     } else {
@@ -893,6 +927,11 @@ function gameLoop() {
     if (checkCollision(dino, game.obstacles[i])) {
       game.state = STATE.DEAD;
       game.deathShakeFrames = GAME_CONFIG.DEATH_SHAKE_FRAMES;
+      // PR-C: white flash + score pop, mode-gated. Reduce-motion caps flash to 1 frame.
+      if (isUpdatedMode()) {
+        game.deathFlashFrames = reducedMotion ? 1 : GAME_CONFIG.DEATH_FLASH_FRAMES;
+        game.scorePopFrames = reducedMotion ? 0 : GAME_CONFIG.SCORE_POP_FRAMES;
+      }
       emitParticles('collision', dino.x + dino.width / 2, dino.y + dino.height / 2);
       audio.death();
       cancelAnimationFrame(game.animationFrameId);
@@ -978,4 +1017,5 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.updateParticles = updateParticles;
   global.drawParticles = drawParticles;
   global.audio = audio;
+  global.drawDeathFlash = drawDeathFlash;
 }
