@@ -296,6 +296,67 @@ describe('Spawn Gap Jitter', () => {
   });
 });
 
+describe('Particles (PR-A)', () => {
+  function clearParticles() { for (let i = 0; i < particles.length; i++) particles[i].life = 0; }
+
+  it('emits 0 particles in classic mode', () => {
+    clearParticles();
+    setMode(MODES.CLASSIC);
+    cancelAnimationFrame(game.animationFrameId);
+    const n = emitParticles('jump', 100, 100);
+    assertEquals(n, 0, 'Classic mode should not emit particles');
+  });
+
+  it('emits the configured count in updated mode', () => {
+    clearParticles();
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    const n = emitParticles('jump', 100, 100);
+    assertEquals(n, PARTICLE_KINDS.jump.count, `jump should emit ${PARTICLE_KINDS.jump.count} particles`);
+  });
+
+  it('emits 0 for an unknown kind without throwing', () => {
+    clearParticles();
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    const n = emitParticles('nonexistent', 100, 100);
+    assertEquals(n, 0, 'Unknown kind should be a no-op');
+  });
+
+  it('does not allocate beyond the pool when burst-emitting', () => {
+    clearParticles();
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    // Fire a bunch of bursts; pool size shouldn't grow.
+    for (let i = 0; i < 20; i++) emitParticles('collision', 100, 100);
+    assertEquals(particles.length, PARTICLE_POOL_SIZE, 'Pool length must stay fixed');
+    const live = particles.filter(p => p.life > 0).length;
+    assert(live <= PARTICLE_POOL_SIZE, `Live particles (${live}) should not exceed pool`);
+  });
+
+  it('updateParticles decays life to 0 over maxLife frames', () => {
+    clearParticles();
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    emitParticles('jump', 100, 100);
+    const live = () => particles.filter(p => p.life > 0).length;
+    const initial = live();
+    assert(initial > 0, 'Should have live particles after emit');
+    for (let i = 0; i < PARTICLE_KINDS.jump.life + 1; i++) updateParticles();
+    assertEquals(live(), 0, 'All particles should be dead after maxLife frames');
+  });
+
+  it('resetGame clears any active particles', () => {
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    emitParticles('collision', 100, 100);
+    assert(particles.some(p => p.life > 0), 'Should have live particles before reset');
+    resetGame();
+    cancelAnimationFrame(game.animationFrameId);
+    assert(particles.every(p => p.life === 0), 'All particles should be dead after reset');
+  });
+});
+
 describe('Mode Toggle', () => {
   it('loadMode defaults to updated when nothing is stored', () => {
     localStorage.removeItem('dino-mode');
