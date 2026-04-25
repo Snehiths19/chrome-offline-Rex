@@ -834,6 +834,69 @@ describe('State Transitions', () => {
   });
 });
 
+describe('PR-P1 bug fixes', () => {
+  it('updateHills respawn uses game.rng (consumes exactly 3 draws)', () => {
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    game.rng = mulberry32(123);
+    initHills();
+    // Force the first hill off-screen so updateHills will respawn it.
+    game.hills[0].x = -game.hills[0].width - 1;
+    game.currentSpeed = 6;
+
+    let calls = 0;
+    const inner = mulberry32(456);
+    game.rng = () => { calls++; return inner(); };
+    updateHills();
+
+    assertEquals(calls, 3, 'Respawn must consume exactly 3 game.rng() draws');
+    assert(game.hills[0].x >= canvas.width,
+      'Respawned x must land at or past canvas width');
+  });
+
+  it('audio.ensure resumes a suspended context', () => {
+    let resumed = 0;
+    const prev = audio.ctx;
+    audio.ctx = { state: 'suspended', resume: () => { resumed++; return Promise.resolve(); } };
+    audio.ensure();
+    assertEquals(resumed, 1, 'ensure() must call resume() on suspended ctx');
+    audio.ctx = prev;
+  });
+
+  it('audio.ensure does not call resume on running context', () => {
+    let resumed = 0;
+    const prev = audio.ctx;
+    audio.ctx = { state: 'running', resume: () => { resumed++; return Promise.resolve(); } };
+    audio.ensure();
+    assertEquals(resumed, 0, 'ensure() must not resume an already-running ctx');
+    audio.ctx = prev;
+  });
+
+  it('drawNewBestBadge offsets vertically when milestone is active', () => {
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text, x, y) => calls.push({ text, x, y });
+
+    game.milestoneFrames = 0;
+    game.newBestFrames = GAME_CONFIG.NEW_BEST_FRAMES;
+    drawNewBestBadge();
+    const baseY = calls[calls.length - 1].y;
+
+    game.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
+    game.newBestFrames = GAME_CONFIG.NEW_BEST_FRAMES;
+    drawNewBestBadge();
+    const offsetY = calls[calls.length - 1].y;
+
+    assert(offsetY > baseY,
+      `NEW BEST y should drop when milestone active (base ${baseY}, offset ${offsetY})`);
+    assertEquals(offsetY - baseY, 30, 'Stagger should be exactly 30px');
+
+    ctx.fillText = origFill;
+    game.milestoneFrames = 0;
+    game.newBestFrames = 0;
+  });
+});
+
 // --- Test Summary ---
 // Print summary both in the browser (on window.onload) and in Node (via a
 // setTimeout fallback so async tests have time to complete).

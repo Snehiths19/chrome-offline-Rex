@@ -181,12 +181,16 @@ const audio = {
   ctx: null,
   muted: localStorage.getItem('dino-muted') === '1',
   ensure() {
-    if (this.ctx) return this.ctx;
-    const Ctx = (typeof AudioContext !== 'undefined') ? AudioContext
-              : (typeof webkitAudioContext !== 'undefined') ? webkitAudioContext
-              : null;
-    if (!Ctx) return null;
-    try { this.ctx = new Ctx(); } catch (e) { this.ctx = null; }
+    if (!this.ctx) {
+      const Ctx = (typeof AudioContext !== 'undefined') ? AudioContext
+                : (typeof webkitAudioContext !== 'undefined') ? webkitAudioContext
+                : null;
+      if (!Ctx) return null;
+      try { this.ctx = new Ctx(); } catch (e) { this.ctx = null; }
+    }
+    if (this.ctx && this.ctx.state === 'suspended' && typeof this.ctx.resume === 'function') {
+      this.ctx.resume().catch(() => { /* swallow autoplay-block etc. */ });
+    }
     return this.ctx;
   },
   setMuted(v) {
@@ -490,9 +494,9 @@ function updateHills() {
   for (const hill of game.hills) {
     hill.x -= game.currentSpeed * GAME_CONFIG.HILL_PARALLAX;
     if (hill.x + hill.width < 0) {
-      hill.x = canvas.width + Math.random() * 50;
-      hill.width = GAME_CONFIG.HILL_MIN_WIDTH + Math.random() * GAME_CONFIG.HILL_WIDTH_RANGE;
-      hill.height = GAME_CONFIG.HILL_MIN_HEIGHT + Math.random() * GAME_CONFIG.HILL_HEIGHT_RANGE;
+      hill.x = canvas.width + game.rng() * 50;
+      hill.width = GAME_CONFIG.HILL_MIN_WIDTH + game.rng() * GAME_CONFIG.HILL_WIDTH_RANGE;
+      hill.height = GAME_CONFIG.HILL_MIN_HEIGHT + game.rng() * GAME_CONFIG.HILL_HEIGHT_RANGE;
     }
   }
 }
@@ -676,7 +680,10 @@ function drawNewBestBadge() {
   ctx.fillStyle = '#ffd700';
   ctx.textAlign = 'left';
   ctx.font = 'bold 14px Arial';
-  ctx.fillText('NEW BEST!', canvas.width - GAME_CONFIG.SCORE_X_OFFSET, 70);
+  // Drop below the milestone flash when both fire on the same frame
+  // (level-up + new-best at score = highScore + 100).
+  const y = game.milestoneFrames > 0 ? 100 : 70;
+  ctx.fillText('NEW BEST!', canvas.width - GAME_CONFIG.SCORE_X_OFFSET, y);
   ctx.restore();
   game.newBestFrames--;
 }
@@ -845,13 +852,24 @@ function refreshModeToggle() {
   });
 }
 if (modeToggle && modeToggle.addEventListener) {
-  modeToggle.addEventListener('click', (event) => {
+  // stopPropagation + a touchstart shadow stops the synthesised click from
+  // also firing the canvas's jump handler when the buttons sit over it.
+  const onModeTap = (event) => {
     const target = event.target;
     if (!target || !target.dataset || !target.dataset.mode) return;
+    event.stopPropagation();
     if (target.dataset.mode === game.mode) return; // already in that mode
     setMode(target.dataset.mode);
     announce(game.mode === MODES.CLASSIC ? 'Classic mode' : 'Updated mode');
-  });
+  };
+  modeToggle.addEventListener('click', onModeTap);
+  modeToggle.addEventListener('touchstart', (event) => {
+    if (event.target && event.target.dataset && event.target.dataset.mode) {
+      event.preventDefault();
+      event.stopPropagation();
+      onModeTap(event);
+    }
+  }, { passive: false });
   refreshModeToggle();
 }
 
@@ -864,13 +882,33 @@ function refreshMuteButton() {
   muteBtn.setAttribute('aria-label', audio.muted ? 'Unmute sound' : 'Mute sound');
 }
 if (muteBtn && muteBtn.addEventListener) {
-  muteBtn.addEventListener('click', () => {
-    audio.ensure(); // also unlocks AudioContext if not yet
+  const onMuteTap = (event) => {
+    if (event) event.stopPropagation();
+    audio.ensure(); // also unlocks (and resumes) AudioContext if not yet
     audio.setMuted(!audio.muted);
     refreshMuteButton();
     announce(audio.muted ? 'Sound muted' : 'Sound on');
-  });
+  };
+  muteBtn.addEventListener('click', onMuteTap);
+  muteBtn.addEventListener('touchstart', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onMuteTap(event);
+  }, { passive: false });
   refreshMuteButton();
+}
+
+// Resume the AudioContext when the tab becomes visible again. Browsers
+// suspend the ctx when the page is hidden; without this, audio dies silently
+// on tab-switch even though no error is thrown.
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && audio.ctx
+        && audio.ctx.state === 'suspended'
+        && typeof audio.ctx.resume === 'function') {
+      audio.ctx.resume().catch(() => {});
+    }
+  });
 }
 
 // == SECTION 8: GAME LOOP ==
@@ -1106,6 +1144,8 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.drawParticles = drawParticles;
   global.audio = audio;
   global.drawDeathFlash = drawDeathFlash;
+  global.drawMilestoneFlash = drawMilestoneFlash;
+  global.drawNewBestBadge = drawNewBestBadge;
   global.initHills = initHills;
   global.updateHills = updateHills;
   global.drawHills = drawHills;
