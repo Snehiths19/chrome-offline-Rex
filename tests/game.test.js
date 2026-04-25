@@ -296,6 +296,97 @@ describe('Spawn Gap Jitter', () => {
   });
 });
 
+describe('Ambient depth + confetti (PR-D)', () => {
+  it('initHills produces HILL_COUNT hills with stable shapes for the same seed', () => {
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    // Pin the RNG to a deterministic sequence.
+    game.rng = mulberry32(42);
+    initHills();
+    const snapshot1 = game.hills.map(h => ({ x: h.x, w: h.width, h: h.height }));
+    assertEquals(game.hills.length, GAME_CONFIG.HILL_COUNT, 'Hills count should match config');
+
+    // Re-seed identically and re-init — same hills.
+    game.rng = mulberry32(42);
+    initHills();
+    game.hills.forEach((h, i) => {
+      assertEquals(h.x, snapshot1[i].x, `Hill ${i} x should be deterministic`);
+      assertEquals(h.width, snapshot1[i].w, `Hill ${i} width should be deterministic`);
+      assertEquals(h.height, snapshot1[i].h, `Hill ${i} height should be deterministic`);
+    });
+  });
+
+  it('updateHills scrolls in updated mode but is a no-op in classic', () => {
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    game.rng = mulberry32(1);
+    initHills();
+    const beforeX = game.hills[0].x;
+    game.currentSpeed = 6;
+    updateHills();
+    assert(game.hills[0].x < beforeX, 'Hill should scroll left in updated mode');
+
+    setMode(MODES.CLASSIC);
+    cancelAnimationFrame(game.animationFrameId);
+    game.rng = mulberry32(1);
+    initHills();
+    const classicBefore = game.hills[0].x;
+    game.currentSpeed = 6;
+    updateHills();
+    assertEquals(game.hills[0].x, classicBefore, 'Classic mode should not scroll hills');
+    setMode(MODES.UPDATED); // reset for siblings
+    cancelAnimationFrame(game.animationFrameId);
+  });
+
+  it('updateHills respawns a hill on the right when it exits the left edge', () => {
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    game.rng = mulberry32(7);
+    initHills();
+    const hill = game.hills[0];
+    hill.x = -hill.width - 1; // already past left edge
+    game.currentSpeed = 6;
+    updateHills();
+    assert(hill.x >= canvas.width, `Respawned hill x (${hill.x}) should be at/past right edge (${canvas.width})`);
+  });
+
+  it('confetti is a registered particle kind', () => {
+    assert(PARTICLE_KINDS.confetti, 'PARTICLE_KINDS should include confetti');
+    assert(PARTICLE_KINDS.confetti.color === '#ffd700', 'Confetti should be gold');
+  });
+
+  it('level-up emits confetti in updated mode', () => {
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    resetGame();
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    // Clear pool and fast-forward to just before a level boundary.
+    for (let i = 0; i < particles.length; i++) particles[i].life = 0;
+    game.score = GAME_CONFIG.SCORE_PER_LEVEL - 0.05; // next gameLoop tick crosses
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+    const live = particles.filter(p => p.life > 0 && p.color === '#ffd700').length;
+    assert(live > 0, `Should have emitted at least one gold confetti particle, got ${live}`);
+  });
+
+  it('level-up does not emit confetti in classic mode', () => {
+    setMode(MODES.CLASSIC);
+    cancelAnimationFrame(game.animationFrameId);
+    resetGame();
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    for (let i = 0; i < particles.length; i++) particles[i].life = 0;
+    game.score = GAME_CONFIG.SCORE_PER_LEVEL - 0.05;
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+    const gold = particles.filter(p => p.life > 0 && p.color === '#ffd700').length;
+    assertEquals(gold, 0, 'Classic mode should not spawn confetti');
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+  });
+});
+
 describe('Death flash + score pop (PR-C)', () => {
   it('updated mode collision sets deathFlashFrames + scorePopFrames', () => {
     setMode(MODES.UPDATED);

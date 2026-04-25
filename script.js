@@ -28,6 +28,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
             restore: () => {},
             translate: () => {},
             scale: () => {},
+            ellipse: () => {},
             fillStyle: '',
             strokeStyle: '',
             font: '',
@@ -128,6 +129,18 @@ const GAME_CONFIG = Object.freeze({
   STAR_SIZE:                2,
   STAR_Y_RANGE:           100,
   STAR_COLOR:              '#ffffff',
+
+  // --- Ambient depth (PR-D, updated mode only) ---
+  HILL_COUNT:               3,    // mid-ground silhouette mounds
+  HILL_PARALLAX:            0.2,  // fraction of obstacle speed at which hills scroll
+  HILL_MIN_WIDTH:         120,
+  HILL_WIDTH_RANGE:        80,
+  HILL_MIN_HEIGHT:         40,
+  HILL_HEIGHT_RANGE:       30,
+  HILL_COLOR_DAY:          '#cdcdcd',
+  HILL_COLOR_NIGHT:        '#3a3a55',
+  CLOUD_SPEED_FACTOR_UPDATED: 1.5, // multiply cloud speed in updated mode for stronger parallax
+  SKY_TINT_PEAK_ALPHA:      0.12, // gold sky-flash peak alpha during milestone
 
   // --- Effects ---
   DEATH_SHAKE_FRAMES:      12,
@@ -273,6 +286,7 @@ function startGameOnce() {
   assetsStarted = true;
   dino.y = canvas.height - dino.height;
   initClouds();
+  initHills();
   drawDino();
   game.state = STATE.WAITING;
   gameLoop();
@@ -387,6 +401,7 @@ const game = {
   clouds:           [],
   stars:            [],
   starsInitialised: false,
+  hills:            [],
   deathShakeFrames: 0,
   deathFlashFrames: 0,
   scorePopFrames:   0,
@@ -444,13 +459,78 @@ function initClouds() {
 
 function updateClouds() {
   if (reducedMotion) return;
+  // PR-D: stronger parallax in Updated mode so the world feels less static.
+  const speedFactor = isUpdatedMode() ? GAME_CONFIG.CLOUD_SPEED_FACTOR_UPDATED : 1;
   game.clouds.forEach(c => {
-    c.x -= c.speed;
+    c.x -= c.speed * speedFactor;
     if (c.x + GAME_CONFIG.CLOUD_WIDTH < 0) {
       c.x = canvas.width + GAME_CONFIG.CLOUD_RESPAWN_OFFSET;
       c.y = GAME_CONFIG.CLOUD_MIN_Y + Math.random() * GAME_CONFIG.CLOUD_Y_RANGE;
     }
   });
+}
+
+// --- Mid-ground hills (PR-D, updated mode only) ---
+// Soft mounds drawn behind the ground at slow parallax. Deterministic shape
+// per-run via game.rng so the same seed yields identical scenery.
+function initHills() {
+  game.hills.length = 0;
+  const slot = canvas.width / GAME_CONFIG.HILL_COUNT;
+  for (let i = 0; i < GAME_CONFIG.HILL_COUNT; i++) {
+    game.hills.push({
+      x:      i * slot + game.rng() * (slot - GAME_CONFIG.HILL_MIN_WIDTH),
+      width:  GAME_CONFIG.HILL_MIN_WIDTH + game.rng() * GAME_CONFIG.HILL_WIDTH_RANGE,
+      height: GAME_CONFIG.HILL_MIN_HEIGHT + game.rng() * GAME_CONFIG.HILL_HEIGHT_RANGE,
+    });
+  }
+}
+
+function updateHills() {
+  if (!isUpdatedMode() || reducedMotion) return;
+  for (const hill of game.hills) {
+    hill.x -= game.currentSpeed * GAME_CONFIG.HILL_PARALLAX;
+    if (hill.x + hill.width < 0) {
+      hill.x = canvas.width + Math.random() * 50;
+      hill.width = GAME_CONFIG.HILL_MIN_WIDTH + Math.random() * GAME_CONFIG.HILL_WIDTH_RANGE;
+      hill.height = GAME_CONFIG.HILL_MIN_HEIGHT + Math.random() * GAME_CONFIG.HILL_HEIGHT_RANGE;
+    }
+  }
+}
+
+function drawHills() {
+  if (!isUpdatedMode() || game.hills.length === 0) return;
+  // Pick a colour that contrasts with the day/night background.
+  ctx.fillStyle = game.score >= GAME_CONFIG.DAY_NIGHT_START
+    ? GAME_CONFIG.HILL_COLOR_NIGHT
+    : GAME_CONFIG.HILL_COLOR_DAY;
+  const baseY = canvas.height - 16;
+  for (const hill of game.hills) {
+    if (typeof ctx.ellipse !== 'function') {
+      // Fallback for environments without canvas.ellipse — draw a triangle.
+      ctx.beginPath();
+      ctx.moveTo(hill.x, baseY);
+      ctx.lineTo(hill.x + hill.width / 2, baseY - hill.height);
+      ctx.lineTo(hill.x + hill.width, baseY);
+      ctx.closePath();
+      ctx.fill();
+      continue;
+    }
+    ctx.beginPath();
+    ctx.ellipse(hill.x + hill.width / 2, baseY, hill.width / 2, hill.height, 0, 0, Math.PI, true);
+    ctx.fill();
+  }
+}
+
+// PR-D: gentle gold sky-tint pulse during a milestone flash. Subtle on top of
+// the existing day/night background.
+function drawSkyTint() {
+  if (!isUpdatedMode() || reducedMotion) return;
+  if (game.milestoneFrames <= 0) return;
+  const alpha = (game.milestoneFrames / GAME_CONFIG.MILESTONE_FRAMES) * GAME_CONFIG.SKY_TINT_PEAK_ALPHA;
+  ctx.save();
+  ctx.fillStyle = 'rgba(255, 215, 0, ' + alpha.toFixed(3) + ')';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
 }
 
 function drawClouds() {
@@ -612,6 +692,7 @@ const PARTICLE_KINDS = Object.freeze({
   land:      { count:  9, color: '#9c8770',         size: 3, life: 14, vyMin: -1.5, vyMax: -0.2, vxSpread: 2.5, gravity: 0.08 },
   trail:     { count:  1, color: 'rgba(150,150,150,0.55)', size: 2, life: 10, vyMin: -0.2, vyMax: 0.2, vxSpread: 0.4, gravity: 0    },
   collision: { count: 22, color: '#d04a2a',         size: 3, life: 24, vyMin: -3.0, vyMax: 1.0, vxSpread: 4.0, gravity: 0.10 },
+  confetti:  { count: 20, color: '#ffd700',         size: 3, life: 40, vyMin: -3.5, vyMax: -1.5, vxSpread: 3.0, gravity: 0.12 },
 });
 const PARTICLE_REDUCED_FACTOR = 0.25;
 
@@ -821,6 +902,7 @@ function resetGame() {
   game.rng = mulberry32(Date.now() & 0xffffffff);
   game.nextSpawnGap = computeNextSpawnGap(game.rng, game.currentSpeed, game.mode);
   initClouds();
+  initHills();
   announce('New game. Press space or tap to jump.');
 }
 
@@ -831,6 +913,7 @@ function gameLoop() {
       ctx.save();
       ctx.translate(Math.sin(game.deathShakeFrames * 1.5) * GAME_CONFIG.DEATH_SHAKE_AMPLITUDE, 0);
       drawBackground();
+      drawHills();
       drawGround();
       drawClouds();
       drawObstacles();
@@ -858,6 +941,7 @@ function gameLoop() {
       announce('Go!');
     }
     drawBackground();
+    drawHills();
     drawGround();
     updateClouds();
     drawClouds();
@@ -884,6 +968,7 @@ function gameLoop() {
     game.milestoneText = 'LEVEL ' + (level + 1);
     game.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
     audio.milestone();
+    emitParticles('confetti', canvas.width - GAME_CONFIG.SCORE_X_OFFSET + 50, GAME_CONFIG.SCORE_Y);
   }
 
   // Scroll ground.
@@ -899,6 +984,8 @@ function gameLoop() {
   }
 
   drawBackground();
+  updateHills();
+  drawHills();
   drawGround();
   updateClouds();
   drawClouds();
@@ -969,6 +1056,7 @@ function gameLoop() {
 
   drawDino();
   drawScore();
+  drawSkyTint();
   drawMilestoneFlash();
   drawNewBestBadge();
 
@@ -1018,4 +1106,8 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.drawParticles = drawParticles;
   global.audio = audio;
   global.drawDeathFlash = drawDeathFlash;
+  global.initHills = initHills;
+  global.updateHills = updateHills;
+  global.drawHills = drawHills;
+  global.drawSkyTint = drawSkyTint;
 }
