@@ -296,6 +296,65 @@ describe('Spawn Gap Jitter', () => {
   });
 });
 
+describe('Death flash + score pop (PR-C)', () => {
+  it('updated mode collision sets deathFlashFrames + scorePopFrames', () => {
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    resetGame();
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    game.obstacles.push({ x: dino.x, y: canvas.height - 40, width: 20, height: 40 });
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.state, STATE.DEAD, 'should be dead');
+    assertEquals(game.deathFlashFrames, GAME_CONFIG.DEATH_FLASH_FRAMES, 'flash counter set');
+    assertEquals(game.scorePopFrames, GAME_CONFIG.SCORE_POP_FRAMES, 'score pop counter set');
+  });
+
+  it('classic mode collision leaves deathFlashFrames + scorePopFrames at 0', () => {
+    setMode(MODES.CLASSIC);
+    cancelAnimationFrame(game.animationFrameId);
+    resetGame();
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    game.obstacles.push({ x: dino.x, y: canvas.height - 40, width: 20, height: 40 });
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.deathFlashFrames, 0, 'classic should not flash');
+    assertEquals(game.scorePopFrames, 0, 'classic should not pop');
+    setMode(MODES.UPDATED); // reset for siblings
+    cancelAnimationFrame(game.animationFrameId);
+  });
+
+  it('death flash decays to 0 across DEATH_FLASH_FRAMES frames during shake', () => {
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    resetGame();
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    game.obstacles.push({ x: dino.x, y: canvas.height - 40, width: 20, height: 40 });
+    gameLoop(); // collision frame, sets DEAD + flash
+    cancelAnimationFrame(game.animationFrameId);
+    // Each subsequent DEAD-shake frame should decrement deathFlashFrames once.
+    for (let i = 0; i < GAME_CONFIG.DEATH_FLASH_FRAMES + 2; i++) {
+      gameLoop();
+      cancelAnimationFrame(game.animationFrameId);
+    }
+    assertEquals(game.deathFlashFrames, 0, 'flash should decay to 0');
+  });
+
+  it('resetGame clears deathFlashFrames + scorePopFrames', () => {
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    game.deathFlashFrames = 6;
+    game.scorePopFrames = 12;
+    resetGame();
+    cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.deathFlashFrames, 0, 'reset clears flash');
+    assertEquals(game.scorePopFrames, 0, 'reset clears pop');
+  });
+});
+
 describe('Audio (PR-B)', () => {
   it('audio.ensure() returns null in Node (no AudioContext)', () => {
     const result = audio.ensure();
