@@ -311,6 +311,16 @@ const game = {
   rng:              mulberry32(Date.now() & 0xffffffff),
 };
 
+// In the browser, expose the game state + config on `window` so you can
+// sanity-check live values from DevTools console (e.g. `game.currentSpeed`,
+// `GAME_CONFIG.INITIAL_SPEED`). Skipped in Node — tests already get these
+// via the test-exposure block at the bottom of the file.
+if (typeof window !== 'undefined' && typeof process === 'undefined') {
+  window.game = game;
+  window.GAME_CONFIG = GAME_CONFIG;
+  window.STATE = STATE;
+}
+
 // == SECTION 5: RENDERING ==
 
 function getBackgroundColor(s) {
