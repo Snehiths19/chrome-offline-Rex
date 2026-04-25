@@ -758,6 +758,29 @@ function drawParticles() {
   ctx.globalAlpha = prevAlpha;
 }
 
+// == FEATURE REGISTRY ==
+// Declarative ordering for ambient features that run every RUNNING frame.
+// Each entry has an id (test snapshot anchor), an optional update, a draw,
+// and a layer that maps it to a draw-phase. Feature functions self-gate
+// (mode + reduced-motion); the registry only controls *when in the frame*
+// they fire. WAITING/DEAD branches are still hand-written — they use a
+// different subset and would only get a per-feature skip-flag if forced
+// through here.
+const FEATURES = Object.freeze([
+  { id: 'hills',     layer: 'background', update: updateHills,     draw: drawHills     },
+  { id: 'clouds',    layer: 'background', update: updateClouds,    draw: drawClouds    },
+  { id: 'particles', layer: 'foreground', update: updateParticles, draw: drawParticles },
+  { id: 'skyTint',   layer: 'overlay',    update: null,            draw: drawSkyTint   },
+]);
+
+function runFeatureUpdates() {
+  for (const f of FEATURES) if (f.update) f.update();
+}
+
+function runFeatureDraws(layer) {
+  for (const f of FEATURES) if (f.draw && f.layer === layer) f.draw();
+}
+
 // == SECTION 6: PHYSICS & GAME LOGIC ==
 
 function spawnObstacle(type) {
@@ -1022,13 +1045,10 @@ function gameLoop() {
   }
 
   drawBackground();
-  updateHills();
-  drawHills();
+  runFeatureUpdates();              // updateHills, updateClouds, updateParticles
+  runFeatureDraws('background');    // drawHills, drawClouds
   drawGround();
-  updateClouds();
-  drawClouds();
   updateObstacles();
-  updateParticles();
 
   // Speed-trail particles: subtle dust trailing off the dino at near-cap speed.
   if (isUpdatedMode() && game.currentSpeed >= GAME_CONFIG.SPEED_CAP * 0.85) {
@@ -1045,7 +1065,7 @@ function gameLoop() {
   }
 
   drawObstacles();
-  drawParticles();
+  runFeatureDraws('foreground');    // drawParticles
 
   // Collision detection.
   for (let i = 0; i < game.obstacles.length; i++) {
@@ -1094,7 +1114,7 @@ function gameLoop() {
 
   drawDino();
   drawScore();
-  drawSkyTint();
+  runFeatureDraws('overlay');       // drawSkyTint
   drawMilestoneFlash();
   drawNewBestBadge();
 
@@ -1150,4 +1170,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.updateHills = updateHills;
   global.drawHills = drawHills;
   global.drawSkyTint = drawSkyTint;
+  global.FEATURES = FEATURES;
+  global.runFeatureUpdates = runFeatureUpdates;
+  global.runFeatureDraws = runFeatureDraws;
 }
