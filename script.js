@@ -335,7 +335,7 @@ const game = {
 function setMode(newMode) {
   game.mode = newMode === MODES.CLASSIC ? MODES.CLASSIC : MODES.UPDATED;
   localStorage.setItem('dino-mode', game.mode);
-  refreshModeButtonLabel();
+  refreshModeToggle();
   // Restart the run cleanly so the new mode's spawn rules take effect immediately.
   cancelAnimationFrame(game.animationFrameId);
   resetGame();
@@ -591,24 +591,25 @@ if (jumpBtn) {
   jumpBtn.addEventListener('click', handleAction);
 }
 
-const modeBtn = document.getElementById('mode-btn');
-function refreshModeButtonLabel() {
-  if (!modeBtn) return;
-  const isClassic = game.mode === MODES.CLASSIC;
-  modeBtn.textContent = isClassic ? 'Classic' : 'Updated';
-  modeBtn.dataset.mode = game.mode;
-  modeBtn.setAttribute('aria-pressed', String(!isClassic));
-  modeBtn.setAttribute(
-    'aria-label',
-    isClassic ? 'Mode: Classic. Switch to Updated.' : 'Mode: Updated. Switch to Classic.'
-  );
+// Segmented toggle: two buttons, both always visible, exactly one pressed.
+const modeToggle = document.getElementById('mode-toggle');
+function refreshModeToggle() {
+  if (!modeToggle || !modeToggle.querySelectorAll) return;
+  const buttons = modeToggle.querySelectorAll('button');
+  buttons.forEach(btn => {
+    const pressed = btn.dataset && btn.dataset.mode === game.mode;
+    btn.setAttribute('aria-pressed', String(pressed));
+  });
 }
-if (modeBtn) {
-  modeBtn.addEventListener('click', () => {
-    setMode(game.mode === MODES.CLASSIC ? MODES.UPDATED : MODES.CLASSIC);
+if (modeToggle && modeToggle.addEventListener) {
+  modeToggle.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!target || !target.dataset || !target.dataset.mode) return;
+    if (target.dataset.mode === game.mode) return; // already in that mode
+    setMode(target.dataset.mode);
     announce(game.mode === MODES.CLASSIC ? 'Classic mode' : 'Updated mode');
   });
-  refreshModeButtonLabel();
+  refreshModeToggle();
 }
 
 // == SECTION 8: GAME LOOP ==
