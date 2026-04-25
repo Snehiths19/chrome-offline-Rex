@@ -511,6 +511,75 @@ function drawNewBestBadge() {
   game.newBestFrames--;
 }
 
+// --- Particle system (PR-A) ---
+// Pooled — slots with life <= 0 are reusable, no allocation per emit.
+// Cosmetic only: uses Math.random() instead of game.rng so it can't perturb
+// gameplay determinism (spawn jitter / obstacle picks stay reproducible).
+
+const PARTICLE_POOL_SIZE = 80;
+const PARTICLE_KINDS = Object.freeze({
+  jump:      { count:  6, color: '#9c8770',         size: 3, life: 18, vyMin: -2.0, vyMax: -0.5, vxSpread: 1.5, gravity: 0.05 },
+  land:      { count:  9, color: '#9c8770',         size: 3, life: 14, vyMin: -1.5, vyMax: -0.2, vxSpread: 2.5, gravity: 0.08 },
+  trail:     { count:  1, color: 'rgba(150,150,150,0.55)', size: 2, life: 10, vyMin: -0.2, vyMax: 0.2, vxSpread: 0.4, gravity: 0    },
+  collision: { count: 22, color: '#d04a2a',         size: 3, life: 24, vyMin: -3.0, vyMax: 1.0, vxSpread: 4.0, gravity: 0.10 },
+});
+const PARTICLE_REDUCED_FACTOR = 0.25;
+
+const particles = [];
+for (let i = 0; i < PARTICLE_POOL_SIZE; i++) {
+  particles.push({ x: 0, y: 0, vx: 0, vy: 0, life: 0, maxLife: 1, size: 0, color: '', gravity: 0 });
+}
+
+function isUpdatedMode() { return game.mode === MODES.UPDATED; }
+
+function emitParticles(kind, x, y) {
+  if (!isUpdatedMode()) return 0;
+  const config = PARTICLE_KINDS[kind];
+  if (!config) return 0;
+  let count = config.count;
+  if (reducedMotion) count = Math.max(1, Math.round(count * PARTICLE_REDUCED_FACTOR));
+  const life = reducedMotion ? Math.max(2, Math.round(config.life * 0.5)) : config.life;
+  let emitted = 0;
+  for (let i = 0; i < particles.length && emitted < count; i++) {
+    const p = particles[i];
+    if (p.life > 0) continue;
+    p.x = x + (Math.random() - 0.5) * 4;
+    p.y = y;
+    p.vx = (Math.random() - 0.5) * 2 * config.vxSpread;
+    p.vy = config.vyMin + Math.random() * (config.vyMax - config.vyMin);
+    p.maxLife = life;
+    p.life = life;
+    p.size = config.size;
+    p.color = config.color;
+    p.gravity = config.gravity;
+    emitted++;
+  }
+  return emitted;
+}
+
+function updateParticles() {
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i];
+    if (p.life <= 0) continue;
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += p.gravity;
+    p.life--;
+  }
+}
+
+function drawParticles() {
+  const prevAlpha = ctx.globalAlpha;
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i];
+    if (p.life <= 0) continue;
+    ctx.globalAlpha = p.life / p.maxLife;
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+  }
+  ctx.globalAlpha = prevAlpha;
+}
+
 // == SECTION 6: PHYSICS & GAME LOGIC ==
 
 function spawnObstacle(type) {
@@ -554,6 +623,7 @@ function jump() {
   if (!dino.isJumping) {
     dino.velocityY = dino.jumpPower;
     dino.isJumping = true;
+    emitParticles('jump', dino.x + dino.width / 2, dino.y + dino.height);
   }
 }
 
@@ -619,6 +689,9 @@ function resetGame() {
   dino.velocityY = 0;
   dino.isJumping = false;
 
+  // Clear any lingering particles from the previous run.
+  for (let i = 0; i < particles.length; i++) particles[i].life = 0;
+
   game.obstacles.length = 0;
   game.stars.length = 0;
   game.score = 0;
@@ -649,9 +722,11 @@ function gameLoop() {
       drawGround();
       drawClouds();
       drawObstacles();
+      drawParticles();
       drawDino();
       drawScore();
       ctx.restore();
+      updateParticles();
       game.deathShakeFrames--;
       game.animationFrameId = requestAnimationFrame(gameLoop);
     } else {
@@ -712,6 +787,12 @@ function gameLoop() {
   updateClouds();
   drawClouds();
   updateObstacles();
+  updateParticles();
+
+  // Speed-trail particles: subtle dust trailing off the dino at near-cap speed.
+  if (isUpdatedMode() && game.currentSpeed >= GAME_CONFIG.SPEED_CAP * 0.85) {
+    emitParticles('trail', dino.x + 4, dino.y + dino.height - 4);
+  }
 
   // Obstacle spawning — in updated mode the gap is precomputed per-obstacle
   // with ±SPAWN_GAP_JITTER so spacing doesn't feel metronomic; in classic mode
@@ -723,12 +804,14 @@ function gameLoop() {
   }
 
   drawObstacles();
+  drawParticles();
 
   // Collision detection.
   for (let i = 0; i < game.obstacles.length; i++) {
     if (checkCollision(dino, game.obstacles[i])) {
       game.state = STATE.DEAD;
       game.deathShakeFrames = GAME_CONFIG.DEATH_SHAKE_FRAMES;
+      emitParticles('collision', dino.x + dino.width / 2, dino.y + dino.height / 2);
       cancelAnimationFrame(game.animationFrameId);
       const finalScore = Math.floor(game.score);
       if (finalScore > game.highScore) {
@@ -750,6 +833,7 @@ function gameLoop() {
       dino.y = canvas.height - dino.height;
       dino.isJumping = false;
       dino.velocityY = 0;
+      emitParticles('land', dino.x + dino.width / 2, dino.y + dino.height);
     }
   }
 
@@ -803,4 +887,10 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.MODES = MODES;
   global.setMode = setMode;
   global.loadMode = loadMode;
+  global.particles = particles;
+  global.PARTICLE_KINDS = PARTICLE_KINDS;
+  global.PARTICLE_POOL_SIZE = PARTICLE_POOL_SIZE;
+  global.emitParticles = emitParticles;
+  global.updateParticles = updateParticles;
+  global.drawParticles = drawParticles;
 }
