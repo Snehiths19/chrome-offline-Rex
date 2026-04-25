@@ -296,6 +296,55 @@ describe('Spawn Gap Jitter', () => {
   });
 });
 
+describe('Mode Toggle', () => {
+  it('loadMode defaults to updated when nothing is stored', () => {
+    localStorage.removeItem('dino-mode');
+    assertEquals(loadMode(), MODES.UPDATED, 'Default should be updated');
+  });
+
+  it('loadMode returns classic when classic was previously stored', () => {
+    localStorage.setItem('dino-mode', MODES.CLASSIC);
+    assertEquals(loadMode(), MODES.CLASSIC, 'Stored classic should round-trip');
+    localStorage.removeItem('dino-mode'); // reset for siblings
+  });
+
+  it('classic mode forces small cactus regardless of score or rng', () => {
+    const rng = mulberry32(99);
+    for (const score of [0, 100, 250, 1000]) {
+      for (let i = 0; i < 50; i++) {
+        const t = pickObstacleType(rng, score, MODES.CLASSIC);
+        assertEquals(t.id, 'small', `Classic@${score}: expected small, got ${t.id}`);
+      }
+    }
+  });
+
+  it('classic mode returns deterministic gap (no jitter)', () => {
+    const rng = () => 0; // worst-case jitter input
+    const a = computeNextSpawnGap(rng, GAME_CONFIG.INITIAL_SPEED, MODES.CLASSIC);
+    const b = computeNextSpawnGap(rng, GAME_CONFIG.INITIAL_SPEED, MODES.CLASSIC);
+    assertEquals(a, b, 'Classic gap should not vary');
+    assertEquals(a, GAME_CONFIG.MAX_SPAWN_GAP,
+      `At INITIAL_SPEED, classic gap should be MAX_SPAWN_GAP (${GAME_CONFIG.MAX_SPAWN_GAP}), got ${a}`);
+  });
+
+  it('updated mode still produces variety', () => {
+    const rng = mulberry32(11);
+    const gaps = new Set();
+    for (let i = 0; i < 30; i++) gaps.add(computeNextSpawnGap(rng, 8, MODES.UPDATED));
+    assert(gaps.size >= 5, `Updated mode should jitter; got ${gaps.size} distinct values`);
+  });
+
+  it('setMode persists choice and resets the game', () => {
+    setMode(MODES.CLASSIC);
+    assertEquals(game.mode, MODES.CLASSIC, 'Mode should flip');
+    assertEquals(localStorage.getItem('dino-mode'), MODES.CLASSIC, 'Mode should be persisted');
+    assertEquals(game.score, 0, 'setMode should reset the run');
+    cancelAnimationFrame(game.animationFrameId);
+    setMode(MODES.UPDATED); // reset for siblings
+    cancelAnimationFrame(game.animationFrameId);
+  });
+});
+
 describe('Obstacle Types', () => {
   it('only returns small cactus when score < 100', () => {
     const rng = mulberry32(1);
