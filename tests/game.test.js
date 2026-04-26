@@ -237,13 +237,13 @@ describe('Obstacle Gap Enforcement', () => {
     assertEquals(game.obstacles.length, 1, 'Should have 1 obstacle after first gameLoop frame');
 
     // After spawn, nextSpawnGap was recomputed via DifficultyProfile.obstacleParamsAt(score=0)
-    // speedAtScore(0) ≈ 6.26, which yields baseGap 587 at rng=0.5 (zero-jitter midpoint)
-    assertEquals(game.nextSpawnGap, 587, 'Next gap should be baseGap 587 at speedAtScore(0) with zero jitter');
+    // speedAtScore(0) ≈ 5.71, which yields baseGap 589 at rng=0.5 (zero-jitter midpoint)
+    assertEquals(game.nextSpawnGap, 589, 'Next gap should be baseGap 589 at speedAtScore(0) with zero jitter');
 
-    // Frame 2: obstacle hasn't drifted 587 yet — not a spawn frame.
+    // Frame 2: obstacle hasn't drifted 589 yet — not a spawn frame.
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
-    assertEquals(game.obstacles.length, 1, 'Should still be 1 obstacle — 587px gap not met');
+    assertEquals(game.obstacles.length, 1, 'Should still be 1 obstacle — 589px gap not met');
 
     // Force obstacle just past the threshold
     game.obstacles[0].x = canvas.width - 601;
