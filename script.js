@@ -766,8 +766,8 @@ function drawGameOverScreen() {
     ctx.fillText(scoreStr,   canvas.width * 0.2, canvas.height / 2 + 14);
 
     if (game.highScore > 0) {
-      const delta    = game.highScore - Math.floor(game.score);
-      const bestStr  = String(game.highScore).padStart(5, '0');
+      const delta   = game.highScore - Math.floor(game.score);
+      const bestStr = String(game.highScore).padStart(5, '0');
 
       ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
       ctx.font = '16px ' + font;
