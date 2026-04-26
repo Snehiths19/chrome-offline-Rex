@@ -229,20 +229,21 @@ describe('Obstacle Gap Enforcement', () => {
     game.state = STATE.RUNNING;
     // Pin the RNG to the middle of the jitter range so nextSpawnGap is deterministic.
     game.rng = () => 0.5;
-    game.nextSpawnGap = 600; // base gap at INITIAL_SPEED, zero jitter
+    game.nextSpawnGap = 600; // base gap at INITIAL_SPEED, zero jitter — triggers first spawn
 
     // Frame 1: lastObstacleX=-300 ≤ canvas.width-600 → first spawn
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
     assertEquals(game.obstacles.length, 1, 'Should have 1 obstacle after first gameLoop frame');
 
-    // After spawn, nextSpawnGap was recomputed at zero-jitter → 600 at INITIAL_SPEED
-    assertEquals(game.nextSpawnGap, 600, 'Next gap should be baseGap 600 at INITIAL_SPEED with zero jitter');
+    // After spawn, nextSpawnGap was recomputed via DifficultyProfile.obstacleParamsAt(score=0)
+    // speedAtScore(0) ≈ 6.26, which yields baseGap 587 at rng=0.5 (zero-jitter midpoint)
+    assertEquals(game.nextSpawnGap, 587, 'Next gap should be baseGap 587 at speedAtScore(0) with zero jitter');
 
-    // Frame 2: obstacle hasn't drifted 600 yet — not a spawn frame.
+    // Frame 2: obstacle hasn't drifted 587 yet — not a spawn frame.
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
-    assertEquals(game.obstacles.length, 1, 'Should still be 1 obstacle — 600px gap not met');
+    assertEquals(game.obstacles.length, 1, 'Should still be 1 obstacle — 587px gap not met');
 
     // Force obstacle just past the threshold
     game.obstacles[0].x = canvas.width - 601;
@@ -723,7 +724,7 @@ describe('Obstacle Types', () => {
 });
 
 describe('Difficulty Curve', () => {
-  it('should cap currentSpeed at SPEED_CAP regardless of score', () => {
+  it('currentSpeed approaches PLATEAU_SPEED at high score and never exceeds it', () => {
     resetGame();
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
@@ -732,8 +733,10 @@ describe('Difficulty Curve', () => {
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
 
-    assertEquals(game.currentSpeed, GAME_CONFIG.SPEED_CAP,
-      `currentSpeed at score 2000 should equal SPEED_CAP (${GAME_CONFIG.SPEED_CAP}), got ${game.currentSpeed}`);
+    assert(game.currentSpeed <= GAME_CONFIG.PLATEAU_SPEED,
+      `currentSpeed at score 2000 (${game.currentSpeed}) must not exceed PLATEAU_SPEED (${GAME_CONFIG.PLATEAU_SPEED})`);
+    assert(game.currentSpeed > GAME_CONFIG.PLATEAU_SPEED - 0.1,
+      `currentSpeed at score 2000 (${game.currentSpeed}) should be very close to PLATEAU_SPEED — sigmoid has converged`);
   });
 
   it('should not set a .speed property on spawned obstacles', () => {

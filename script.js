@@ -70,11 +70,10 @@ const GAME_CONFIG = Object.freeze({
   GRAVITY:                  0.48, // added to velocityY each frame while airborne
   INITIAL_SPEED:            6.0,  // obstacle scroll speed at score 0 (matches Chrome T-Rex)
   SPEED_CAP:               13.0,  // max scroll speed (matches Chrome T-Rex)
-  SPEED_INCREMENT:          1.0,  // speed added per level — 7 levels to cap
   PLATEAU_SPEED:           11.5,  // sigmoid ceiling — focusable-but-demanding speed the curve approaches
   RAMP_MIDPOINT:          300,    // score where acceleration is steepest (day/night transition)
   RAMP_STEEPNESS:           0.01, // sigmoid slope — controls how quickly speed rises through the midpoint
-  SCORE_PER_LEVEL:        100,    // score points per level-up
+  SCORE_PER_LEVEL:        100,    // score points per level — used for milestone flash effects only
   SCORE_INCREMENT:          0.1,  // score added per frame while RUNNING
 
   // --- Hitbox forgiveness (rendering uses full sprite; collision uses shrunken box) ---
@@ -1053,7 +1052,7 @@ function resetGame() {
   game.newBestFrames = 0;
   game.newBestShown = false;
   game.rng = mulberry32(Date.now() & 0xffffffff);
-  game.nextSpawnGap = computeNextSpawnGap(game.rng, game.currentSpeed, game.mode);
+  game.nextSpawnGap = computeNextSpawnGap(game.rng, DifficultyProfile.speedAtScore(game.score), game.mode);
   initClouds();
   initHills();
   announce('New game. Press space or tap to jump.');
@@ -1114,10 +1113,7 @@ function gameLoop() {
   game.animFrame++;
 
   const level = Math.floor(game.score / GAME_CONFIG.SCORE_PER_LEVEL);
-  game.currentSpeed = Math.min(
-    GAME_CONFIG.INITIAL_SPEED + level * GAME_CONFIG.SPEED_INCREMENT,
-    GAME_CONFIG.SPEED_CAP
-  );
+  game.currentSpeed = DifficultyProfile.speedAtScore(game.score);
 
   // Milestone flash on level-up.
   if (level > prevLevel && level > 0) {
@@ -1155,9 +1151,10 @@ function gameLoop() {
   // with ±SPAWN_GAP_JITTER so spacing doesn't feel metronomic; in classic mode
   // it's deterministic. See computeNextSpawnGap() / pickObstacleType().
   if (game.lastObstacleX <= canvas.width - game.nextSpawnGap) {
-    spawnObstacle(pickObstacleType(game.rng, game.score, game.mode));
+    const params = DifficultyProfile.obstacleParamsAt(game.score, game.rng, game.mode);
+    spawnObstacle(params.type);
     game.lastObstacleX = canvas.width;
-    game.nextSpawnGap = computeNextSpawnGap(game.rng, game.currentSpeed, game.mode);
+    game.nextSpawnGap = params.gap;
   }
 
   drawObstacles();
