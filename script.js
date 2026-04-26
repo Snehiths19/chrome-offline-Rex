@@ -1071,6 +1071,7 @@ function gameLoop() {
   // WAITING — grace-period countdown with GET READY overlay.
   if (game.state === STATE.WAITING) {
     game.graceFrames--;
+    game.animFrame++;
     if (game.graceFrames <= 0) {
       game.state = STATE.RUNNING;
       announce('Go!');
