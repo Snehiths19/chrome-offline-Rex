@@ -707,8 +707,11 @@ function drawGameOverScreen() {
   ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 50);
 
   ctx.font = '20px ' + cfg('SCORE_FONT_FAMILY');
-  ctx.fillText('Score: ' + Math.floor(game.score), canvas.width / 2, canvas.height / 2 - 10);
-  ctx.fillText('Best: ' + game.highScore, canvas.width / 2, canvas.height / 2 + 20);
+  ctx.fillText(String(Math.floor(game.score)).padStart(5, '0'), canvas.width / 2, canvas.height / 2 - 10);
+
+  if (game.highScore > 0) {
+    ctx.fillText('BEST: ' + String(game.highScore).padStart(5, '0'), canvas.width / 2, canvas.height / 2 + 20);
+  }
 
   ctx.font = '16px ' + cfg('SCORE_FONT_FAMILY');
   ctx.fillText('Tap / Press Space to Restart', canvas.width / 2, canvas.height / 2 + 55);

@@ -1142,6 +1142,49 @@ describe('HUD score format (polish pass)', () => {
   });
 });
 
+describe('Game over screen (polish pass)', () => {
+  it('score on game over screen is zero-padded without "Score:" prefix', () => {
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    const origScore = game.score;
+    game.score = 87;
+    drawGameOverScreen();
+    ctx.fillText = origFill;
+    game.score = origScore;
+    assert(calls.some(t => t === '00087'),
+      `Expected '00087' on game over screen, got: ${JSON.stringify(calls)}`);
+    assert(!calls.some(t => t.includes('Score:')),
+      `Expected no 'Score:' prefix on game over screen, got: ${JSON.stringify(calls)}`);
+  });
+
+  it('Best line hidden when highScore is 0', () => {
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    const origHS = game.highScore;
+    game.highScore = 0;
+    drawGameOverScreen();
+    ctx.fillText = origFill;
+    game.highScore = origHS;
+    assert(!calls.some(t => t.toLowerCase().includes('best')),
+      `Expected no Best line when highScore is 0, got: ${JSON.stringify(calls)}`);
+  });
+
+  it('Best line shown when highScore > 0', () => {
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    const origHS = game.highScore;
+    game.highScore = 250;
+    drawGameOverScreen();
+    ctx.fillText = origFill;
+    game.highScore = origHS;
+    assert(calls.some(t => t.toLowerCase().includes('best')),
+      `Expected Best line when highScore > 0, got: ${JSON.stringify(calls)}`);
+  });
+});
+
 // --- Test Summary ---
 // Print summary both in the browser (on window.onload) and in Node (via a
 // setTimeout fallback so async tests have time to complete).
