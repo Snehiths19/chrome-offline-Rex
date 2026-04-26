@@ -472,6 +472,8 @@ const game = {
   milestoneFrames:  0,
   newBestFrames:    0,
   newBestShown:     false,
+  isNewBest:         false,
+  previousHighScore: 0,
   rng:              mulberry32(Date.now() & 0xffffffff),
   mode:             loadMode(),
 };
@@ -1058,8 +1060,10 @@ function resetGame() {
   game.deathFlashFrames = 0;
   game.scorePopFrames = 0;
   game.milestoneFrames = 0;
-  game.newBestFrames = 0;
-  game.newBestShown = false;
+  game.newBestFrames     = 0;
+  game.newBestShown      = false;
+  game.isNewBest         = false;
+  game.previousHighScore = 0;
   game.rng = mulberry32(Date.now() & 0xffffffff);
   game.nextSpawnGap = computeNextSpawnGap(game.rng, DifficultyProfile.speedAtScore(game.score), game.mode);
   initClouds();
@@ -1183,6 +1187,9 @@ function gameLoop() {
       audio.death();
       cancelAnimationFrame(game.animationFrameId);
       const finalScore = Math.floor(game.score);
+      const _runResult = computeRunResult(finalScore, game.highScore);
+      game.isNewBest         = _runResult.isNewBest;
+      game.previousHighScore = _runResult.previousHighScore;
       if (finalScore > game.highScore) {
         game.highScore = finalScore;
         localStorage.setItem('dino-high-score', game.highScore);

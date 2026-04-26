@@ -1292,6 +1292,53 @@ describe('Death screen', () => {
     assertEquals(r.isNewBest, false, 'tie is not a new best');
     assertEquals(r.delta, 0, 'delta is 0 on a tie');
   });
+
+  // --- game state fields + death handler ---
+
+  it('death handler sets isNewBest and previousHighScore before updating highScore', () => {
+    const origHS        = game.highScore;
+    const origScore     = game.score;
+    const origState     = game.state;
+    const origObstacles = game.obstacles;
+    const origLastObs   = game.lastObstacleX;
+    const origNewBest   = game.isNewBest;
+    const origPrevHS    = game.previousHighScore;
+
+    game.highScore         = 1000;
+    game.score             = 1200;
+    game.state             = STATE.RUNNING;
+    game.graceFrames       = 0;
+    game.lastObstacleX     = canvas.width; // prevent an extra spawn firing
+    // Obstacle overlapping dino: dino is at x=50,y=150,w=40,h=50.
+    // Padded dino box: dl=58 dr=82 dt=158 db=198.
+    // This obstacle: ol=63 or=77 ot=162 ob=200 — definitely collides.
+    game.obstacles = [{ x: 60, y: 160, width: 20, height: 40 }];
+
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+
+    assertEquals(game.state,             STATE.DEAD, 'collision should set DEAD');
+    assertEquals(game.isNewBest,         true,       'score 1200 > highScore 1000 → new best');
+    assertEquals(game.previousHighScore, 1000,       'previousHighScore should be pre-death highScore');
+    assertEquals(game.highScore,         1200,       'highScore should be updated to 1200');
+
+    game.highScore         = origHS;
+    game.score             = origScore;
+    game.state             = origState;
+    game.obstacles         = origObstacles;
+    game.lastObstacleX     = origLastObs;
+    game.isNewBest         = origNewBest;
+    game.previousHighScore = origPrevHS;
+  });
+
+  it('resetGame resets isNewBest to false and previousHighScore to 0', () => {
+    game.isNewBest         = true;
+    game.previousHighScore = 999;
+    resetGame();
+    cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.isNewBest,         false, 'isNewBest should be false after resetGame');
+    assertEquals(game.previousHighScore, 0,     'previousHighScore should be 0 after resetGame');
+  });
 });
 
 // --- Test Summary ---
