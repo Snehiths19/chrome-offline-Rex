@@ -651,7 +651,7 @@ function drawScore() {
     ctx.translate(-cx, -cy);
   }
   ctx.fillStyle = game.score >= GAME_CONFIG.DAY_NIGHT_START ? '#ffffff' : '#000000';
-  ctx.font = '20px Arial';
+  ctx.font = '20px ' + cfg('SCORE_FONT_FAMILY');
   ctx.textAlign = 'left';
   ctx.fillText('Score: ' + Math.floor(game.score), canvas.width - GAME_CONFIG.SCORE_X_OFFSET, GAME_CONFIG.SCORE_Y);
   if (popping) ctx.restore();
@@ -672,14 +672,14 @@ function drawGetReadyOverlay() {
   ctx.textAlign = 'center';
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   if (game.graceFrames > GAME_CONFIG.GRACE_FRAMES * 0.33) {
-    ctx.font = '28px Arial';
+    ctx.font = '28px ' + cfg('SCORE_FONT_FAMILY');
     ctx.fillText('GET READY', canvas.width / 2, canvas.height / 2 - 10);
-    ctx.font = '14px Arial';
+    ctx.font = '14px ' + cfg('SCORE_FONT_FAMILY');
     ctx.fillText('Press Space / Tap to jump', canvas.width / 2, canvas.height / 2 + 16);
   } else {
     const step = Math.ceil(GAME_CONFIG.GRACE_FRAMES / 9);
     const count = Math.ceil(game.graceFrames / step);
-    ctx.font = '48px Arial';
+    ctx.font = '48px ' + cfg('SCORE_FONT_FAMILY');
     ctx.fillText(count || 'GO!', canvas.width / 2, canvas.height / 2 + 16);
   }
 }
@@ -691,14 +691,14 @@ function drawGameOverScreen() {
   ctx.fillStyle = 'white';
   ctx.textAlign = 'center';
 
-  ctx.font = '40px Arial';
+  ctx.font = '40px ' + cfg('SCORE_FONT_FAMILY');
   ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 50);
 
-  ctx.font = '20px Arial';
+  ctx.font = '20px ' + cfg('SCORE_FONT_FAMILY');
   ctx.fillText('Score: ' + Math.floor(game.score), canvas.width / 2, canvas.height / 2 - 10);
   ctx.fillText('Best: ' + game.highScore, canvas.width / 2, canvas.height / 2 + 20);
 
-  ctx.font = '16px Arial';
+  ctx.font = '16px ' + cfg('SCORE_FONT_FAMILY');
   ctx.fillText('Tap / Press Space to Restart', canvas.width / 2, canvas.height / 2 + 55);
 }
 
@@ -708,7 +708,7 @@ function drawMilestoneFlash() {
   ctx.globalAlpha = game.milestoneFrames / GAME_CONFIG.MILESTONE_FRAMES;
   ctx.fillStyle = game.score >= GAME_CONFIG.DAY_NIGHT_START ? '#ffffff' : '#000000';
   ctx.textAlign = 'center';
-  ctx.font = 'bold 22px Arial';
+  ctx.font = 'bold 22px ' + cfg('SCORE_FONT_FAMILY');
   ctx.fillText(game.milestoneText, canvas.width / 2, canvas.height / 2 - 30);
   ctx.restore();
   game.milestoneFrames--;
@@ -720,7 +720,7 @@ function drawNewBestBadge() {
   ctx.globalAlpha = game.newBestFrames / GAME_CONFIG.NEW_BEST_FRAMES;
   ctx.fillStyle = '#ffd700';
   ctx.textAlign = 'left';
-  ctx.font = 'bold 14px Arial';
+  ctx.font = 'bold 14px ' + cfg('SCORE_FONT_FAMILY');
   // Drop below the milestone flash when both fire on the same frame
   // (level-up + new-best at score = highScore + 100).
   const y = game.milestoneFrames > 0 ? 100 : 70;
