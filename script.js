@@ -156,8 +156,10 @@ const GAME_CONFIG = Object.freeze({
   NEW_BEST_FRAMES:        120,
 
   // --- HUD ---
-  SCORE_X_OFFSET:         150,    // pixels from right edge
+  SCORE_X_OFFSET:         150,    // pixels from right edge for the current-score label
   SCORE_Y:                 30,
+  SCORE_HI_X_OFFSET:      110,    // additional px left of SCORE_X_OFFSET for the HI label
+  SCORE_FONT_FAMILY:      "'Courier New', Courier, monospace",
 
   // --- Animation ---
   RUN_FRAME_PERIOD:        10,    // swap run-cycle sprite every N frames (~167 ms @ 60 fps)
