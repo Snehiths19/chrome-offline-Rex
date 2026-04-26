@@ -500,6 +500,60 @@ describe('Audio (PR-B)', () => {
     assertEquals(ensureCalls, 0, 'Muted should short-circuit before ensure()');
     audio.setMuted(false);
   });
+
+  it('audio.land() does not call ensure() in classic mode', () => {
+    setMode(MODES.CLASSIC);
+    cancelAnimationFrame(game.animationFrameId);
+    audio.setMuted(false);
+    let ensureCalls = 0;
+    const originalEnsure = audio.ensure;
+    audio.ensure = function () { ensureCalls++; return null; };
+    audio.land();
+    audio.ensure = originalEnsure;
+    assertEquals(ensureCalls, 0, 'Classic mode: land() should not reach ensure()');
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+  });
+
+  it('audio.land() does not call ensure() when muted', () => {
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    audio.setMuted(true);
+    let ensureCalls = 0;
+    const originalEnsure = audio.ensure;
+    audio.ensure = function () { ensureCalls++; return null; };
+    audio.land();
+    audio.ensure = originalEnsure;
+    assertEquals(ensureCalls, 0, 'Muted: land() should not reach ensure()');
+    audio.setMuted(false);
+  });
+
+  it('audio.death() does not call ensure() in classic mode', () => {
+    setMode(MODES.CLASSIC);
+    cancelAnimationFrame(game.animationFrameId);
+    audio.setMuted(false);
+    let ensureCalls = 0;
+    const originalEnsure = audio.ensure;
+    audio.ensure = function () { ensureCalls++; return null; };
+    audio.death();
+    audio.ensure = originalEnsure;
+    assertEquals(ensureCalls, 0, 'Classic mode: death() should not reach ensure()');
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+  });
+
+  it('audio.death() does not call ensure() when muted', () => {
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    audio.setMuted(true);
+    let ensureCalls = 0;
+    const originalEnsure = audio.ensure;
+    audio.ensure = function () { ensureCalls++; return null; };
+    audio.death();
+    audio.ensure = originalEnsure;
+    assertEquals(ensureCalls, 0, 'Muted: death() should not reach ensure()');
+    audio.setMuted(false);
+  });
 });
 
 describe('Particles (PR-A)', () => {
@@ -723,6 +777,11 @@ describe('Day/Night Cycle', () => {
   it('should return the correct interpolated color at score 350', () => {
     assertEquals(getBackgroundColor(350), '#8d8d97',
       `Score 350 (t=0.5) should produce midpoint color #8d8d97`);
+  });
+
+  it('returns #ffffff at DAY_NIGHT_START (score 300, t=0 boundary)', () => {
+    assertEquals(getBackgroundColor(300), '#ffffff',
+      'Score 300 is the first frame of the interpolation window — t=0 still produces white');
   });
 
   it('should initialise stars once at score 400 and not re-init on second call', () => {
@@ -1081,6 +1140,127 @@ describe('Live-tuning hook (PR-P3)', () => {
   });
 });
 
+describe('HUD score format (polish pass)', () => {
+  it('score renders as zero-padded 5-digit string without "Score:" prefix', () => {
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    const origScore = game.score;
+    const origPop = game.scorePopFrames;
+    const origHS = game.highScore;
+    game.score = 42;
+    game.scorePopFrames = 0;
+    game.highScore = 0;
+    drawScore();
+    ctx.fillText = origFill;
+    game.score = origScore;
+    game.scorePopFrames = origPop;
+    game.highScore = origHS;
+    assert(calls.some(t => t === '00042'),
+      `Expected '00042' in HUD calls, got: ${JSON.stringify(calls)}`);
+    assert(!calls.some(t => t.includes('Score:')),
+      `Expected no 'Score:' prefix, got: ${JSON.stringify(calls)}`);
+  });
+
+  it('HI label appears in HUD when highScore > 0', () => {
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    const origHS = game.highScore;
+    const origScore = game.score;
+    const origPop = game.scorePopFrames;
+    game.highScore = 150;
+    game.score = 42;
+    game.scorePopFrames = 0;
+    drawScore();
+    ctx.fillText = origFill;
+    game.highScore = origHS;
+    game.score = origScore;
+    game.scorePopFrames = origPop;
+    assert(calls.some(t => t.startsWith('HI ')),
+      `Expected 'HI ...' label in HUD, got: ${JSON.stringify(calls)}`);
+  });
+
+  it('HI label absent when highScore is 0', () => {
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    const origHS = game.highScore;
+    const origScore = game.score;
+    const origPop = game.scorePopFrames;
+    game.highScore = 0;
+    game.score = 42;
+    game.scorePopFrames = 0;
+    drawScore();
+    ctx.fillText = origFill;
+    game.highScore = origHS;
+    game.score = origScore;
+    game.scorePopFrames = origPop;
+    assert(!calls.some(t => t.startsWith('HI ')),
+      `Expected no 'HI ...' label when highScore is 0, got: ${JSON.stringify(calls)}`);
+  });
+});
+
+describe('Game over screen (polish pass)', () => {
+  it('score on game over screen is zero-padded without "Score:" prefix', () => {
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    const origScore = game.score;
+    game.score = 87;
+    drawGameOverScreen();
+    ctx.fillText = origFill;
+    game.score = origScore;
+    assert(calls.some(t => t === '00087'),
+      `Expected '00087' on game over screen, got: ${JSON.stringify(calls)}`);
+    assert(!calls.some(t => t.includes('Score:')),
+      `Expected no 'Score:' prefix on game over screen, got: ${JSON.stringify(calls)}`);
+  });
+
+  it('Best line hidden when highScore is 0', () => {
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    const origHS = game.highScore;
+    game.highScore = 0;
+    drawGameOverScreen();
+    ctx.fillText = origFill;
+    game.highScore = origHS;
+    assert(!calls.some(t => t.toLowerCase().includes('best')),
+      `Expected no Best line when highScore is 0, got: ${JSON.stringify(calls)}`);
+  });
+
+  it('Best line shown when highScore > 0', () => {
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    const origHS = game.highScore;
+    game.highScore = 250;
+    drawGameOverScreen();
+    ctx.fillText = origFill;
+    game.highScore = origHS;
+    assert(calls.some(t => t.toLowerCase().includes('best')),
+      `Expected Best line when highScore > 0, got: ${JSON.stringify(calls)}`);
+  });
+});
+
+describe('announce() accessibility helper', () => {
+  it('sets a11yLive.textContent to the announced message', () => {
+    a11yLive.textContent = '';
+    announce('hello');
+    assertEquals(a11yLive.textContent, 'hello',
+      'announce should write message to a11y live region');
+  });
+
+  it('overwrites textContent on repeated calls', () => {
+    a11yLive.textContent = '';
+    announce('first');
+    announce('second');
+    assertEquals(a11yLive.textContent, 'second',
+      'second announce should overwrite the first');
+  });
+});
+
 // --- Test Summary ---
 // Print summary both in the browser (on window.onload) and in Node (via a
 // setTimeout fallback so async tests have time to complete).
@@ -1097,6 +1277,37 @@ function printSummary() {
   }
   console.log(`--------------------`);
 }
+
+describe('Dino animation in WAITING state (polish pass)', () => {
+  it('increments animFrame each frame during GET READY countdown', () => {
+    resetGame();
+    game.graceFrames = 2; // ensure graceFrames stays > 0 after one decrement
+    const before = game.animFrame;
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.animFrame, before + 1, 'animFrame should increment by 1 per WAITING frame');
+    assertEquals(game.state, STATE.WAITING, 'state should remain WAITING when graceFrames > 0');
+  });
+});
+
+describe('Hill colour interpolation (polish pass)', () => {
+  it('returns HILL_COLOR_DAY below DAY_NIGHT_START', () => {
+    assertEquals(getHillColor(0),   GAME_CONFIG.HILL_COLOR_DAY, 'score 0 → day colour');
+    assertEquals(getHillColor(299), GAME_CONFIG.HILL_COLOR_DAY, 'score 299 → day colour');
+  });
+
+  it('returns HILL_COLOR_NIGHT at or above DAY_NIGHT_END', () => {
+    assertEquals(getHillColor(400),  GAME_CONFIG.HILL_COLOR_NIGHT, 'score 400 → night colour');
+    assertEquals(getHillColor(1000), GAME_CONFIG.HILL_COLOR_NIGHT, 'score 1000 → night colour');
+  });
+
+  it('returns a valid interpolated hex colour in the transition window', () => {
+    const mid = getHillColor(350); // midpoint between 300 and 400
+    assert(mid !== GAME_CONFIG.HILL_COLOR_DAY,   'midpoint should not be day colour');
+    assert(mid !== GAME_CONFIG.HILL_COLOR_NIGHT,  'midpoint should not be night colour');
+    assert(/^#[0-9a-f]{6}$/.test(mid),           'must be a valid lowercase 6-digit hex colour');
+  });
+});
 
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));

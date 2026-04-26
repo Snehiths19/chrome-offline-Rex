@@ -156,8 +156,10 @@ const GAME_CONFIG = Object.freeze({
   NEW_BEST_FRAMES:        120,
 
   // --- HUD ---
-  SCORE_X_OFFSET:         150,    // pixels from right edge
+  SCORE_X_OFFSET:         150,    // pixels from right edge for the current-score label
   SCORE_Y:                 30,
+  SCORE_HI_X_OFFSET:      110,    // additional px left of SCORE_X_OFFSET for the HI label
+  SCORE_FONT_FAMILY:      "'Courier New', Courier, monospace",
 
   // --- Animation ---
   RUN_FRAME_PERIOD:        10,    // swap run-cycle sprite every N frames (~167 ms @ 60 fps)
@@ -540,12 +542,29 @@ function updateHills() {
   }
 }
 
+function getHillColor(score) {
+  if (score < GAME_CONFIG.DAY_NIGHT_START) return GAME_CONFIG.HILL_COLOR_DAY;
+  if (score >= GAME_CONFIG.DAY_NIGHT_END)  return GAME_CONFIG.HILL_COLOR_NIGHT;
+  if (reducedMotion) return GAME_CONFIG.HILL_COLOR_DAY; // snap — stays day until DAY_NIGHT_END
+  const t = (score - GAME_CONFIG.DAY_NIGHT_START) /
+            (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
+  const parseHex = hex => [
+    parseInt(hex.slice(1, 3), 16),
+    parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16),
+  ];
+  const day   = parseHex(GAME_CONFIG.HILL_COLOR_DAY);
+  const night = parseHex(GAME_CONFIG.HILL_COLOR_NIGHT);
+  const r = Math.round(day[0] + (night[0] - day[0]) * t);
+  const g = Math.round(day[1] + (night[1] - day[1]) * t);
+  const b = Math.round(day[2] + (night[2] - day[2]) * t);
+  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
 function drawHills() {
   if (!isUpdatedMode() || game.hills.length === 0) return;
   // Pick a colour that contrasts with the day/night background.
-  ctx.fillStyle = game.score >= GAME_CONFIG.DAY_NIGHT_START
-    ? GAME_CONFIG.HILL_COLOR_NIGHT
-    : GAME_CONFIG.HILL_COLOR_DAY;
+  ctx.fillStyle = getHillColor(game.score);
   const baseY = canvas.height - 16;
   for (const hill of game.hills) {
     if (typeof ctx.ellipse !== 'function') {
@@ -641,17 +660,29 @@ function drawScore() {
     // Brief 1.0 → 1.4 ease-out scale around the score's centre on death.
     const t = game.scorePopFrames / GAME_CONFIG.SCORE_POP_FRAMES; // 1 → 0
     const scale = 1 + t * 0.4;
-    const cx = canvas.width - GAME_CONFIG.SCORE_X_OFFSET + 50;
+    const cx = canvas.width - GAME_CONFIG.SCORE_X_OFFSET + 30;
     const cy = GAME_CONFIG.SCORE_Y - 8;
     ctx.save();
     ctx.translate(cx, cy);
     ctx.scale(scale, scale);
     ctx.translate(-cx, -cy);
   }
-  ctx.fillStyle = game.score >= GAME_CONFIG.DAY_NIGHT_START ? '#ffffff' : '#000000';
-  ctx.font = '20px Arial';
+  const color = game.score >= GAME_CONFIG.DAY_NIGHT_START ? '#ffffff' : '#000000';
+  ctx.fillStyle = color;
+  ctx.font = '20px ' + cfg('SCORE_FONT_FAMILY');
   ctx.textAlign = 'left';
-  ctx.fillText('Score: ' + Math.floor(game.score), canvas.width - GAME_CONFIG.SCORE_X_OFFSET, GAME_CONFIG.SCORE_Y);
+  ctx.fillText(
+    String(Math.floor(game.score)).padStart(5, '0'),
+    canvas.width - GAME_CONFIG.SCORE_X_OFFSET,
+    GAME_CONFIG.SCORE_Y
+  );
+  if (game.highScore > 0) {
+    ctx.fillText(
+      'HI ' + String(game.highScore).padStart(5, '0'),
+      canvas.width - GAME_CONFIG.SCORE_X_OFFSET - GAME_CONFIG.SCORE_HI_X_OFFSET,
+      GAME_CONFIG.SCORE_Y
+    );
+  }
   if (popping) ctx.restore();
 }
 
@@ -670,14 +701,14 @@ function drawGetReadyOverlay() {
   ctx.textAlign = 'center';
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   if (game.graceFrames > GAME_CONFIG.GRACE_FRAMES * 0.33) {
-    ctx.font = '28px Arial';
+    ctx.font = '28px ' + cfg('SCORE_FONT_FAMILY');
     ctx.fillText('GET READY', canvas.width / 2, canvas.height / 2 - 10);
-    ctx.font = '14px Arial';
+    ctx.font = '14px ' + cfg('SCORE_FONT_FAMILY');
     ctx.fillText('Press Space / Tap to jump', canvas.width / 2, canvas.height / 2 + 16);
   } else {
     const step = Math.ceil(GAME_CONFIG.GRACE_FRAMES / 9);
     const count = Math.ceil(game.graceFrames / step);
-    ctx.font = '48px Arial';
+    ctx.font = '48px ' + cfg('SCORE_FONT_FAMILY');
     ctx.fillText(count || 'GO!', canvas.width / 2, canvas.height / 2 + 16);
   }
 }
@@ -689,14 +720,17 @@ function drawGameOverScreen() {
   ctx.fillStyle = 'white';
   ctx.textAlign = 'center';
 
-  ctx.font = '40px Arial';
+  ctx.font = '40px ' + cfg('SCORE_FONT_FAMILY');
   ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 50);
 
-  ctx.font = '20px Arial';
-  ctx.fillText('Score: ' + Math.floor(game.score), canvas.width / 2, canvas.height / 2 - 10);
-  ctx.fillText('Best: ' + game.highScore, canvas.width / 2, canvas.height / 2 + 20);
+  ctx.font = '20px ' + cfg('SCORE_FONT_FAMILY');
+  ctx.fillText(String(Math.floor(game.score)).padStart(5, '0'), canvas.width / 2, canvas.height / 2 - 10);
 
-  ctx.font = '16px Arial';
+  if (game.highScore > 0) {
+    ctx.fillText('BEST: ' + String(game.highScore).padStart(5, '0'), canvas.width / 2, canvas.height / 2 + 20);
+  }
+
+  ctx.font = '16px ' + cfg('SCORE_FONT_FAMILY');
   ctx.fillText('Tap / Press Space to Restart', canvas.width / 2, canvas.height / 2 + 55);
 }
 
@@ -706,7 +740,7 @@ function drawMilestoneFlash() {
   ctx.globalAlpha = game.milestoneFrames / GAME_CONFIG.MILESTONE_FRAMES;
   ctx.fillStyle = game.score >= GAME_CONFIG.DAY_NIGHT_START ? '#ffffff' : '#000000';
   ctx.textAlign = 'center';
-  ctx.font = 'bold 22px Arial';
+  ctx.font = 'bold 22px ' + cfg('SCORE_FONT_FAMILY');
   ctx.fillText(game.milestoneText, canvas.width / 2, canvas.height / 2 - 30);
   ctx.restore();
   game.milestoneFrames--;
@@ -718,7 +752,7 @@ function drawNewBestBadge() {
   ctx.globalAlpha = game.newBestFrames / GAME_CONFIG.NEW_BEST_FRAMES;
   ctx.fillStyle = '#ffd700';
   ctx.textAlign = 'left';
-  ctx.font = 'bold 14px Arial';
+  ctx.font = 'bold 14px ' + cfg('SCORE_FONT_FAMILY');
   // Drop below the milestone flash when both fire on the same frame
   // (level-up + new-best at score = highScore + 100).
   const y = game.milestoneFrames > 0 ? 100 : 70;
@@ -1004,6 +1038,7 @@ function resetGame() {
   initClouds();
   initHills();
   announce('New game. Press space or tap to jump.');
+  if (document.body) document.body.style.background = '';
 }
 
 function gameLoop() {
@@ -1036,11 +1071,13 @@ function gameLoop() {
   // WAITING — grace-period countdown with GET READY overlay.
   if (game.state === STATE.WAITING) {
     game.graceFrames--;
+    game.animFrame++;
     if (game.graceFrames <= 0) {
       game.state = STATE.RUNNING;
       announce('Go!');
     }
     drawBackground();
+    if (document.body) document.body.style.background = getBackgroundColor(game.score);
     drawHills();
     drawGround();
     updateClouds();
@@ -1068,7 +1105,7 @@ function gameLoop() {
     game.milestoneText = 'LEVEL ' + (level + 1);
     game.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
     audio.milestone();
-    emitParticles('confetti', canvas.width - GAME_CONFIG.SCORE_X_OFFSET + 50, GAME_CONFIG.SCORE_Y);
+    emitParticles('confetti', canvas.width - GAME_CONFIG.SCORE_X_OFFSET + 30, GAME_CONFIG.SCORE_Y);
   }
 
   // Scroll ground.
@@ -1084,6 +1121,7 @@ function gameLoop() {
   }
 
   drawBackground();
+  if (document.body) document.body.style.background = getBackgroundColor(game.score);
   runFeatureUpdates();              // updateHills, updateClouds, updateParticles
   runFeatureDraws('background');    // drawHills, drawClouds
   drawGround();
@@ -1175,6 +1213,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.ctx = ctx;
   global.dino = dino;
   global.getBackgroundColor = getBackgroundColor;
+  global.getHillColor = getHillColor;
   global.drawBackground = drawBackground;
   global.initClouds = initClouds;
   global.updateClouds = updateClouds;
@@ -1215,4 +1254,6 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.cfg = cfg;
   global.loadTuning = loadTuning;
   global.saveTuning = saveTuning;
+  global.announce = announce;
+  global.a11yLive = a11yLive;
 }
