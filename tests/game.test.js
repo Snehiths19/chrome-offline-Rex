@@ -1341,6 +1341,77 @@ describe('Death screen', () => {
     assertEquals(game.isNewBest,         false, 'isNewBest should be false after resetGame');
     assertEquals(game.previousHighScore, 0,     'previousHighScore should be 0 after resetGame');
   });
+
+  // --- drawGameOverScreen ---
+
+  it('drawGameOverScreen normal state renders THIS RUN label', () => {
+    const origNewBest = game.isNewBest;
+    const origHS      = game.highScore;
+    const origScore   = game.score;
+
+    game.isNewBest  = false;
+    game.highScore  = 1050;
+    game.score      = 847;
+
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    drawGameOverScreen();
+    ctx.fillText = origFill;
+
+    game.isNewBest = origNewBest;
+    game.highScore = origHS;
+    game.score     = origScore;
+
+    assert(calls.some(t => t === 'THIS RUN'),
+      `Expected 'THIS RUN' in drawGameOverScreen calls, got: ${JSON.stringify(calls)}`);
+  });
+
+  it('drawGameOverScreen normal state renders gap delta value', () => {
+    const origNewBest = game.isNewBest;
+    const origHS      = game.highScore;
+    const origScore   = game.score;
+
+    game.isNewBest  = false;
+    game.highScore  = 1050;
+    game.score      = 847;
+
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    drawGameOverScreen();
+    ctx.fillText = origFill;
+
+    game.isNewBest = origNewBest;
+    game.highScore = origHS;
+    game.score     = origScore;
+
+    assert(calls.some(t => t.includes('203')),
+      `Expected a call containing '203' (the gap delta), got: ${JSON.stringify(calls)}`);
+  });
+
+  it('drawGameOverScreen new record state renders NEW BEST header', () => {
+    const origNewBest = game.isNewBest;
+    const origPrevHS  = game.previousHighScore;
+    const origScore   = game.score;
+
+    game.isNewBest         = true;
+    game.previousHighScore = 1050;
+    game.score             = 1253;
+
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    drawGameOverScreen();
+    ctx.fillText = origFill;
+
+    game.isNewBest         = origNewBest;
+    game.previousHighScore = origPrevHS;
+    game.score             = origScore;
+
+    assert(calls.some(t => t.includes('NEW BEST')),
+      `Expected a call containing 'NEW BEST', got: ${JSON.stringify(calls)}`);
+  });
 });
 
 // --- Test Summary ---
