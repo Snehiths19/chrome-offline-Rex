@@ -1343,6 +1343,46 @@ describe('DifficultyProfile', () => {
     assert(s0 < s100 && s100 < s300 && s300 < s600,
       `Speed must strictly increase: ${s0} < ${s100} < ${s300} < ${s600}`);
   });
+
+  it('obstacleParamsAt returns an object with a numeric gap and a typed obstacle', () => {
+    const rng = mulberry32(42);
+    const params = DifficultyProfile.obstacleParamsAt(0, rng, MODES.CLASSIC);
+    assert(typeof params.gap === 'number',
+      'gap must be a number');
+    assert(params.type && typeof params.type.id === 'string',
+      'type must be an obstacle-type object with an id string');
+  });
+
+  it('obstacleParamsAt classic mode: gap shrinks as score rises', () => {
+    const rng = mulberry32(42); // not consumed in classic mode — safe to reuse
+    const paramsLow  = DifficultyProfile.obstacleParamsAt(0,   rng, MODES.CLASSIC);
+    const paramsHigh = DifficultyProfile.obstacleParamsAt(500, rng, MODES.CLASSIC);
+    assert(paramsHigh.gap < paramsLow.gap,
+      `Gap at score 500 (${paramsHigh.gap}) should be less than gap at score 0 (${paramsLow.gap}) — higher speed means shorter gap`);
+  });
+
+  it('obstacleParamsAt classic mode: type is always small cactus', () => {
+    const rng = mulberry32(42);
+    const params = DifficultyProfile.obstacleParamsAt(500, rng, MODES.CLASSIC);
+    assertEquals(params.type.id, 'small',
+      'Classic mode must always return the small cactus');
+  });
+
+  it('obstacleParamsAt updated mode: gap is within valid range at score 0', () => {
+    const rng = mulberry32(42);
+    const params = DifficultyProfile.obstacleParamsAt(0, rng, MODES.UPDATED);
+    assert(params.gap >= GAME_CONFIG.MIN_SPAWN_GAP,
+      `Gap (${params.gap}) must be at least MIN_SPAWN_GAP (${GAME_CONFIG.MIN_SPAWN_GAP})`);
+    assert(params.gap <= Math.round(GAME_CONFIG.MAX_SPAWN_GAP * 1.35),
+      `Gap (${params.gap}) must not far exceed MAX_SPAWN_GAP (${GAME_CONFIG.MAX_SPAWN_GAP})`);
+  });
+
+  it('obstacleParamsAt updated mode: cluster cactus returned at score 250 with max roll', () => {
+    const rng = () => 0.99; // constant roll — pushes weighted pick to last eligible type
+    const params = DifficultyProfile.obstacleParamsAt(250, rng, MODES.UPDATED);
+    assertEquals(params.type.id, 'cluster',
+      'At score 250 with max rng roll, all three types eligible and cluster wins the weighted draw');
+  });
 });
 
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
