@@ -500,6 +500,60 @@ describe('Audio (PR-B)', () => {
     assertEquals(ensureCalls, 0, 'Muted should short-circuit before ensure()');
     audio.setMuted(false);
   });
+
+  it('audio.land() does not call ensure() in classic mode', () => {
+    setMode(MODES.CLASSIC);
+    cancelAnimationFrame(game.animationFrameId);
+    audio.setMuted(false);
+    let ensureCalls = 0;
+    const originalEnsure = audio.ensure;
+    audio.ensure = function () { ensureCalls++; return null; };
+    audio.land();
+    audio.ensure = originalEnsure;
+    assertEquals(ensureCalls, 0, 'Classic mode: land() should not reach ensure()');
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+  });
+
+  it('audio.land() does not call ensure() when muted', () => {
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    audio.setMuted(true);
+    let ensureCalls = 0;
+    const originalEnsure = audio.ensure;
+    audio.ensure = function () { ensureCalls++; return null; };
+    audio.land();
+    audio.ensure = originalEnsure;
+    assertEquals(ensureCalls, 0, 'Muted: land() should not reach ensure()');
+    audio.setMuted(false);
+  });
+
+  it('audio.death() does not call ensure() in classic mode', () => {
+    setMode(MODES.CLASSIC);
+    cancelAnimationFrame(game.animationFrameId);
+    audio.setMuted(false);
+    let ensureCalls = 0;
+    const originalEnsure = audio.ensure;
+    audio.ensure = function () { ensureCalls++; return null; };
+    audio.death();
+    audio.ensure = originalEnsure;
+    assertEquals(ensureCalls, 0, 'Classic mode: death() should not reach ensure()');
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+  });
+
+  it('audio.death() does not call ensure() when muted', () => {
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    audio.setMuted(true);
+    let ensureCalls = 0;
+    const originalEnsure = audio.ensure;
+    audio.ensure = function () { ensureCalls++; return null; };
+    audio.death();
+    audio.ensure = originalEnsure;
+    assertEquals(ensureCalls, 0, 'Muted: death() should not reach ensure()');
+    audio.setMuted(false);
+  });
 });
 
 describe('Particles (PR-A)', () => {
@@ -723,6 +777,11 @@ describe('Day/Night Cycle', () => {
   it('should return the correct interpolated color at score 350', () => {
     assertEquals(getBackgroundColor(350), '#8d8d97',
       `Score 350 (t=0.5) should produce midpoint color #8d8d97`);
+  });
+
+  it('returns #ffffff at DAY_NIGHT_START (score 300, t=0 boundary)', () => {
+    assertEquals(getBackgroundColor(300), '#ffffff',
+      'Score 300 is the first frame of the interpolation window — t=0 still produces white');
   });
 
   it('should initialise stars once at score 400 and not re-init on second call', () => {
@@ -1182,6 +1241,23 @@ describe('Game over screen (polish pass)', () => {
     game.highScore = origHS;
     assert(calls.some(t => t.toLowerCase().includes('best')),
       `Expected Best line when highScore > 0, got: ${JSON.stringify(calls)}`);
+  });
+});
+
+describe('announce() accessibility helper', () => {
+  it('sets a11yLive.textContent to the announced message', () => {
+    a11yLive.textContent = '';
+    announce('hello');
+    assertEquals(a11yLive.textContent, 'hello',
+      'announce should write message to a11y live region');
+  });
+
+  it('overwrites textContent on repeated calls', () => {
+    a11yLive.textContent = '';
+    announce('first');
+    announce('second');
+    assertEquals(a11yLive.textContent, 'second',
+      'second announce should overwrite the first');
   });
 });
 
