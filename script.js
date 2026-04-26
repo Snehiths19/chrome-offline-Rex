@@ -1215,4 +1215,6 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.cfg = cfg;
   global.loadTuning = loadTuning;
   global.saveTuning = saveTuning;
+  global.announce  = announce;
+  global.a11yLive  = a11yLive;
 }

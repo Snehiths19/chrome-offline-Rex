@@ -1081,6 +1081,23 @@ describe('Live-tuning hook (PR-P3)', () => {
   });
 });
 
+describe('announce() accessibility helper', () => {
+  it('sets a11yLive.textContent to the announced message', () => {
+    a11yLive.textContent = '';
+    announce('hello');
+    assertEquals(a11yLive.textContent, 'hello',
+      'announce should write message to a11y live region');
+  });
+
+  it('overwrites textContent on repeated calls', () => {
+    a11yLive.textContent = '';
+    announce('first');
+    announce('second');
+    assertEquals(a11yLive.textContent, 'second',
+      'second announce should overwrite the first');
+  });
+});
+
 // --- Test Summary ---
 // Print summary both in the browser (on window.onload) and in Node (via a
 // setTimeout fallback so async tests have time to complete).
