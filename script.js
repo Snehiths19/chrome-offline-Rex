@@ -777,6 +777,7 @@ function drawGameOverScreen() {
     ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.font = '12px ' + font;
     ctx.fillText('YOUR BEST', canvas.width * 0.8, canvas.height / 2 - 14);
+    ctx.fillStyle = 'white';
     ctx.font = '28px ' + font;
     ctx.fillText(bestStr,    canvas.width * 0.8, canvas.height / 2 + 14);
   }
@@ -1219,9 +1220,9 @@ function gameLoop() {
       audio.death();
       cancelAnimationFrame(game.animationFrameId);
       const finalScore = Math.floor(game.score);
-      const _runResult = computeRunResult(finalScore, game.highScore);
-      game.isNewBest         = _runResult.isNewBest;
-      game.previousHighScore = _runResult.previousHighScore;
+      const runResult = computeRunResult(finalScore, game.highScore);
+      game.isNewBest         = runResult.isNewBest;
+      game.previousHighScore = runResult.previousHighScore;
       if (finalScore > game.highScore) {
         game.highScore = finalScore;
         localStorage.setItem('dino-high-score', game.highScore);
