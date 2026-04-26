@@ -65,6 +65,10 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
 // == SECTION 2: CONFIGURATION ==
 
 const GAME_CONFIG = Object.freeze({
+  // --- Canvas logical dimensions ---
+  CANVAS_W: 600,
+  CANVAS_H: 200,
+
   // --- Physics ---
   JUMP_POWER:              -12,   // negative = upward impulse applied on jump
   GRAVITY:                  0.48, // added to velocityY each frame while airborne
@@ -332,7 +336,7 @@ function imageReady(img) {
 function startGameOnce() {
   if (assetsStarted) return;
   assetsStarted = true;
-  dino.y = canvas.height - dino.height;
+  dino.y = GAME_CONFIG.CANVAS_H - dino.height;
   initClouds();
   initHills();
   drawDino();
@@ -504,7 +508,7 @@ function getBackgroundColor(s) {
 
 function drawBackground() {
   ctx.fillStyle = getBackgroundColor(game.score);
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, GAME_CONFIG.CANVAS_W, GAME_CONFIG.CANVAS_H);
 
   if (game.starsInitialised) {
     ctx.fillStyle = GAME_CONFIG.STAR_COLOR;
@@ -516,7 +520,7 @@ function initClouds() {
   game.clouds.length = 0;
   for (let i = 0; i < GAME_CONFIG.CLOUD_COUNT; i++) {
     game.clouds.push({
-      x: Math.random() * canvas.width,
+      x: Math.random() * GAME_CONFIG.CANVAS_W,
       y: GAME_CONFIG.CLOUD_MIN_Y + Math.random() * GAME_CONFIG.CLOUD_Y_RANGE,
       speed: GAME_CONFIG.CLOUD_MIN_SPEED + Math.random() * GAME_CONFIG.CLOUD_SPEED_RANGE,
     });
@@ -530,7 +534,7 @@ function updateClouds() {
   game.clouds.forEach(c => {
     c.x -= c.speed * speedFactor;
     if (c.x + GAME_CONFIG.CLOUD_WIDTH < 0) {
-      c.x = canvas.width + GAME_CONFIG.CLOUD_RESPAWN_OFFSET;
+      c.x = GAME_CONFIG.CANVAS_W + GAME_CONFIG.CLOUD_RESPAWN_OFFSET;
       c.y = GAME_CONFIG.CLOUD_MIN_Y + Math.random() * GAME_CONFIG.CLOUD_Y_RANGE;
     }
   });
@@ -541,7 +545,7 @@ function updateClouds() {
 // per-run via game.rng so the same seed yields identical scenery.
 function initHills() {
   game.hills.length = 0;
-  const slot = canvas.width / GAME_CONFIG.HILL_COUNT;
+  const slot = GAME_CONFIG.CANVAS_W / GAME_CONFIG.HILL_COUNT;
   for (let i = 0; i < GAME_CONFIG.HILL_COUNT; i++) {
     game.hills.push({
       x:      i * slot + game.rng() * (slot - GAME_CONFIG.HILL_MIN_WIDTH),
@@ -556,7 +560,7 @@ function updateHills() {
   for (const hill of game.hills) {
     hill.x -= game.currentSpeed * GAME_CONFIG.HILL_PARALLAX;
     if (hill.x + hill.width < 0) {
-      hill.x = canvas.width + game.rng() * cfg('HILL_RESPAWN_X_RANGE');
+      hill.x = GAME_CONFIG.CANVAS_W + game.rng() * cfg('HILL_RESPAWN_X_RANGE');
       hill.width = GAME_CONFIG.HILL_MIN_WIDTH + game.rng() * GAME_CONFIG.HILL_WIDTH_RANGE;
       hill.height = GAME_CONFIG.HILL_MIN_HEIGHT + game.rng() * GAME_CONFIG.HILL_HEIGHT_RANGE;
     }
@@ -586,7 +590,7 @@ function drawHills() {
   if (!isUpdatedMode() || game.hills.length === 0) return;
   // Pick a colour that contrasts with the day/night background.
   ctx.fillStyle = getHillColor(game.score);
-  const baseY = canvas.height - 16;
+  const baseY = GAME_CONFIG.CANVAS_H - 16;
   for (const hill of game.hills) {
     if (typeof ctx.ellipse !== 'function') {
       // Fallback for environments without canvas.ellipse — draw a triangle.
@@ -612,7 +616,7 @@ function drawSkyTint() {
   const alpha = (game.milestoneFrames / GAME_CONFIG.MILESTONE_FRAMES) * cfg('SKY_TINT_PEAK_ALPHA');
   ctx.save();
   ctx.fillStyle = 'rgba(' + cfg('SKY_TINT_COLOR_RGB') + ', ' + alpha.toFixed(3) + ')';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, GAME_CONFIG.CANVAS_W, GAME_CONFIG.CANVAS_H);
   ctx.restore();
 }
 
@@ -631,10 +635,10 @@ function drawGround() {
   if (!imageReady(groundImage)) {
     // Fallback: thin line at ground level so the dino doesn't look like it's floating.
     ctx.fillStyle = '#555555';
-    ctx.fillRect(0, canvas.height - 2, canvas.width, 2);
+    ctx.fillRect(0, GAME_CONFIG.CANVAS_H - 2, GAME_CONFIG.CANVAS_W, 2);
     return;
   }
-  const groundY = canvas.height - groundImage.height;
+  const groundY = GAME_CONFIG.CANVAS_H - groundImage.height;
   ctx.drawImage(groundImage, game.groundX, groundY, groundImage.width, groundImage.height);
   ctx.drawImage(groundImage, game.groundX + groundImage.width, groundY, groundImage.width, groundImage.height);
 }
@@ -681,7 +685,7 @@ function drawScore() {
     // Brief 1.0 → 1.4 ease-out scale around the score's centre on death.
     const t = game.scorePopFrames / GAME_CONFIG.SCORE_POP_FRAMES; // 1 → 0
     const scale = 1 + t * 0.4;
-    const cx = canvas.width - GAME_CONFIG.SCORE_X_OFFSET + 30;
+    const cx = GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30;
     const cy = GAME_CONFIG.SCORE_Y - 8;
     ctx.save();
     ctx.translate(cx, cy);
@@ -694,13 +698,13 @@ function drawScore() {
   ctx.textAlign = 'left';
   ctx.fillText(
     String(Math.floor(game.score)).padStart(5, '0'),
-    canvas.width - GAME_CONFIG.SCORE_X_OFFSET,
+    GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET,
     GAME_CONFIG.SCORE_Y
   );
   if (game.highScore > 0) {
     ctx.fillText(
       'HI ' + String(game.highScore).padStart(5, '0'),
-      canvas.width - GAME_CONFIG.SCORE_X_OFFSET - GAME_CONFIG.SCORE_HI_X_OFFSET,
+      GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET - GAME_CONFIG.SCORE_HI_X_OFFSET,
       GAME_CONFIG.SCORE_Y
     );
   }
@@ -714,7 +718,7 @@ function drawDeathFlash() {
   const alpha = game.deathFlashFrames / cfg('DEATH_FLASH_FRAMES');
   ctx.save();
   ctx.fillStyle = 'rgba(' + cfg('DEATH_FLASH_COLOR_RGB') + ', ' + alpha.toFixed(3) + ')';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, GAME_CONFIG.CANVAS_W, GAME_CONFIG.CANVAS_H);
   ctx.restore();
 }
 
@@ -738,37 +742,37 @@ function drawGetReadyOverlay() {
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   if (game.graceFrames > GAME_CONFIG.GRACE_FRAMES * 0.33) {
     ctx.font = '28px ' + cfg('SCORE_FONT_FAMILY');
-    ctx.fillText('GET READY', canvas.width / 2, canvas.height / 2 - 10);
+    ctx.fillText('GET READY', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 10);
     ctx.font = '14px ' + cfg('SCORE_FONT_FAMILY');
-    ctx.fillText('Press Space / Tap to jump', canvas.width / 2, canvas.height / 2 + 16);
+    ctx.fillText('Press Space / Tap to jump', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 16);
   } else {
     const step = Math.ceil(GAME_CONFIG.GRACE_FRAMES / 9);
     const count = Math.ceil(game.graceFrames / step);
     ctx.font = '48px ' + cfg('SCORE_FONT_FAMILY');
-    ctx.fillText(count || 'GO!', canvas.width / 2, canvas.height / 2 + 16);
+    ctx.fillText(count || 'GO!', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 16);
   }
 }
 
 function drawGameOverScreen() {
   const font = cfg('SCORE_FONT_FAMILY');
   ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, GAME_CONFIG.CANVAS_W, GAME_CONFIG.CANVAS_H);
   ctx.textAlign = 'center';
 
   if (game.isNewBest) {
     // New record — celebration takeover
     ctx.fillStyle = 'white';
     ctx.font = '15px ' + font;
-    ctx.fillText('★  NEW BEST  ★', canvas.width / 2, canvas.height / 2 - 36);
+    ctx.fillText('★  NEW BEST  ★', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 36);
 
     ctx.font = '42px ' + font;
-    ctx.fillText(String(Math.floor(game.score)).padStart(5, '0'), canvas.width / 2, canvas.height / 2 - 4);
+    ctx.fillText(String(Math.floor(game.score)).padStart(5, '0'), GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 4);
 
     if (game.previousHighScore > 0) {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
       ctx.font = '13px ' + font;
       const improvement = Math.floor(game.score) - game.previousHighScore;
-      ctx.fillText('+' + improvement + ' over your previous best', canvas.width / 2, canvas.height / 2 + 28);
+      ctx.fillText('+' + improvement + ' over your previous best', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 28);
     }
   } else {
     // Normal death — side-by-side comparison
@@ -778,29 +782,29 @@ function drawGameOverScreen() {
 
     ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.font = '12px ' + font;
-    ctx.fillText('THIS RUN',  canvas.width * 0.2, canvas.height / 2 - 14);
+    ctx.fillText('THIS RUN',  GAME_CONFIG.CANVAS_W * 0.2, GAME_CONFIG.CANVAS_H / 2 - 14);
     ctx.fillStyle = 'white';
     ctx.font = '28px ' + font;
-    ctx.fillText(scoreStr,   canvas.width * 0.2, canvas.height / 2 + 14);
+    ctx.fillText(scoreStr,   GAME_CONFIG.CANVAS_W * 0.2, GAME_CONFIG.CANVAS_H / 2 + 14);
 
     ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.font = '16px ' + font;
-    ctx.fillText('← ' + delta + ' →', canvas.width / 2, canvas.height / 2 - 10);
+    ctx.fillText('← ' + delta + ' →', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 10);
     ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
     ctx.font = '11px ' + font;
-    ctx.fillText('from best', canvas.width / 2, canvas.height / 2 + 10);
+    ctx.fillText('from best', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 10);
 
     ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.font = '12px ' + font;
-    ctx.fillText('YOUR BEST', canvas.width * 0.8, canvas.height / 2 - 14);
+    ctx.fillText('YOUR BEST', GAME_CONFIG.CANVAS_W * 0.8, GAME_CONFIG.CANVAS_H / 2 - 14);
     ctx.fillStyle = 'white';
     ctx.font = '28px ' + font;
-    ctx.fillText(bestStr,    canvas.width * 0.8, canvas.height / 2 + 14);
+    ctx.fillText(bestStr,    GAME_CONFIG.CANVAS_W * 0.8, GAME_CONFIG.CANVAS_H / 2 + 14);
   }
 
   ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
   ctx.font = '13px ' + font;
-  ctx.fillText('Tap / Press Space to Restart', canvas.width / 2, canvas.height - 16);
+  ctx.fillText('Tap / Press Space to Restart', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H - 16);
 }
 
 function drawMilestoneFlash() {
@@ -810,7 +814,7 @@ function drawMilestoneFlash() {
   ctx.fillStyle = game.score >= GAME_CONFIG.DAY_NIGHT_START ? '#ffffff' : '#000000';
   ctx.textAlign = 'center';
   ctx.font = 'bold 22px ' + cfg('SCORE_FONT_FAMILY');
-  ctx.fillText(game.milestoneText, canvas.width / 2, canvas.height / 2 - 30);
+  ctx.fillText(game.milestoneText, GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 30);
   ctx.restore();
   game.milestoneFrames--;
 }
@@ -825,7 +829,7 @@ function drawNewBestBadge() {
   // Drop below the milestone flash when both fire on the same frame
   // (level-up + new-best at score = highScore + 100).
   const y = game.milestoneFrames > 0 ? 100 : 70;
-  ctx.fillText('NEW BEST!', canvas.width - GAME_CONFIG.SCORE_X_OFFSET, y);
+  ctx.fillText('NEW BEST!', GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET, y);
   ctx.restore();
   game.newBestFrames--;
 }
@@ -929,8 +933,8 @@ function spawnObstacle(type) {
   // Default to a tier-appropriate random pick; tests may pass a specific type.
   const t = type || pickObstacleType(game.rng, game.score);
   game.obstacles.push({
-    x: canvas.width,
-    y: canvas.height - t.height,
+    x: GAME_CONFIG.CANVAS_W,
+    y: GAME_CONFIG.CANVAS_H - t.height,
     width: t.width,
     height: t.height,
     type: t.id,
@@ -1091,7 +1095,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
 // == SECTION 8: GAME LOOP ==
 
 function resetGame() {
-  dino.y = canvas.height - dino.height;
+  dino.y = GAME_CONFIG.CANVAS_H - dino.height;
   dino.velocityY = 0;
   dino.isJumping = false;
 
@@ -1200,7 +1204,7 @@ function gameLoop() {
     game.milestoneText = 'LEVEL ' + (level + 1);
     game.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
     audio.milestone();
-    emitParticles('confetti', canvas.width - GAME_CONFIG.SCORE_X_OFFSET + 30, GAME_CONFIG.SCORE_Y);
+    emitParticles('confetti', GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30, GAME_CONFIG.SCORE_Y);
   }
 
   // Scroll ground.
@@ -1210,7 +1214,7 @@ function gameLoop() {
   // Lazy-init stars once when score enters night. Skipped under reduce-motion.
   if (!reducedMotion && game.score >= GAME_CONFIG.DAY_NIGHT_END && !game.starsInitialised) {
     for (let i = 0; i < GAME_CONFIG.STAR_COUNT; i++) {
-      game.stars.push({ x: Math.random() * canvas.width, y: Math.random() * GAME_CONFIG.STAR_Y_RANGE });
+      game.stars.push({ x: Math.random() * GAME_CONFIG.CANVAS_W, y: Math.random() * GAME_CONFIG.STAR_Y_RANGE });
     }
     game.starsInitialised = true;
   }
@@ -1230,10 +1234,10 @@ function gameLoop() {
   // Obstacle spawning — in updated mode the gap is precomputed per-obstacle
   // with ±SPAWN_GAP_JITTER so spacing doesn't feel metronomic; in classic mode
   // it's deterministic. See computeNextSpawnGap() / pickObstacleType().
-  if (game.lastObstacleX <= canvas.width - game.nextSpawnGap) {
+  if (game.lastObstacleX <= GAME_CONFIG.CANVAS_W - game.nextSpawnGap) {
     const params = DifficultyProfile.obstacleParamsAt(game.score, game.rng, game.mode);
     spawnObstacle(params.type);
-    game.lastObstacleX = canvas.width;
+    game.lastObstacleX = GAME_CONFIG.CANVAS_W;
     game.nextSpawnGap = params.gap;
   }
 
@@ -1272,8 +1276,8 @@ function gameLoop() {
     dino.velocityY += dino.gravity;
     dino.y += dino.velocityY;
 
-    if (dino.y >= canvas.height - dino.height) {
-      dino.y = canvas.height - dino.height;
+    if (dino.y >= GAME_CONFIG.CANVAS_H - dino.height) {
+      dino.y = GAME_CONFIG.CANVAS_H - dino.height;
       dino.isJumping = false;
       dino.velocityY = 0;
       emitParticles('land', dino.x + dino.width / 2, dino.y + dino.height);
