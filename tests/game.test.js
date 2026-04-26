@@ -1081,6 +1081,64 @@ describe('Live-tuning hook (PR-P3)', () => {
   });
 });
 
+describe('HUD score format (polish pass)', () => {
+  it('score renders as zero-padded 5-digit string without "Score:" prefix', () => {
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    const origScore = game.score;
+    const origPop = game.scorePopFrames;
+    game.score = 42;
+    game.scorePopFrames = 0;
+    drawScore();
+    ctx.fillText = origFill;
+    game.score = origScore;
+    game.scorePopFrames = origPop;
+    assert(calls.some(t => t === '00042'),
+      `Expected '00042' in HUD calls, got: ${JSON.stringify(calls)}`);
+    assert(!calls.some(t => t.includes('Score:')),
+      `Expected no 'Score:' prefix, got: ${JSON.stringify(calls)}`);
+  });
+
+  it('HI label appears in HUD when highScore > 0', () => {
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    const origHS = game.highScore;
+    const origScore = game.score;
+    const origPop = game.scorePopFrames;
+    game.highScore = 150;
+    game.score = 42;
+    game.scorePopFrames = 0;
+    drawScore();
+    ctx.fillText = origFill;
+    game.highScore = origHS;
+    game.score = origScore;
+    game.scorePopFrames = origPop;
+    assert(calls.some(t => t.startsWith('HI ')),
+      `Expected 'HI ...' label in HUD, got: ${JSON.stringify(calls)}`);
+  });
+
+  it('HI label absent when highScore is 0', () => {
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    const origHS = game.highScore;
+    const origScore = game.score;
+    const origPop = game.scorePopFrames;
+    game.highScore = 0;
+    game.score = 42;
+    game.scorePopFrames = 0;
+    drawScore();
+    ctx.fillText = origFill;
+    game.highScore = origHS;
+    game.score = origScore;
+    game.scorePopFrames = origPop;
+    assert(!calls.some(t => t.startsWith('HI ')),
+      `Expected no 'HI ...' label when highScore is 0, got: ${JSON.stringify(calls)}`);
+  });
+});
+
 // --- Test Summary ---
 // Print summary both in the browser (on window.onload) and in Node (via a
 // setTimeout fallback so async tests have time to complete).

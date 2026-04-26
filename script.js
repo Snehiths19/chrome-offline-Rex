@@ -643,17 +643,29 @@ function drawScore() {
     // Brief 1.0 → 1.4 ease-out scale around the score's centre on death.
     const t = game.scorePopFrames / GAME_CONFIG.SCORE_POP_FRAMES; // 1 → 0
     const scale = 1 + t * 0.4;
-    const cx = canvas.width - GAME_CONFIG.SCORE_X_OFFSET + 50;
+    const cx = canvas.width - GAME_CONFIG.SCORE_X_OFFSET + 30;
     const cy = GAME_CONFIG.SCORE_Y - 8;
     ctx.save();
     ctx.translate(cx, cy);
     ctx.scale(scale, scale);
     ctx.translate(-cx, -cy);
   }
-  ctx.fillStyle = game.score >= GAME_CONFIG.DAY_NIGHT_START ? '#ffffff' : '#000000';
+  const color = game.score >= GAME_CONFIG.DAY_NIGHT_START ? '#ffffff' : '#000000';
+  ctx.fillStyle = color;
   ctx.font = '20px ' + cfg('SCORE_FONT_FAMILY');
   ctx.textAlign = 'left';
-  ctx.fillText('Score: ' + Math.floor(game.score), canvas.width - GAME_CONFIG.SCORE_X_OFFSET, GAME_CONFIG.SCORE_Y);
+  ctx.fillText(
+    String(Math.floor(game.score)).padStart(5, '0'),
+    canvas.width - GAME_CONFIG.SCORE_X_OFFSET,
+    GAME_CONFIG.SCORE_Y
+  );
+  if (game.highScore > 0) {
+    ctx.fillText(
+      'HI ' + String(game.highScore).padStart(5, '0'),
+      canvas.width - GAME_CONFIG.SCORE_X_OFFSET - GAME_CONFIG.SCORE_HI_X_OFFSET,
+      GAME_CONFIG.SCORE_Y
+    );
+  }
   if (popping) ctx.restore();
 }
 
