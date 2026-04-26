@@ -1038,6 +1038,7 @@ function resetGame() {
   initClouds();
   initHills();
   announce('New game. Press space or tap to jump.');
+  if (document.body) document.body.style.background = '';
 }
 
 function gameLoop() {
@@ -1075,6 +1076,7 @@ function gameLoop() {
       announce('Go!');
     }
     drawBackground();
+    if (document.body) document.body.style.background = getBackgroundColor(game.score);
     drawHills();
     drawGround();
     updateClouds();
@@ -1118,6 +1120,7 @@ function gameLoop() {
   }
 
   drawBackground();
+  if (document.body) document.body.style.background = getBackgroundColor(game.score);
   runFeatureUpdates();              // updateHills, updateClouds, updateParticles
   runFeatureDraws('background');    // drawHills, drawClouds
   drawGround();
