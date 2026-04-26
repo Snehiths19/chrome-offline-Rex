@@ -1373,8 +1373,8 @@ describe('DifficultyProfile', () => {
     const params = DifficultyProfile.obstacleParamsAt(0, rng, MODES.UPDATED);
     assert(params.gap >= GAME_CONFIG.MIN_SPAWN_GAP,
       `Gap (${params.gap}) must be at least MIN_SPAWN_GAP (${GAME_CONFIG.MIN_SPAWN_GAP})`);
-    assert(params.gap <= Math.round(GAME_CONFIG.MAX_SPAWN_GAP * 1.35),
-      `Gap (${params.gap}) must not far exceed MAX_SPAWN_GAP (${GAME_CONFIG.MAX_SPAWN_GAP})`);
+    assert(params.gap <= Math.round(GAME_CONFIG.MAX_SPAWN_GAP * (1 + GAME_CONFIG.SPAWN_GAP_JITTER)),
+      `Gap (${params.gap}) must not exceed MAX_SPAWN_GAP with max jitter (${GAME_CONFIG.MAX_SPAWN_GAP} * ${1 + GAME_CONFIG.SPAWN_GAP_JITTER})`);
   });
 
   it('obstacleParamsAt updated mode: cluster cactus returned at score 250 with max roll', () => {
