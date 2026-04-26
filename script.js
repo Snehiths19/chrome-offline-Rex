@@ -206,6 +206,7 @@ loadTuning();
 
 const STATE = Object.freeze({
   LOADING: 'LOADING',
+  IDLE:    'IDLE',
   WAITING: 'WAITING',
   RUNNING: 'RUNNING',
   DEAD:    'DEAD',
@@ -335,7 +336,7 @@ function startGameOnce() {
   initClouds();
   initHills();
   drawDino();
-  game.state = STATE.WAITING;
+  game.state = STATE.IDLE;
   gameLoop();
 }
 
@@ -717,6 +718,21 @@ function drawDeathFlash() {
   ctx.restore();
 }
 
+function drawIdleScreen() {
+  const font = cfg('SCORE_FONT_FAMILY');
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.textAlign = 'center';
+
+  ctx.fillStyle = 'white';
+  ctx.font = '22px ' + font;
+  ctx.fillText('REX RUN', canvas.width / 2, canvas.height / 2 - 16);
+
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+  ctx.font = '13px ' + font;
+  ctx.fillText('TAP / PRESS SPACE TO START', canvas.width / 2, canvas.height / 2 + 12);
+}
+
 function drawGetReadyOverlay() {
   ctx.textAlign = 'center';
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
@@ -968,7 +984,10 @@ function jump() {
 
 function handleAction() {
   audio.ensure(); // unlock AudioContext on first user gesture (Chrome autoplay policy)
-  if (game.state === STATE.RUNNING) {
+  if (game.state === STATE.IDLE) {
+    game.state       = STATE.WAITING;
+    game.graceFrames = GAME_CONFIG.GRACE_FRAMES;
+  } else if (game.state === STATE.RUNNING) {
     jump();
   } else if (game.state === STATE.DEAD) {
     resetGame();
@@ -1129,6 +1148,21 @@ function gameLoop() {
     } else {
       drawGameOverScreen();
     }
+    return;
+  }
+
+  // IDLE — first-load waiting state; shows idle overlay until player initiates.
+  if (game.state === STATE.IDLE) {
+    game.animFrame++;
+    drawBackground();
+    if (document.body) document.body.style.background = getBackgroundColor(game.score);
+    drawHills();
+    drawGround();
+    updateClouds();
+    drawClouds();
+    drawDino();
+    drawIdleScreen();
+    game.animationFrameId = requestAnimationFrame(gameLoop);
     return;
   }
 
@@ -1294,6 +1328,8 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.gameLoop = gameLoop;
   global.drawGameOverScreen = drawGameOverScreen;
   global.computeRunResult = computeRunResult;
+  global.drawIdleScreen = drawIdleScreen;
+  global.handleAction   = handleAction;
   global.mulberry32 = mulberry32;
   global.computeNextSpawnGap = computeNextSpawnGap;
   global.pickObstacleType = pickObstacleType;
