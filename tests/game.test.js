@@ -1264,6 +1264,36 @@ describe('announce() accessibility helper', () => {
   });
 });
 
+describe('Death screen', () => {
+  // --- computeRunResult ---
+
+  it('computeRunResult: normal run returns isNewBest=false and gap delta', () => {
+    const r = computeRunResult(847, 1050);
+    assertEquals(r.isNewBest, false, 'not a new best when score < highScore');
+    assertEquals(r.delta, 203, 'delta = highScore - score = 1050 - 847');
+    assertEquals(r.previousHighScore, 1050, 'previousHighScore preserved');
+  });
+
+  it('computeRunResult: new record returns isNewBest=true and improvement delta', () => {
+    const r = computeRunResult(1253, 1050);
+    assertEquals(r.isNewBest, true, 'is a new best when score > highScore');
+    assertEquals(r.delta, 203, 'delta = score - previousHighScore = 1253 - 1050');
+    assertEquals(r.previousHighScore, 1050, 'previousHighScore is old highScore');
+  });
+
+  it('computeRunResult: first run (highScore=0) is always a new best', () => {
+    const r = computeRunResult(500, 0);
+    assertEquals(r.isNewBest, true, 'first run with highScore=0 is a new best');
+    assertEquals(r.previousHighScore, 0, 'previousHighScore is 0 on first run');
+  });
+
+  it('computeRunResult: tie (score === highScore) is not a new best', () => {
+    const r = computeRunResult(1000, 1000);
+    assertEquals(r.isNewBest, false, 'tie is not a new best');
+    assertEquals(r.delta, 0, 'delta is 0 on a tie');
+  });
+});
+
 // --- Test Summary ---
 // Print summary both in the browser (on window.onload) and in Node (via a
 // setTimeout fallback so async tests have time to complete).

@@ -910,6 +910,15 @@ function checkCollision(dino, obstacle) {
   return dl < or_ && dr > ol && dt < ob && db > ot;
 }
 
+function computeRunResult(finalScore, currentHighScore) {
+  const isNewBest = finalScore > currentHighScore || currentHighScore === 0;
+  const previousHighScore = currentHighScore;
+  const delta = isNewBest
+    ? finalScore - previousHighScore
+    : currentHighScore - finalScore;
+  return { isNewBest, previousHighScore, delta };
+}
+
 function jump() {
   if (game.state !== STATE.RUNNING) return;
   if (!dino.isJumping) {
@@ -1244,6 +1253,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.resetGame = resetGame;
   global.gameLoop = gameLoop;
   global.drawGameOverScreen = drawGameOverScreen;
+  global.computeRunResult = computeRunResult;
   global.mulberry32 = mulberry32;
   global.computeNextSpawnGap = computeNextSpawnGap;
   global.pickObstacleType = pickObstacleType;
