@@ -68,9 +68,9 @@ const GAME_CONFIG = Object.freeze({
   // --- Physics ---
   JUMP_POWER:              -12,   // negative = upward impulse applied on jump
   GRAVITY:                  0.48, // added to velocityY each frame while airborne
-  INITIAL_SPEED:            5.5,  // obstacle scroll speed at score 0
+  INITIAL_SPEED:            4.5,  // obstacle scroll speed at score 0
   SPEED_CAP:               13.0,  // max scroll speed (matches Chrome T-Rex)
-  PLATEAU_SPEED:           10.0,  // sigmoid ceiling — focusable-but-demanding speed the curve approaches
+  PLATEAU_SPEED:            8.0,  // sigmoid ceiling — focusable-but-demanding speed the curve approaches
   RAMP_MIDPOINT:          300,    // score where acceleration is steepest (day/night transition)
   RAMP_STEEPNESS:           0.01, // sigmoid slope — controls how quickly speed rises through the midpoint
   SCORE_PER_LEVEL:        100,    // score points per level — used for milestone flash effects only
