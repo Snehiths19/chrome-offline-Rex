@@ -542,12 +542,29 @@ function updateHills() {
   }
 }
 
+function getHillColor(score) {
+  if (score < GAME_CONFIG.DAY_NIGHT_START) return GAME_CONFIG.HILL_COLOR_DAY;
+  if (score >= GAME_CONFIG.DAY_NIGHT_END)  return GAME_CONFIG.HILL_COLOR_NIGHT;
+  if (reducedMotion) return GAME_CONFIG.HILL_COLOR_DAY; // snap — stays day until DAY_NIGHT_END
+  const t = (score - GAME_CONFIG.DAY_NIGHT_START) /
+            (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
+  const parseHex = hex => [
+    parseInt(hex.slice(1, 3), 16),
+    parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16),
+  ];
+  const day   = parseHex(GAME_CONFIG.HILL_COLOR_DAY);
+  const night = parseHex(GAME_CONFIG.HILL_COLOR_NIGHT);
+  const r = Math.round(day[0] + (night[0] - day[0]) * t);
+  const g = Math.round(day[1] + (night[1] - day[1]) * t);
+  const b = Math.round(day[2] + (night[2] - day[2]) * t);
+  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
 function drawHills() {
   if (!isUpdatedMode() || game.hills.length === 0) return;
   // Pick a colour that contrasts with the day/night background.
-  ctx.fillStyle = game.score >= GAME_CONFIG.DAY_NIGHT_START
-    ? GAME_CONFIG.HILL_COLOR_NIGHT
-    : GAME_CONFIG.HILL_COLOR_DAY;
+  ctx.fillStyle = getHillColor(game.score);
   const baseY = canvas.height - 16;
   for (const hill of game.hills) {
     if (typeof ctx.ellipse !== 'function') {
@@ -1192,6 +1209,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.ctx = ctx;
   global.dino = dino;
   global.getBackgroundColor = getBackgroundColor;
+  global.getHillColor = getHillColor;
   global.drawBackground = drawBackground;
   global.initClouds = initClouds;
   global.updateClouds = updateClouds;

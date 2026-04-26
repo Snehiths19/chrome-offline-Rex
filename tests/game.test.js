@@ -1202,6 +1202,25 @@ function printSummary() {
   console.log(`--------------------`);
 }
 
+describe('Hill colour interpolation (polish pass)', () => {
+  it('returns HILL_COLOR_DAY below DAY_NIGHT_START', () => {
+    assertEquals(getHillColor(0),   GAME_CONFIG.HILL_COLOR_DAY, 'score 0 → day colour');
+    assertEquals(getHillColor(299), GAME_CONFIG.HILL_COLOR_DAY, 'score 299 → day colour');
+  });
+
+  it('returns HILL_COLOR_NIGHT at or above DAY_NIGHT_END', () => {
+    assertEquals(getHillColor(400),  GAME_CONFIG.HILL_COLOR_NIGHT, 'score 400 → night colour');
+    assertEquals(getHillColor(1000), GAME_CONFIG.HILL_COLOR_NIGHT, 'score 1000 → night colour');
+  });
+
+  it('returns a valid interpolated hex colour in the transition window', () => {
+    const mid = getHillColor(350); // midpoint between 300 and 400
+    assert(mid !== GAME_CONFIG.HILL_COLOR_DAY,   'midpoint should not be day colour');
+    assert(mid !== GAME_CONFIG.HILL_COLOR_NIGHT,  'midpoint should not be night colour');
+    assert(/^#[0-9a-f]{6}$/.test(mid),           'must be a valid lowercase 6-digit hex colour');
+  });
+});
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {
