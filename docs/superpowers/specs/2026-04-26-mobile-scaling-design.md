@@ -32,7 +32,7 @@ function initCanvasScale() {
   canvas.style.width  = cssW + 'px';
   canvas.style.height = cssH + 'px';
   canvas.width  = Math.round(cssW * dpr);
-  canvas.height = Math.round(cssH * dpr);
+  canvas.height = Math.round(canvas.width / 3); // derive from bitmap width to keep exact 3:1
   ctx.scale(canvas.width / GAME_CONFIG.CANVAS_W, canvas.height / GAME_CONFIG.CANVAS_H);
 }
 ```
