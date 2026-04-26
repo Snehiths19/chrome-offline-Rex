@@ -1088,12 +1088,15 @@ describe('HUD score format (polish pass)', () => {
     ctx.fillText = (text) => calls.push(String(text));
     const origScore = game.score;
     const origPop = game.scorePopFrames;
+    const origHS = game.highScore;
     game.score = 42;
     game.scorePopFrames = 0;
+    game.highScore = 0;
     drawScore();
     ctx.fillText = origFill;
     game.score = origScore;
     game.scorePopFrames = origPop;
+    game.highScore = origHS;
     assert(calls.some(t => t === '00042'),
       `Expected '00042' in HUD calls, got: ${JSON.stringify(calls)}`);
     assert(!calls.some(t => t.includes('Score:')),

@@ -1082,7 +1082,7 @@ function gameLoop() {
     game.milestoneText = 'LEVEL ' + (level + 1);
     game.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
     audio.milestone();
-    emitParticles('confetti', canvas.width - GAME_CONFIG.SCORE_X_OFFSET + 50, GAME_CONFIG.SCORE_Y);
+    emitParticles('confetti', canvas.width - GAME_CONFIG.SCORE_X_OFFSET + 30, GAME_CONFIG.SCORE_Y);
   }
 
   // Scroll ground.
