@@ -897,6 +897,81 @@ describe('PR-P1 bug fixes', () => {
   });
 });
 
+describe('Feature registry (PR-P2)', () => {
+  it('exposes a frozen registry array', () => {
+    assert(Array.isArray(FEATURES), 'FEATURES should be an array');
+    assert(Object.isFrozen(FEATURES), 'FEATURES should be frozen');
+  });
+
+  it('registry id ordering is the documented contract', () => {
+    const ids = FEATURES.map(f => f.id);
+    assertEquals(ids.length, 4, 'Registry should have exactly 4 features');
+    assertEquals(ids[0], 'hills');
+    assertEquals(ids[1], 'clouds');
+    assertEquals(ids[2], 'particles');
+    assertEquals(ids[3], 'skyTint');
+  });
+
+  it('every feature has at least one of update or draw', () => {
+    for (const f of FEATURES) {
+      const hasUpdate = typeof f.update === 'function';
+      const hasDraw = typeof f.draw === 'function';
+      assert(hasUpdate || hasDraw,
+        `Feature ${f.id} must define update or draw`);
+    }
+  });
+
+  it('layer partition matches pre-refactor draw order', () => {
+    const bg = FEATURES.filter(f => f.layer === 'background').map(f => f.id);
+    assertEquals(bg.join(','), 'hills,clouds',
+      'background layer must be hills,clouds in that order');
+
+    const fg = FEATURES.filter(f => f.layer === 'foreground').map(f => f.id);
+    assertEquals(fg.join(','), 'particles');
+
+    const ov = FEATURES.filter(f => f.layer === 'overlay').map(f => f.id);
+    assertEquals(ov.join(','), 'skyTint');
+  });
+
+  it('hills feature self-gates in classic mode', () => {
+    setMode(MODES.CLASSIC);
+    cancelAnimationFrame(game.animationFrameId);
+    game.rng = mulberry32(1);
+    initHills();
+    const beforeX = game.hills[0] && game.hills[0].x;
+    game.currentSpeed = 6;
+
+    const hillsFeature = FEATURES.find(f => f.id === 'hills');
+    hillsFeature.update();
+
+    assertEquals(game.hills[0] && game.hills[0].x, beforeX,
+      'updateHills via registry must respect classic-mode self-gate');
+
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+  });
+
+  it('runFeatureDraws dispatches by layer in registry order', () => {
+    const order = [];
+    const originals = FEATURES.map(f => f.draw);
+    // Mutate entries — array is frozen but its entries are not.
+    FEATURES.forEach((f, i) => {
+      if (!f.draw) return;
+      f.draw = () => order.push(f.id);
+    });
+
+    runFeatureDraws('background');
+    runFeatureDraws('foreground');
+    runFeatureDraws('overlay');
+
+    // Restore so subsequent tests / live game keep working.
+    FEATURES.forEach((f, i) => { f.draw = originals[i]; });
+
+    assertEquals(order.join(','), 'hills,clouds,particles,skyTint',
+      'Layer dispatch must produce the canonical draw order');
+  });
+});
+
 // --- Test Summary ---
 // Print summary both in the browser (on window.onload) and in Node (via a
 // setTimeout fallback so async tests have time to complete).
