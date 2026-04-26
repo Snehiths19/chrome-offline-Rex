@@ -756,7 +756,9 @@ function drawGameOverScreen() {
     }
   } else {
     // Normal death — side-by-side comparison
+    const delta    = game.highScore - Math.floor(game.score);
     const scoreStr = String(Math.floor(game.score)).padStart(5, '0');
+    const bestStr  = String(game.highScore).padStart(5, '0');
 
     ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.font = '12px ' + font;
@@ -765,23 +767,18 @@ function drawGameOverScreen() {
     ctx.font = '28px ' + font;
     ctx.fillText(scoreStr,   canvas.width * 0.2, canvas.height / 2 + 14);
 
-    if (game.highScore > 0) {
-      const delta   = game.highScore - Math.floor(game.score);
-      const bestStr = String(game.highScore).padStart(5, '0');
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.font = '16px ' + font;
+    ctx.fillText('← ' + delta + ' →', canvas.width / 2, canvas.height / 2 - 10);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.font = '11px ' + font;
+    ctx.fillText('from best', canvas.width / 2, canvas.height / 2 + 10);
 
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-      ctx.font = '16px ' + font;
-      ctx.fillText('← ' + delta + ' →', canvas.width / 2, canvas.height / 2 - 10);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-      ctx.font = '11px ' + font;
-      ctx.fillText('from best', canvas.width / 2, canvas.height / 2 + 10);
-
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-      ctx.font = '12px ' + font;
-      ctx.fillText('YOUR BEST', canvas.width * 0.8, canvas.height / 2 - 14);
-      ctx.font = '28px ' + font;
-      ctx.fillText(bestStr,    canvas.width * 0.8, canvas.height / 2 + 14);
-    }
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.font = '12px ' + font;
+    ctx.fillText('YOUR BEST', canvas.width * 0.8, canvas.height / 2 - 14);
+    ctx.font = '28px ' + font;
+    ctx.fillText(bestStr,    canvas.width * 0.8, canvas.height / 2 + 14);
   }
 
   ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';

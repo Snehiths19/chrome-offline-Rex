@@ -1220,30 +1220,44 @@ describe('Game over screen (polish pass)', () => {
       `Expected no 'Score:' prefix on game over screen, got: ${JSON.stringify(calls)}`);
   });
 
-  it('Best line hidden when highScore is 0', () => {
+  it('Best line hidden when highScore is 0 (first run: new record screen, no YOUR BEST)', () => {
     const calls = [];
-    const origFill = ctx.fillText;
+    const origFill    = ctx.fillText;
     ctx.fillText = (text) => calls.push(String(text));
-    const origHS = game.highScore;
-    game.highScore = 0;
+    const origNewBest = game.isNewBest;
+    const origPrevHS  = game.previousHighScore;
+    const origHS      = game.highScore;
+    const origScore   = game.score;
+    game.isNewBest         = true;
+    game.previousHighScore = 0;
+    game.highScore         = 0;
+    game.score             = 500;
     drawGameOverScreen();
     ctx.fillText = origFill;
-    game.highScore = origHS;
-    assert(!calls.some(t => t.toLowerCase().includes('best')),
-      `Expected no Best line when highScore is 0, got: ${JSON.stringify(calls)}`);
+    game.isNewBest         = origNewBest;
+    game.previousHighScore = origPrevHS;
+    game.highScore         = origHS;
+    game.score             = origScore;
+    assert(!calls.some(t => t === 'YOUR BEST'),
+      `Expected no 'YOUR BEST' on first-run new record screen, got: ${JSON.stringify(calls)}`);
+    assert(!calls.some(t => t.includes('over your previous best')),
+      `Expected no delta line on first run (previousHighScore=0), got: ${JSON.stringify(calls)}`);
   });
 
-  it('Best line shown when highScore > 0', () => {
+  it('Best line shown when highScore > 0 (normal death side-by-side)', () => {
     const calls = [];
-    const origFill = ctx.fillText;
+    const origFill    = ctx.fillText;
     ctx.fillText = (text) => calls.push(String(text));
-    const origHS = game.highScore;
-    game.highScore = 250;
+    const origNewBest = game.isNewBest;
+    const origHS      = game.highScore;
+    game.isNewBest  = false;
+    game.highScore  = 250;
     drawGameOverScreen();
     ctx.fillText = origFill;
+    game.isNewBest = origNewBest;
     game.highScore = origHS;
-    assert(calls.some(t => t.toLowerCase().includes('best')),
-      `Expected Best line when highScore > 0, got: ${JSON.stringify(calls)}`);
+    assert(calls.some(t => t === 'YOUR BEST'),
+      `Expected 'YOUR BEST' in normal death side-by-side, got: ${JSON.stringify(calls)}`);
   });
 });
 
