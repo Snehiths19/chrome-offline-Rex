@@ -1142,8 +1142,8 @@ function gameLoop() {
   drawGround();
   updateObstacles();
 
-  // Speed-trail particles: subtle dust trailing off the dino at near-cap speed.
-  if (isUpdatedMode() && game.currentSpeed >= GAME_CONFIG.SPEED_CAP * 0.85) {
+  // Speed-trail particles: subtle dust trailing off the dino approaching plateau speed.
+  if (isUpdatedMode() && game.currentSpeed >= GAME_CONFIG.PLATEAU_SPEED * 0.96) {
     emitParticles('trail', dino.x + 4, dino.y + dino.height - 4);
   }
 
