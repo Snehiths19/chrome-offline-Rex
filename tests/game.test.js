@@ -1202,6 +1202,18 @@ function printSummary() {
   console.log(`--------------------`);
 }
 
+describe('Dino animation in WAITING state (polish pass)', () => {
+  it('increments animFrame each frame during GET READY countdown', () => {
+    resetGame();
+    game.graceFrames = 2; // ensure graceFrames stays > 0 after one decrement
+    const before = game.animFrame;
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.animFrame, before + 1, 'animFrame should increment by 1 per WAITING frame');
+    assertEquals(game.state, STATE.WAITING, 'state should remain WAITING when graceFrames > 0');
+  });
+});
+
 describe('Hill colour interpolation (polish pass)', () => {
   it('returns HILL_COLOR_DAY below DAY_NIGHT_START', () => {
     assertEquals(getHillColor(0),   GAME_CONFIG.HILL_COLOR_DAY, 'score 0 → day colour');
