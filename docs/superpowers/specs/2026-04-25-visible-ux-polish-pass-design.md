@@ -75,7 +75,7 @@ const t = reducedMotion ? (score >= DAY_NIGHT_END ? 1 : 0)
         : Math.max(0, Math.min(1, (score - DAY_NIGHT_START) / (DAY_NIGHT_END - DAY_NIGHT_START)));
 ```
 
-The two hill colour hex strings (`HILL_COLOR_DAY = '#cdcdcd'`, `HILL_COLOR_NIGHT = '#3a3a55'`) are already in `GAME_CONFIG`. Parse them to RGB at draw time, lerp each channel, reconstruct as a hex string. No new config keys needed.
+The two hill colour hex strings (`HILL_COLOR_DAY = '#cdcdcd'`, `HILL_COLOR_NIGHT = '#3a3a55'`) are already in `GAME_CONFIG`. Within the transition window (`DAY_NIGHT_START ≤ score < DAY_NIGHT_END`) lerp each RGB channel and reconstruct a hex string. Outside the window use the solid config colour directly — no parsing cost on the vast majority of frames.
 
 Under `reducedMotion`, snap at `DAY_NIGHT_END` (same behaviour as the background).
 
@@ -85,17 +85,21 @@ Files touched: `script.js` — `drawHills`.
 
 The page body (`background-color: #f0f0f0` in `style.css`) stays light grey while the canvas fades to `#1a1a2e` at night, making the canvas look like a floating panel rather than an immersive game.
 
-Fix: one line in the RUNNING branch of `gameLoop` after `drawBackground()`:
+Fix: add one line after `drawBackground()` in **both** the WAITING and RUNNING branches of `gameLoop`:
 
 ```js
 document.body.style.background = getBackgroundColor(game.score);
 ```
 
-Reset to `'#ffffff'` in `resetGame()` so a fresh game starts white.
+In `resetGame()`, clear the inline override entirely so the stylesheet value (`#f0f0f0`) resumes:
 
-Called once per frame at 60 fps — this is a single style property write, no layout reflow, negligible cost.
+```js
+document.body.style.background = '';
+```
 
-Files touched: `script.js` — RUNNING branch of `gameLoop`, `resetGame`.
+Called once per frame at 60 fps — a single style property write, no layout reflow, negligible cost.
+
+Files touched: `script.js` — WAITING + RUNNING branches of `gameLoop`, `resetGame`.
 
 ---
 
@@ -126,7 +130,7 @@ All seven changes are confined to `script.js`. No HTML or CSS edits. The changes
 | Hunk | Functions changed | New config keys |
 |---|---|---|
 | HUD redesign | `drawScore` | `SCORE_FONT_FAMILY`, `SCORE_HI_X_OFFSET` |
-| World visual fixes | `drawHills`, `gameLoop` (RUNNING), `resetGame` | none |
+| World visual fixes | `drawHills`, `gameLoop` (WAITING + RUNNING), `resetGame` | none |
 | Micro-fixes | `drawGameOverScreen`, `gameLoop` (WAITING) | none |
 
 ---
