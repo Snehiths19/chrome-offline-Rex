@@ -1303,6 +1303,7 @@ describe('Death screen', () => {
     const origLastObs   = game.lastObstacleX;
     const origNewBest   = game.isNewBest;
     const origPrevHS    = game.previousHighScore;
+    const origGraceFrames = game.graceFrames;
 
     game.highScore         = 1000;
     game.score             = 1200;
@@ -1329,6 +1330,7 @@ describe('Death screen', () => {
     game.lastObstacleX     = origLastObs;
     game.isNewBest         = origNewBest;
     game.previousHighScore = origPrevHS;
+    game.graceFrames       = origGraceFrames;
   });
 
   it('resetGame resets isNewBest to false and previousHighScore to 0', () => {
