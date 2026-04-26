@@ -500,6 +500,60 @@ describe('Audio (PR-B)', () => {
     assertEquals(ensureCalls, 0, 'Muted should short-circuit before ensure()');
     audio.setMuted(false);
   });
+
+  it('audio.land() does not call ensure() in classic mode', () => {
+    setMode(MODES.CLASSIC);
+    cancelAnimationFrame(game.animationFrameId);
+    audio.setMuted(false);
+    let ensureCalls = 0;
+    const originalEnsure = audio.ensure;
+    audio.ensure = function () { ensureCalls++; return null; };
+    audio.land();
+    audio.ensure = originalEnsure;
+    assertEquals(ensureCalls, 0, 'Classic mode: land() should not reach ensure()');
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+  });
+
+  it('audio.land() does not call ensure() when muted', () => {
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    audio.setMuted(true);
+    let ensureCalls = 0;
+    const originalEnsure = audio.ensure;
+    audio.ensure = function () { ensureCalls++; return null; };
+    audio.land();
+    audio.ensure = originalEnsure;
+    assertEquals(ensureCalls, 0, 'Muted: land() should not reach ensure()');
+    audio.setMuted(false);
+  });
+
+  it('audio.death() does not call ensure() in classic mode', () => {
+    setMode(MODES.CLASSIC);
+    cancelAnimationFrame(game.animationFrameId);
+    audio.setMuted(false);
+    let ensureCalls = 0;
+    const originalEnsure = audio.ensure;
+    audio.ensure = function () { ensureCalls++; return null; };
+    audio.death();
+    audio.ensure = originalEnsure;
+    assertEquals(ensureCalls, 0, 'Classic mode: death() should not reach ensure()');
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+  });
+
+  it('audio.death() does not call ensure() when muted', () => {
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    audio.setMuted(true);
+    let ensureCalls = 0;
+    const originalEnsure = audio.ensure;
+    audio.ensure = function () { ensureCalls++; return null; };
+    audio.death();
+    audio.ensure = originalEnsure;
+    assertEquals(ensureCalls, 0, 'Muted: death() should not reach ensure()');
+    audio.setMuted(false);
+  });
 });
 
 describe('Particles (PR-A)', () => {
