@@ -725,6 +725,11 @@ describe('Day/Night Cycle', () => {
       `Score 350 (t=0.5) should produce midpoint color #8d8d97`);
   });
 
+  it('returns #ffffff at DAY_NIGHT_START (score 300, t=0 boundary)', () => {
+    assertEquals(getBackgroundColor(300), '#ffffff',
+      'Score 300 is the first frame of the interpolation window — t=0 still produces white');
+  });
+
   it('should initialise stars once at score 400 and not re-init on second call', () => {
     resetGame();
     assert(!game.starsInitialised, 'starsInitialised should be false after reset');
