@@ -229,20 +229,21 @@ describe('Obstacle Gap Enforcement', () => {
     game.state = STATE.RUNNING;
     // Pin the RNG to the middle of the jitter range so nextSpawnGap is deterministic.
     game.rng = () => 0.5;
-    game.nextSpawnGap = 600; // base gap at INITIAL_SPEED, zero jitter
+    game.nextSpawnGap = 600; // base gap at INITIAL_SPEED, zero jitter — triggers first spawn
 
     // Frame 1: lastObstacleX=-300 ≤ canvas.width-600 → first spawn
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
     assertEquals(game.obstacles.length, 1, 'Should have 1 obstacle after first gameLoop frame');
 
-    // After spawn, nextSpawnGap was recomputed at zero-jitter → 600 at INITIAL_SPEED
-    assertEquals(game.nextSpawnGap, 600, 'Next gap should be baseGap 600 at INITIAL_SPEED with zero jitter');
+    // After spawn, nextSpawnGap was recomputed via DifficultyProfile.obstacleParamsAt(score=0)
+    // speedAtScore(0) ≈ 5.71, which yields baseGap 589 at rng=0.5 (zero-jitter midpoint)
+    assertEquals(game.nextSpawnGap, 589, 'Next gap should be baseGap 589 at speedAtScore(0) with zero jitter');
 
-    // Frame 2: obstacle hasn't drifted 600 yet — not a spawn frame.
+    // Frame 2: obstacle hasn't drifted 589 yet — not a spawn frame.
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
-    assertEquals(game.obstacles.length, 1, 'Should still be 1 obstacle — 600px gap not met');
+    assertEquals(game.obstacles.length, 1, 'Should still be 1 obstacle — 589px gap not met');
 
     // Force obstacle just past the threshold
     game.obstacles[0].x = canvas.width - 601;
@@ -723,7 +724,7 @@ describe('Obstacle Types', () => {
 });
 
 describe('Difficulty Curve', () => {
-  it('should cap currentSpeed at SPEED_CAP regardless of score', () => {
+  it('currentSpeed approaches PLATEAU_SPEED at high score and never exceeds it', () => {
     resetGame();
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
@@ -732,8 +733,10 @@ describe('Difficulty Curve', () => {
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
 
-    assertEquals(game.currentSpeed, GAME_CONFIG.SPEED_CAP,
-      `currentSpeed at score 2000 should equal SPEED_CAP (${GAME_CONFIG.SPEED_CAP}), got ${game.currentSpeed}`);
+    assert(game.currentSpeed <= GAME_CONFIG.PLATEAU_SPEED,
+      `currentSpeed at score 2000 (${game.currentSpeed}) must not exceed PLATEAU_SPEED (${GAME_CONFIG.PLATEAU_SPEED})`);
+    assert(game.currentSpeed > GAME_CONFIG.PLATEAU_SPEED - 0.1,
+      `currentSpeed at score 2000 (${game.currentSpeed}) should be very close to PLATEAU_SPEED — sigmoid has converged`);
   });
 
   it('should not set a .speed property on spawned obstacles', () => {
@@ -1306,6 +1309,82 @@ describe('Hill colour interpolation (polish pass)', () => {
     assert(mid !== GAME_CONFIG.HILL_COLOR_DAY,   'midpoint should not be day colour');
     assert(mid !== GAME_CONFIG.HILL_COLOR_NIGHT,  'midpoint should not be night colour');
     assert(/^#[0-9a-f]{6}$/.test(mid),           'must be a valid lowercase 6-digit hex colour');
+  });
+});
+
+describe('DifficultyProfile', () => {
+  it('speedAtScore returns exactly the midpoint speed at RAMP_MIDPOINT', () => {
+    const expected = GAME_CONFIG.INITIAL_SPEED +
+      (GAME_CONFIG.PLATEAU_SPEED - GAME_CONFIG.INITIAL_SPEED) / 2;
+    assertEquals(
+      DifficultyProfile.speedAtScore(GAME_CONFIG.RAMP_MIDPOINT), expected,
+      'At RAMP_MIDPOINT the sigmoid is exactly 0.5, so speed must be the midpoint between INITIAL and PLATEAU'
+    );
+  });
+
+  it('speedAtScore is slightly above INITIAL_SPEED at score 0 — curve starts gently', () => {
+    const speed = DifficultyProfile.speedAtScore(0);
+    assert(speed > GAME_CONFIG.INITIAL_SPEED,
+      `Score 0 speed ${speed} should be above INITIAL_SPEED ${GAME_CONFIG.INITIAL_SPEED}`);
+    assert(speed < GAME_CONFIG.INITIAL_SPEED + 0.5,
+      `Score 0 speed ${speed} should still be close to INITIAL_SPEED — gentle start`);
+  });
+
+  it('speedAtScore never exceeds PLATEAU_SPEED', () => {
+    for (const score of [500, 1000, 5000]) {
+      const speed = DifficultyProfile.speedAtScore(score);
+      assert(speed <= GAME_CONFIG.PLATEAU_SPEED,
+        `Score ${score} speed ${speed} must not exceed PLATEAU_SPEED ${GAME_CONFIG.PLATEAU_SPEED}`);
+    }
+  });
+
+  it('speedAtScore is monotonically increasing', () => {
+    const s0   = DifficultyProfile.speedAtScore(0);
+    const s100 = DifficultyProfile.speedAtScore(100);
+    const s300 = DifficultyProfile.speedAtScore(300);
+    const s600 = DifficultyProfile.speedAtScore(600);
+    assert(s0 < s100 && s100 < s300 && s300 < s600,
+      `Speed must strictly increase: ${s0} < ${s100} < ${s300} < ${s600}`);
+  });
+
+  it('obstacleParamsAt returns an object with a numeric gap and a typed obstacle', () => {
+    const rng = mulberry32(42);
+    const params = DifficultyProfile.obstacleParamsAt(0, rng, MODES.CLASSIC);
+    assert(typeof params.gap === 'number',
+      'gap must be a number');
+    assert(params.type && typeof params.type.id === 'string',
+      'type must be an obstacle-type object with an id string');
+  });
+
+  it('obstacleParamsAt classic mode: gap shrinks as score rises', () => {
+    const rng = mulberry32(42); // not consumed in classic mode — safe to reuse
+    const paramsLow  = DifficultyProfile.obstacleParamsAt(0,   rng, MODES.CLASSIC);
+    const paramsHigh = DifficultyProfile.obstacleParamsAt(500, rng, MODES.CLASSIC);
+    assert(paramsHigh.gap < paramsLow.gap,
+      `Gap at score 500 (${paramsHigh.gap}) should be less than gap at score 0 (${paramsLow.gap}) — higher speed means shorter gap`);
+  });
+
+  it('obstacleParamsAt classic mode: type is always small cactus', () => {
+    const rng = mulberry32(42);
+    const params = DifficultyProfile.obstacleParamsAt(500, rng, MODES.CLASSIC);
+    assertEquals(params.type.id, 'small',
+      'Classic mode must always return the small cactus');
+  });
+
+  it('obstacleParamsAt updated mode: gap is within valid range at score 0', () => {
+    const rng = mulberry32(42);
+    const params = DifficultyProfile.obstacleParamsAt(0, rng, MODES.UPDATED);
+    assert(params.gap >= GAME_CONFIG.MIN_SPAWN_GAP,
+      `Gap (${params.gap}) must be at least MIN_SPAWN_GAP (${GAME_CONFIG.MIN_SPAWN_GAP})`);
+    assert(params.gap <= Math.round(GAME_CONFIG.MAX_SPAWN_GAP * (1 + GAME_CONFIG.SPAWN_GAP_JITTER)),
+      `Gap (${params.gap}) must not exceed MAX_SPAWN_GAP with max jitter (${GAME_CONFIG.MAX_SPAWN_GAP} * ${1 + GAME_CONFIG.SPAWN_GAP_JITTER})`);
+  });
+
+  it('obstacleParamsAt updated mode: cluster cactus returned at score 250 with max roll', () => {
+    const rng = () => 0.99; // constant roll — pushes weighted pick to last eligible type
+    const params = DifficultyProfile.obstacleParamsAt(250, rng, MODES.UPDATED);
+    assertEquals(params.type.id, 'cluster',
+      'At score 250 with max rng roll, all three types eligible and cluster wins the weighted draw');
   });
 });
 
