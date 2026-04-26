@@ -972,6 +972,115 @@ describe('Feature registry (PR-P2)', () => {
   });
 });
 
+describe('Live-tuning hook (PR-P3)', () => {
+  // Snapshot/restore helper so tests don't leak overrides into siblings.
+  function withTuning(overrides, fn) {
+    const orig = window.GAME_TUNING;
+    window.GAME_TUNING = overrides;
+    try { fn(); } finally { window.GAME_TUNING = orig; }
+  }
+
+  it('cfg returns GAME_CONFIG value when no override is set', () => {
+    withTuning({}, () => {
+      assertEquals(cfg('SKY_TINT_PEAK_ALPHA'), GAME_CONFIG.SKY_TINT_PEAK_ALPHA);
+      assertEquals(cfg('HILL_RESPAWN_X_RANGE'), 50);
+      assertEquals(cfg('DEATH_SHAKE_FREQ'), 1.5);
+    });
+  });
+
+  it('cfg returns the override when GAME_TUNING[key] is set', () => {
+    withTuning({ SKY_TINT_PEAK_ALPHA: 0.5, DEATH_SHAKE_FREQ: 3.2 }, () => {
+      assertEquals(cfg('SKY_TINT_PEAK_ALPHA'), 0.5);
+      assertEquals(cfg('DEATH_SHAKE_FREQ'), 3.2);
+      // Non-overridden key still falls through to GAME_CONFIG.
+      assertEquals(cfg('HILL_RESPAWN_X_RANGE'), 50);
+    });
+  });
+
+  it('cfg ignores prototype-polluted keys', () => {
+    // Simulate a polluted prototype; cfg uses hasOwnProperty to skip it.
+    const polluted = Object.create({ JUMP_POWER: 999 });
+    withTuning(polluted, () => {
+      assertEquals(cfg('JUMP_POWER'), GAME_CONFIG.JUMP_POWER,
+        'Prototype keys must not leak through cfg');
+    });
+  });
+
+  it('saveTuning persists current GAME_TUNING to dino-tuning as JSON', () => {
+    withTuning({ SKY_TINT_PEAK_ALPHA: 0.3, HILL_RESPAWN_X_RANGE: 80 }, () => {
+      assert(saveTuning(), 'saveTuning should return true on success');
+      const raw = localStorage.getItem('dino-tuning');
+      assert(raw, 'localStorage should hold the dino-tuning entry');
+      const parsed = JSON.parse(raw);
+      assertEquals(parsed.SKY_TINT_PEAK_ALPHA, 0.3);
+      assertEquals(parsed.HILL_RESPAWN_X_RANGE, 80);
+    });
+    localStorage.removeItem('dino-tuning');
+  });
+
+  it('loadTuning hydrates from localStorage', () => {
+    localStorage.setItem('dino-tuning', JSON.stringify({ DEATH_SHAKE_FREQ: 2.5 }));
+    withTuning({}, () => {
+      loadTuning();
+      assertEquals(cfg('DEATH_SHAKE_FREQ'), 2.5);
+    });
+    localStorage.removeItem('dino-tuning');
+  });
+
+  it('save/load round-trip restores values', () => {
+    withTuning({ SKY_TINT_PEAK_ALPHA: 0.42 }, () => {
+      saveTuning();
+    });
+    withTuning({}, () => {
+      loadTuning();
+      assertEquals(cfg('SKY_TINT_PEAK_ALPHA'), 0.42,
+        'Override must survive a save/clear/load cycle');
+    });
+    localStorage.removeItem('dino-tuning');
+  });
+
+  it('loadTuning ignores malformed JSON without throwing', () => {
+    localStorage.setItem('dino-tuning', '{not json');
+    withTuning({}, () => {
+      loadTuning(); // must not throw
+      assert(typeof window.GAME_TUNING === 'object',
+        'GAME_TUNING must remain an object after malformed load');
+    });
+    localStorage.removeItem('dino-tuning');
+  });
+
+  it('drawSkyTint uses cfg-supplied colour string', () => {
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    // Pre-conditions for drawSkyTint to actually paint:
+    //   isUpdatedMode() && !reducedMotion && milestoneFrames > 0.
+    // The Node stub's matchMedia returns matches:false so reducedMotion is
+    // always false here — no need to guard.
+    game.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
+
+    const fillStyles = [];
+    const proto = Object.getPrototypeOf(ctx);
+    let captured = '';
+    Object.defineProperty(ctx, 'fillStyle', {
+      configurable: true,
+      get() { return captured; },
+      set(v) { captured = v; fillStyles.push(v); },
+    });
+
+    withTuning({ SKY_TINT_COLOR_RGB: '0, 0, 255' }, () => {
+      drawSkyTint();
+    });
+
+    // Restore: just delete our own property so the prototype value re-shows.
+    delete ctx.fillStyle;
+
+    const blueish = fillStyles.find(s => typeof s === 'string' && s.indexOf('rgba(0, 0, 255') === 0);
+    assert(blueish, `Expected a fillStyle starting with 'rgba(0, 0, 255' but got: ${JSON.stringify(fillStyles)}`);
+
+    game.milestoneFrames = 0;
+  });
+});
+
 // --- Test Summary ---
 // Print summary both in the browser (on window.onload) and in Node (via a
 // setTimeout fallback so async tests have time to complete).

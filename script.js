@@ -137,15 +137,20 @@ const GAME_CONFIG = Object.freeze({
   HILL_WIDTH_RANGE:        80,
   HILL_MIN_HEIGHT:         40,
   HILL_HEIGHT_RANGE:       30,
+  HILL_RESPAWN_X_RANGE:    50,    // px of jitter past the right edge when a hill respawns
   HILL_COLOR_DAY:          '#cdcdcd',
   HILL_COLOR_NIGHT:        '#3a3a55',
   CLOUD_SPEED_FACTOR_UPDATED: 1.5, // multiply cloud speed in updated mode for stronger parallax
   SKY_TINT_PEAK_ALPHA:      0.12, // gold sky-flash peak alpha during milestone
+  SKY_TINT_COLOR_RGB:      '255, 215, 0',   // gold sky-flash colour (rgb triplet, alpha applied at draw)
+  PARTICLE_EMIT_SPREAD:     4,    // px width of the cosmetic xy jitter on every particle emit
 
   // --- Effects ---
   DEATH_SHAKE_FRAMES:      12,
   DEATH_SHAKE_AMPLITUDE:    4,
+  DEATH_SHAKE_FREQ:         1.5,  // multiplier on the sin oscillation that drives the shake transform
   DEATH_FLASH_FRAMES:       6,    // PR-C: white-flash overlay length on collision
+  DEATH_FLASH_COLOR_RGB:   '255, 255, 255', // death-flash overlay colour (rgb triplet, alpha applied at draw)
   SCORE_POP_FRAMES:        12,    // PR-C: HUD score scale-up duration during death shake
   MILESTONE_FRAMES:        90,
   NEW_BEST_FRAMES:        120,
@@ -160,6 +165,40 @@ const GAME_CONFIG = Object.freeze({
   // --- Asset loading ---
   ASSET_LOAD_TIMEOUT_MS: 5000,    // force WAITING state even if assets never finish loading
 });
+
+// --- Live-tuning hook (visual-only) -----------------------------------
+// cfg(key) reads window.GAME_TUNING[key] when set, else falls back to
+// GAME_CONFIG[key]. ONLY use cfg() for visual keys (colours, alphas,
+// shake amplitude/freq, particle spread, parallax). Physics, spawning,
+// scoring, and hitboxes MUST continue to read GAME_CONFIG.X directly so
+// determinism is preserved across runs and tuning sessions.
+//
+// Workflow from DevTools:
+//   GAME_TUNING.SKY_TINT_PEAK_ALPHA = 0.3
+//   saveTuning()                            // persist to localStorage
+//   location.reload()                       // verify hydration
+function cfg(key) {
+  const t = window.GAME_TUNING;
+  if (t && Object.prototype.hasOwnProperty.call(t, key)) return t[key];
+  return GAME_CONFIG[key];
+}
+
+function loadTuning() {
+  window.GAME_TUNING = window.GAME_TUNING || {};
+  try {
+    const raw = localStorage.getItem('dino-tuning');
+    if (raw) Object.assign(window.GAME_TUNING, JSON.parse(raw));
+  } catch (e) { /* malformed JSON or disabled storage — keep defaults */ }
+}
+
+function saveTuning() {
+  try {
+    localStorage.setItem('dino-tuning', JSON.stringify(window.GAME_TUNING || {}));
+    return true;
+  } catch (e) { return false; }
+}
+
+loadTuning();
 
 const STATE = Object.freeze({
   LOADING: 'LOADING',
@@ -494,7 +533,7 @@ function updateHills() {
   for (const hill of game.hills) {
     hill.x -= game.currentSpeed * GAME_CONFIG.HILL_PARALLAX;
     if (hill.x + hill.width < 0) {
-      hill.x = canvas.width + game.rng() * 50;
+      hill.x = canvas.width + game.rng() * cfg('HILL_RESPAWN_X_RANGE');
       hill.width = GAME_CONFIG.HILL_MIN_WIDTH + game.rng() * GAME_CONFIG.HILL_WIDTH_RANGE;
       hill.height = GAME_CONFIG.HILL_MIN_HEIGHT + game.rng() * GAME_CONFIG.HILL_HEIGHT_RANGE;
     }
@@ -530,9 +569,9 @@ function drawHills() {
 function drawSkyTint() {
   if (!isUpdatedMode() || reducedMotion) return;
   if (game.milestoneFrames <= 0) return;
-  const alpha = (game.milestoneFrames / GAME_CONFIG.MILESTONE_FRAMES) * GAME_CONFIG.SKY_TINT_PEAK_ALPHA;
+  const alpha = (game.milestoneFrames / GAME_CONFIG.MILESTONE_FRAMES) * cfg('SKY_TINT_PEAK_ALPHA');
   ctx.save();
-  ctx.fillStyle = 'rgba(255, 215, 0, ' + alpha.toFixed(3) + ')';
+  ctx.fillStyle = 'rgba(' + cfg('SKY_TINT_COLOR_RGB') + ', ' + alpha.toFixed(3) + ')';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.restore();
 }
@@ -620,9 +659,9 @@ function drawScore() {
 // post-death frames. Mode-gated; reduce-motion caps it at 1 frame.
 function drawDeathFlash() {
   if (game.deathFlashFrames <= 0) return;
-  const alpha = game.deathFlashFrames / GAME_CONFIG.DEATH_FLASH_FRAMES;
+  const alpha = game.deathFlashFrames / cfg('DEATH_FLASH_FRAMES');
   ctx.save();
-  ctx.fillStyle = 'rgba(255, 255, 255, ' + alpha.toFixed(3) + ')';
+  ctx.fillStyle = 'rgba(' + cfg('DEATH_FLASH_COLOR_RGB') + ', ' + alpha.toFixed(3) + ')';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.restore();
 }
@@ -721,7 +760,7 @@ function emitParticles(kind, x, y) {
   for (let i = 0; i < particles.length && emitted < count; i++) {
     const p = particles[i];
     if (p.life > 0) continue;
-    p.x = x + (Math.random() - 0.5) * 4;
+    p.x = x + (Math.random() - 0.5) * cfg('PARTICLE_EMIT_SPREAD');
     p.y = y;
     p.vx = (Math.random() - 0.5) * 2 * config.vxSpread;
     p.vy = config.vyMin + Math.random() * (config.vyMax - config.vyMin);
@@ -972,7 +1011,7 @@ function gameLoop() {
   if (game.state === STATE.DEAD) {
     if (game.deathShakeFrames > 0) {
       ctx.save();
-      ctx.translate(Math.sin(game.deathShakeFrames * 1.5) * GAME_CONFIG.DEATH_SHAKE_AMPLITUDE, 0);
+      ctx.translate(Math.sin(game.deathShakeFrames * cfg('DEATH_SHAKE_FREQ')) * cfg('DEATH_SHAKE_AMPLITUDE'), 0);
       drawBackground();
       drawHills();
       drawGround();
@@ -1173,4 +1212,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.FEATURES = FEATURES;
   global.runFeatureUpdates = runFeatureUpdates;
   global.runFeatureDraws = runFeatureDraws;
+  global.cfg = cfg;
+  global.loadTuning = loadTuning;
+  global.saveTuning = saveTuning;
 }
