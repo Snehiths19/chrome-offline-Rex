@@ -1220,30 +1220,44 @@ describe('Game over screen (polish pass)', () => {
       `Expected no 'Score:' prefix on game over screen, got: ${JSON.stringify(calls)}`);
   });
 
-  it('Best line hidden when highScore is 0', () => {
+  it('Best line hidden when highScore is 0 (first run: new record screen, no YOUR BEST)', () => {
     const calls = [];
-    const origFill = ctx.fillText;
+    const origFill    = ctx.fillText;
     ctx.fillText = (text) => calls.push(String(text));
-    const origHS = game.highScore;
-    game.highScore = 0;
+    const origNewBest = game.isNewBest;
+    const origPrevHS  = game.previousHighScore;
+    const origHS      = game.highScore;
+    const origScore   = game.score;
+    game.isNewBest         = true;
+    game.previousHighScore = 0;
+    game.highScore         = 0;
+    game.score             = 500;
     drawGameOverScreen();
     ctx.fillText = origFill;
-    game.highScore = origHS;
-    assert(!calls.some(t => t.toLowerCase().includes('best')),
-      `Expected no Best line when highScore is 0, got: ${JSON.stringify(calls)}`);
+    game.isNewBest         = origNewBest;
+    game.previousHighScore = origPrevHS;
+    game.highScore         = origHS;
+    game.score             = origScore;
+    assert(!calls.some(t => t === 'YOUR BEST'),
+      `Expected no 'YOUR BEST' on first-run new record screen, got: ${JSON.stringify(calls)}`);
+    assert(!calls.some(t => t.includes('over your previous best')),
+      `Expected no delta line on first run (previousHighScore=0), got: ${JSON.stringify(calls)}`);
   });
 
-  it('Best line shown when highScore > 0', () => {
+  it('Best line shown when highScore > 0 (normal death side-by-side)', () => {
     const calls = [];
-    const origFill = ctx.fillText;
+    const origFill    = ctx.fillText;
     ctx.fillText = (text) => calls.push(String(text));
-    const origHS = game.highScore;
-    game.highScore = 250;
+    const origNewBest = game.isNewBest;
+    const origHS      = game.highScore;
+    game.isNewBest  = false;
+    game.highScore  = 250;
     drawGameOverScreen();
     ctx.fillText = origFill;
+    game.isNewBest = origNewBest;
     game.highScore = origHS;
-    assert(calls.some(t => t.toLowerCase().includes('best')),
-      `Expected Best line when highScore > 0, got: ${JSON.stringify(calls)}`);
+    assert(calls.some(t => t === 'YOUR BEST'),
+      `Expected 'YOUR BEST' in normal death side-by-side, got: ${JSON.stringify(calls)}`);
   });
 });
 
@@ -1261,6 +1275,156 @@ describe('announce() accessibility helper', () => {
     announce('second');
     assertEquals(a11yLive.textContent, 'second',
       'second announce should overwrite the first');
+  });
+});
+
+describe('Death screen', () => {
+  // --- computeRunResult ---
+
+  it('computeRunResult: normal run returns isNewBest=false and gap delta', () => {
+    const r = computeRunResult(847, 1050);
+    assertEquals(r.isNewBest, false, 'not a new best when score < highScore');
+    assertEquals(r.delta, 203, 'delta = highScore - score = 1050 - 847');
+    assertEquals(r.previousHighScore, 1050, 'previousHighScore preserved');
+  });
+
+  it('computeRunResult: new record returns isNewBest=true and improvement delta', () => {
+    const r = computeRunResult(1253, 1050);
+    assertEquals(r.isNewBest, true, 'is a new best when score > highScore');
+    assertEquals(r.delta, 203, 'delta = score - previousHighScore = 1253 - 1050');
+    assertEquals(r.previousHighScore, 1050, 'previousHighScore is old highScore');
+  });
+
+  it('computeRunResult: first run (highScore=0) is always a new best', () => {
+    const r = computeRunResult(500, 0);
+    assertEquals(r.isNewBest, true, 'first run with highScore=0 is a new best');
+    assertEquals(r.previousHighScore, 0, 'previousHighScore is 0 on first run');
+  });
+
+  it('computeRunResult: tie (score === highScore) is not a new best', () => {
+    const r = computeRunResult(1000, 1000);
+    assertEquals(r.isNewBest, false, 'tie is not a new best');
+    assertEquals(r.delta, 0, 'delta is 0 on a tie');
+  });
+
+  // --- game state fields + death handler ---
+
+  it('death handler sets isNewBest and previousHighScore before updating highScore', () => {
+    const origHS        = game.highScore;
+    const origScore     = game.score;
+    const origState     = game.state;
+    const origObstacles = game.obstacles;
+    const origLastObs   = game.lastObstacleX;
+    const origNewBest   = game.isNewBest;
+    const origPrevHS    = game.previousHighScore;
+    const origGraceFrames = game.graceFrames;
+
+    game.highScore         = 1000;
+    game.score             = 1200;
+    game.state             = STATE.RUNNING;
+    game.graceFrames       = 0;
+    game.lastObstacleX     = canvas.width; // prevent an extra spawn firing
+    // Obstacle overlapping dino: dino is at x=50,y=150,w=40,h=50.
+    // Padded dino box: dl=58 dr=82 dt=158 db=198.
+    // This obstacle: ol=63 or=77 ot=162 ob=200 — definitely collides.
+    game.obstacles = [{ x: 60, y: 160, width: 20, height: 40 }];
+
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+
+    assertEquals(game.state,             STATE.DEAD, 'collision should set DEAD');
+    assertEquals(game.isNewBest,         true,       'score 1200 > highScore 1000 → new best');
+    assertEquals(game.previousHighScore, 1000,       'previousHighScore should be pre-death highScore');
+    assertEquals(game.highScore,         1200,       'highScore should be updated to 1200');
+
+    game.highScore         = origHS;
+    game.score             = origScore;
+    game.state             = origState;
+    game.obstacles         = origObstacles;
+    game.lastObstacleX     = origLastObs;
+    game.isNewBest         = origNewBest;
+    game.previousHighScore = origPrevHS;
+    game.graceFrames       = origGraceFrames;
+  });
+
+  it('resetGame resets isNewBest to false and previousHighScore to 0', () => {
+    game.isNewBest         = true;
+    game.previousHighScore = 999;
+    resetGame();
+    cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.isNewBest,         false, 'isNewBest should be false after resetGame');
+    assertEquals(game.previousHighScore, 0,     'previousHighScore should be 0 after resetGame');
+  });
+
+  // --- drawGameOverScreen ---
+
+  it('drawGameOverScreen normal state renders THIS RUN label', () => {
+    const origNewBest = game.isNewBest;
+    const origHS      = game.highScore;
+    const origScore   = game.score;
+
+    game.isNewBest  = false;
+    game.highScore  = 1050;
+    game.score      = 847;
+
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    drawGameOverScreen();
+    ctx.fillText = origFill;
+
+    game.isNewBest = origNewBest;
+    game.highScore = origHS;
+    game.score     = origScore;
+
+    assert(calls.some(t => t === 'THIS RUN'),
+      `Expected 'THIS RUN' in drawGameOverScreen calls, got: ${JSON.stringify(calls)}`);
+  });
+
+  it('drawGameOverScreen normal state renders gap delta value', () => {
+    const origNewBest = game.isNewBest;
+    const origHS      = game.highScore;
+    const origScore   = game.score;
+
+    game.isNewBest  = false;
+    game.highScore  = 1050;
+    game.score      = 847;
+
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    drawGameOverScreen();
+    ctx.fillText = origFill;
+
+    game.isNewBest = origNewBest;
+    game.highScore = origHS;
+    game.score     = origScore;
+
+    assert(calls.some(t => t.includes('203')),
+      `Expected a call containing '203' (the gap delta), got: ${JSON.stringify(calls)}`);
+  });
+
+  it('drawGameOverScreen new record state renders NEW BEST header', () => {
+    const origNewBest = game.isNewBest;
+    const origPrevHS  = game.previousHighScore;
+    const origScore   = game.score;
+
+    game.isNewBest         = true;
+    game.previousHighScore = 1050;
+    game.score             = 1253;
+
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    drawGameOverScreen();
+    ctx.fillText = origFill;
+
+    game.isNewBest         = origNewBest;
+    game.previousHighScore = origPrevHS;
+    game.score             = origScore;
+
+    assert(calls.some(t => t.includes('NEW BEST')),
+      `Expected a call containing 'NEW BEST', got: ${JSON.stringify(calls)}`);
   });
 });
 

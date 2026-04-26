@@ -472,6 +472,8 @@ const game = {
   milestoneFrames:  0,
   newBestFrames:    0,
   newBestShown:     false,
+  isNewBest:         false,
+  previousHighScore: 0,
   rng:              mulberry32(Date.now() & 0xffffffff),
   mode:             loadMode(),
 };
@@ -732,24 +734,57 @@ function drawGetReadyOverlay() {
 }
 
 function drawGameOverScreen() {
+  const font = cfg('SCORE_FONT_FAMILY');
   ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  ctx.fillStyle = 'white';
   ctx.textAlign = 'center';
 
-  ctx.font = '40px ' + cfg('SCORE_FONT_FAMILY');
-  ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 50);
+  if (game.isNewBest) {
+    // New record — celebration takeover
+    ctx.fillStyle = 'white';
+    ctx.font = '15px ' + font;
+    ctx.fillText('★  NEW BEST  ★', canvas.width / 2, canvas.height / 2 - 36);
 
-  ctx.font = '20px ' + cfg('SCORE_FONT_FAMILY');
-  ctx.fillText(String(Math.floor(game.score)).padStart(5, '0'), canvas.width / 2, canvas.height / 2 - 10);
+    ctx.font = '42px ' + font;
+    ctx.fillText(String(Math.floor(game.score)).padStart(5, '0'), canvas.width / 2, canvas.height / 2 - 4);
 
-  if (game.highScore > 0) {
-    ctx.fillText('BEST: ' + String(game.highScore).padStart(5, '0'), canvas.width / 2, canvas.height / 2 + 20);
+    if (game.previousHighScore > 0) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.font = '13px ' + font;
+      const improvement = Math.floor(game.score) - game.previousHighScore;
+      ctx.fillText('+' + improvement + ' over your previous best', canvas.width / 2, canvas.height / 2 + 28);
+    }
+  } else {
+    // Normal death — side-by-side comparison
+    const delta    = game.highScore - Math.floor(game.score);
+    const scoreStr = String(Math.floor(game.score)).padStart(5, '0');
+    const bestStr  = String(game.highScore).padStart(5, '0');
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.font = '12px ' + font;
+    ctx.fillText('THIS RUN',  canvas.width * 0.2, canvas.height / 2 - 14);
+    ctx.fillStyle = 'white';
+    ctx.font = '28px ' + font;
+    ctx.fillText(scoreStr,   canvas.width * 0.2, canvas.height / 2 + 14);
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.font = '16px ' + font;
+    ctx.fillText('← ' + delta + ' →', canvas.width / 2, canvas.height / 2 - 10);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.font = '11px ' + font;
+    ctx.fillText('from best', canvas.width / 2, canvas.height / 2 + 10);
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.font = '12px ' + font;
+    ctx.fillText('YOUR BEST', canvas.width * 0.8, canvas.height / 2 - 14);
+    ctx.fillStyle = 'white';
+    ctx.font = '28px ' + font;
+    ctx.fillText(bestStr,    canvas.width * 0.8, canvas.height / 2 + 14);
   }
 
-  ctx.font = '16px ' + cfg('SCORE_FONT_FAMILY');
-  ctx.fillText('Tap / Press Space to Restart', canvas.width / 2, canvas.height / 2 + 55);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+  ctx.font = '13px ' + font;
+  ctx.fillText('Tap / Press Space to Restart', canvas.width / 2, canvas.height - 16);
 }
 
 function drawMilestoneFlash() {
@@ -910,6 +945,15 @@ function checkCollision(dino, obstacle) {
   return dl < or_ && dr > ol && dt < ob && db > ot;
 }
 
+function computeRunResult(finalScore, currentHighScore) {
+  const isNewBest = finalScore > currentHighScore || currentHighScore === 0;
+  const previousHighScore = currentHighScore;
+  const delta = isNewBest
+    ? finalScore - previousHighScore
+    : currentHighScore - finalScore;
+  return { isNewBest, previousHighScore, delta };
+}
+
 function jump() {
   if (game.state !== STATE.RUNNING) return;
   if (!dino.isJumping) {
@@ -1049,8 +1093,10 @@ function resetGame() {
   game.deathFlashFrames = 0;
   game.scorePopFrames = 0;
   game.milestoneFrames = 0;
-  game.newBestFrames = 0;
-  game.newBestShown = false;
+  game.newBestFrames     = 0;
+  game.newBestShown      = false;
+  game.isNewBest         = false;
+  game.previousHighScore = 0;
   game.rng = mulberry32(Date.now() & 0xffffffff);
   game.nextSpawnGap = computeNextSpawnGap(game.rng, DifficultyProfile.speedAtScore(game.score), game.mode);
   initClouds();
@@ -1174,6 +1220,9 @@ function gameLoop() {
       audio.death();
       cancelAnimationFrame(game.animationFrameId);
       const finalScore = Math.floor(game.score);
+      const runResult = computeRunResult(finalScore, game.highScore);
+      game.isNewBest         = runResult.isNewBest;
+      game.previousHighScore = runResult.previousHighScore;
       if (finalScore > game.highScore) {
         game.highScore = finalScore;
         localStorage.setItem('dino-high-score', game.highScore);
@@ -1244,6 +1293,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.resetGame = resetGame;
   global.gameLoop = gameLoop;
   global.drawGameOverScreen = drawGameOverScreen;
+  global.computeRunResult = computeRunResult;
   global.mulberry32 = mulberry32;
   global.computeNextSpawnGap = computeNextSpawnGap;
   global.pickObstacleType = pickObstacleType;
