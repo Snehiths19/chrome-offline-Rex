@@ -71,6 +71,9 @@ const GAME_CONFIG = Object.freeze({
   INITIAL_SPEED:            6.0,  // obstacle scroll speed at score 0 (matches Chrome T-Rex)
   SPEED_CAP:               13.0,  // max scroll speed (matches Chrome T-Rex)
   SPEED_INCREMENT:          1.0,  // speed added per level — 7 levels to cap
+  PLATEAU_SPEED:           11.5,  // sigmoid ceiling — focusable-but-demanding speed the curve approaches
+  RAMP_MIDPOINT:          300,    // score where acceleration is steepest (day/night transition)
+  RAMP_STEEPNESS:           0.01, // sigmoid slope — controls how quickly speed rises through the midpoint
   SCORE_PER_LEVEL:        100,    // score points per level-up
   SCORE_INCREMENT:          0.1,  // score added per frame while RUNNING
 
@@ -419,6 +422,22 @@ function pickObstacleType(rng, score, mode) {
   }
   return eligible[eligible.length - 1]; // rounding guard
 }
+
+const DifficultyProfile = {
+  speedAtScore(score) {
+    const { INITIAL_SPEED, PLATEAU_SPEED, RAMP_STEEPNESS, RAMP_MIDPOINT } = GAME_CONFIG;
+    return INITIAL_SPEED + (PLATEAU_SPEED - INITIAL_SPEED) *
+      (1 / (1 + Math.exp(-RAMP_STEEPNESS * (score - RAMP_MIDPOINT))));
+  },
+  obstacleParamsAt(score, rng, mode) {
+    const speed = this.speedAtScore(score);
+    const type = pickObstacleType(rng, score, mode);
+    return {
+      gap:  computeNextSpawnGap(rng, speed, mode),
+      type,
+    };
+  },
+};
 
 const MODES = Object.freeze({ CLASSIC: 'classic', UPDATED: 'updated' });
 
@@ -1254,6 +1273,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.cfg = cfg;
   global.loadTuning = loadTuning;
   global.saveTuning = saveTuning;
+  global.DifficultyProfile = DifficultyProfile;
   global.announce = announce;
   global.a11yLive = a11yLive;
 }

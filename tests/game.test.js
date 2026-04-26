@@ -1309,6 +1309,42 @@ describe('Hill colour interpolation (polish pass)', () => {
   });
 });
 
+describe('DifficultyProfile', () => {
+  it('speedAtScore returns exactly the midpoint speed at RAMP_MIDPOINT', () => {
+    const expected = GAME_CONFIG.INITIAL_SPEED +
+      (GAME_CONFIG.PLATEAU_SPEED - GAME_CONFIG.INITIAL_SPEED) / 2;
+    assertEquals(
+      DifficultyProfile.speedAtScore(GAME_CONFIG.RAMP_MIDPOINT), expected,
+      'At RAMP_MIDPOINT the sigmoid is exactly 0.5, so speed must be the midpoint between INITIAL and PLATEAU'
+    );
+  });
+
+  it('speedAtScore is slightly above INITIAL_SPEED at score 0 — curve starts gently', () => {
+    const speed = DifficultyProfile.speedAtScore(0);
+    assert(speed > GAME_CONFIG.INITIAL_SPEED,
+      `Score 0 speed ${speed} should be above INITIAL_SPEED ${GAME_CONFIG.INITIAL_SPEED}`);
+    assert(speed < GAME_CONFIG.INITIAL_SPEED + 0.5,
+      `Score 0 speed ${speed} should still be close to INITIAL_SPEED — gentle start`);
+  });
+
+  it('speedAtScore never exceeds PLATEAU_SPEED', () => {
+    for (const score of [500, 1000, 5000]) {
+      const speed = DifficultyProfile.speedAtScore(score);
+      assert(speed <= GAME_CONFIG.PLATEAU_SPEED,
+        `Score ${score} speed ${speed} must not exceed PLATEAU_SPEED ${GAME_CONFIG.PLATEAU_SPEED}`);
+    }
+  });
+
+  it('speedAtScore is monotonically increasing', () => {
+    const s0   = DifficultyProfile.speedAtScore(0);
+    const s100 = DifficultyProfile.speedAtScore(100);
+    const s300 = DifficultyProfile.speedAtScore(300);
+    const s600 = DifficultyProfile.speedAtScore(600);
+    assert(s0 < s100 && s100 < s300 && s300 < s600,
+      `Speed must strictly increase: ${s0} < ${s100} < ${s300} < ${s600}`);
+  });
+});
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {
