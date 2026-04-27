@@ -295,6 +295,7 @@ const audio = {
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 initCanvasScale();
+if (typeof process === 'undefined') window.addEventListener('resize', handleResize);
 const a11yLive = document.getElementById('a11y-live');
 
 function announce(message) {
@@ -348,6 +349,11 @@ function initCanvasScale() {
   canvas.height = Math.round(canvas.width / 3);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.scale(canvas.width / GAME_CONFIG.CANVAS_W, canvas.height / GAME_CONFIG.CANVAS_H);
+}
+
+function handleResize() {
+  initCanvasScale();
+  if (game.state === STATE.DEAD) drawGameOverScreen();
 }
 
 function startGameOnce() {
@@ -1352,6 +1358,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.drawIdleScreen = drawIdleScreen;
   global.handleAction   = handleAction;
   global.initCanvasScale = initCanvasScale;
+  global.handleResize   = handleResize;
   global.mulberry32 = mulberry32;
   global.computeNextSpawnGap = computeNextSpawnGap;
   global.pickObstacleType = pickObstacleType;

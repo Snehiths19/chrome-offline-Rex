@@ -1660,6 +1660,71 @@ describe('Canvas scaling', () => {
   });
 });
 
+describe('Orientation resize', () => {
+  it('handleResize does not throw in any game state', () => {
+    const origState  = game.state;
+    const origWidth  = canvas.width;
+    const origHeight = canvas.height;
+
+    [STATE.IDLE, STATE.WAITING, STATE.RUNNING, STATE.DEAD].forEach(state => {
+      game.state = state;
+      let threw = false;
+      try { handleResize(); } catch (e) { threw = true; }
+      assert(!threw, `handleResize should not throw in STATE.${state}`);
+    });
+
+    game.state    = origState;
+    canvas.width  = origWidth;
+    canvas.height = origHeight;
+  });
+
+  it('handleResize updates canvas.style.width when innerWidth changes', () => {
+    const origInnerWidth  = window.innerWidth;
+    const origDpr         = window.devicePixelRatio;
+    const origWidth       = canvas.width;
+    const origHeight      = canvas.height;
+    const origStyleWidth  = canvas.style.width;
+    const origStyleHeight = canvas.style.height;
+
+    window.innerWidth       = 320;
+    window.devicePixelRatio = 1;
+    handleResize();
+
+    const styleW = canvas.style.width;
+
+    window.innerWidth       = origInnerWidth;
+    window.devicePixelRatio = origDpr;
+    canvas.width            = origWidth;
+    canvas.height           = origHeight;
+    canvas.style.width      = origStyleWidth;
+    canvas.style.height     = origStyleHeight;
+
+    assertEquals(styleW, '320px',
+      'canvas.style.width should be "320px" after resize to innerWidth 320');
+  });
+
+  it('handleResize updates canvas.width when innerWidth changes', () => {
+    const origInnerWidth = window.innerWidth;
+    const origDpr        = window.devicePixelRatio;
+    const origWidth      = canvas.width;
+    const origHeight     = canvas.height;
+
+    window.innerWidth       = 320;
+    window.devicePixelRatio = 1;
+    handleResize();
+
+    const bitmapW = canvas.width;
+
+    window.innerWidth       = origInnerWidth;
+    window.devicePixelRatio = origDpr;
+    canvas.width            = origWidth;
+    canvas.height           = origHeight;
+
+    assertEquals(bitmapW, 320,
+      'canvas.width should be Math.round(320 * 1) = 320 after resize');
+  });
+});
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {
