@@ -1852,6 +1852,30 @@ describe('Score count-up animation', () => {
   });
 });
 
+describe('Idle screen pulse animation', () => {
+  it('drawIdleScreen renders prompt with different fillStyle alpha at different animFrames', () => {
+    const origAnimFrame = game.animFrame;
+    const promptStyles  = [];
+
+    [0, 40].forEach(frame => {
+      game.animFrame = frame;
+      let capturedStyle;
+      const origFillText = ctx.fillText;
+      ctx.fillText = (text) => {
+        if (text === 'TAP / PRESS SPACE TO START') capturedStyle = ctx.fillStyle;
+      };
+      drawIdleScreen();
+      ctx.fillText = origFillText;
+      promptStyles.push(capturedStyle);
+    });
+
+    game.animFrame = origAnimFrame;
+
+    assert(promptStyles[0] !== promptStyles[1],
+      `Expected prompt fillStyle to differ between frame 0 and frame 40, got: ${JSON.stringify(promptStyles)}`);
+  });
+});
+
 describe('Tablet width cap removed', () => {
   it('initCanvasScale fills full innerWidth when wider than 600px', () => {
     const origInnerWidth = window.innerWidth;
