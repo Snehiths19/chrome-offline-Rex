@@ -156,6 +156,7 @@ const GAME_CONFIG = Object.freeze({
   PARTICLE_EMIT_SPREAD:     4,    // px width of the cosmetic xy jitter on every particle emit
 
   // --- Effects ---
+  DEATH_ANIM_FRAMES:       30,    // frames for the score count-up after shake ends
   DEATH_SHAKE_FRAMES:      12,
   DEATH_SHAKE_AMPLITUDE:    4,
   DEATH_SHAKE_FREQ:         1.5,  // multiplier on the sin oscillation that drives the shake transform
@@ -493,6 +494,7 @@ const game = {
   stars:            [],
   starsInitialised: false,
   hills:            [],
+  deathAnimFrame:   0,
   deathShakeFrames: 0,
   deathFlashFrames: 0,
   scorePopFrames:   0,
@@ -778,6 +780,8 @@ function drawGetReadyOverlay() {
 
 function drawGameOverScreen() {
   const font = cfg('SCORE_FONT_FAMILY');
+  const t = Math.min(game.deathAnimFrame / GAME_CONFIG.DEATH_ANIM_FRAMES, 1);
+  const displayScore = Math.round(t * Math.floor(game.score));
   ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
   ctx.fillRect(0, 0, GAME_CONFIG.CANVAS_W, GAME_CONFIG.CANVAS_H);
   ctx.textAlign = 'center';
@@ -789,18 +793,18 @@ function drawGameOverScreen() {
     ctx.fillText('★  NEW BEST  ★', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 36);
 
     ctx.font = '42px ' + font;
-    ctx.fillText(String(Math.floor(game.score)).padStart(5, '0'), GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 4);
+    ctx.fillText(String(displayScore).padStart(5, '0'), GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 4);
 
     if (game.previousHighScore > 0) {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
       ctx.font = '13px ' + font;
-      const improvement = Math.floor(game.score) - game.previousHighScore;
+      const improvement = displayScore - game.previousHighScore;
       ctx.fillText('+' + improvement + ' over your previous best', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 28);
     }
   } else {
     // Normal death — side-by-side comparison
     const delta    = game.highScore - Math.floor(game.score);
-    const scoreStr = String(Math.floor(game.score)).padStart(5, '0');
+    const scoreStr = String(displayScore).padStart(5, '0');
     const bestStr  = String(game.highScore).padStart(5, '0');
 
     ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
@@ -1017,8 +1021,13 @@ function handleAction() {
   } else if (game.state === STATE.RUNNING) {
     jump();
   } else if (game.state === STATE.DEAD) {
-    resetGame();
-    gameLoop();
+    if (game.deathAnimFrame < GAME_CONFIG.DEATH_ANIM_FRAMES) {
+      game.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+      drawGameOverScreen();
+    } else {
+      resetGame();
+      gameLoop();
+    }
   }
 }
 
@@ -1135,9 +1144,10 @@ function resetGame() {
   game.graceFrames = GAME_CONFIG.GRACE_FRAMES;
   game.state = STATE.WAITING;
   game.starsInitialised = false;
+  game.deathAnimFrame   = 0;
   game.deathShakeFrames = 0;
   game.deathFlashFrames = 0;
-  game.scorePopFrames = 0;
+  game.scorePopFrames   = 0;
   game.milestoneFrames = 0;
   game.newBestFrames     = 0;
   game.newBestShown      = false;
@@ -1171,6 +1181,10 @@ function gameLoop() {
       if (game.deathFlashFrames > 0) game.deathFlashFrames--;
       if (game.scorePopFrames > 0) game.scorePopFrames--;
       game.deathShakeFrames--;
+      game.animationFrameId = requestAnimationFrame(gameLoop);
+    } else if (game.deathAnimFrame < GAME_CONFIG.DEATH_ANIM_FRAMES) {
+      game.deathAnimFrame++;
+      drawGameOverScreen();
       game.animationFrameId = requestAnimationFrame(gameLoop);
     } else {
       drawGameOverScreen();
