@@ -1552,6 +1552,53 @@ describe('DifficultyProfile', () => {
   });
 });
 
+describe('Idle screen', () => {
+  it('drawIdleScreen does not throw', () => {
+    let threw = false;
+    try { drawIdleScreen(); } catch (e) { threw = true; }
+    assert(!threw, 'drawIdleScreen should not throw');
+  });
+
+  it('drawIdleScreen renders REX RUN title', () => {
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    drawIdleScreen();
+    ctx.fillText = origFill;
+    assert(calls.some(t => t === 'REX RUN'),
+      `Expected 'REX RUN' in drawIdleScreen calls, got: ${JSON.stringify(calls)}`);
+  });
+
+  it('drawIdleScreen renders start prompt', () => {
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    drawIdleScreen();
+    ctx.fillText = origFill;
+    assert(calls.some(t => t === 'TAP / PRESS SPACE TO START'),
+      `Expected 'TAP / PRESS SPACE TO START' in drawIdleScreen calls, got: ${JSON.stringify(calls)}`);
+  });
+
+  it('handleAction in STATE.IDLE transitions to STATE.WAITING and sets graceFrames', () => {
+    const origState       = game.state;
+    const origGraceFrames = game.graceFrames;
+
+    game.state = STATE.IDLE;
+    handleAction();
+
+    const newState = game.state;
+    const newGrace = game.graceFrames;
+
+    game.state       = origState;
+    game.graceFrames = origGraceFrames;
+
+    assertEquals(newState, STATE.WAITING,
+      'handleAction in IDLE should transition to STATE.WAITING');
+    assertEquals(newGrace, GAME_CONFIG.GRACE_FRAMES,
+      'handleAction in IDLE should set graceFrames to GAME_CONFIG.GRACE_FRAMES');
+  });
+});
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {
