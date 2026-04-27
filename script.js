@@ -342,7 +342,7 @@ function imageReady(img) {
 
 function initCanvasScale() {
   const dpr  = window.devicePixelRatio || 1;
-  const cssW = Math.min(window.innerWidth, GAME_CONFIG.CANVAS_W);
+  const cssW = window.innerWidth;
   const cssH = Math.round(cssW / 3);
   canvas.style.width  = cssW + 'px';
   canvas.style.height = cssH + 'px';
@@ -757,7 +757,8 @@ function drawIdleScreen() {
   ctx.font = '22px ' + font;
   ctx.fillText('REX RUN', canvas.width / 2, canvas.height / 2 - 16);
 
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+  const pulseAlpha = 0.3 + 0.4 * (0.5 + 0.5 * Math.sin(game.animFrame * 0.08));
+  ctx.fillStyle = 'rgba(255, 255, 255, ' + pulseAlpha.toFixed(3) + ')';
   ctx.font = '13px ' + font;
   ctx.fillText('TAP / PRESS SPACE TO START', canvas.width / 2, canvas.height / 2 + 12);
 }
