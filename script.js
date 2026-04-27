@@ -4,6 +4,8 @@
 if (typeof process !== 'undefined' && process.versions && process.versions.node) {
   global.window = {
     matchMedia: () => ({ matches: false, addEventListener: () => {} }),
+    innerWidth: 600,
+    devicePixelRatio: 1,
   };
   global.document = {
     getElementById: (id) => {
@@ -11,6 +13,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
         return {
           width: 600,
           height: 200,
+          style: {},
           getContext: () => ({
             drawImage: () => {},
             clearRect: () => {},
@@ -28,6 +31,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
             restore: () => {},
             translate: () => {},
             scale: () => {},
+            setTransform: () => {},
             ellipse: () => {},
             fillStyle: '',
             strokeStyle: '',
@@ -290,6 +294,7 @@ const audio = {
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
+initCanvasScale();
 const a11yLive = document.getElementById('a11y-live');
 
 function announce(message) {
@@ -331,6 +336,18 @@ const totalImages = 6;
 
 function imageReady(img) {
   return img && img.complete && img.naturalWidth !== 0;
+}
+
+function initCanvasScale() {
+  const dpr  = window.devicePixelRatio || 1;
+  const cssW = Math.min(window.innerWidth, GAME_CONFIG.CANVAS_W);
+  const cssH = Math.round(cssW / 3);
+  canvas.style.width  = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+  canvas.width  = Math.round(cssW * dpr);
+  canvas.height = Math.round(canvas.width / 3);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(canvas.width / GAME_CONFIG.CANVAS_W, canvas.height / GAME_CONFIG.CANVAS_H);
 }
 
 function startGameOnce() {
@@ -1334,6 +1351,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.computeRunResult = computeRunResult;
   global.drawIdleScreen = drawIdleScreen;
   global.handleAction   = handleAction;
+  global.initCanvasScale = initCanvasScale;
   global.mulberry32 = mulberry32;
   global.computeNextSpawnGap = computeNextSpawnGap;
   global.pickObstacleType = pickObstacleType;

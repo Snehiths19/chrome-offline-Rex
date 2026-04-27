@@ -1606,6 +1606,58 @@ describe('Canvas scaling', () => {
     assertEquals(GAME_CONFIG.CANVAS_H, 200,
       'GAME_CONFIG.CANVAS_H should be 200');
   });
+
+  it('initCanvasScale sets bitmap width to cssW * dpr', () => {
+    const origInnerWidth = window.innerWidth;
+    const origDpr        = window.devicePixelRatio;
+    const origWidth      = canvas.width;
+    const origHeight     = canvas.height;
+
+    window.innerWidth       = 390;
+    window.devicePixelRatio = 2;
+    initCanvasScale();
+
+    const bitmapW = canvas.width;
+    const bitmapH = canvas.height;
+
+    window.innerWidth       = origInnerWidth;
+    window.devicePixelRatio = origDpr;
+    canvas.width            = origWidth;
+    canvas.height           = origHeight;
+
+    assertEquals(bitmapW, 780,
+      'canvas.width should be Math.round(390 * 2) = 780');
+    assertEquals(bitmapH, 260,
+      'canvas.height should be Math.round(780 / 3) = 260');
+  });
+
+  it('initCanvasScale sets CSS display size', () => {
+    const origInnerWidth  = window.innerWidth;
+    const origDpr         = window.devicePixelRatio;
+    const origWidth       = canvas.width;
+    const origHeight      = canvas.height;
+    const origStyleWidth  = canvas.style.width;
+    const origStyleHeight = canvas.style.height;
+
+    window.innerWidth       = 390;
+    window.devicePixelRatio = 2;
+    initCanvasScale();
+
+    const styleW = canvas.style.width;
+    const styleH = canvas.style.height;
+
+    window.innerWidth       = origInnerWidth;
+    window.devicePixelRatio = origDpr;
+    canvas.width            = origWidth;
+    canvas.height           = origHeight;
+    canvas.style.width      = origStyleWidth;
+    canvas.style.height     = origStyleHeight;
+
+    assertEquals(styleW, '390px',
+      'canvas.style.width should be "390px"');
+    assertEquals(styleH, '130px',
+      'canvas.style.height should be "130px" (Math.round(390/3))');
+  });
 });
 
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
