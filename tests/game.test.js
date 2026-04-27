@@ -97,8 +97,8 @@ describe('Dinosaur Jump', () => {
     const stepPhysics = () => {
       dino.velocityY += dino.gravity;
       dino.y += dino.velocityY;
-      if (dino.y >= canvas.height - dino.height) {
-        dino.y = canvas.height - dino.height;
+      if (dino.y >= GAME_CONFIG.CANVAS_H - dino.height) {
+        dino.y = GAME_CONFIG.CANVAS_H - dino.height;
         dino.isJumping = false;
         dino.velocityY = 0;
       }
@@ -110,7 +110,7 @@ describe('Dinosaur Jump', () => {
     let frames = 0;
     while (dino.isJumping && frames++ < 100) stepPhysics();
     assert(!dino.isJumping, 'Dino should eventually land');
-    assertEquals(dino.y, canvas.height - dino.height, 'Dino should be back on the ground after landing');
+    assertEquals(dino.y, GAME_CONFIG.CANVAS_H - dino.height, 'Dino should be back on the ground after landing');
   });
 
   it('should have a peak jump height of ~144px', () => {
@@ -120,7 +120,7 @@ describe('Dinosaur Jump', () => {
     const expectedPeak = 144;
     jump();
     let minY = dino.y;
-    const groundY = canvas.height - dino.height;
+    const groundY = GAME_CONFIG.CANVAS_H - dino.height;
     for (let i = 0; i < 60; i++) {
       dino.velocityY += dino.gravity;
       dino.y += dino.velocityY;
@@ -150,7 +150,7 @@ describe('Obstacle Spawning & Movement', () => {
     assertEquals(game.obstacles.length, 0, 'Obstacles array should be initially empty');
     spawnObstacle();
     assertEquals(game.obstacles.length, 1, 'Obstacle should be added to array');
-    assertEquals(game.obstacles[0].x, canvas.width, 'Obstacle should spawn at the right edge');
+    assertEquals(game.obstacles[0].x, GAME_CONFIG.CANVAS_W, 'Obstacle should spawn at the right edge');
   });
 
   it('should decrease obstacle X position after a game loop update', () => {
@@ -172,13 +172,13 @@ describe('Collision Detection', () => {
   it('should return true when dino and obstacle are colliding', () => {
     resetGame();
     dino.x = 50;
-    dino.y = canvas.height - dino.height;
+    dino.y = GAME_CONFIG.CANVAS_H - dino.height;
     dino.width = 40;
     dino.height = 50;
 
     const collidingObstacle = {
       x: 50,
-      y: canvas.height - 40,
+      y: GAME_CONFIG.CANVAS_H - 40,
       width: 20,
       height: 40
     };
@@ -189,13 +189,13 @@ describe('Collision Detection', () => {
   it('should return false when dino and obstacle are not colliding', () => {
     resetGame();
     dino.x = 50;
-    dino.y = canvas.height - dino.height;
+    dino.y = GAME_CONFIG.CANVAS_H - dino.height;
     dino.width = 40;
     dino.height = 50;
 
     const nonCollidingObstacle = {
       x: 200,
-      y: canvas.height - 40,
+      y: GAME_CONFIG.CANVAS_H - 40,
       width: 20,
       height: 40
     };
@@ -231,7 +231,7 @@ describe('Obstacle Gap Enforcement', () => {
     game.rng = () => 0.5;
     game.nextSpawnGap = 600; // base gap at INITIAL_SPEED, zero jitter — triggers first spawn
 
-    // Frame 1: lastObstacleX=-300 ≤ canvas.width-600 → first spawn
+    // Frame 1: lastObstacleX=-300 ≤ GAME_CONFIG.CANVAS_W-600 → first spawn
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
     assertEquals(game.obstacles.length, 1, 'Should have 1 obstacle after first gameLoop frame');
@@ -246,7 +246,7 @@ describe('Obstacle Gap Enforcement', () => {
     assertEquals(game.obstacles.length, 1, 'Should still be 1 obstacle — 588px gap not met');
 
     // Force obstacle just past the threshold
-    game.obstacles[0].x = canvas.width - 601;
+    game.obstacles[0].x = GAME_CONFIG.CANVAS_W - 601;
     game.lastObstacleX = game.obstacles[0].x;
 
     gameLoop();
@@ -348,7 +348,7 @@ describe('Ambient depth + confetti (PR-D)', () => {
     hill.x = -hill.width - 1; // already past left edge
     game.currentSpeed = 6;
     updateHills();
-    assert(hill.x >= canvas.width, `Respawned hill x (${hill.x}) should be at/past right edge (${canvas.width})`);
+    assert(hill.x >= GAME_CONFIG.CANVAS_W, `Respawned hill x (${hill.x}) should be at/past right edge (${GAME_CONFIG.CANVAS_W})`);
   });
 
   it('confetti is a registered particle kind', () => {
@@ -395,7 +395,7 @@ describe('Death flash + score pop (PR-C)', () => {
     resetGame();
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
-    game.obstacles.push({ x: dino.x, y: canvas.height - 40, width: 20, height: 40 });
+    game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
     assertEquals(game.state, STATE.DEAD, 'should be dead');
@@ -409,7 +409,7 @@ describe('Death flash + score pop (PR-C)', () => {
     resetGame();
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
-    game.obstacles.push({ x: dino.x, y: canvas.height - 40, width: 20, height: 40 });
+    game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
     assertEquals(game.deathFlashFrames, 0, 'classic should not flash');
@@ -424,7 +424,7 @@ describe('Death flash + score pop (PR-C)', () => {
     resetGame();
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
-    game.obstacles.push({ x: dino.x, y: canvas.height - 40, width: 20, height: 40 });
+    game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
     gameLoop(); // collision frame, sets DEAD + flash
     cancelAnimationFrame(game.animationFrameId);
     // Each subsequent DEAD-shake frame should decrement deathFlashFrames once.
@@ -810,7 +810,7 @@ describe('High Score', () => {
   it('should update highScore and localStorage when score exceeds best', () => {
     resetGame();
     localStorage.removeItem('dino-high-score');
-    game.obstacles.push({ x: 50, y: canvas.height - 40, width: 20, height: 40 });
+    game.obstacles.push({ x: 50, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
     game.score = 100;
@@ -828,7 +828,7 @@ describe('High Score', () => {
   it('should NOT update highScore when score is lower', () => {
     resetGame();
     localStorage.removeItem('dino-high-score');
-    game.obstacles.push({ x: 50, y: canvas.height - 40, width: 20, height: 40 });
+    game.obstacles.push({ x: 50, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
     game.score = 50;
@@ -869,7 +869,7 @@ describe('State Transitions', () => {
     game.score = 10;
     game.highScore = 0;
     // Place an obstacle squarely on the dino.
-    game.obstacles.push({ x: dino.x, y: canvas.height - 40, width: 20, height: 40 });
+    game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
 
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
@@ -883,7 +883,7 @@ describe('State Transitions', () => {
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
     game.score = 50;
-    game.obstacles.push({ x: dino.x, y: canvas.height - 40, width: 20, height: 40 });
+    game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
     gameLoop(); // triggers DEAD
     cancelAnimationFrame(game.animationFrameId);
     assertEquals(game.state, STATE.DEAD, 'Must be DEAD before reset');
@@ -912,7 +912,7 @@ describe('PR-P1 bug fixes', () => {
     updateHills();
 
     assertEquals(calls, 3, 'Respawn must consume exactly 3 game.rng() draws');
-    assert(game.hills[0].x >= canvas.width,
+    assert(game.hills[0].x >= GAME_CONFIG.CANVAS_W,
       'Respawned x must land at or past canvas width');
   });
 
@@ -1220,30 +1220,44 @@ describe('Game over screen (polish pass)', () => {
       `Expected no 'Score:' prefix on game over screen, got: ${JSON.stringify(calls)}`);
   });
 
-  it('Best line hidden when highScore is 0', () => {
+  it('Best line hidden when highScore is 0 (first run: new record screen, no YOUR BEST)', () => {
     const calls = [];
-    const origFill = ctx.fillText;
+    const origFill    = ctx.fillText;
     ctx.fillText = (text) => calls.push(String(text));
-    const origHS = game.highScore;
-    game.highScore = 0;
+    const origNewBest = game.isNewBest;
+    const origPrevHS  = game.previousHighScore;
+    const origHS      = game.highScore;
+    const origScore   = game.score;
+    game.isNewBest         = true;
+    game.previousHighScore = 0;
+    game.highScore         = 0;
+    game.score             = 500;
     drawGameOverScreen();
     ctx.fillText = origFill;
-    game.highScore = origHS;
-    assert(!calls.some(t => t.toLowerCase().includes('best')),
-      `Expected no Best line when highScore is 0, got: ${JSON.stringify(calls)}`);
+    game.isNewBest         = origNewBest;
+    game.previousHighScore = origPrevHS;
+    game.highScore         = origHS;
+    game.score             = origScore;
+    assert(!calls.some(t => t === 'YOUR BEST'),
+      `Expected no 'YOUR BEST' on first-run new record screen, got: ${JSON.stringify(calls)}`);
+    assert(!calls.some(t => t.includes('over your previous best')),
+      `Expected no delta line on first run (previousHighScore=0), got: ${JSON.stringify(calls)}`);
   });
 
-  it('Best line shown when highScore > 0', () => {
+  it('Best line shown when highScore > 0 (normal death side-by-side)', () => {
     const calls = [];
-    const origFill = ctx.fillText;
+    const origFill    = ctx.fillText;
     ctx.fillText = (text) => calls.push(String(text));
-    const origHS = game.highScore;
-    game.highScore = 250;
+    const origNewBest = game.isNewBest;
+    const origHS      = game.highScore;
+    game.isNewBest  = false;
+    game.highScore  = 250;
     drawGameOverScreen();
     ctx.fillText = origFill;
+    game.isNewBest = origNewBest;
     game.highScore = origHS;
-    assert(calls.some(t => t.toLowerCase().includes('best')),
-      `Expected Best line when highScore > 0, got: ${JSON.stringify(calls)}`);
+    assert(calls.some(t => t === 'YOUR BEST'),
+      `Expected 'YOUR BEST' in normal death side-by-side, got: ${JSON.stringify(calls)}`);
   });
 });
 
@@ -1261,6 +1275,156 @@ describe('announce() accessibility helper', () => {
     announce('second');
     assertEquals(a11yLive.textContent, 'second',
       'second announce should overwrite the first');
+  });
+});
+
+describe('Death screen', () => {
+  // --- computeRunResult ---
+
+  it('computeRunResult: normal run returns isNewBest=false and gap delta', () => {
+    const r = computeRunResult(847, 1050);
+    assertEquals(r.isNewBest, false, 'not a new best when score < highScore');
+    assertEquals(r.delta, 203, 'delta = highScore - score = 1050 - 847');
+    assertEquals(r.previousHighScore, 1050, 'previousHighScore preserved');
+  });
+
+  it('computeRunResult: new record returns isNewBest=true and improvement delta', () => {
+    const r = computeRunResult(1253, 1050);
+    assertEquals(r.isNewBest, true, 'is a new best when score > highScore');
+    assertEquals(r.delta, 203, 'delta = score - previousHighScore = 1253 - 1050');
+    assertEquals(r.previousHighScore, 1050, 'previousHighScore is old highScore');
+  });
+
+  it('computeRunResult: first run (highScore=0) is always a new best', () => {
+    const r = computeRunResult(500, 0);
+    assertEquals(r.isNewBest, true, 'first run with highScore=0 is a new best');
+    assertEquals(r.previousHighScore, 0, 'previousHighScore is 0 on first run');
+  });
+
+  it('computeRunResult: tie (score === highScore) is not a new best', () => {
+    const r = computeRunResult(1000, 1000);
+    assertEquals(r.isNewBest, false, 'tie is not a new best');
+    assertEquals(r.delta, 0, 'delta is 0 on a tie');
+  });
+
+  // --- game state fields + death handler ---
+
+  it('death handler sets isNewBest and previousHighScore before updating highScore', () => {
+    const origHS        = game.highScore;
+    const origScore     = game.score;
+    const origState     = game.state;
+    const origObstacles = game.obstacles;
+    const origLastObs   = game.lastObstacleX;
+    const origNewBest   = game.isNewBest;
+    const origPrevHS    = game.previousHighScore;
+    const origGraceFrames = game.graceFrames;
+
+    game.highScore         = 1000;
+    game.score             = 1200;
+    game.state             = STATE.RUNNING;
+    game.graceFrames       = 0;
+    game.lastObstacleX     = canvas.width; // prevent an extra spawn firing
+    // Obstacle overlapping dino: dino is at x=50,y=150,w=40,h=50.
+    // Padded dino box: dl=58 dr=82 dt=158 db=198.
+    // This obstacle: ol=63 or=77 ot=162 ob=200 — definitely collides.
+    game.obstacles = [{ x: 60, y: 160, width: 20, height: 40 }];
+
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+
+    assertEquals(game.state,             STATE.DEAD, 'collision should set DEAD');
+    assertEquals(game.isNewBest,         true,       'score 1200 > highScore 1000 → new best');
+    assertEquals(game.previousHighScore, 1000,       'previousHighScore should be pre-death highScore');
+    assertEquals(game.highScore,         1200,       'highScore should be updated to 1200');
+
+    game.highScore         = origHS;
+    game.score             = origScore;
+    game.state             = origState;
+    game.obstacles         = origObstacles;
+    game.lastObstacleX     = origLastObs;
+    game.isNewBest         = origNewBest;
+    game.previousHighScore = origPrevHS;
+    game.graceFrames       = origGraceFrames;
+  });
+
+  it('resetGame resets isNewBest to false and previousHighScore to 0', () => {
+    game.isNewBest         = true;
+    game.previousHighScore = 999;
+    resetGame();
+    cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.isNewBest,         false, 'isNewBest should be false after resetGame');
+    assertEquals(game.previousHighScore, 0,     'previousHighScore should be 0 after resetGame');
+  });
+
+  // --- drawGameOverScreen ---
+
+  it('drawGameOverScreen normal state renders THIS RUN label', () => {
+    const origNewBest = game.isNewBest;
+    const origHS      = game.highScore;
+    const origScore   = game.score;
+
+    game.isNewBest  = false;
+    game.highScore  = 1050;
+    game.score      = 847;
+
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    drawGameOverScreen();
+    ctx.fillText = origFill;
+
+    game.isNewBest = origNewBest;
+    game.highScore = origHS;
+    game.score     = origScore;
+
+    assert(calls.some(t => t === 'THIS RUN'),
+      `Expected 'THIS RUN' in drawGameOverScreen calls, got: ${JSON.stringify(calls)}`);
+  });
+
+  it('drawGameOverScreen normal state renders gap delta value', () => {
+    const origNewBest = game.isNewBest;
+    const origHS      = game.highScore;
+    const origScore   = game.score;
+
+    game.isNewBest  = false;
+    game.highScore  = 1050;
+    game.score      = 847;
+
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    drawGameOverScreen();
+    ctx.fillText = origFill;
+
+    game.isNewBest = origNewBest;
+    game.highScore = origHS;
+    game.score     = origScore;
+
+    assert(calls.some(t => t.includes('203')),
+      `Expected a call containing '203' (the gap delta), got: ${JSON.stringify(calls)}`);
+  });
+
+  it('drawGameOverScreen new record state renders NEW BEST header', () => {
+    const origNewBest = game.isNewBest;
+    const origPrevHS  = game.previousHighScore;
+    const origScore   = game.score;
+
+    game.isNewBest         = true;
+    game.previousHighScore = 1050;
+    game.score             = 1253;
+
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    drawGameOverScreen();
+    ctx.fillText = origFill;
+
+    game.isNewBest         = origNewBest;
+    game.previousHighScore = origPrevHS;
+    game.score             = origScore;
+
+    assert(calls.some(t => t.includes('NEW BEST')),
+      `Expected a call containing 'NEW BEST', got: ${JSON.stringify(calls)}`);
   });
 });
 
@@ -1385,6 +1549,114 @@ describe('DifficultyProfile', () => {
     const params = DifficultyProfile.obstacleParamsAt(250, rng, MODES.UPDATED);
     assertEquals(params.type.id, 'cluster',
       'At score 250 with max rng roll, all three types eligible and cluster wins the weighted draw');
+  });
+});
+
+describe('Idle screen', () => {
+  it('drawIdleScreen does not throw', () => {
+    let threw = false;
+    try { drawIdleScreen(); } catch (e) { threw = true; }
+    assert(!threw, 'drawIdleScreen should not throw');
+  });
+
+  it('drawIdleScreen renders REX RUN title', () => {
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    drawIdleScreen();
+    ctx.fillText = origFill;
+    assert(calls.some(t => t === 'REX RUN'),
+      `Expected 'REX RUN' in drawIdleScreen calls, got: ${JSON.stringify(calls)}`);
+  });
+
+  it('drawIdleScreen renders start prompt', () => {
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    drawIdleScreen();
+    ctx.fillText = origFill;
+    assert(calls.some(t => t === 'TAP / PRESS SPACE TO START'),
+      `Expected 'TAP / PRESS SPACE TO START' in drawIdleScreen calls, got: ${JSON.stringify(calls)}`);
+  });
+
+  it('handleAction in STATE.IDLE transitions to STATE.WAITING and sets graceFrames', () => {
+    const origState       = game.state;
+    const origGraceFrames = game.graceFrames;
+
+    game.state = STATE.IDLE;
+    handleAction();
+
+    const newState = game.state;
+    const newGrace = game.graceFrames;
+
+    game.state       = origState;
+    game.graceFrames = origGraceFrames;
+
+    assertEquals(newState, STATE.WAITING,
+      'handleAction in IDLE should transition to STATE.WAITING');
+    assertEquals(newGrace, GAME_CONFIG.GRACE_FRAMES,
+      'handleAction in IDLE should set graceFrames to GAME_CONFIG.GRACE_FRAMES');
+  });
+});
+
+describe('Canvas scaling', () => {
+  it('GAME_CONFIG defines CANVAS_W=600 and CANVAS_H=200', () => {
+    assertEquals(GAME_CONFIG.CANVAS_W, 600,
+      'GAME_CONFIG.CANVAS_W should be 600');
+    assertEquals(GAME_CONFIG.CANVAS_H, 200,
+      'GAME_CONFIG.CANVAS_H should be 200');
+  });
+
+  it('initCanvasScale sets bitmap width to cssW * dpr', () => {
+    const origInnerWidth = window.innerWidth;
+    const origDpr        = window.devicePixelRatio;
+    const origWidth      = canvas.width;
+    const origHeight     = canvas.height;
+
+    window.innerWidth       = 390;
+    window.devicePixelRatio = 2;
+    initCanvasScale();
+
+    const bitmapW = canvas.width;
+    const bitmapH = canvas.height;
+
+    window.innerWidth       = origInnerWidth;
+    window.devicePixelRatio = origDpr;
+    canvas.width            = origWidth;
+    canvas.height           = origHeight;
+
+    assertEquals(bitmapW, 780,
+      'canvas.width should be Math.round(390 * 2) = 780');
+    assertEquals(bitmapH, 260,
+      'canvas.height should be Math.round(780 / 3) = 260');
+  });
+
+  it('initCanvasScale sets CSS display size', () => {
+    const origInnerWidth  = window.innerWidth;
+    const origDpr         = window.devicePixelRatio;
+    const origWidth       = canvas.width;
+    const origHeight      = canvas.height;
+    const origStyleWidth  = canvas.style.width;
+    const origStyleHeight = canvas.style.height;
+
+    window.innerWidth       = 390;
+    window.devicePixelRatio = 2;
+    initCanvasScale();
+
+    const styleW = canvas.style.width;
+    const styleH = canvas.style.height;
+
+    window.innerWidth       = origInnerWidth;
+    window.devicePixelRatio = origDpr;
+    canvas.width            = origWidth;
+    canvas.height           = origHeight;
+    canvas.style.width      = origStyleWidth;
+    canvas.style.height     = origStyleHeight;
+
+    assertEquals(styleW, '390px',
+      'canvas.style.width should be "390px"');
+    assertEquals(styleH, '130px',
+      'canvas.style.height should be "130px" (Math.round(390/3))');
   });
 });
 
