@@ -1852,6 +1852,29 @@ describe('Score count-up animation', () => {
   });
 });
 
+describe('Tablet width cap removed', () => {
+  it('initCanvasScale fills full innerWidth when wider than 600px', () => {
+    const origInnerWidth = window.innerWidth;
+    const origDpr        = window.devicePixelRatio;
+    const origWidth      = canvas.width;
+    const origHeight     = canvas.height;
+
+    window.innerWidth       = 900;
+    window.devicePixelRatio = 1;
+    initCanvasScale();
+
+    const bitmapW = canvas.width;
+
+    window.innerWidth       = origInnerWidth;
+    window.devicePixelRatio = origDpr;
+    canvas.width            = origWidth;
+    canvas.height           = origHeight;
+
+    assertEquals(bitmapW, 900,
+      'canvas.width should be 900 when innerWidth=900 and dpr=1 (no 600px cap)');
+  });
+});
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {

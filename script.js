@@ -342,7 +342,7 @@ function imageReady(img) {
 
 function initCanvasScale() {
   const dpr  = window.devicePixelRatio || 1;
-  const cssW = Math.min(window.innerWidth, GAME_CONFIG.CANVAS_W);
+  const cssW = window.innerWidth;
   const cssH = Math.round(cssW / 3);
   canvas.style.width  = cssW + 'px';
   canvas.style.height = cssH + 'px';
