@@ -763,7 +763,19 @@ function drawScore() {
     GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET,
     GAME_CONFIG.SCORE_Y
   );
-  if (game.highScore > 0) {
+  if (isDailyMode()) {
+    // TODAY label replaces HI in daily challenge mode
+    const todayBest = game.dailyBest > 0 ? String(game.dailyBest).padStart(5, '0') : '-----';
+    ctx.fillText(
+      'TODAY ' + todayBest,
+      GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET - GAME_CONFIG.SCORE_HI_X_OFFSET - 20,
+      GAME_CONFIG.SCORE_Y
+    );
+    // Daily badge top-left
+    ctx.font = '13px ' + cfg('SCORE_FONT_FAMILY');
+    ctx.textAlign = 'left';
+    ctx.fillText('📅 DAILY #' + dailyNumber(), 12, GAME_CONFIG.SCORE_Y);
+  } else if (game.highScore > 0) {
     ctx.fillText(
       'HI ' + String(game.highScore).padStart(5, '0'),
       GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET - GAME_CONFIG.SCORE_HI_X_OFFSET,
