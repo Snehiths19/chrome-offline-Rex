@@ -476,6 +476,30 @@ function loadMode() {
   return stored === MODES.CLASSIC ? MODES.CLASSIC : MODES.UPDATED;
 }
 
+// --- Daily challenge helpers -------------------------------------------
+// Epoch: project launch 2026-03-01 UTC. Day 1 = that date.
+const DAILY_EPOCH_MS = new Date('2026-03-01T00:00:00Z').getTime();
+
+// Returns today's date as a YYYYMMDD integer — same value for every player
+// on the same calendar day, used as the mulberry32 seed for daily runs.
+function dailySeed() {
+  const d = new Date();
+  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+}
+
+// Ordinal day number shown in the HUD badge and share text (#1, #2, …).
+function dailyNumber() {
+  return Math.floor((Date.now() - DAILY_EPOCH_MS) / 86400000) + 1;
+}
+
+// Returns the player's best score for today's daily run, or 0 if they
+// haven't played today or the stored date is stale.
+function loadDailyBest() {
+  const storedDate = parseInt(localStorage.getItem('dino-daily-date') || '0', 10);
+  if (storedDate !== dailySeed()) return 0;
+  return parseInt(localStorage.getItem('dino-daily-best') || '0', 10);
+}
+
 // All mutable game state lives on this object. Keeping it in one place prevents
 // stray top-level globals and makes resets + test inspection simpler.
 const game = {
@@ -506,6 +530,8 @@ const game = {
   previousHighScore: 0,
   rng:              mulberry32(Date.now() & 0xffffffff),
   mode:             loadMode(),
+  dailyBest:        loadDailyBest(),
+  copyFlashFrames:  0,
 };
 
 function setMode(newMode) {
@@ -516,6 +542,17 @@ function setMode(newMode) {
   cancelAnimationFrame(game.animationFrameId);
   resetGame();
   gameLoop();
+}
+
+// Persist the player's daily best if score beats the current stored value.
+// Also ticks game.dailyBest up in memory so the death screen can read it.
+function saveDailyBest(score) {
+  const current = loadDailyBest();
+  if (score > current) {
+    localStorage.setItem('dino-daily-date', String(dailySeed()));
+    localStorage.setItem('dino-daily-best', String(score));
+    game.dailyBest = score;
+  }
 }
 
 // == SECTION 5: RENDERING ==
@@ -1403,4 +1440,8 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.DifficultyProfile = DifficultyProfile;
   global.announce = announce;
   global.a11yLive = a11yLive;
+  global.dailySeed = dailySeed;
+  global.dailyNumber = dailyNumber;
+  global.loadDailyBest = loadDailyBest;
+  global.saveDailyBest = saveDailyBest;
 }

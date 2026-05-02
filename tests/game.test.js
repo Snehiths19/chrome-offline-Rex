@@ -1899,6 +1899,70 @@ describe('Tablet width cap removed', () => {
   });
 });
 
+describe('Daily seed', () => {
+  it('dailySeed() returns an 8-digit YYYYMMDD integer', () => {
+    const seed = dailySeed();
+    assert(Number.isInteger(seed), `Expected integer, got ${seed}`);
+    assert(seed >= 20000101 && seed <= 29991231, `Expected YYYYMMDD range, got ${seed}`);
+  });
+
+  it('dailySeed() returns the same value on consecutive calls', () => {
+    assertEquals(dailySeed(), dailySeed(), 'dailySeed() should be stable within a tick');
+  });
+});
+
+describe('Daily number', () => {
+  it('dailyNumber() returns a positive integer', () => {
+    const n = dailyNumber();
+    assert(Number.isInteger(n) && n > 0, `Expected positive integer, got ${n}`);
+  });
+
+  it('dailyNumber() is >= 62 (project is past day 62 after 2026-05-01)', () => {
+    assert(dailyNumber() >= 62, `Expected >= 62, got ${dailyNumber()}`);
+  });
+});
+
+describe('Daily best persistence', () => {
+  it('loadDailyBest() returns 0 when stored date does not match today', () => {
+    const origDate = localStorage.getItem('dino-daily-date');
+    const origBest = localStorage.getItem('dino-daily-best');
+    localStorage.setItem('dino-daily-date', '19990101');
+    localStorage.setItem('dino-daily-best', '999');
+    assertEquals(loadDailyBest(), 0, 'Should return 0 on stale date');
+    origDate !== null ? localStorage.setItem('dino-daily-date', origDate) : localStorage.removeItem('dino-daily-date');
+    origBest !== null ? localStorage.setItem('dino-daily-best', origBest) : localStorage.removeItem('dino-daily-best');
+  });
+
+  it('loadDailyBest() returns stored value when date matches today', () => {
+    const origDate = localStorage.getItem('dino-daily-date');
+    const origBest = localStorage.getItem('dino-daily-best');
+    localStorage.setItem('dino-daily-date', String(dailySeed()));
+    localStorage.setItem('dino-daily-best', '847');
+    assertEquals(loadDailyBest(), 847, 'Should return 847 when date matches');
+    origDate !== null ? localStorage.setItem('dino-daily-date', origDate) : localStorage.removeItem('dino-daily-date');
+    origBest !== null ? localStorage.setItem('dino-daily-best', origBest) : localStorage.removeItem('dino-daily-best');
+  });
+
+  it('saveDailyBest() stores score and updates game.dailyBest; lower score does not overwrite', () => {
+    const origDate = localStorage.getItem('dino-daily-date');
+    const origBest = localStorage.getItem('dino-daily-best');
+    const origGameBest = game.dailyBest;
+    localStorage.removeItem('dino-daily-date');
+    localStorage.removeItem('dino-daily-best');
+
+    saveDailyBest(500);
+    assertEquals(loadDailyBest(), 500, 'loadDailyBest() should return 500 after save');
+    assertEquals(game.dailyBest, 500, 'game.dailyBest should be 500');
+
+    saveDailyBest(200);
+    assertEquals(loadDailyBest(), 500, 'Lower score must not overwrite stored best');
+
+    origDate !== null ? localStorage.setItem('dino-daily-date', origDate) : localStorage.removeItem('dino-daily-date');
+    origBest !== null ? localStorage.setItem('dino-daily-best', origBest) : localStorage.removeItem('dino-daily-best');
+    game.dailyBest = origGameBest;
+  });
+});
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {
