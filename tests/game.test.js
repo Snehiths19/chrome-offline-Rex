@@ -808,27 +808,30 @@ describe('Day/Night Cycle', () => {
 });
 
 describe('High Score', () => {
-  it('should update highScore and localStorage when score exceeds best', () => {
+  it('should update highScore and save via ScoreStore when score exceeds best', () => {
     resetGame();
-    localStorage.removeItem('dino-high-score');
+    const saves = [];
+    const origSave = ScoreStore.saveHighScore;
+    ScoreStore.saveHighScore = (n) => saves.push(n);
     game.obstacles.push({ x: 50, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
     game.score = 100;
     game.highScore = 50;
-    localStorage.setItem('dino-high-score', '50');
 
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
+    ScoreStore.saveHighScore = origSave;
 
     assertEquals(game.highScore, 100, `highScore should be 100, got ${game.highScore}`);
-    assertEquals(localStorage.getItem('dino-high-score'), '100',
-      'localStorage should store updated value');
+    assertEquals(saves[0], 100, 'ScoreStore.saveHighScore should have been called with 100');
   });
 
   it('should NOT update highScore when score is lower', () => {
     resetGame();
-    localStorage.removeItem('dino-high-score');
+    const saves = [];
+    const origSave = ScoreStore.saveHighScore;
+    ScoreStore.saveHighScore = (n) => saves.push(n);
     game.obstacles.push({ x: 50, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
@@ -837,10 +840,10 @@ describe('High Score', () => {
 
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
+    ScoreStore.saveHighScore = origSave;
 
     assertEquals(game.highScore, 200, 'highScore should stay at 200');
-    assertEquals(localStorage.getItem('dino-high-score'), null,
-      'localStorage should not be written when score is lower');
+    assertEquals(saves.length, 0, 'ScoreStore.saveHighScore should not have been called');
   });
 });
 
@@ -1974,43 +1977,40 @@ describe('Daily number', () => {
 });
 
 describe('Daily best persistence', () => {
-  it('loadDailyBest() returns 0 when stored date does not match today', () => {
+  it('ScoreStore.loadDailyBest() returns 0 when stored date does not match today', () => {
     const origDate = localStorage.getItem('dino-daily-date');
     const origBest = localStorage.getItem('dino-daily-best');
     localStorage.setItem('dino-daily-date', '19990101');
     localStorage.setItem('dino-daily-best', '999');
-    assertEquals(loadDailyBest(), 0, 'Should return 0 on stale date');
+    assertEquals(ScoreStore.loadDailyBest(), 0, 'Should return 0 on stale date');
     origDate !== null ? localStorage.setItem('dino-daily-date', origDate) : localStorage.removeItem('dino-daily-date');
     origBest !== null ? localStorage.setItem('dino-daily-best', origBest) : localStorage.removeItem('dino-daily-best');
   });
 
-  it('loadDailyBest() returns stored value when date matches today', () => {
+  it('ScoreStore.loadDailyBest() returns stored value when date matches today', () => {
     const origDate = localStorage.getItem('dino-daily-date');
     const origBest = localStorage.getItem('dino-daily-best');
     localStorage.setItem('dino-daily-date', String(dailySeed()));
     localStorage.setItem('dino-daily-best', '847');
-    assertEquals(loadDailyBest(), 847, 'Should return 847 when date matches');
+    assertEquals(ScoreStore.loadDailyBest(), 847, 'Should return 847 when date matches');
     origDate !== null ? localStorage.setItem('dino-daily-date', origDate) : localStorage.removeItem('dino-daily-date');
     origBest !== null ? localStorage.setItem('dino-daily-best', origBest) : localStorage.removeItem('dino-daily-best');
   });
 
-  it('saveDailyBest() stores score and updates game.dailyBest; lower score does not overwrite', () => {
+  it('ScoreStore.saveDailyBest() persists score; lower score does not overwrite', () => {
     const origDate = localStorage.getItem('dino-daily-date');
     const origBest = localStorage.getItem('dino-daily-best');
-    const origGameBest = game.dailyBest;
     localStorage.removeItem('dino-daily-date');
     localStorage.removeItem('dino-daily-best');
 
-    saveDailyBest(500);
-    assertEquals(loadDailyBest(), 500, 'loadDailyBest() should return 500 after save');
-    assertEquals(game.dailyBest, 500, 'game.dailyBest should be 500');
+    ScoreStore.saveDailyBest(500);
+    assertEquals(ScoreStore.loadDailyBest(), 500, 'loadDailyBest() should return 500 after save');
 
-    saveDailyBest(200);
-    assertEquals(loadDailyBest(), 500, 'Lower score must not overwrite stored best');
+    ScoreStore.saveDailyBest(200);
+    assertEquals(ScoreStore.loadDailyBest(), 500, 'Lower score must not overwrite stored best');
 
     origDate !== null ? localStorage.setItem('dino-daily-date', origDate) : localStorage.removeItem('dino-daily-date');
     origBest !== null ? localStorage.setItem('dino-daily-best', origBest) : localStorage.removeItem('dino-daily-best');
-    game.dailyBest = origGameBest;
   });
 });
 
