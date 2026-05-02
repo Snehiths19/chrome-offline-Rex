@@ -457,12 +457,14 @@ const DifficultyProfile = {
     return INITIAL_SPEED + (PLATEAU_SPEED - INITIAL_SPEED) *
       (1 / (1 + Math.exp(-RAMP_STEEPNESS * (score - RAMP_MIDPOINT))));
   },
-  obstacleParamsAt(score, rng, mode) {
+  nextObstacle(score, mode, rng) {
     const speed = this.speedAtScore(score);
+    // RNG call order is load-bearing: type roll first, gap jitter second.
+    // Swapping breaks the daily-challenge seed sequence.
     const type = pickObstacleType(rng, score, mode);
     return {
-      gap:  computeNextSpawnGap(rng, speed, mode),
       type,
+      gap: computeNextSpawnGap(rng, speed, mode),
     };
   },
 };
@@ -1441,9 +1443,9 @@ function gameLoop() {
 
   // Obstacle spawning — in updated mode the gap is precomputed per-obstacle
   // with ±SPAWN_GAP_JITTER so spacing doesn't feel metronomic; in classic mode
-  // it's deterministic. See computeNextSpawnGap() / pickObstacleType().
+  // it's deterministic. DifficultyProfile.nextObstacle() picks type + gap together.
   if (game.lastObstacleX <= GAME_CONFIG.CANVAS_W - game.nextSpawnGap) {
-    const params = DifficultyProfile.obstacleParamsAt(game.score, game.rng, game.mode);
+    const params = DifficultyProfile.nextObstacle(game.score, game.mode, game.rng);
     spawnObstacle(params.type);
     game.lastObstacleX = GAME_CONFIG.CANVAS_W;
     game.nextSpawnGap = params.gap;
@@ -1546,8 +1548,6 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.initCanvasScale = initCanvasScale;
   global.handleResize   = handleResize;
   global.mulberry32 = mulberry32;
-  global.computeNextSpawnGap = computeNextSpawnGap;
-  global.pickObstacleType = pickObstacleType;
   global.MODES = MODES;
   global.setMode = setMode;
   global.loadMode = loadMode;
