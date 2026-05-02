@@ -467,7 +467,7 @@ const DifficultyProfile = {
   },
 };
 
-const MODES = Object.freeze({ CLASSIC: 'classic', UPDATED: 'updated' });
+const MODES = Object.freeze({ CLASSIC: 'classic', UPDATED: 'updated', DAILY: 'daily' });
 
 // Read the saved mode (defaults to 'updated' for first-time players). Persists
 // across reload so the user's preference is remembered.
@@ -919,7 +919,8 @@ for (let i = 0; i < PARTICLE_POOL_SIZE; i++) {
   particles.push({ x: 0, y: 0, vx: 0, vy: 0, life: 0, maxLife: 1, size: 0, color: '', gravity: 0 });
 }
 
-function isUpdatedMode() { return game.mode === MODES.UPDATED; }
+function isDailyMode()   { return game.mode === MODES.DAILY; }
+function isUpdatedMode() { return game.mode === MODES.UPDATED || game.mode === MODES.DAILY; }
 
 function emitParticles(kind, x, y) {
   if (!isUpdatedMode()) return 0;
@@ -1191,7 +1192,9 @@ function resetGame() {
   game.newBestShown      = false;
   game.isNewBest         = false;
   game.previousHighScore = 0;
-  game.rng = mulberry32(Date.now() & 0xffffffff);
+  game.rng = mulberry32(isDailyMode() ? dailySeed() : (Date.now() & 0xffffffff));
+  game.dailyBest = loadDailyBest();
+  game.copyFlashFrames = 0;
   game.nextSpawnGap = computeNextSpawnGap(game.rng, DifficultyProfile.speedAtScore(game.score), game.mode);
   initClouds();
   initHills();
@@ -1444,4 +1447,5 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.dailyNumber = dailyNumber;
   global.loadDailyBest = loadDailyBest;
   global.saveDailyBest = saveDailyBest;
+  global.isDailyMode = isDailyMode;
 }

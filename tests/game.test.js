@@ -1899,6 +1899,35 @@ describe('Tablet width cap removed', () => {
   });
 });
 
+describe('Daily mode RNG seeding', () => {
+  it('resetGame() in daily mode seeds rng from dailySeed(), not Date.now()', () => {
+    const origMode = game.mode;
+    game.mode = MODES.DAILY;
+    resetGame();
+    // Pull first two values from the seeded RNG
+    const v1a = game.rng();
+    game.mode = MODES.DAILY;
+    resetGame();
+    const v1b = game.rng();
+    assertEquals(v1a, v1b, 'First RNG value should be identical across two daily resets');
+    game.mode = origMode;
+    resetGame();
+  });
+
+  it('two resets in daily mode produce the same obstacle type sequence', () => {
+    const origMode = game.mode;
+    game.mode = MODES.DAILY;
+    resetGame();
+    const type1 = pickObstacleType(game.rng, 300, MODES.DAILY);
+    game.mode = MODES.DAILY;
+    resetGame();
+    const type2 = pickObstacleType(game.rng, 300, MODES.DAILY);
+    assertEquals(type1.id, type2.id, 'Same seed should produce same obstacle type');
+    game.mode = origMode;
+    resetGame();
+  });
+});
+
 describe('Daily seed', () => {
   it('dailySeed() returns an 8-digit YYYYMMDD integer', () => {
     const seed = dailySeed();
