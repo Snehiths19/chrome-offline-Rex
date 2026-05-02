@@ -1331,75 +1331,64 @@ function resetGame() {
   if (document.body) document.body.style.background = '';
 }
 
-function gameLoop() {
-  // DEAD — screen-shake for a few frames, then fall through to game over overlay.
-  if (game.state === STATE.DEAD) {
-    if (game.deathShakeFrames > 0) {
-      ctx.save();
-      ctx.translate(Math.sin(game.deathShakeFrames * cfg('DEATH_SHAKE_FREQ')) * cfg('DEATH_SHAKE_AMPLITUDE'), 0);
-      drawBackground();
-      drawHills();
-      drawGround();
-      drawClouds();
-      drawObstacles();
-      drawParticles();
-      drawDino();
-      drawScore();
-      ctx.restore();
-      drawDeathFlash(); // white flash drawn outside the shake transform so it stays canvas-aligned
-      updateParticles();
-      if (game.deathFlashFrames > 0) game.deathFlashFrames--;
-      if (game.scorePopFrames > 0) game.scorePopFrames--;
-      game.deathShakeFrames--;
-      game.animationFrameId = requestAnimationFrame(gameLoop);
-    } else if (game.deathAnimFrame < GAME_CONFIG.DEATH_ANIM_FRAMES) {
-      game.deathAnimFrame++;
-      drawGameOverScreen();
-      game.animationFrameId = requestAnimationFrame(gameLoop);
-    } else {
-      if (game.copyFlashFrames > 0) game.copyFlashFrames--;
-      drawGameOverScreen();
-    }
-    return;
-  }
-
-  // IDLE — first-load waiting state; shows idle overlay until player initiates.
-  if (game.state === STATE.IDLE) {
-    game.animFrame++;
+function handleDead() {
+  if (game.deathShakeFrames > 0) {
+    ctx.save();
+    ctx.translate(Math.sin(game.deathShakeFrames * cfg('DEATH_SHAKE_FREQ')) * cfg('DEATH_SHAKE_AMPLITUDE'), 0);
     drawBackground();
-    if (document.body) document.body.style.background = getBackgroundColor(game.score);
     drawHills();
     drawGround();
-    updateClouds();
     drawClouds();
-    drawDino();
-    drawIdleScreen();
-    game.animationFrameId = requestAnimationFrame(gameLoop);
-    return;
-  }
-
-  // WAITING — grace-period countdown with GET READY overlay.
-  if (game.state === STATE.WAITING) {
-    game.graceFrames--;
-    game.animFrame++;
-    if (game.graceFrames <= 0) {
-      game.state = STATE.RUNNING;
-      announce('Go!');
-    }
-    drawBackground();
-    if (document.body) document.body.style.background = getBackgroundColor(game.score);
-    drawHills();
-    drawGround();
-    updateClouds();
-    drawClouds();
+    drawObstacles();
+    drawParticles();
     drawDino();
     drawScore();
-    drawGetReadyOverlay();
-    game.animationFrameId = requestAnimationFrame(gameLoop);
-    return;
+    ctx.restore();
+    drawDeathFlash(); // white flash drawn outside the shake transform so it stays canvas-aligned
+    updateParticles();
+    if (game.deathFlashFrames > 0) game.deathFlashFrames--;
+    if (game.scorePopFrames > 0) game.scorePopFrames--;
+    game.deathShakeFrames--;
+  } else if (game.deathAnimFrame < GAME_CONFIG.DEATH_ANIM_FRAMES) {
+    game.deathAnimFrame++;
+    drawGameOverScreen();
+  } else {
+    if (game.copyFlashFrames > 0) game.copyFlashFrames--;
+    drawGameOverScreen();
   }
+}
 
-  // RUNNING — full game logic.
+function handleIdle() {
+  game.animFrame++;
+  drawBackground();
+  if (document.body) document.body.style.background = getBackgroundColor(game.score);
+  drawHills();
+  drawGround();
+  updateClouds();
+  drawClouds();
+  drawDino();
+  drawIdleScreen();
+}
+
+function handleWaiting() {
+  game.graceFrames--;
+  game.animFrame++;
+  if (game.graceFrames <= 0) {
+    game.state = STATE.RUNNING;
+    announce('Go!');
+  }
+  drawBackground();
+  if (document.body) document.body.style.background = getBackgroundColor(game.score);
+  drawHills();
+  drawGround();
+  updateClouds();
+  drawClouds();
+  drawDino();
+  drawScore();
+  drawGetReadyOverlay();
+}
+
+function handleRunning() {
   const prevLevel = Math.floor(game.score / GAME_CONFIG.SCORE_PER_LEVEL);
   game.score += GAME_CONFIG.SCORE_INCREMENT;
   game.animFrame++;
@@ -1464,7 +1453,6 @@ function gameLoop() {
       }
       emitParticles('collision', dino.x + dino.width / 2, dino.y + dino.height / 2);
       audio.death();
-      cancelAnimationFrame(game.animationFrameId);
       const finalScore = Math.floor(game.score);
       const runResult = computeRunResult(finalScore, game.highScore);
       game.isNewBest         = runResult.isNewBest;
@@ -1478,7 +1466,6 @@ function gameLoop() {
         game.dailyBest = ScoreStore.loadDailyBest();
       }
       announce('Game over. Score ' + finalScore + '. High score ' + game.highScore + '. Press space to restart.');
-      game.animationFrameId = requestAnimationFrame(gameLoop);
       return;
     }
   }
@@ -1509,8 +1496,18 @@ function gameLoop() {
   runFeatureDraws('overlay');       // drawSkyTint
   drawMilestoneFlash();
   drawNewBestBadge();
+}
 
+const STATE_HANDLERS = {
+  [STATE.IDLE]:    handleIdle,
+  [STATE.WAITING]: handleWaiting,
+  [STATE.RUNNING]: handleRunning,
+  [STATE.DEAD]:    handleDead,
+};
+
+function gameLoop() {
   game.animationFrameId = requestAnimationFrame(gameLoop);
+  STATE_HANDLERS[game.state]();
 }
 
 // == SECTION 9: INITIALISATION ==
@@ -1542,6 +1539,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.jump = jump;
   global.resetGame = resetGame;
   global.gameLoop = gameLoop;
+  global.STATE_HANDLERS = STATE_HANDLERS;
   global.drawGameOverScreen = drawGameOverScreen;
   global.computeRunResult = computeRunResult;
   global.drawIdleScreen = drawIdleScreen;
