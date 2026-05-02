@@ -1150,6 +1150,47 @@ if (muteBtn && muteBtn.addEventListener) {
   refreshMuteButton();
 }
 
+// Daily challenge button — activates MODES.DAILY (locks Updated behaviour)
+// and hides the Classic/Updated toggle via the .daily-active class.
+const dailyBtn = document.getElementById('daily-btn');
+const gameWrapper = document.getElementById('game-wrapper');
+
+function refreshDailyButton() {
+  if (!dailyBtn || !dailyBtn.setAttribute) return;
+  const active = isDailyMode();
+  dailyBtn.setAttribute('aria-pressed', String(active));
+  dailyBtn.setAttribute('aria-label', active ? 'Leave daily challenge' : 'Daily challenge');
+  if (gameWrapper && gameWrapper.classList) {
+    if (active) gameWrapper.classList.add('daily-active');
+    else gameWrapper.classList.remove('daily-active');
+  }
+}
+
+if (dailyBtn && dailyBtn.addEventListener) {
+  const onDailyTap = (event) => {
+    if (event) event.stopPropagation();
+    const entering = !isDailyMode();
+    if (entering) {
+      game.mode = MODES.DAILY;
+    } else {
+      game.mode = MODES.UPDATED;
+      localStorage.setItem('dino-mode', MODES.UPDATED);
+    }
+    refreshDailyButton();
+    cancelAnimationFrame(game.animationFrameId);
+    resetGame();
+    gameLoop();
+    announce(entering ? `Daily challenge #${dailyNumber()}` : 'Updated mode');
+  };
+  dailyBtn.addEventListener('click', onDailyTap);
+  dailyBtn.addEventListener('touchstart', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onDailyTap(event);
+  }, { passive: false });
+  refreshDailyButton();
+}
+
 // Resume the AudioContext when the tab becomes visible again. Browsers
 // suspend the ctx when the page is hidden; without this, audio dies silently
 // on tab-switch even though no error is thrown.
