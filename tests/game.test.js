@@ -1899,6 +1899,27 @@ describe('Tablet width cap removed', () => {
   });
 });
 
+describe('Share result', () => {
+  it('shareDailyResult() returns a string containing the daily number and score', () => {
+    const origDailyBest = game.dailyBest;
+    game.dailyBest = 500;
+    const text = shareDailyResult();
+    assert(typeof text === 'string', 'shareDailyResult() should return a string');
+    assert(text.includes('#' + dailyNumber()), 'Result should contain the daily number');
+    assert(text.includes('500'), 'Result should contain the daily best score');
+    game.dailyBest = origDailyBest;
+  });
+
+  it('shareDailyResult() does not throw when navigator is unavailable', () => {
+    const origDailyBest = game.dailyBest;
+    game.dailyBest = 0;
+    let threw = false;
+    try { shareDailyResult(); } catch (e) { threw = true; }
+    assert(!threw, 'shareDailyResult() should not throw even with no clipboard');
+    game.dailyBest = origDailyBest;
+  });
+});
+
 describe('Daily mode RNG seeding', () => {
   it('resetGame() in daily mode seeds rng from dailySeed(), not Date.now()', () => {
     const origMode = game.mode;

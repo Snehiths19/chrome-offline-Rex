@@ -544,6 +544,21 @@ function setMode(newMode) {
   gameLoop();
 }
 
+// Build and copy the daily result string to the clipboard.
+// Returns the text so tests can assert its shape without touching clipboard.
+function shareDailyResult() {
+  const score = game.dailyBest > 0 ? game.dailyBest : Math.floor(game.score);
+  const text = [
+    'Rex Daily #' + dailyNumber() + ' 🦕',
+    'Score: ' + score,
+    'https://snehiths19.github.io/chrome-offline-Rex/',
+  ].join('\n');
+  if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).catch(() => {});
+  }
+  return text;
+}
+
 // Persist the player's daily best if score beats the current stored value.
 // Also ticks game.dailyBest up in memory so the death screen can read it.
 function saveDailyBest(score) {
@@ -832,56 +847,99 @@ function drawGameOverScreen() {
   const font = cfg('SCORE_FONT_FAMILY');
   const t = Math.min(game.deathAnimFrame / GAME_CONFIG.DEATH_ANIM_FRAMES, 1);
   const displayScore = Math.round(t * Math.floor(game.score));
+
   ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
   ctx.fillRect(0, 0, GAME_CONFIG.CANVAS_W, GAME_CONFIG.CANVAS_H);
   ctx.textAlign = 'center';
 
-  if (game.isNewBest) {
-    // New record — celebration takeover
+  if (isDailyMode()) {
+    // Daily challenge death screen — THIS RUN vs TODAY BEST, no all-time comparison
+    const todayBest = game.dailyBest;
+    const delta = todayBest > 0 ? todayBest - displayScore : 0;
+
+    ctx.fillStyle = 'rgba(255, 140, 0, 0.9)';
+    ctx.font = '13px ' + font;
+    ctx.fillText('📅 DAILY #' + dailyNumber(), GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 48);
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.font = '12px ' + font;
+    ctx.fillText('THIS RUN', GAME_CONFIG.CANVAS_W * 0.2, GAME_CONFIG.CANVAS_H / 2 - 14);
     ctx.fillStyle = 'white';
-    ctx.font = '15px ' + font;
-    ctx.fillText('★  NEW BEST  ★', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 36);
+    ctx.font = '28px ' + font;
+    ctx.fillText(String(displayScore).padStart(5, '0'), GAME_CONFIG.CANVAS_W * 0.2, GAME_CONFIG.CANVAS_H / 2 + 14);
 
-    ctx.font = '42px ' + font;
-    ctx.fillText(String(displayScore).padStart(5, '0'), GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 4);
-
-    if (game.previousHighScore > 0) {
+    if (todayBest > 0) {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-      ctx.font = '13px ' + font;
-      const improvement = displayScore - game.previousHighScore;
-      ctx.fillText('+' + improvement + ' over your previous best', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 28);
+      ctx.font = '16px ' + font;
+      ctx.fillText(delta > 0 ? '← +' + delta + ' →' : '← best →', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 10);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+      ctx.font = '11px ' + font;
+      ctx.fillText('today best', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 10);
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.font = '12px ' + font;
+      ctx.fillText('TODAY BEST', GAME_CONFIG.CANVAS_W * 0.8, GAME_CONFIG.CANVAS_H / 2 - 14);
+      ctx.fillStyle = 'white';
+      ctx.font = '28px ' + font;
+      ctx.fillText(String(todayBest).padStart(5, '0'), GAME_CONFIG.CANVAS_W * 0.8, GAME_CONFIG.CANVAS_H / 2 + 14);
+    }
+
+    // Show or hide the DOM share button based on animation completion
+    const shareBtnEl = document.getElementById('share-btn');
+    if (shareBtnEl && shareBtnEl.style) {
+      shareBtnEl.style.display = t >= 1 ? 'block' : 'none';
+      if (t >= 1) {
+        shareBtnEl.textContent = game.copyFlashFrames > 0 ? '✓ Copied!' : '📋 Copy result';
+      }
     }
   } else {
-    // Normal death — side-by-side comparison
-    const delta    = game.highScore - Math.floor(game.score);
-    const scoreStr = String(displayScore).padStart(5, '0');
-    const bestStr  = String(game.highScore).padStart(5, '0');
+    if (game.isNewBest) {
+      // New record — celebration takeover
+      ctx.fillStyle = 'white';
+      ctx.font = '15px ' + font;
+      ctx.fillText('★  NEW BEST  ★', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 36);
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-    ctx.font = '12px ' + font;
-    ctx.fillText('THIS RUN',  GAME_CONFIG.CANVAS_W * 0.2, GAME_CONFIG.CANVAS_H / 2 - 14);
-    ctx.fillStyle = 'white';
-    ctx.font = '28px ' + font;
-    ctx.fillText(scoreStr,   GAME_CONFIG.CANVAS_W * 0.2, GAME_CONFIG.CANVAS_H / 2 + 14);
+      ctx.font = '42px ' + font;
+      ctx.fillText(String(displayScore).padStart(5, '0'), GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 4);
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-    ctx.font = '16px ' + font;
-    ctx.fillText('← ' + delta + ' →', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 10);
+      if (game.previousHighScore > 0) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.font = '13px ' + font;
+        const improvement = displayScore - game.previousHighScore;
+        ctx.fillText('+' + improvement + ' over your previous best', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 28);
+      }
+    } else {
+      // Normal death — side-by-side comparison
+      const delta    = game.highScore - Math.floor(game.score);
+      const scoreStr = String(displayScore).padStart(5, '0');
+      const bestStr  = String(game.highScore).padStart(5, '0');
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.font = '12px ' + font;
+      ctx.fillText('THIS RUN',  GAME_CONFIG.CANVAS_W * 0.2, GAME_CONFIG.CANVAS_H / 2 - 14);
+      ctx.fillStyle = 'white';
+      ctx.font = '28px ' + font;
+      ctx.fillText(scoreStr,   GAME_CONFIG.CANVAS_W * 0.2, GAME_CONFIG.CANVAS_H / 2 + 14);
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.font = '16px ' + font;
+      ctx.fillText('← ' + delta + ' →', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 10);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+      ctx.font = '11px ' + font;
+      ctx.fillText('from best', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 10);
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.font = '12px ' + font;
+      ctx.fillText('YOUR BEST', GAME_CONFIG.CANVAS_W * 0.8, GAME_CONFIG.CANVAS_H / 2 - 14);
+      ctx.fillStyle = 'white';
+      ctx.font = '28px ' + font;
+      ctx.fillText(bestStr,    GAME_CONFIG.CANVAS_W * 0.8, GAME_CONFIG.CANVAS_H / 2 + 14);
+    }
+
     ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-    ctx.font = '11px ' + font;
-    ctx.fillText('from best', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 10);
-
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-    ctx.font = '12px ' + font;
-    ctx.fillText('YOUR BEST', GAME_CONFIG.CANVAS_W * 0.8, GAME_CONFIG.CANVAS_H / 2 - 14);
-    ctx.fillStyle = 'white';
-    ctx.font = '28px ' + font;
-    ctx.fillText(bestStr,    GAME_CONFIG.CANVAS_W * 0.8, GAME_CONFIG.CANVAS_H / 2 + 14);
+    ctx.font = '13px ' + font;
+    ctx.fillText('Tap / Press Space to Restart', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H - 16);
   }
-
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-  ctx.font = '13px ' + font;
-  ctx.fillText('Tap / Press Space to Restart', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H - 16);
 }
 
 function drawMilestoneFlash() {
@@ -1162,6 +1220,22 @@ if (muteBtn && muteBtn.addEventListener) {
   refreshMuteButton();
 }
 
+// Share button — shown on death screen during daily challenge only.
+const shareBtn = document.getElementById('share-btn');
+if (shareBtn && shareBtn.addEventListener) {
+  const onShareTap = (event) => {
+    if (event) event.stopPropagation();
+    shareDailyResult();
+    game.copyFlashFrames = 90; // ~1.5 s at 60 fps
+  };
+  shareBtn.addEventListener('click', onShareTap);
+  shareBtn.addEventListener('touchstart', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onShareTap(event);
+  }, { passive: false });
+}
+
 // Daily challenge button — activates MODES.DAILY (locks Updated behaviour)
 // and hides the Classic/Updated toggle via the .daily-active class.
 const dailyBtn = document.getElementById('daily-btn');
@@ -1248,6 +1322,8 @@ function resetGame() {
   game.rng = mulberry32(isDailyMode() ? dailySeed() : (Date.now() & 0xffffffff));
   game.dailyBest = loadDailyBest();
   game.copyFlashFrames = 0;
+  const shareBtnEl = document.getElementById('share-btn');
+  if (shareBtnEl && shareBtnEl.style) shareBtnEl.style.display = 'none';
   game.nextSpawnGap = computeNextSpawnGap(game.rng, DifficultyProfile.speedAtScore(game.score), game.mode);
   initClouds();
   initHills();
@@ -1281,6 +1357,7 @@ function gameLoop() {
       drawGameOverScreen();
       game.animationFrameId = requestAnimationFrame(gameLoop);
     } else {
+      if (game.copyFlashFrames > 0) game.copyFlashFrames--;
       drawGameOverScreen();
     }
     return;
@@ -1396,6 +1473,7 @@ function gameLoop() {
         game.highScore = finalScore;
         localStorage.setItem('dino-high-score', game.highScore);
       }
+      if (isDailyMode()) saveDailyBest(finalScore);
       announce('Game over. Score ' + finalScore + '. High score ' + game.highScore + '. Press space to restart.');
       game.animationFrameId = requestAnimationFrame(gameLoop);
       return;
@@ -1501,4 +1579,5 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.loadDailyBest = loadDailyBest;
   global.saveDailyBest = saveDailyBest;
   global.isDailyMode = isDailyMode;
+  global.shareDailyResult = shareDailyResult;
 }
