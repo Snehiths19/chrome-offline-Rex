@@ -213,6 +213,22 @@ function saveTuning() {
 
 loadTuning();
 
+const ScoreStore = {
+  loadHighScore()      { return parseInt(localStorage.getItem('dino-high-score') || '0', 10); },
+  saveHighScore(n)     { localStorage.setItem('dino-high-score', String(n)); },
+  loadDailyBest() {
+    const storedDate = parseInt(localStorage.getItem('dino-daily-date') || '0', 10);
+    if (storedDate !== dailySeed()) return 0;
+    return parseInt(localStorage.getItem('dino-daily-best') || '0', 10);
+  },
+  saveDailyBest(score) {
+    if (score > this.loadDailyBest()) {
+      localStorage.setItem('dino-daily-date', String(dailySeed()));
+      localStorage.setItem('dino-daily-best', String(score));
+    }
+  },
+};
+
 const STATE = Object.freeze({
   LOADING: 'LOADING',
   IDLE:    'IDLE',
@@ -457,12 +473,14 @@ const DifficultyProfile = {
     return INITIAL_SPEED + (PLATEAU_SPEED - INITIAL_SPEED) *
       (1 / (1 + Math.exp(-RAMP_STEEPNESS * (score - RAMP_MIDPOINT))));
   },
-  obstacleParamsAt(score, rng, mode) {
+  nextObstacle(score, mode, rng) {
     const speed = this.speedAtScore(score);
+    // RNG call order is load-bearing: type roll first, gap jitter second.
+    // Swapping breaks the daily-challenge seed sequence.
     const type = pickObstacleType(rng, score, mode);
     return {
-      gap:  computeNextSpawnGap(rng, speed, mode),
       type,
+      gap: computeNextSpawnGap(rng, speed, mode),
     };
   },
 };
@@ -492,14 +510,6 @@ function dailyNumber() {
   return Math.floor((Date.now() - DAILY_EPOCH_MS) / 86400000) + 1;
 }
 
-// Returns the player's best score for today's daily run, or 0 if they
-// haven't played today or the stored date is stale.
-function loadDailyBest() {
-  const storedDate = parseInt(localStorage.getItem('dino-daily-date') || '0', 10);
-  if (storedDate !== dailySeed()) return 0;
-  return parseInt(localStorage.getItem('dino-daily-best') || '0', 10);
-}
-
 // All mutable game state lives on this object. Keeping it in one place prevents
 // stray top-level globals and makes resets + test inspection simpler.
 const game = {
@@ -511,7 +521,7 @@ const game = {
   graceFrames:      GAME_CONFIG.GRACE_FRAMES,
   animationFrameId: undefined,
   score:            0,
-  highScore:        parseInt(localStorage.getItem('dino-high-score') || '0', 10),
+  highScore:        ScoreStore.loadHighScore(),
   animFrame:        0,
   groundX:          0,
   clouds:           [],
@@ -530,7 +540,7 @@ const game = {
   previousHighScore: 0,
   rng:              mulberry32(Date.now() & 0xffffffff),
   mode:             loadMode(),
-  dailyBest:        loadDailyBest(),
+  dailyBest:        ScoreStore.loadDailyBest(),
   copyFlashFrames:  0,
 };
 
@@ -559,16 +569,6 @@ function shareDailyResult() {
   return text;
 }
 
-// Persist the player's daily best if score beats the current stored value.
-// Also ticks game.dailyBest up in memory so the death screen can read it.
-function saveDailyBest(score) {
-  const current = loadDailyBest();
-  if (score > current) {
-    localStorage.setItem('dino-daily-date', String(dailySeed()));
-    localStorage.setItem('dino-daily-best', String(score));
-    game.dailyBest = score;
-  }
-}
 
 // == SECTION 5: RENDERING ==
 
@@ -1320,7 +1320,7 @@ function resetGame() {
   game.isNewBest         = false;
   game.previousHighScore = 0;
   game.rng = mulberry32(isDailyMode() ? dailySeed() : (Date.now() & 0xffffffff));
-  game.dailyBest = loadDailyBest();
+  game.dailyBest = ScoreStore.loadDailyBest();
   game.copyFlashFrames = 0;
   const shareBtnEl = document.getElementById('share-btn');
   if (shareBtnEl && shareBtnEl.style) shareBtnEl.style.display = 'none';
@@ -1441,9 +1441,9 @@ function gameLoop() {
 
   // Obstacle spawning — in updated mode the gap is precomputed per-obstacle
   // with ±SPAWN_GAP_JITTER so spacing doesn't feel metronomic; in classic mode
-  // it's deterministic. See computeNextSpawnGap() / pickObstacleType().
+  // it's deterministic. DifficultyProfile.nextObstacle() picks type + gap together.
   if (game.lastObstacleX <= GAME_CONFIG.CANVAS_W - game.nextSpawnGap) {
-    const params = DifficultyProfile.obstacleParamsAt(game.score, game.rng, game.mode);
+    const params = DifficultyProfile.nextObstacle(game.score, game.mode, game.rng);
     spawnObstacle(params.type);
     game.lastObstacleX = GAME_CONFIG.CANVAS_W;
     game.nextSpawnGap = params.gap;
@@ -1471,9 +1471,12 @@ function gameLoop() {
       game.previousHighScore = runResult.previousHighScore;
       if (finalScore > game.highScore) {
         game.highScore = finalScore;
-        localStorage.setItem('dino-high-score', game.highScore);
+        ScoreStore.saveHighScore(game.highScore);
       }
-      if (isDailyMode()) saveDailyBest(finalScore);
+      if (isDailyMode()) {
+        ScoreStore.saveDailyBest(finalScore);
+        game.dailyBest = ScoreStore.loadDailyBest();
+      }
       announce('Game over. Score ' + finalScore + '. High score ' + game.highScore + '. Press space to restart.');
       game.animationFrameId = requestAnimationFrame(gameLoop);
       return;
@@ -1546,8 +1549,6 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.initCanvasScale = initCanvasScale;
   global.handleResize   = handleResize;
   global.mulberry32 = mulberry32;
-  global.computeNextSpawnGap = computeNextSpawnGap;
-  global.pickObstacleType = pickObstacleType;
   global.MODES = MODES;
   global.setMode = setMode;
   global.loadMode = loadMode;
@@ -1576,8 +1577,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.a11yLive = a11yLive;
   global.dailySeed = dailySeed;
   global.dailyNumber = dailyNumber;
-  global.loadDailyBest = loadDailyBest;
-  global.saveDailyBest = saveDailyBest;
+  global.ScoreStore = ScoreStore;
   global.isDailyMode = isDailyMode;
   global.shareDailyResult = shareDailyResult;
 }
