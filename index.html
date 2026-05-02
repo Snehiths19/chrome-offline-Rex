@@ -9,12 +9,14 @@
 <body>
   <div id="game-wrapper" role="application" aria-label="Chrome dino game">
     <button id="mute-btn" type="button" aria-pressed="false" aria-label="Mute sound">&#x1F50A;</button>
+    <button id="daily-btn" type="button" aria-pressed="false" aria-label="Daily challenge">&#x1F4C5;</button>
     <div id="mode-toggle" role="group" aria-label="Game mode">
       <button type="button" data-mode="classic" aria-pressed="false">Classic</button>
       <button type="button" data-mode="updated" aria-pressed="true">Updated</button>
     </div>
     <canvas id="gameCanvas" width="600" height="200" aria-label="Dino running game. Press space to jump."></canvas>
     <button id="jump-btn" aria-label="Jump">TAP TO JUMP</button>
+    <button id="share-btn" aria-label="Copy daily result to clipboard" style="display:none">&#x1F4CB; Copy result</button>
     <div id="a11y-live" class="sr-only" aria-live="polite" aria-atomic="true"></div>
   </div>
   <script src="script.js?v=__VERSION__"></script>
