@@ -105,10 +105,13 @@ Live-tuning overrides (`window.GAME_TUNING`) apply to **visuals only**. Physics,
 ## Modes & reduced-motion
 
 ```js
-const MODES = Object.freeze({ CLASSIC: 'classic', UPDATED: 'updated' });
-function isUpdatedMode() { return game.mode === MODES.UPDATED; }
+const MODES = Object.freeze({ CLASSIC: 'classic', UPDATED: 'updated', DAILY: 'daily' });
+function isDailyMode()   { return game.mode === MODES.DAILY; }
+function isUpdatedMode() { return game.mode === MODES.UPDATED || game.mode === MODES.DAILY; }
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 ```
+
+`MODES.DAILY` is activated by the `#daily-btn` button (not persisted to `dino-mode`). `isUpdatedMode()` returns `true` for both UPDATED and DAILY, so all juice/variety features apply in daily runs.
 
 `reducedMotion` is read once at module load. Each ambient feature self-gates internally:
 
@@ -127,6 +130,8 @@ const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matc
 | `dino-muted` | `'0'` / `'1'` | `audio.setMuted` | `audio.muted` init |
 | `dino-high-score` | integer string | death handler | `game.highScore` init |
 | `dino-tuning` | JSON | `saveTuning()` | `loadTuning()` at boot |
+| `dino-daily-date` | YYYYMMDD integer string | `saveDailyBest()` | `loadDailyBest()` at reset |
+| `dino-daily-best` | integer string | `saveDailyBest()` | `game.dailyBest` init |
 
 ## Test harness
 
