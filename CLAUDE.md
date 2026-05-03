@@ -141,6 +141,10 @@ The Node stubs at the top of `script.js` provide just enough of `window`, `docum
 
 To run a single block in the browser, open `tests/test-runner.html` (if present) or load `tests/game.test.js` from devtools. Console output uses ANSI/CSS styling for pass/fail.
 
+### Using `/tdd` in this project
+
+When running `/tdd`, tests must only use globals exported in the `Section 10 — Test exposure` block at the bottom of `script.js` (the `if (typeof process !== 'undefined' ...)` block). Canvas draw calls are no-ops — assert against `game.*` state, not pixels. `ctx.drawImage` and similar can be spied on by reassigning the property and restoring after the test.
+
 ## Deploy pipeline
 
 `.github/workflows/pages.yml`:
@@ -168,6 +172,33 @@ location.reload()
 
 Read the `cfg()` block at the top of `script.js` Section 2 for the full list of safe-to-tune keys (and the explicit "do not tune physics" warning).
 
+## Known invariants
+
+Rules that apply across all call sites. Violating these silently misbehaves rather than crashes — so they must be checked during any refactor that touches the affected code.
+
+**`cancelAnimationFrame` before restarting the loop.** Any code path that calls `resetGame()` + `gameLoop()` must first call `cancelAnimationFrame(game.animationFrameId)`, or a duplicate loop is created and the game runs at double speed. Current compliant sites: `setMode()`, daily-mode toggle, `handleAction()` (DEAD→restart branch). Pattern: `cancelAnimationFrame(game.animationFrameId); resetGame(); gameLoop();`
+
+**`game.rng()` is the only source of gameplay randomness.** Obstacle type, spawn-gap jitter, hill init/respawn all use `game.rng()`. `Math.random()` is reserved for purely cosmetic effects (particles, clouds, audio pitch). Swapping them breaks the daily-challenge determinism contract.
+
+**Physics/spawning/scoring read `GAME_CONFIG.X` directly — never via `cfg()`.** `cfg()` is for visual tunables only. Any physics or spawning value routed through `cfg()` would allow live-tuning overrides to perturb the determinism contract.
+
 ## Where design history lives
 
 `docs/dev/specs/` and `docs/dev/plans/` carry the original design decisions and implementation plans for past phases. Treat these as a historical record — read for context, but don't rewrite or delete them as part of unrelated work.
+
+## Design pillars
+
+Three pillars define what the game is trying to make the player feel. Every new feature must serve at least one — if it doesn't, it doesn't belong.
+
+1. **Flow** — primary emotion. A great run feels like time disappeared. Any feature that snaps the player out of rhythm is a design problem.
+2. **Atmosphere** — deepens flow in Updated mode (hills, clouds, particles, day/night). Must stay peripheral — never drawing the eye away from the obstacle lane. Never added to Classic mode.
+3. **One shared run** — the Daily Challenge. Social context (badge, share result) belongs at the edges of the run only, not during gameplay.
+
+## CONTEXT.md as a live working document
+
+`CONTEXT.md` is the authoritative glossary for domain terms and architectural decisions. During any grilling or planning session:
+
+- **Check it first** before naming a new concept — does a term already exist?
+- **Update it immediately** when a term is resolved or sharpened — don't batch
+- **Add invariants** (see above) when a new one is identified during grilling
+- Future sessions opening `CONTEXT.md` should already know what was decided and why, without having to re-derive it

@@ -787,10 +787,6 @@ function drawScore() {
       GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET - GAME_CONFIG.SCORE_HI_X_OFFSET - 20,
       GAME_CONFIG.SCORE_Y
     );
-    // Daily badge top-left
-    ctx.font = '13px ' + cfg('SCORE_FONT_FAMILY');
-    ctx.textAlign = 'left';
-    ctx.fillText('📅 DAILY #' + dailyNumber(), 12, GAME_CONFIG.SCORE_Y);
   } else if (game.highScore > 0) {
     ctx.fillText(
       'HI ' + String(game.highScore).padStart(5, '0'),
