@@ -1141,6 +1141,7 @@ function handleAction() {
       game.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
       drawGameOverScreen();
     } else {
+      cancelAnimationFrame(game.animationFrameId);
       resetGame();
       gameLoop();
     }
