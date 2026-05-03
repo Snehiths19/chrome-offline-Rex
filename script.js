@@ -529,20 +529,30 @@ const game = {
   stars:            [],
   starsInitialised: false,
   hills:            [],
-  deathAnimFrame:   0,
-  deathShakeFrames: 0,
-  deathFlashFrames: 0,
-  scorePopFrames:   0,
   milestoneText:    '',
-  milestoneFrames:  0,
-  newBestFrames:    0,
   newBestShown:     false,
   isNewBest:         false,
   previousHighScore: 0,
   rng:              mulberry32(Date.now() & 0xffffffff),
   mode:             loadMode(),
   dailyBest:        ScoreStore.loadDailyBest(),
+};
+
+// All per-run animation countdown timers. Kept separate from the game object
+// so reset() is a single call and adding a new timer has exactly one place.
+const Animations = {
+  deathAnimFrame:   0,
+  deathShakeFrames: 0,
+  deathFlashFrames: 0,
+  scorePopFrames:   0,
+  milestoneFrames:  0,
+  newBestFrames:    0,
   copyFlashFrames:  0,
+  reset() {
+    this.deathAnimFrame = this.deathShakeFrames = this.deathFlashFrames = 0;
+    this.scorePopFrames = this.milestoneFrames  = this.newBestFrames    = 0;
+    this.copyFlashFrames = 0;
+  },
 };
 
 function setMode(newMode) {
@@ -690,8 +700,8 @@ function drawHills() {
 // the existing day/night background.
 function drawSkyTint() {
   if (!isUpdatedMode() || reducedMotion) return;
-  if (game.milestoneFrames <= 0) return;
-  const alpha = (game.milestoneFrames / GAME_CONFIG.MILESTONE_FRAMES) * cfg('SKY_TINT_PEAK_ALPHA');
+  if (Animations.milestoneFrames <= 0) return;
+  const alpha = (Animations.milestoneFrames / GAME_CONFIG.MILESTONE_FRAMES) * cfg('SKY_TINT_PEAK_ALPHA');
   ctx.save();
   ctx.fillStyle = 'rgba(' + cfg('SKY_TINT_COLOR_RGB') + ', ' + alpha.toFixed(3) + ')';
   ctx.fillRect(0, 0, GAME_CONFIG.CANVAS_W, GAME_CONFIG.CANVAS_H);
@@ -758,10 +768,10 @@ function drawDino() {
 }
 
 function drawScore() {
-  const popping = game.scorePopFrames > 0 && isUpdatedMode() && !reducedMotion;
+  const popping = Animations.scorePopFrames > 0 && isUpdatedMode() && !reducedMotion;
   if (popping) {
     // Brief 1.0 → 1.4 ease-out scale around the score's centre on death.
-    const t = game.scorePopFrames / GAME_CONFIG.SCORE_POP_FRAMES; // 1 → 0
+    const t = Animations.scorePopFrames / GAME_CONFIG.SCORE_POP_FRAMES; // 1 → 0
     const scale = 1 + t * 0.4;
     const cx = GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30;
     const cy = GAME_CONFIG.SCORE_Y - 8;
@@ -804,8 +814,8 @@ function drawScore() {
 // PR-C: white-flash overlay drawn on top of the world during the first few
 // post-death frames. Mode-gated; reduce-motion caps it at 1 frame.
 function drawDeathFlash() {
-  if (game.deathFlashFrames <= 0) return;
-  const alpha = game.deathFlashFrames / cfg('DEATH_FLASH_FRAMES');
+  if (Animations.deathFlashFrames <= 0) return;
+  const alpha = Animations.deathFlashFrames / cfg('DEATH_FLASH_FRAMES');
   ctx.save();
   ctx.fillStyle = 'rgba(' + cfg('DEATH_FLASH_COLOR_RGB') + ', ' + alpha.toFixed(3) + ')';
   ctx.fillRect(0, 0, GAME_CONFIG.CANVAS_W, GAME_CONFIG.CANVAS_H);
@@ -846,7 +856,7 @@ function drawGetReadyOverlay() {
 
 function drawGameOverScreen() {
   const font = cfg('SCORE_FONT_FAMILY');
-  const t = Math.min(game.deathAnimFrame / GAME_CONFIG.DEATH_ANIM_FRAMES, 1);
+  const t = Math.min(Animations.deathAnimFrame / GAME_CONFIG.DEATH_ANIM_FRAMES, 1);
   const displayScore = Math.round(t * Math.floor(game.score));
 
   ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
@@ -890,7 +900,7 @@ function drawGameOverScreen() {
     if (shareBtnEl && shareBtnEl.style) {
       shareBtnEl.style.display = t >= 1 ? 'block' : 'none';
       if (t >= 1) {
-        shareBtnEl.textContent = game.copyFlashFrames > 0 ? '✓ Copied!' : '📋 Copy result';
+        shareBtnEl.textContent = Animations.copyFlashFrames > 0 ? '✓ Copied!' : '📋 Copy result';
       }
     }
   } else {
@@ -944,30 +954,30 @@ function drawGameOverScreen() {
 }
 
 function drawMilestoneFlash() {
-  if (game.milestoneFrames <= 0) return;
+  if (Animations.milestoneFrames <= 0) return;
   ctx.save();
-  ctx.globalAlpha = game.milestoneFrames / GAME_CONFIG.MILESTONE_FRAMES;
+  ctx.globalAlpha = Animations.milestoneFrames / GAME_CONFIG.MILESTONE_FRAMES;
   ctx.fillStyle = game.score >= GAME_CONFIG.DAY_NIGHT_START ? '#ffffff' : '#000000';
   ctx.textAlign = 'center';
   ctx.font = 'bold 22px ' + cfg('SCORE_FONT_FAMILY');
   ctx.fillText(game.milestoneText, GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 30);
   ctx.restore();
-  game.milestoneFrames--;
+  Animations.milestoneFrames--;
 }
 
 function drawNewBestBadge() {
-  if (game.newBestFrames <= 0) return;
+  if (Animations.newBestFrames <= 0) return;
   ctx.save();
-  ctx.globalAlpha = game.newBestFrames / GAME_CONFIG.NEW_BEST_FRAMES;
+  ctx.globalAlpha = Animations.newBestFrames / GAME_CONFIG.NEW_BEST_FRAMES;
   ctx.fillStyle = '#ffd700';
   ctx.textAlign = 'left';
   ctx.font = 'bold 14px ' + cfg('SCORE_FONT_FAMILY');
   // Drop below the milestone flash when both fire on the same frame
   // (level-up + new-best at score = highScore + 100).
-  const y = game.milestoneFrames > 0 ? 100 : 70;
+  const y = Animations.milestoneFrames > 0 ? 100 : 70;
   ctx.fillText('NEW BEST!', GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET, y);
   ctx.restore();
-  game.newBestFrames--;
+  Animations.newBestFrames--;
 }
 
 // --- Particle system (PR-A) ---
@@ -1137,8 +1147,8 @@ function handleAction() {
   } else if (game.state === STATE.RUNNING) {
     jump();
   } else if (game.state === STATE.DEAD) {
-    if (game.deathAnimFrame < GAME_CONFIG.DEATH_ANIM_FRAMES) {
-      game.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    if (Animations.deathAnimFrame < GAME_CONFIG.DEATH_ANIM_FRAMES) {
+      Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
       drawGameOverScreen();
     } else {
       resetGame();
@@ -1233,7 +1243,7 @@ if (shareBtn && shareBtn.addEventListener) {
   const onShareTap = (event) => {
     if (event) event.stopPropagation();
     shareDailyResult();
-    game.copyFlashFrames = 90; // ~1.5 s at 60 fps
+    Animations.copyFlashFrames = 90; // ~1.5 s at 60 fps
   };
   shareBtn.addEventListener('click', onShareTap);
   shareBtn.addEventListener('touchstart', (event) => {
@@ -1316,18 +1326,12 @@ function resetGame() {
   game.graceFrames = GAME_CONFIG.GRACE_FRAMES;
   game.state = STATE.WAITING;
   game.starsInitialised = false;
-  game.deathAnimFrame   = 0;
-  game.deathShakeFrames = 0;
-  game.deathFlashFrames = 0;
-  game.scorePopFrames   = 0;
-  game.milestoneFrames = 0;
-  game.newBestFrames     = 0;
+  Animations.reset();
   game.newBestShown      = false;
   game.isNewBest         = false;
   game.previousHighScore = 0;
   game.rng = mulberry32(isDailyMode() ? dailySeed() : (Date.now() & 0xffffffff));
   game.dailyBest = ScoreStore.loadDailyBest();
-  game.copyFlashFrames = 0;
   const shareBtnEl = document.getElementById('share-btn');
   if (shareBtnEl && shareBtnEl.style) shareBtnEl.style.display = 'none';
   game.nextSpawnGap = computeNextSpawnGap(game.rng, DifficultyProfile.speedAtScore(game.score), game.mode);
@@ -1338,9 +1342,9 @@ function resetGame() {
 }
 
 function handleDead() {
-  if (game.deathShakeFrames > 0) {
+  if (Animations.deathShakeFrames > 0) {
     ctx.save();
-    ctx.translate(Math.sin(game.deathShakeFrames * cfg('DEATH_SHAKE_FREQ')) * cfg('DEATH_SHAKE_AMPLITUDE'), 0);
+    ctx.translate(Math.sin(Animations.deathShakeFrames * cfg('DEATH_SHAKE_FREQ')) * cfg('DEATH_SHAKE_AMPLITUDE'), 0);
     drawBackground();
     drawHills();
     drawGround();
@@ -1352,14 +1356,14 @@ function handleDead() {
     ctx.restore();
     drawDeathFlash(); // white flash drawn outside the shake transform so it stays canvas-aligned
     Particles.update();
-    if (game.deathFlashFrames > 0) game.deathFlashFrames--;
-    if (game.scorePopFrames > 0) game.scorePopFrames--;
-    game.deathShakeFrames--;
-  } else if (game.deathAnimFrame < GAME_CONFIG.DEATH_ANIM_FRAMES) {
-    game.deathAnimFrame++;
+    if (Animations.deathFlashFrames > 0) Animations.deathFlashFrames--;
+    if (Animations.scorePopFrames > 0) Animations.scorePopFrames--;
+    Animations.deathShakeFrames--;
+  } else if (Animations.deathAnimFrame < GAME_CONFIG.DEATH_ANIM_FRAMES) {
+    Animations.deathAnimFrame++;
     drawGameOverScreen();
   } else {
-    if (game.copyFlashFrames > 0) game.copyFlashFrames--;
+    if (Animations.copyFlashFrames > 0) Animations.copyFlashFrames--;
     drawGameOverScreen();
   }
 }
@@ -1405,7 +1409,7 @@ function handleRunning() {
   // Milestone flash on level-up.
   if (level > prevLevel && level > 0) {
     game.milestoneText = 'LEVEL ' + (level + 1);
-    game.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
+    Animations.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
     audio.milestone();
     Particles.emit('confetti', GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30, GAME_CONFIG.SCORE_Y);
   }
@@ -1451,11 +1455,11 @@ function handleRunning() {
   for (let i = 0; i < game.obstacles.length; i++) {
     if (checkCollision(dino, game.obstacles[i])) {
       game.state = STATE.DEAD;
-      game.deathShakeFrames = GAME_CONFIG.DEATH_SHAKE_FRAMES;
+      Animations.deathShakeFrames = GAME_CONFIG.DEATH_SHAKE_FRAMES;
       // PR-C: white flash + score pop, mode-gated. Reduce-motion caps flash to 1 frame.
       if (isUpdatedMode()) {
-        game.deathFlashFrames = reducedMotion ? 1 : GAME_CONFIG.DEATH_FLASH_FRAMES;
-        game.scorePopFrames = reducedMotion ? 0 : GAME_CONFIG.SCORE_POP_FRAMES;
+        Animations.deathFlashFrames = reducedMotion ? 1 : GAME_CONFIG.DEATH_FLASH_FRAMES;
+        Animations.scorePopFrames = reducedMotion ? 0 : GAME_CONFIG.SCORE_POP_FRAMES;
       }
       Particles.emit('collision', dino.x + dino.width / 2, dino.y + dino.height / 2);
       audio.death();
@@ -1493,7 +1497,7 @@ function handleRunning() {
   // NEW BEST badge — first time this run's score exceeds the stored high score.
   if (!game.newBestShown && game.highScore > 0 && Math.floor(game.score) > game.highScore) {
     game.newBestShown = true;
-    game.newBestFrames = GAME_CONFIG.NEW_BEST_FRAMES;
+    Animations.newBestFrames = GAME_CONFIG.NEW_BEST_FRAMES;
     announce('New best score!');
   }
 
@@ -1527,6 +1531,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.GAME_CONFIG = GAME_CONFIG;
   global.STATE = STATE;
   global.game = game;
+  global.Animations = Animations;
   global.canvas = canvas;
   global.ctx = ctx;
   global.dino = dino;
