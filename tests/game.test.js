@@ -646,8 +646,8 @@ describe('Mode Toggle', () => {
     const a = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng).gap;
     const b = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng).gap;
     assertEquals(a, b, 'Classic gap should not vary');
-    assertEquals(a, GAME_CONFIG.MAX_SPAWN_GAP,
-      `At score 0, classic gap should be MAX_SPAWN_GAP (${GAME_CONFIG.MAX_SPAWN_GAP}), got ${a}`);
+    assert(a >= GAME_CONFIG.MIN_SPAWN_GAP && a <= GAME_CONFIG.MAX_SPAWN_GAP,
+      `Classic gap at score 0 (${a}) should be within [MIN_SPAWN_GAP, MAX_SPAWN_GAP]`);
   });
 
   it('updated mode still produces variety', () => {

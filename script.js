@@ -54,6 +54,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.Image = class { constructor() { this.onload = null; this.onerror = null; this.src = ''; this.width = 1; this.height = 1; this.complete = true; } };
   global.requestAnimationFrame = (cb) => {
     const id = setImmediate(() => cb(Date.now()));
+    id.unref(); // don't keep Node alive after tests complete
     return id;
   };
   global.cancelAnimationFrame = (id) => clearImmediate(id);
