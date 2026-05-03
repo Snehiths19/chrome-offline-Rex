@@ -353,8 +353,8 @@ describe('Ambient depth + confetti (PR-D)', () => {
   });
 
   it('confetti is a registered particle kind', () => {
-    assert(PARTICLE_KINDS.confetti, 'PARTICLE_KINDS should include confetti');
-    assert(PARTICLE_KINDS.confetti.color === '#ffd700', 'Confetti should be gold');
+    assert(Particles.KINDS.confetti, 'Particles.KINDS should include confetti');
+    assert(Particles.KINDS.confetti.color === '#ffd700', 'Confetti should be gold');
   });
 
   it('level-up emits confetti in updated mode', () => {
@@ -364,11 +364,11 @@ describe('Ambient depth + confetti (PR-D)', () => {
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
     // Clear pool and fast-forward to just before a level boundary.
-    for (let i = 0; i < particles.length; i++) particles[i].life = 0;
+    Particles.reset();
     game.score = GAME_CONFIG.SCORE_PER_LEVEL - 0.05; // next gameLoop tick crosses
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
-    const live = particles.filter(p => p.life > 0 && p.color === '#ffd700').length;
+    const live = Particles.particles.filter(p => p.life > 0 && p.color === '#ffd700').length;
     assert(live > 0, `Should have emitted at least one gold confetti particle, got ${live}`);
   });
 
@@ -378,11 +378,11 @@ describe('Ambient depth + confetti (PR-D)', () => {
     resetGame();
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
-    for (let i = 0; i < particles.length; i++) particles[i].life = 0;
+    Particles.reset();
     game.score = GAME_CONFIG.SCORE_PER_LEVEL - 0.05;
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
-    const gold = particles.filter(p => p.life > 0 && p.color === '#ffd700').length;
+    const gold = Particles.particles.filter(p => p.life > 0 && p.color === '#ffd700').length;
     assertEquals(gold, 0, 'Classic mode should not spawn confetti');
     setMode(MODES.UPDATED);
     cancelAnimationFrame(game.animationFrameId);
@@ -559,13 +559,13 @@ describe('Audio (PR-B)', () => {
 });
 
 describe('Particles (PR-A)', () => {
-  function clearParticles() { for (let i = 0; i < particles.length; i++) particles[i].life = 0; }
+  function clearParticles() { Particles.reset(); }
 
   it('emits 0 particles in classic mode', () => {
     clearParticles();
     setMode(MODES.CLASSIC);
     cancelAnimationFrame(game.animationFrameId);
-    const n = emitParticles('jump', 100, 100);
+    const n = Particles.emit('jump', 100, 100);
     assertEquals(n, 0, 'Classic mode should not emit particles');
   });
 
@@ -573,15 +573,15 @@ describe('Particles (PR-A)', () => {
     clearParticles();
     setMode(MODES.UPDATED);
     cancelAnimationFrame(game.animationFrameId);
-    const n = emitParticles('jump', 100, 100);
-    assertEquals(n, PARTICLE_KINDS.jump.count, `jump should emit ${PARTICLE_KINDS.jump.count} particles`);
+    const n = Particles.emit('jump', 100, 100);
+    assertEquals(n, Particles.KINDS.jump.count, `jump should emit ${Particles.KINDS.jump.count} particles`);
   });
 
   it('emits 0 for an unknown kind without throwing', () => {
     clearParticles();
     setMode(MODES.UPDATED);
     cancelAnimationFrame(game.animationFrameId);
-    const n = emitParticles('nonexistent', 100, 100);
+    const n = Particles.emit('nonexistent', 100, 100);
     assertEquals(n, 0, 'Unknown kind should be a no-op');
   });
 
@@ -590,32 +590,32 @@ describe('Particles (PR-A)', () => {
     setMode(MODES.UPDATED);
     cancelAnimationFrame(game.animationFrameId);
     // Fire a bunch of bursts; pool size shouldn't grow.
-    for (let i = 0; i < 20; i++) emitParticles('collision', 100, 100);
-    assertEquals(particles.length, PARTICLE_POOL_SIZE, 'Pool length must stay fixed');
-    const live = particles.filter(p => p.life > 0).length;
-    assert(live <= PARTICLE_POOL_SIZE, `Live particles (${live}) should not exceed pool`);
+    for (let i = 0; i < 20; i++) Particles.emit('collision', 100, 100);
+    assertEquals(Particles.particles.length, Particles.POOL_SIZE, 'Pool length must stay fixed');
+    const live = Particles.particles.filter(p => p.life > 0).length;
+    assert(live <= Particles.POOL_SIZE, `Live particles (${live}) should not exceed pool`);
   });
 
   it('updateParticles decays life to 0 over maxLife frames', () => {
     clearParticles();
     setMode(MODES.UPDATED);
     cancelAnimationFrame(game.animationFrameId);
-    emitParticles('jump', 100, 100);
-    const live = () => particles.filter(p => p.life > 0).length;
+    Particles.emit('jump', 100, 100);
+    const live = () => Particles.particles.filter(p => p.life > 0).length;
     const initial = live();
     assert(initial > 0, 'Should have live particles after emit');
-    for (let i = 0; i < PARTICLE_KINDS.jump.life + 1; i++) updateParticles();
+    for (let i = 0; i < Particles.KINDS.jump.life + 1; i++) Particles.update();
     assertEquals(live(), 0, 'All particles should be dead after maxLife frames');
   });
 
   it('resetGame clears any active particles', () => {
     setMode(MODES.UPDATED);
     cancelAnimationFrame(game.animationFrameId);
-    emitParticles('collision', 100, 100);
-    assert(particles.some(p => p.life > 0), 'Should have live particles before reset');
+    Particles.emit('collision', 100, 100);
+    assert(Particles.particles.some(p => p.life > 0), 'Should have live particles before reset');
     resetGame();
     cancelAnimationFrame(game.animationFrameId);
-    assert(particles.every(p => p.life === 0), 'All particles should be dead after reset');
+    assert(Particles.particles.every(p => p.life === 0), 'All particles should be dead after reset');
   });
 });
 

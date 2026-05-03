@@ -975,71 +975,77 @@ function drawNewBestBadge() {
 // Cosmetic only: uses Math.random() instead of game.rng so it can't perturb
 // gameplay determinism (spawn jitter / obstacle picks stay reproducible).
 
-const PARTICLE_POOL_SIZE = 80;
-const PARTICLE_KINDS = Object.freeze({
-  jump:      { count:  6, color: '#9c8770',         size: 3, life: 18, vyMin: -2.0, vyMax: -0.5, vxSpread: 1.5, gravity: 0.05 },
-  land:      { count:  9, color: '#9c8770',         size: 3, life: 14, vyMin: -1.5, vyMax: -0.2, vxSpread: 2.5, gravity: 0.08 },
-  trail:     { count:  1, color: 'rgba(150,150,150,0.55)', size: 2, life: 10, vyMin: -0.2, vyMax: 0.2, vxSpread: 0.4, gravity: 0    },
-  collision: { count: 22, color: '#d04a2a',         size: 3, life: 24, vyMin: -3.0, vyMax: 1.0, vxSpread: 4.0, gravity: 0.10 },
-  confetti:  { count: 20, color: '#ffd700',         size: 3, life: 40, vyMin: -3.5, vyMax: -1.5, vxSpread: 3.0, gravity: 0.12 },
-});
-const PARTICLE_REDUCED_FACTOR = 0.25;
-
-const particles = [];
-for (let i = 0; i < PARTICLE_POOL_SIZE; i++) {
-  particles.push({ x: 0, y: 0, vx: 0, vy: 0, life: 0, maxLife: 1, size: 0, color: '', gravity: 0 });
-}
-
 function isDailyMode()   { return game.mode === MODES.DAILY; }
 function isUpdatedMode() { return game.mode === MODES.UPDATED || game.mode === MODES.DAILY; }
 
-function emitParticles(kind, x, y) {
-  if (!isUpdatedMode()) return 0;
-  const config = PARTICLE_KINDS[kind];
-  if (!config) return 0;
-  let count = config.count;
-  if (reducedMotion) count = Math.max(1, Math.round(count * PARTICLE_REDUCED_FACTOR));
-  const life = reducedMotion ? Math.max(2, Math.round(config.life * 0.5)) : config.life;
-  let emitted = 0;
-  for (let i = 0; i < particles.length && emitted < count; i++) {
-    const p = particles[i];
-    if (p.life > 0) continue;
-    p.x = x + (Math.random() - 0.5) * cfg('PARTICLE_EMIT_SPREAD');
-    p.y = y;
-    p.vx = (Math.random() - 0.5) * 2 * config.vxSpread;
-    p.vy = config.vyMin + Math.random() * (config.vyMax - config.vyMin);
-    p.maxLife = life;
-    p.life = life;
-    p.size = config.size;
-    p.color = config.color;
-    p.gravity = config.gravity;
-    emitted++;
+const Particles = (() => {
+  const POOL_SIZE = 80;
+  const KINDS = Object.freeze({
+    jump:      { count:  6, color: '#9c8770',                size: 3, life: 18, vyMin: -2.0, vyMax: -0.5, vxSpread: 1.5, gravity: 0.05 },
+    land:      { count:  9, color: '#9c8770',                size: 3, life: 14, vyMin: -1.5, vyMax: -0.2, vxSpread: 2.5, gravity: 0.08 },
+    trail:     { count:  1, color: 'rgba(150,150,150,0.55)', size: 2, life: 10, vyMin: -0.2, vyMax:  0.2, vxSpread: 0.4, gravity: 0    },
+    collision: { count: 22, color: '#d04a2a',                size: 3, life: 24, vyMin: -3.0, vyMax:  1.0, vxSpread: 4.0, gravity: 0.10 },
+    confetti:  { count: 20, color: '#ffd700',                size: 3, life: 40, vyMin: -3.5, vyMax: -1.5, vxSpread: 3.0, gravity: 0.12 },
+  });
+  const REDUCED_FACTOR = 0.25;
+  const pool = [];
+  for (let i = 0; i < POOL_SIZE; i++) {
+    pool.push({ x: 0, y: 0, vx: 0, vy: 0, life: 0, maxLife: 1, size: 0, color: '', gravity: 0 });
   }
-  return emitted;
-}
-
-function updateParticles() {
-  for (let i = 0; i < particles.length; i++) {
-    const p = particles[i];
-    if (p.life <= 0) continue;
-    p.x += p.vx;
-    p.y += p.vy;
-    p.vy += p.gravity;
-    p.life--;
-  }
-}
-
-function drawParticles() {
-  const prevAlpha = ctx.globalAlpha;
-  for (let i = 0; i < particles.length; i++) {
-    const p = particles[i];
-    if (p.life <= 0) continue;
-    ctx.globalAlpha = p.life / p.maxLife;
-    ctx.fillStyle = p.color;
-    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
-  }
-  ctx.globalAlpha = prevAlpha;
-}
+  return {
+    POOL_SIZE,
+    KINDS,
+    particles: pool,
+    emit(kind, x, y) {
+      if (!isUpdatedMode()) return 0;
+      const config = KINDS[kind];
+      if (!config) return 0;
+      let count = config.count;
+      if (reducedMotion) count = Math.max(1, Math.round(count * REDUCED_FACTOR));
+      const life = reducedMotion ? Math.max(2, Math.round(config.life * 0.5)) : config.life;
+      let emitted = 0;
+      for (let i = 0; i < pool.length && emitted < count; i++) {
+        const p = pool[i];
+        if (p.life > 0) continue;
+        p.x = x + (Math.random() - 0.5) * cfg('PARTICLE_EMIT_SPREAD');
+        p.y = y;
+        p.vx = (Math.random() - 0.5) * 2 * config.vxSpread;
+        p.vy = config.vyMin + Math.random() * (config.vyMax - config.vyMin);
+        p.maxLife = life;
+        p.life = life;
+        p.size = config.size;
+        p.color = config.color;
+        p.gravity = config.gravity;
+        emitted++;
+      }
+      return emitted;
+    },
+    update() {
+      for (let i = 0; i < pool.length; i++) {
+        const p = pool[i];
+        if (p.life <= 0) continue;
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += p.gravity;
+        p.life--;
+      }
+    },
+    draw() {
+      const prevAlpha = ctx.globalAlpha;
+      for (let i = 0; i < pool.length; i++) {
+        const p = pool[i];
+        if (p.life <= 0) continue;
+        ctx.globalAlpha = p.life / p.maxLife;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+      }
+      ctx.globalAlpha = prevAlpha;
+    },
+    reset() {
+      for (let i = 0; i < pool.length; i++) pool[i].life = 0;
+    },
+  };
+})();
 
 // == FEATURE REGISTRY ==
 // Declarative ordering for ambient features that run every RUNNING frame.
@@ -1052,7 +1058,7 @@ function drawParticles() {
 const FEATURES = Object.freeze([
   { id: 'hills',     layer: 'background', update: updateHills,     draw: drawHills     },
   { id: 'clouds',    layer: 'background', update: updateClouds,    draw: drawClouds    },
-  { id: 'particles', layer: 'foreground', update: updateParticles, draw: drawParticles },
+  { id: 'particles', layer: 'foreground', update: Particles.update, draw: Particles.draw },
   { id: 'skyTint',   layer: 'overlay',    update: null,            draw: drawSkyTint   },
 ]);
 
@@ -1116,7 +1122,7 @@ function jump() {
   if (!dino.isJumping) {
     dino.velocityY = dino.jumpPower;
     dino.isJumping = true;
-    emitParticles('jump', dino.x + dino.width / 2, dino.y + dino.height);
+    Particles.emit('jump', dino.x + dino.width / 2, dino.y + dino.height);
     audio.jump();
   }
 }
@@ -1298,8 +1304,7 @@ function resetGame() {
   dino.velocityY = 0;
   dino.isJumping = false;
 
-  // Clear any lingering particles from the previous run.
-  for (let i = 0; i < particles.length; i++) particles[i].life = 0;
+  Particles.reset();
 
   game.obstacles.length = 0;
   game.stars.length = 0;
@@ -1341,12 +1346,12 @@ function handleDead() {
     drawGround();
     drawClouds();
     drawObstacles();
-    drawParticles();
+    Particles.draw();
     drawDino();
     drawScore();
     ctx.restore();
     drawDeathFlash(); // white flash drawn outside the shake transform so it stays canvas-aligned
-    updateParticles();
+    Particles.update();
     if (game.deathFlashFrames > 0) game.deathFlashFrames--;
     if (game.scorePopFrames > 0) game.scorePopFrames--;
     game.deathShakeFrames--;
@@ -1402,7 +1407,7 @@ function handleRunning() {
     game.milestoneText = 'LEVEL ' + (level + 1);
     game.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
     audio.milestone();
-    emitParticles('confetti', GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30, GAME_CONFIG.SCORE_Y);
+    Particles.emit('confetti', GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30, GAME_CONFIG.SCORE_Y);
   }
 
   // Scroll ground.
@@ -1419,14 +1424,14 @@ function handleRunning() {
 
   drawBackground();
   if (document.body) document.body.style.background = getBackgroundColor(game.score);
-  runFeatureUpdates();              // updateHills, updateClouds, updateParticles
+  runFeatureUpdates();              // updateHills, updateClouds, Particles.update
   runFeatureDraws('background');    // drawHills, drawClouds
   drawGround();
   updateObstacles();
 
   // Speed-trail particles: subtle dust trailing off the dino approaching plateau speed.
   if (isUpdatedMode() && game.currentSpeed >= GAME_CONFIG.PLATEAU_SPEED * 0.96) {
-    emitParticles('trail', dino.x + 4, dino.y + dino.height - 4);
+    Particles.emit('trail', dino.x + 4, dino.y + dino.height - 4);
   }
 
   // Obstacle spawning — in updated mode the gap is precomputed per-obstacle
@@ -1440,7 +1445,7 @@ function handleRunning() {
   }
 
   drawObstacles();
-  runFeatureDraws('foreground');    // drawParticles
+  runFeatureDraws('foreground');    // Particles.draw
 
   // Collision detection.
   for (let i = 0; i < game.obstacles.length; i++) {
@@ -1452,7 +1457,7 @@ function handleRunning() {
         game.deathFlashFrames = reducedMotion ? 1 : GAME_CONFIG.DEATH_FLASH_FRAMES;
         game.scorePopFrames = reducedMotion ? 0 : GAME_CONFIG.SCORE_POP_FRAMES;
       }
-      emitParticles('collision', dino.x + dino.width / 2, dino.y + dino.height / 2);
+      Particles.emit('collision', dino.x + dino.width / 2, dino.y + dino.height / 2);
       audio.death();
       const finalScore = Math.floor(game.score);
       const runResult = computeRunResult(finalScore, game.highScore);
@@ -1480,7 +1485,7 @@ function handleRunning() {
       dino.y = GAME_CONFIG.CANVAS_H - dino.height;
       dino.isJumping = false;
       dino.velocityY = 0;
-      emitParticles('land', dino.x + dino.width / 2, dino.y + dino.height);
+      Particles.emit('land', dino.x + dino.width / 2, dino.y + dino.height);
       audio.land();
     }
   }
@@ -1551,12 +1556,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.MODES = MODES;
   global.setMode = setMode;
   global.loadMode = loadMode;
-  global.particles = particles;
-  global.PARTICLE_KINDS = PARTICLE_KINDS;
-  global.PARTICLE_POOL_SIZE = PARTICLE_POOL_SIZE;
-  global.emitParticles = emitParticles;
-  global.updateParticles = updateParticles;
-  global.drawParticles = drawParticles;
+  global.Particles = Particles;
   global.audio = audio;
   global.drawDeathFlash = drawDeathFlash;
   global.drawMilestoneFlash = drawMilestoneFlash;
