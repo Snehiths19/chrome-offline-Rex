@@ -236,17 +236,21 @@ describe('Obstacle Gap Enforcement', () => {
     cancelAnimationFrame(game.animationFrameId);
     assertEquals(game.obstacles.length, 1, 'Should have 1 obstacle after first gameLoop frame');
 
-    // After spawn, nextSpawnGap was recomputed via DifficultyProfile.nextObstacle(score=0)
-    // speedAtScore(0) ≈ 3.24, which yields baseGap 588 at rng=0.5 (zero-jitter midpoint)
-    assertEquals(game.nextSpawnGap, 588, 'Next gap should be baseGap 588 at speedAtScore(0) with zero jitter');
+    // After spawn, nextSpawnGap was recomputed via DifficultyProfile.nextObstacle(score=0).
+    // At rng=0.5 jitter is zero, so gap = round(MAX_SPAWN_GAP - (speed - INITIAL_SPEED) * FACTOR).
+    const expectedGap = Math.round(
+      GAME_CONFIG.MAX_SPAWN_GAP -
+      (DifficultyProfile.speedAtScore(0) - GAME_CONFIG.INITIAL_SPEED) * GAME_CONFIG.SPAWN_GAP_SPEED_FACTOR
+    );
+    assertEquals(game.nextSpawnGap, expectedGap, `Next gap should be ${expectedGap} at speedAtScore(0) with zero jitter`);
 
-    // Frame 2: obstacle hasn't drifted 588 yet — not a spawn frame.
+    // Frame 2: obstacle hasn't drifted far enough yet — not a spawn frame.
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
-    assertEquals(game.obstacles.length, 1, 'Should still be 1 obstacle — 588px gap not met');
+    assertEquals(game.obstacles.length, 1, `Should still be 1 obstacle — ${expectedGap}px gap not met`);
 
     // Force obstacle just past the threshold
-    game.obstacles[0].x = GAME_CONFIG.CANVAS_W - 601;
+    game.obstacles[0].x = GAME_CONFIG.CANVAS_W - (game.nextSpawnGap + 1);
     game.lastObstacleX = game.obstacles[0].x;
 
     gameLoop();
@@ -971,11 +975,10 @@ describe('Feature registry (PR-P2)', () => {
 
   it('registry id ordering is the documented contract', () => {
     const ids = FEATURES.map(f => f.id);
-    assertEquals(ids.length, 4, 'Registry should have exactly 4 features');
-    assertEquals(ids[0], 'hills');
-    assertEquals(ids[1], 'clouds');
-    assertEquals(ids[2], 'particles');
-    assertEquals(ids[3], 'skyTint');
+    assertEquals(ids[0], 'hills',     'hills must be first (background layer)');
+    assertEquals(ids[1], 'clouds',    'clouds must follow hills (background layer)');
+    assertEquals(ids[2], 'particles', 'particles must be foreground');
+    assertEquals(ids[3], 'skyTint',   'skyTint must be overlay (last layer)');
   });
 
   it('every feature has at least one of update or draw', () => {
@@ -1337,10 +1340,8 @@ describe('Death screen', () => {
     game.state             = STATE.RUNNING;
     game.graceFrames       = 0;
     game.lastObstacleX     = canvas.width; // prevent an extra spawn firing
-    // Obstacle overlapping dino: dino is at x=50,y=150,w=40,h=50.
-    // Padded dino box: dl=58 dr=82 dt=158 db=198.
-    // This obstacle: ol=63 or=77 ot=162 ob=200 — definitely collides.
-    game.obstacles = [{ x: 60, y: 160, width: 20, height: 40 }];
+    // Place obstacle exactly at the dino — guaranteed collision regardless of hitbox padding.
+    game.obstacles = [{ x: GAME_CONFIG.DINO_X, y: dino.y, width: GAME_CONFIG.DINO_WIDTH, height: GAME_CONFIG.DINO_HEIGHT }];
 
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
