@@ -12,6 +12,8 @@
 
 **Particles** — the module that owns the particle pool, kind definitions, and all emit/update/draw/reset behaviour. Callers invoke `Particles.emit(kind, x, y)` without knowing pool size, reduced-motion rules, or mode gating — all suppression logic lives inside. Visual-only: uses `Math.random()`, never `game.rng()`.
 
+**Animations** — the module that owns all per-run animation countdown timers (death shake, death flash, score pop, milestone flash, new-best badge, copy flash, death score count-up). A single `Animations.reset()` call zeroes all counters at the start of each run. Handlers and draw functions read and write counters directly via `Animations.X`.
+
 ## Daily Challenge
 
 **Daily Challenge** — a play mode in which the obstacle sequence is seeded from the current calendar date, giving every player the same run each day. Activated by a dedicated button; always runs in Updated mode.

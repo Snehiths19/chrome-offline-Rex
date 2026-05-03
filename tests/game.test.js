@@ -400,8 +400,8 @@ describe('Death flash + score pop (PR-C)', () => {
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
     assertEquals(game.state, STATE.DEAD, 'should be dead');
-    assertEquals(game.deathFlashFrames, GAME_CONFIG.DEATH_FLASH_FRAMES, 'flash counter set');
-    assertEquals(game.scorePopFrames, GAME_CONFIG.SCORE_POP_FRAMES, 'score pop counter set');
+    assertEquals(Animations.deathFlashFrames, GAME_CONFIG.DEATH_FLASH_FRAMES, 'flash counter set');
+    assertEquals(Animations.scorePopFrames, GAME_CONFIG.SCORE_POP_FRAMES, 'score pop counter set');
   });
 
   it('classic mode collision leaves deathFlashFrames + scorePopFrames at 0', () => {
@@ -413,8 +413,8 @@ describe('Death flash + score pop (PR-C)', () => {
     game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
-    assertEquals(game.deathFlashFrames, 0, 'classic should not flash');
-    assertEquals(game.scorePopFrames, 0, 'classic should not pop');
+    assertEquals(Animations.deathFlashFrames, 0, 'classic should not flash');
+    assertEquals(Animations.scorePopFrames, 0, 'classic should not pop');
     setMode(MODES.UPDATED); // reset for siblings
     cancelAnimationFrame(game.animationFrameId);
   });
@@ -433,18 +433,18 @@ describe('Death flash + score pop (PR-C)', () => {
       gameLoop();
       cancelAnimationFrame(game.animationFrameId);
     }
-    assertEquals(game.deathFlashFrames, 0, 'flash should decay to 0');
+    assertEquals(Animations.deathFlashFrames, 0, 'flash should decay to 0');
   });
 
   it('resetGame clears deathFlashFrames + scorePopFrames', () => {
     setMode(MODES.UPDATED);
     cancelAnimationFrame(game.animationFrameId);
-    game.deathFlashFrames = 6;
-    game.scorePopFrames = 12;
+    Animations.deathFlashFrames = 6;
+    Animations.scorePopFrames = 12;
     resetGame();
     cancelAnimationFrame(game.animationFrameId);
-    assertEquals(game.deathFlashFrames, 0, 'reset clears flash');
-    assertEquals(game.scorePopFrames, 0, 'reset clears pop');
+    assertEquals(Animations.deathFlashFrames, 0, 'reset clears flash');
+    assertEquals(Animations.scorePopFrames, 0, 'reset clears pop');
   });
 });
 
@@ -879,7 +879,7 @@ describe('State Transitions', () => {
     cancelAnimationFrame(game.animationFrameId);
 
     assertEquals(game.state, STATE.DEAD, 'State should flip to DEAD on collision');
-    assert(game.deathShakeFrames > 0, 'Death shake should be queued');
+    assert(Animations.deathShakeFrames > 0, 'Death shake should be queued');
   });
 
   it('DEAD → WAITING via resetGame restores gameplay fields', () => {
@@ -896,7 +896,7 @@ describe('State Transitions', () => {
     assertEquals(game.state, STATE.WAITING, 'resetGame should put state back to WAITING');
     assertEquals(game.score, 0, 'score should be cleared');
     assertEquals(game.obstacles.length, 0, 'obstacles should be cleared');
-    assertEquals(game.deathShakeFrames, 0, 'deathShakeFrames should be cleared');
+    assertEquals(Animations.deathShakeFrames, 0, 'deathShakeFrames should be cleared');
   });
 });
 
@@ -943,13 +943,13 @@ describe('PR-P1 bug fixes', () => {
     const origFill = ctx.fillText;
     ctx.fillText = (text, x, y) => calls.push({ text, x, y });
 
-    game.milestoneFrames = 0;
-    game.newBestFrames = GAME_CONFIG.NEW_BEST_FRAMES;
+    Animations.milestoneFrames = 0;
+    Animations.newBestFrames = GAME_CONFIG.NEW_BEST_FRAMES;
     drawNewBestBadge();
     const baseY = calls[calls.length - 1].y;
 
-    game.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
-    game.newBestFrames = GAME_CONFIG.NEW_BEST_FRAMES;
+    Animations.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
+    Animations.newBestFrames = GAME_CONFIG.NEW_BEST_FRAMES;
     drawNewBestBadge();
     const offsetY = calls[calls.length - 1].y;
 
@@ -958,8 +958,8 @@ describe('PR-P1 bug fixes', () => {
     assertEquals(offsetY - baseY, 30, 'Stagger should be exactly 30px');
 
     ctx.fillText = origFill;
-    game.milestoneFrames = 0;
-    game.newBestFrames = 0;
+    Animations.milestoneFrames = 0;
+    Animations.newBestFrames = 0;
   });
 });
 
@@ -1122,7 +1122,7 @@ describe('Live-tuning hook (PR-P3)', () => {
     //   isUpdatedMode() && !reducedMotion && milestoneFrames > 0.
     // The Node stub's matchMedia returns matches:false so reducedMotion is
     // always false here — no need to guard.
-    game.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
+    Animations.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
 
     const fillStyles = [];
     const proto = Object.getPrototypeOf(ctx);
@@ -1143,7 +1143,7 @@ describe('Live-tuning hook (PR-P3)', () => {
     const blueish = fillStyles.find(s => typeof s === 'string' && s.indexOf('rgba(0, 0, 255') === 0);
     assert(blueish, `Expected a fillStyle starting with 'rgba(0, 0, 255' but got: ${JSON.stringify(fillStyles)}`);
 
-    game.milestoneFrames = 0;
+    Animations.milestoneFrames = 0;
   });
 });
 
@@ -1153,15 +1153,15 @@ describe('HUD score format (polish pass)', () => {
     const origFill = ctx.fillText;
     ctx.fillText = (text) => calls.push(String(text));
     const origScore = game.score;
-    const origPop = game.scorePopFrames;
+    const origPop = Animations.scorePopFrames;
     const origHS = game.highScore;
     game.score = 42;
-    game.scorePopFrames = 0;
+    Animations.scorePopFrames = 0;
     game.highScore = 0;
     drawScore();
     ctx.fillText = origFill;
     game.score = origScore;
-    game.scorePopFrames = origPop;
+    Animations.scorePopFrames = origPop;
     game.highScore = origHS;
     assert(calls.some(t => t === '00042'),
       `Expected '00042' in HUD calls, got: ${JSON.stringify(calls)}`);
@@ -1175,15 +1175,15 @@ describe('HUD score format (polish pass)', () => {
     ctx.fillText = (text) => calls.push(String(text));
     const origHS = game.highScore;
     const origScore = game.score;
-    const origPop = game.scorePopFrames;
+    const origPop = Animations.scorePopFrames;
     game.highScore = 150;
     game.score = 42;
-    game.scorePopFrames = 0;
+    Animations.scorePopFrames = 0;
     drawScore();
     ctx.fillText = origFill;
     game.highScore = origHS;
     game.score = origScore;
-    game.scorePopFrames = origPop;
+    Animations.scorePopFrames = origPop;
     assert(calls.some(t => t.startsWith('HI ')),
       `Expected 'HI ...' label in HUD, got: ${JSON.stringify(calls)}`);
   });
@@ -1194,15 +1194,15 @@ describe('HUD score format (polish pass)', () => {
     ctx.fillText = (text) => calls.push(String(text));
     const origHS = game.highScore;
     const origScore = game.score;
-    const origPop = game.scorePopFrames;
+    const origPop = Animations.scorePopFrames;
     game.highScore = 0;
     game.score = 42;
-    game.scorePopFrames = 0;
+    Animations.scorePopFrames = 0;
     drawScore();
     ctx.fillText = origFill;
     game.highScore = origHS;
     game.score = origScore;
-    game.scorePopFrames = origPop;
+    Animations.scorePopFrames = origPop;
     assert(!calls.some(t => t.startsWith('HI ')),
       `Expected no 'HI ...' label when highScore is 0, got: ${JSON.stringify(calls)}`);
   });
@@ -1213,14 +1213,14 @@ describe('Game over screen (polish pass)', () => {
     const calls = [];
     const origFill      = ctx.fillText;
     const origScore     = game.score;
-    const origAnimFrame = game.deathAnimFrame;
+    const origAnimFrame = Animations.deathAnimFrame;
     ctx.fillText = (text) => calls.push(String(text));
     game.score          = 87;
-    game.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
     drawGameOverScreen();
     ctx.fillText        = origFill;
     game.score          = origScore;
-    game.deathAnimFrame = origAnimFrame;
+    Animations.deathAnimFrame = origAnimFrame;
     assert(calls.some(t => t === '00087'),
       `Expected '00087' on game over screen, got: ${JSON.stringify(calls)}`);
     assert(!calls.some(t => t.includes('Score:')),
@@ -1234,20 +1234,20 @@ describe('Game over screen (polish pass)', () => {
     const origPrevHS    = game.previousHighScore;
     const origHS        = game.highScore;
     const origScore     = game.score;
-    const origAnimFrame = game.deathAnimFrame;
+    const origAnimFrame = Animations.deathAnimFrame;
     ctx.fillText = (text) => calls.push(String(text));
     game.isNewBest         = true;
     game.previousHighScore = 0;
     game.highScore         = 0;
     game.score             = 500;
-    game.deathAnimFrame    = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    Animations.deathAnimFrame    = GAME_CONFIG.DEATH_ANIM_FRAMES;
     drawGameOverScreen();
     ctx.fillText           = origFill;
     game.isNewBest         = origNewBest;
     game.previousHighScore = origPrevHS;
     game.highScore         = origHS;
     game.score             = origScore;
-    game.deathAnimFrame    = origAnimFrame;
+    Animations.deathAnimFrame    = origAnimFrame;
     assert(!calls.some(t => t === 'YOUR BEST'),
       `Expected no 'YOUR BEST' on first-run new record screen, got: ${JSON.stringify(calls)}`);
     assert(!calls.some(t => t.includes('over your previous best')),
@@ -1259,16 +1259,16 @@ describe('Game over screen (polish pass)', () => {
     const origFill      = ctx.fillText;
     const origNewBest   = game.isNewBest;
     const origHS        = game.highScore;
-    const origAnimFrame = game.deathAnimFrame;
+    const origAnimFrame = Animations.deathAnimFrame;
     ctx.fillText = (text) => calls.push(String(text));
     game.isNewBest      = false;
     game.highScore      = 250;
-    game.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
     drawGameOverScreen();
     ctx.fillText        = origFill;
     game.isNewBest      = origNewBest;
     game.highScore      = origHS;
-    game.deathAnimFrame = origAnimFrame;
+    Animations.deathAnimFrame = origAnimFrame;
     assert(calls.some(t => t === 'YOUR BEST'),
       `Expected 'YOUR BEST' in normal death side-by-side, got: ${JSON.stringify(calls)}`);
   });
@@ -1375,12 +1375,12 @@ describe('Death screen', () => {
     const origNewBest   = game.isNewBest;
     const origHS        = game.highScore;
     const origScore     = game.score;
-    const origAnimFrame = game.deathAnimFrame;
+    const origAnimFrame = Animations.deathAnimFrame;
 
     game.isNewBest      = false;
     game.highScore      = 1050;
     game.score          = 847;
-    game.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
 
     const calls = [];
     const origFill = ctx.fillText;
@@ -1391,7 +1391,7 @@ describe('Death screen', () => {
     game.isNewBest      = origNewBest;
     game.highScore      = origHS;
     game.score          = origScore;
-    game.deathAnimFrame = origAnimFrame;
+    Animations.deathAnimFrame = origAnimFrame;
 
     assert(calls.some(t => t === 'THIS RUN'),
       `Expected 'THIS RUN' in drawGameOverScreen calls, got: ${JSON.stringify(calls)}`);
@@ -1401,12 +1401,12 @@ describe('Death screen', () => {
     const origNewBest   = game.isNewBest;
     const origHS        = game.highScore;
     const origScore     = game.score;
-    const origAnimFrame = game.deathAnimFrame;
+    const origAnimFrame = Animations.deathAnimFrame;
 
     game.isNewBest      = false;
     game.highScore      = 1050;
     game.score          = 847;
-    game.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
 
     const calls = [];
     const origFill = ctx.fillText;
@@ -1417,7 +1417,7 @@ describe('Death screen', () => {
     game.isNewBest      = origNewBest;
     game.highScore      = origHS;
     game.score          = origScore;
-    game.deathAnimFrame = origAnimFrame;
+    Animations.deathAnimFrame = origAnimFrame;
 
     assert(calls.some(t => t.includes('203')),
       `Expected a call containing '203' (the gap delta), got: ${JSON.stringify(calls)}`);
@@ -1427,12 +1427,12 @@ describe('Death screen', () => {
     const origNewBest   = game.isNewBest;
     const origPrevHS    = game.previousHighScore;
     const origScore     = game.score;
-    const origAnimFrame = game.deathAnimFrame;
+    const origAnimFrame = Animations.deathAnimFrame;
 
     game.isNewBest         = true;
     game.previousHighScore = 1050;
     game.score             = 1253;
-    game.deathAnimFrame    = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    Animations.deathAnimFrame    = GAME_CONFIG.DEATH_ANIM_FRAMES;
 
     const calls = [];
     const origFill = ctx.fillText;
@@ -1443,7 +1443,7 @@ describe('Death screen', () => {
     game.isNewBest         = origNewBest;
     game.previousHighScore = origPrevHS;
     game.score             = origScore;
-    game.deathAnimFrame    = origAnimFrame;
+    Animations.deathAnimFrame    = origAnimFrame;
 
     assert(calls.some(t => t.includes('NEW BEST')),
       `Expected a call containing 'NEW BEST', got: ${JSON.stringify(calls)}`);
@@ -1750,15 +1750,15 @@ describe('Orientation resize', () => {
 describe('Score count-up animation', () => {
   it('resetGame resets deathAnimFrame to 0', () => {
     const origState      = game.state;
-    const origAnimFrame  = game.deathAnimFrame;
+    const origAnimFrame  = Animations.deathAnimFrame;
 
-    game.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
     resetGame();
 
-    const resetFrame = game.deathAnimFrame;
+    const resetFrame = Animations.deathAnimFrame;
 
     game.state          = origState;
-    game.deathAnimFrame = origAnimFrame;
+    Animations.deathAnimFrame = origAnimFrame;
 
     assertEquals(resetFrame, 0,
       'resetGame should reset deathAnimFrame to 0');
@@ -1766,17 +1766,17 @@ describe('Score count-up animation', () => {
 
   it('handleAction in DEAD restarts game when animation is complete', () => {
     const origState      = game.state;
-    const origAnimFrame  = game.deathAnimFrame;
+    const origAnimFrame  = Animations.deathAnimFrame;
 
     game.state          = STATE.DEAD;
-    game.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
 
     handleAction();
 
     const newState = game.state;
 
     game.state          = origState;
-    game.deathAnimFrame = origAnimFrame;
+    Animations.deathAnimFrame = origAnimFrame;
 
     assertEquals(newState, STATE.WAITING,
       'handleAction after animation completes should transition to STATE.WAITING (via resetGame)');
@@ -1784,19 +1784,19 @@ describe('Score count-up animation', () => {
 
   it('handleAction in DEAD snaps deathAnimFrame to DEATH_ANIM_FRAMES when animation is in progress', () => {
     const origState      = game.state;
-    const origAnimFrame  = game.deathAnimFrame;
+    const origAnimFrame  = Animations.deathAnimFrame;
     const origScore      = game.score;
 
     game.state          = STATE.DEAD;
-    game.deathAnimFrame = 10;
+    Animations.deathAnimFrame = 10;
     game.score          = 500;
 
     handleAction();
 
-    const snappedFrame = game.deathAnimFrame;
+    const snappedFrame = Animations.deathAnimFrame;
 
     game.state          = origState;
-    game.deathAnimFrame = origAnimFrame;
+    Animations.deathAnimFrame = origAnimFrame;
     game.score          = origScore;
 
     assertEquals(snappedFrame, GAME_CONFIG.DEATH_ANIM_FRAMES,
@@ -1807,12 +1807,12 @@ describe('Score count-up animation', () => {
     const origScore      = game.score;
     const origNewBest    = game.isNewBest;
     const origHS         = game.highScore;
-    const origAnimFrame  = game.deathAnimFrame;
+    const origAnimFrame  = Animations.deathAnimFrame;
 
     game.score          = 500;
     game.isNewBest      = false;
     game.highScore      = 1000;
-    game.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
 
     const calls = [];
     const origFill = ctx.fillText;
@@ -1823,7 +1823,7 @@ describe('Score count-up animation', () => {
     game.score         = origScore;
     game.isNewBest     = origNewBest;
     game.highScore     = origHS;
-    game.deathAnimFrame = origAnimFrame;
+    Animations.deathAnimFrame = origAnimFrame;
 
     assert(calls.some(t => t === '00500'),
       `Expected '00500' (full score at final frame), got: ${JSON.stringify(calls)}`);
@@ -1833,12 +1833,12 @@ describe('Score count-up animation', () => {
     const origScore      = game.score;
     const origNewBest    = game.isNewBest;
     const origHS         = game.highScore;
-    const origAnimFrame  = game.deathAnimFrame;
+    const origAnimFrame  = Animations.deathAnimFrame;
 
     game.score         = 500;
     game.isNewBest     = false;
     game.highScore     = 1000;
-    game.deathAnimFrame = 0;
+    Animations.deathAnimFrame = 0;
 
     const calls = [];
     const origFill = ctx.fillText;
@@ -1849,7 +1849,7 @@ describe('Score count-up animation', () => {
     game.score         = origScore;
     game.isNewBest     = origNewBest;
     game.highScore     = origHS;
-    game.deathAnimFrame = origAnimFrame;
+    Animations.deathAnimFrame = origAnimFrame;
 
     assert(calls.some(t => t === '00000'),
       `Expected '00000' (score at frame 0), got: ${JSON.stringify(calls)}`);
