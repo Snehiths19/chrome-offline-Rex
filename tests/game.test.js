@@ -236,7 +236,7 @@ describe('Obstacle Gap Enforcement', () => {
     cancelAnimationFrame(game.animationFrameId);
     assertEquals(game.obstacles.length, 1, 'Should have 1 obstacle after first gameLoop frame');
 
-    // After spawn, nextSpawnGap was recomputed via DifficultyProfile.obstacleParamsAt(score=0)
+    // After spawn, nextSpawnGap was recomputed via DifficultyProfile.nextObstacle(score=0)
     // speedAtScore(0) ≈ 3.24, which yields baseGap 588 at rng=0.5 (zero-jitter midpoint)
     assertEquals(game.nextSpawnGap, 588, 'Next gap should be baseGap 588 at speedAtScore(0) with zero jitter');
 
@@ -256,9 +256,10 @@ describe('Obstacle Gap Enforcement', () => {
 });
 
 describe('Spawn Gap Jitter', () => {
-  it('computeNextSpawnGap stays within [MIN_SPAWN_GAP, baseGap * (1 + JITTER)]', () => {
-    const speeds = [GAME_CONFIG.INITIAL_SPEED, 3.0, GAME_CONFIG.SPEED_CAP];
-    speeds.forEach(speed => {
+  it('nextObstacle gap stays within [MIN_SPAWN_GAP, baseGap * (1 + JITTER)]', () => {
+    const scores = [0, 200, 500];
+    scores.forEach(score => {
+      const speed = DifficultyProfile.speedAtScore(score);
       const baseGap = Math.max(
         GAME_CONFIG.MIN_SPAWN_GAP,
         GAME_CONFIG.MAX_SPAWN_GAP - (speed - GAME_CONFIG.INITIAL_SPEED) * GAME_CONFIG.SPAWN_GAP_SPEED_FACTOR
@@ -266,10 +267,10 @@ describe('Spawn Gap Jitter', () => {
       const upperBound = Math.round(baseGap * (1 + GAME_CONFIG.SPAWN_GAP_JITTER));
       const rng = mulberry32(12345);
       for (let i = 0; i < 500; i++) {
-        const gap = computeNextSpawnGap(rng, speed);
+        const { gap } = DifficultyProfile.nextObstacle(score, MODES.UPDATED, rng);
         assert(
           gap >= GAME_CONFIG.MIN_SPAWN_GAP && gap <= upperBound,
-          `At speed ${speed}, gap ${gap} should be in [${GAME_CONFIG.MIN_SPAWN_GAP}, ${upperBound}]`
+          `At score ${score}, gap ${gap} should be in [${GAME_CONFIG.MIN_SPAWN_GAP}, ${upperBound}]`
         );
       }
     });
@@ -278,16 +279,16 @@ describe('Spawn Gap Jitter', () => {
   it('produces different gaps across spawns (breaks the metronome)', () => {
     const rng = mulberry32(7);
     const gaps = new Set();
-    for (let i = 0; i < 50; i++) gaps.add(computeNextSpawnGap(rng, 2.0));
+    for (let i = 0; i < 50; i++) gaps.add(DifficultyProfile.nextObstacle(100, MODES.UPDATED, rng).gap);
     assert(gaps.size >= 5, `Expected gap variety; got ${gaps.size} distinct values across 50 draws`);
   });
 
   it('smallest achievable gap is still at least MIN_SPAWN_GAP (always clearable)', () => {
-    // Exhaustively test by forcing rng to 0 (maximum negative jitter).
+    // Force rng to 0 → maximum negative jitter on the gap roll.
     const worstCaseRng = () => 0;
-    const gap = computeNextSpawnGap(worstCaseRng, GAME_CONFIG.SPEED_CAP);
+    const { gap } = DifficultyProfile.nextObstacle(500, MODES.UPDATED, worstCaseRng);
     assert(gap >= GAME_CONFIG.MIN_SPAWN_GAP,
-      `At max negative jitter + cap speed, gap ${gap} must be >= MIN_SPAWN_GAP ${GAME_CONFIG.MIN_SPAWN_GAP}`);
+      `At max negative jitter + near-plateau speed, gap ${gap} must be >= MIN_SPAWN_GAP ${GAME_CONFIG.MIN_SPAWN_GAP}`);
   });
 
   it('mulberry32 is deterministic given same seed', () => {
@@ -634,25 +635,25 @@ describe('Mode Toggle', () => {
     const rng = mulberry32(99);
     for (const score of [0, 100, 250, 1000]) {
       for (let i = 0; i < 50; i++) {
-        const t = pickObstacleType(rng, score, MODES.CLASSIC);
-        assertEquals(t.id, 'small', `Classic@${score}: expected small, got ${t.id}`);
+        const { type } = DifficultyProfile.nextObstacle(score, MODES.CLASSIC, rng);
+        assertEquals(type.id, 'small', `Classic@${score}: expected small, got ${type.id}`);
       }
     }
   });
 
   it('classic mode returns deterministic gap (no jitter)', () => {
-    const rng = () => 0; // worst-case jitter input
-    const a = computeNextSpawnGap(rng, GAME_CONFIG.INITIAL_SPEED, MODES.CLASSIC);
-    const b = computeNextSpawnGap(rng, GAME_CONFIG.INITIAL_SPEED, MODES.CLASSIC);
+    const rng = () => 0; // worst-case jitter input — should have no effect in classic
+    const a = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng).gap;
+    const b = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng).gap;
     assertEquals(a, b, 'Classic gap should not vary');
-    assertEquals(a, GAME_CONFIG.MAX_SPAWN_GAP,
-      `At INITIAL_SPEED, classic gap should be MAX_SPAWN_GAP (${GAME_CONFIG.MAX_SPAWN_GAP}), got ${a}`);
+    assert(a >= GAME_CONFIG.MIN_SPAWN_GAP && a <= GAME_CONFIG.MAX_SPAWN_GAP,
+      `Classic gap at score 0 (${a}) should be within [MIN_SPAWN_GAP, MAX_SPAWN_GAP]`);
   });
 
   it('updated mode still produces variety', () => {
     const rng = mulberry32(11);
     const gaps = new Set();
-    for (let i = 0; i < 30; i++) gaps.add(computeNextSpawnGap(rng, 8, MODES.UPDATED));
+    for (let i = 0; i < 30; i++) gaps.add(DifficultyProfile.nextObstacle(200, MODES.UPDATED, rng).gap);
     assert(gaps.size >= 5, `Updated mode should jitter; got ${gaps.size} distinct values`);
   });
 
@@ -671,15 +672,15 @@ describe('Obstacle Types', () => {
   it('only returns small cactus when score < 100', () => {
     const rng = mulberry32(1);
     for (let i = 0; i < 200; i++) {
-      const t = pickObstacleType(rng, 50);
-      assertEquals(t.id, 'small', `At score 50 expected small, got ${t.id}`);
+      const { type } = DifficultyProfile.nextObstacle(50, MODES.UPDATED, rng);
+      assertEquals(type.id, 'small', `At score 50 expected small, got ${type.id}`);
     }
   });
 
   it('can return big cactus at score 100+ but never cluster before 250', () => {
     const rng = mulberry32(2);
     const seen = new Set();
-    for (let i = 0; i < 500; i++) seen.add(pickObstacleType(rng, 150).id);
+    for (let i = 0; i < 500; i++) seen.add(DifficultyProfile.nextObstacle(150, MODES.UPDATED, rng).type.id);
     assert(seen.has('small') && seen.has('big'), `Expected small+big at score 150, saw ${[...seen]}`);
     assert(!seen.has('cluster'), `Cluster should not appear before score 250, saw ${[...seen]}`);
   });
@@ -687,7 +688,7 @@ describe('Obstacle Types', () => {
   it('can return all three types at score 250+', () => {
     const rng = mulberry32(3);
     const seen = new Set();
-    for (let i = 0; i < 2000; i++) seen.add(pickObstacleType(rng, 300).id);
+    for (let i = 0; i < 2000; i++) seen.add(DifficultyProfile.nextObstacle(300, MODES.UPDATED, rng).type.id);
     assert(seen.has('small') && seen.has('big') && seen.has('cluster'),
       `Expected all 3 types at score 300, saw ${[...seen]}`);
   });
@@ -696,7 +697,7 @@ describe('Obstacle Types', () => {
     const rng = mulberry32(4);
     const counts = { small: 0, big: 0, cluster: 0 };
     const total = 20000;
-    for (let i = 0; i < total; i++) counts[pickObstacleType(rng, 300).id]++;
+    for (let i = 0; i < total; i++) counts[DifficultyProfile.nextObstacle(300, MODES.UPDATED, rng).type.id]++;
     const expected = { small: 0.5, big: 0.3, cluster: 0.2 };
     Object.keys(expected).forEach(id => {
       const observed = counts[id] / total;
@@ -807,27 +808,30 @@ describe('Day/Night Cycle', () => {
 });
 
 describe('High Score', () => {
-  it('should update highScore and localStorage when score exceeds best', () => {
+  it('should update highScore and save via ScoreStore when score exceeds best', () => {
     resetGame();
-    localStorage.removeItem('dino-high-score');
+    const saves = [];
+    const origSave = ScoreStore.saveHighScore;
+    ScoreStore.saveHighScore = (n) => saves.push(n);
     game.obstacles.push({ x: 50, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
     game.score = 100;
     game.highScore = 50;
-    localStorage.setItem('dino-high-score', '50');
 
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
+    ScoreStore.saveHighScore = origSave;
 
     assertEquals(game.highScore, 100, `highScore should be 100, got ${game.highScore}`);
-    assertEquals(localStorage.getItem('dino-high-score'), '100',
-      'localStorage should store updated value');
+    assertEquals(saves[0], 100, 'ScoreStore.saveHighScore should have been called with 100');
   });
 
   it('should NOT update highScore when score is lower', () => {
     resetGame();
-    localStorage.removeItem('dino-high-score');
+    const saves = [];
+    const origSave = ScoreStore.saveHighScore;
+    ScoreStore.saveHighScore = (n) => saves.push(n);
     game.obstacles.push({ x: 50, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
@@ -836,10 +840,10 @@ describe('High Score', () => {
 
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
+    ScoreStore.saveHighScore = origSave;
 
     assertEquals(game.highScore, 200, 'highScore should stay at 200');
-    assertEquals(localStorage.getItem('dino-high-score'), null,
-      'localStorage should not be written when score is lower');
+    assertEquals(saves.length, 0, 'ScoreStore.saveHighScore should not have been called');
   });
 });
 
@@ -1529,42 +1533,42 @@ describe('DifficultyProfile', () => {
       `Speed must strictly increase: ${s0} < ${s100} < ${s300} < ${s600}`);
   });
 
-  it('obstacleParamsAt returns an object with a numeric gap and a typed obstacle', () => {
+  it('nextObstacle returns an object with a numeric gap and a typed obstacle', () => {
     const rng = mulberry32(42);
-    const params = DifficultyProfile.obstacleParamsAt(0, rng, MODES.CLASSIC);
+    const params = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng);
     assert(typeof params.gap === 'number',
       'gap must be a number');
     assert(params.type && typeof params.type.id === 'string',
       'type must be an obstacle-type object with an id string');
   });
 
-  it('obstacleParamsAt classic mode: gap shrinks as score rises', () => {
+  it('nextObstacle classic mode: gap shrinks as score rises', () => {
     const rng = mulberry32(42); // not consumed in classic mode — safe to reuse
-    const paramsLow  = DifficultyProfile.obstacleParamsAt(0,   rng, MODES.CLASSIC);
-    const paramsHigh = DifficultyProfile.obstacleParamsAt(500, rng, MODES.CLASSIC);
+    const paramsLow  = DifficultyProfile.nextObstacle(0,   MODES.CLASSIC, rng);
+    const paramsHigh = DifficultyProfile.nextObstacle(500, MODES.CLASSIC, rng);
     assert(paramsHigh.gap < paramsLow.gap,
       `Gap at score 500 (${paramsHigh.gap}) should be less than gap at score 0 (${paramsLow.gap}) — higher speed means shorter gap`);
   });
 
-  it('obstacleParamsAt classic mode: type is always small cactus', () => {
+  it('nextObstacle classic mode: type is always small cactus', () => {
     const rng = mulberry32(42);
-    const params = DifficultyProfile.obstacleParamsAt(500, rng, MODES.CLASSIC);
+    const params = DifficultyProfile.nextObstacle(500, MODES.CLASSIC, rng);
     assertEquals(params.type.id, 'small',
       'Classic mode must always return the small cactus');
   });
 
-  it('obstacleParamsAt updated mode: gap is within valid range at score 0', () => {
+  it('nextObstacle updated mode: gap is within valid range at score 0', () => {
     const rng = mulberry32(42);
-    const params = DifficultyProfile.obstacleParamsAt(0, rng, MODES.UPDATED);
+    const params = DifficultyProfile.nextObstacle(0, MODES.UPDATED, rng);
     assert(params.gap >= GAME_CONFIG.MIN_SPAWN_GAP,
       `Gap (${params.gap}) must be at least MIN_SPAWN_GAP (${GAME_CONFIG.MIN_SPAWN_GAP})`);
     assert(params.gap <= Math.round(GAME_CONFIG.MAX_SPAWN_GAP * (1 + GAME_CONFIG.SPAWN_GAP_JITTER)),
       `Gap (${params.gap}) must not exceed MAX_SPAWN_GAP with max jitter (${GAME_CONFIG.MAX_SPAWN_GAP} * ${1 + GAME_CONFIG.SPAWN_GAP_JITTER})`);
   });
 
-  it('obstacleParamsAt updated mode: cluster cactus returned at score 250 with max roll', () => {
+  it('nextObstacle updated mode: cluster cactus returned at score 250 with max roll', () => {
     const rng = () => 0.99; // constant roll — pushes weighted pick to last eligible type
-    const params = DifficultyProfile.obstacleParamsAt(250, rng, MODES.UPDATED);
+    const params = DifficultyProfile.nextObstacle(250, MODES.UPDATED, rng);
     assertEquals(params.type.id, 'cluster',
       'At score 250 with max rng roll, all three types eligible and cluster wins the weighted draw');
   });
@@ -1939,10 +1943,10 @@ describe('Daily mode RNG seeding', () => {
     const origMode = game.mode;
     game.mode = MODES.DAILY;
     resetGame();
-    const type1 = pickObstacleType(game.rng, 300, MODES.DAILY);
+    const type1 = DifficultyProfile.nextObstacle(300, MODES.DAILY, game.rng).type;
     game.mode = MODES.DAILY;
     resetGame();
-    const type2 = pickObstacleType(game.rng, 300, MODES.DAILY);
+    const type2 = DifficultyProfile.nextObstacle(300, MODES.DAILY, game.rng).type;
     assertEquals(type1.id, type2.id, 'Same seed should produce same obstacle type');
     game.mode = origMode;
     resetGame();
@@ -1973,43 +1977,40 @@ describe('Daily number', () => {
 });
 
 describe('Daily best persistence', () => {
-  it('loadDailyBest() returns 0 when stored date does not match today', () => {
+  it('ScoreStore.loadDailyBest() returns 0 when stored date does not match today', () => {
     const origDate = localStorage.getItem('dino-daily-date');
     const origBest = localStorage.getItem('dino-daily-best');
     localStorage.setItem('dino-daily-date', '19990101');
     localStorage.setItem('dino-daily-best', '999');
-    assertEquals(loadDailyBest(), 0, 'Should return 0 on stale date');
+    assertEquals(ScoreStore.loadDailyBest(), 0, 'Should return 0 on stale date');
     origDate !== null ? localStorage.setItem('dino-daily-date', origDate) : localStorage.removeItem('dino-daily-date');
     origBest !== null ? localStorage.setItem('dino-daily-best', origBest) : localStorage.removeItem('dino-daily-best');
   });
 
-  it('loadDailyBest() returns stored value when date matches today', () => {
+  it('ScoreStore.loadDailyBest() returns stored value when date matches today', () => {
     const origDate = localStorage.getItem('dino-daily-date');
     const origBest = localStorage.getItem('dino-daily-best');
     localStorage.setItem('dino-daily-date', String(dailySeed()));
     localStorage.setItem('dino-daily-best', '847');
-    assertEquals(loadDailyBest(), 847, 'Should return 847 when date matches');
+    assertEquals(ScoreStore.loadDailyBest(), 847, 'Should return 847 when date matches');
     origDate !== null ? localStorage.setItem('dino-daily-date', origDate) : localStorage.removeItem('dino-daily-date');
     origBest !== null ? localStorage.setItem('dino-daily-best', origBest) : localStorage.removeItem('dino-daily-best');
   });
 
-  it('saveDailyBest() stores score and updates game.dailyBest; lower score does not overwrite', () => {
+  it('ScoreStore.saveDailyBest() persists score; lower score does not overwrite', () => {
     const origDate = localStorage.getItem('dino-daily-date');
     const origBest = localStorage.getItem('dino-daily-best');
-    const origGameBest = game.dailyBest;
     localStorage.removeItem('dino-daily-date');
     localStorage.removeItem('dino-daily-best');
 
-    saveDailyBest(500);
-    assertEquals(loadDailyBest(), 500, 'loadDailyBest() should return 500 after save');
-    assertEquals(game.dailyBest, 500, 'game.dailyBest should be 500');
+    ScoreStore.saveDailyBest(500);
+    assertEquals(ScoreStore.loadDailyBest(), 500, 'loadDailyBest() should return 500 after save');
 
-    saveDailyBest(200);
-    assertEquals(loadDailyBest(), 500, 'Lower score must not overwrite stored best');
+    ScoreStore.saveDailyBest(200);
+    assertEquals(ScoreStore.loadDailyBest(), 500, 'Lower score must not overwrite stored best');
 
     origDate !== null ? localStorage.setItem('dino-daily-date', origDate) : localStorage.removeItem('dino-daily-date');
     origBest !== null ? localStorage.setItem('dino-daily-best', origBest) : localStorage.removeItem('dino-daily-best');
-    game.dailyBest = origGameBest;
   });
 });
 

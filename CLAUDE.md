@@ -43,12 +43,12 @@ eslint.config.js, .prettierrc.json
 The file is divided into numbered sections. Add new code inside the section it belongs to; don't append at EOF.
 
 1. **Section 1 — Node stubs** (~line 1). Browser-API shims so `script.js` can be `require`d under Node. Browsers skip this block.
-2. **Section 2 — Configuration** (~line 65). `GAME_CONFIG` (frozen) plus the `cfg`/`loadTuning`/`saveTuning` live-tuning hook.
+2. **Section 2 — Configuration** (~line 65). `GAME_CONFIG` (frozen) plus the `cfg`/`loadTuning`/`saveTuning` live-tuning hook, and `ScoreStore` (all localStorage score persistence).
 3. **Section 3 — Asset loading** (~line 280). Sprite preload with timeout fallback.
 4. **Section 4 — Game state** (~line 380). `STATE` enum, `MODES`, the `game` object, the `mulberry32` seeded RNG, `audio` object.
 5. **Section 5 — Rendering** (~line 470). Pure draw functions: `drawBackground`, `drawDino`, `drawObstacles`, `drawClouds`, `drawHills`, `drawSkyTint`, `drawDeathFlash`, `drawScore`, `drawMilestoneFlash`, `drawNewBestBadge`, etc.
 6. **Feature registry** (~line 770). `FEATURES` array + `runFeatureUpdates` + `runFeatureDraws(layer)`. Declarative ordering for ambient features (hills, clouds, particles, skyTint).
-7. **Section 6 — Physics & game logic** (~line 800). `spawnObstacle`, `pickObstacleType`, `computeNextSpawnGap`, collision, `jump`, `resetGame`.
+7. **Section 6 — Physics & game logic** (~line 800). `DifficultyProfile.nextObstacle()` (type + gap), `spawnObstacle`, collision, `jump`, `resetGame`. `pickObstacleType` and `computeNextSpawnGap` are internal helpers — not exported.
 8. **Section 7 — Input handlers** (~line 870). Keyboard + mouse + touch. Mute and mode-toggle buttons live here too.
 9. **Section 8 — Game loop** (~line 970). Three branches: WAITING, RUNNING, DEAD. RUNNING uses the feature registry; WAITING and DEAD are hand-written.
 10. **Section 9 — Initialisation** (~line 1160). Loads assets, sets state, kicks off the loop.
@@ -128,10 +128,10 @@ const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matc
 |---|---|---|---|
 | `dino-mode` | `'classic'` / `'updated'` | `setMode()` | `loadMode()` at boot |
 | `dino-muted` | `'0'` / `'1'` | `audio.setMuted` | `audio.muted` init |
-| `dino-high-score` | integer string | death handler | `game.highScore` init |
+| `dino-high-score` | integer string | `ScoreStore.saveHighScore()` | `ScoreStore.loadHighScore()` |
 | `dino-tuning` | JSON | `saveTuning()` | `loadTuning()` at boot |
-| `dino-daily-date` | YYYYMMDD integer string | `saveDailyBest()` | `loadDailyBest()` at reset |
-| `dino-daily-best` | integer string | `saveDailyBest()` | `game.dailyBest` init |
+| `dino-daily-date` | YYYYMMDD integer string | `ScoreStore.saveDailyBest()` | `ScoreStore.loadDailyBest()` |
+| `dino-daily-best` | integer string | `ScoreStore.saveDailyBest()` | `ScoreStore.loadDailyBest()` |
 
 ## Test harness
 
