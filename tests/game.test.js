@@ -726,6 +726,26 @@ describe('Obstacle Types', () => {
     spawnObstacle();
     assertEquals(game.obstacles[0].type, 'small', 'At score 0 only small is eligible');
   });
+
+  it('drawObstacles calls drawImage twice for a cluster obstacle', () => {
+    resetGame();
+    const cluster = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'cluster');
+    const half = cluster.width / 2;
+    game.obstacles = [{ x: 100, y: 160, width: cluster.width, height: cluster.height, render: cluster.render, type: cluster.id }];
+
+    const calls = [];
+    const origDrawImage = ctx.drawImage;
+    ctx.drawImage = (...args) => calls.push(args);
+    drawObstacles();
+    ctx.drawImage = origDrawImage;
+    game.obstacles = [];
+
+    assertEquals(calls.length, 2, 'Cluster obstacle must call drawImage exactly twice');
+    assertEquals(calls[0][1], 100,        'First draw x must be obstacle.x');
+    assertEquals(calls[1][1], 100 + half, 'Second draw x must be obstacle.x + half');
+    assertEquals(calls[0][3], half, 'First draw width must be half');
+    assertEquals(calls[1][3], half, 'Second draw width must be half');
+  });
 });
 
 describe('Difficulty Curve', () => {
@@ -768,6 +788,20 @@ describe('Clouds', () => {
     game.clouds[0].x = 300;
     updateClouds();
     assert(game.clouds[0].x < 300, `Cloud x (${game.clouds[0].x}) should be < 300 after updateClouds`);
+  });
+
+  it('respawns a cloud past the right edge when it exits the left', () => {
+    initClouds();
+    game.clouds[0].x = -(GAME_CONFIG.CLOUD_WIDTH + 1);
+    updateClouds();
+    assert(
+      game.clouds[0].x >= GAME_CONFIG.CANVAS_W,
+      `Cloud should respawn at or past CANVAS_W (got ${game.clouds[0].x})`
+    );
+    assert(
+      game.clouds[0].x <= GAME_CONFIG.CANVAS_W + GAME_CONFIG.CLOUD_RESPAWN_OFFSET,
+      `Cloud respawn x (${game.clouds[0].x}) should not exceed CANVAS_W + CLOUD_RESPAWN_OFFSET`
+    );
   });
 });
 
@@ -922,6 +956,22 @@ describe('PR-P1 bug fixes', () => {
     assertEquals(calls, 3, 'Respawn must consume exactly 3 game.rng() draws');
     assert(game.hills[0].x >= GAME_CONFIG.CANVAS_W,
       'Respawned x must land at or past canvas width');
+  });
+
+  it('hill respawn x is bounded by HILL_RESPAWN_X_RANGE', () => {
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    initHills();
+    game.hills[0].x = -game.hills[0].width - 1;
+    game.currentSpeed = 6;
+    game.rng = () => 1.0;
+    updateHills();
+    const maxX = GAME_CONFIG.CANVAS_W + cfg('HILL_RESPAWN_X_RANGE');
+    assert(
+      game.hills[0].x <= maxX,
+      `Hill x (${game.hills[0].x}) must not exceed CANVAS_W + HILL_RESPAWN_X_RANGE (${maxX})`
+    );
+    assert(game.hills[0].x >= GAME_CONFIG.CANVAS_W, 'Hill must respawn at or past CANVAS_W');
   });
 
   it('audio.ensure resumes a suspended context', () => {
