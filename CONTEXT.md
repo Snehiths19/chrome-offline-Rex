@@ -22,6 +22,33 @@ _Avoid_: grace period, warmup, delay
 **Cluster obstacle** — the obstacle type that unlocks at score 250, rendered as two side-by-side cacti. It must be visually distinct from the small and big cacti so a player encountering it for the first time reads "two obstacles" at a glance. An unrecognisable first encounter at score 250+ is a fairness break, not an earned surprise — the player has invested a long run before losing to something confusing.
 _Avoid_: double cactus, pair obstacle, twin obstacle
 
+**Obstacle** — any on-screen hazard the dino must jump over.
+_Avoid_: enemy, object
+
+**Obstacle type** — the category of a spawned obstacle (e.g. small cactus, cluster cactus).
+_Avoid_: obstacle kind, obstacle variant
+
+**Spawn gap** — the pixel distance between the right edge of the canvas and the trigger point for the next obstacle spawn.
+_Avoid_: gap, spacing, next gap
+
+**Jitter** — a random ±variation applied to the **spawn gap** in updated mode to prevent metronomic spacing. Only applied in updated mode; classic-mode spawn gaps are deterministic.
+_Avoid_: randomness, variation
+
+**Score** — the primary measure of how far a run has progressed; the sole input to the difficulty curve.
+_Avoid_: distance, points
+
+**Speed** — the obstacle scroll speed in pixels per frame at the current score.
+_Avoid_: velocity, game speed, scroll speed
+
+**Initial speed** — the speed at score 0 — the lowest point of the difficulty curve.
+_Avoid_: start speed, base speed
+
+**Ramp midpoint** — the score value where the difficulty curve's rate of change is steepest; the inflection point of the sigmoid.
+_Avoid_: midpoint, acceleration point
+
+**Ramp steepness** — a tuning coefficient that controls how sharply speed rises around the ramp midpoint.
+_Avoid_: slope, sigmoid slope
+
 **DifficultyProfile** — the module that owns the relationship between score and game feel. It defines how fast the game moves at any given score, when obstacles spawn, and what type they are. All tunable numbers live here; the game loop reads from it rather than computing inline.
 
 **Difficulty curve** — how speed and obstacle density scale with score. The curve starts gently, accelerates through the mid-game, and plateaus at a speed the player can sustain with focus. It is continuous (no sudden jumps at level boundaries) and sigmoid-shaped (slow ramp-up, steeper middle, soft plateau).
@@ -33,6 +60,11 @@ _Avoid_: double cactus, pair obstacle, twin obstacle
 **Particles** — the module that owns the particle pool, kind definitions, and all emit/update/draw/reset behaviour. Callers invoke `Particles.emit(kind, x, y)` without knowing pool size, reduced-motion rules, or mode gating — all suppression logic lives inside. Visual-only: uses `Math.random()`, never `game.rng()`.
 
 **Animations** — the module that owns all per-run animation countdown timers (death shake, death flash, score pop, milestone flash, new-best badge, copy flash, death score count-up). A single `Animations.reset()` call zeroes all counters at the start of each run. Handlers and draw functions read and write counters directly via `Animations.X`.
+
+## Randomness
+
+**RNG** — the seeded pseudo-random number generator used for all in-run randomness; shared between obstacle type selection and spawn gap jitter to preserve determinism. Consumed in a fixed order (type first, gap second) per spawn — swapping breaks deterministic replay. `Math.random()` is reserved for cosmetic effects only (particles, clouds, audio pitch).
+_Avoid_: random, rand
 
 ## Daily Challenge
 
@@ -58,3 +90,8 @@ _Avoid_: share score, copy result, clipboard share
 - The **Daily number** is computed from the same date as the **Daily seed** but is display-only — it does not influence the obstacle sequence
 - **Daily best** is independent of all-time best; both are shown on the Game Over screen when in Daily Challenge
 - A **Share result** references both the **Daily number** and the **Daily best**
+
+## Flagged Ambiguities
+
+- **"speed cap"** appears in code as `SPEED_CAP` (kept for the particle-trail threshold) but is distinct from **plateau** — `SPEED_CAP` is a hard ceiling for particle effects, while **plateau** is the soft ceiling the difficulty curve targets. Prefer **plateau** in domain discussion; reserve "speed cap" for talking about the particle threshold specifically.
+- **"gap"** is overloaded: it can mean the on-screen pixel distance between obstacles (a rendering concept) or `nextSpawnGap` (the trigger threshold). Always qualify: **spawn gap** for the game-logic threshold.
