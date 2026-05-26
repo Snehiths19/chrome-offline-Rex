@@ -75,15 +75,13 @@ const GAME_CONFIG = Object.freeze({
   CANVAS_H: 200,
 
   // --- Physics ---
-  JUMP_POWER:              -12,   // negative = upward impulse applied on jump
-  GRAVITY:                  0.48, // added to velocityY each frame while airborne
-  INITIAL_SPEED:            3.0,  // obstacle scroll speed at score 0
-  SPEED_CAP:               13.0,  // max scroll speed (matches Chrome T-Rex)
-  PLATEAU_SPEED:            8.0,  // sigmoid ceiling — focusable-but-demanding speed the curve approaches
-  RAMP_MIDPOINT:          300,    // score where acceleration is steepest (day/night transition)
-  RAMP_STEEPNESS:           0.01, // sigmoid slope — controls how quickly speed rises through the midpoint
+  JUMP_POWER:              -10,   // negative = upward impulse applied on jump (official)
+  GRAVITY:                  0.6,  // added to velocityY each frame while airborne (official)
+  INITIAL_SPEED:            6.0,  // obstacle scroll speed at run start (official)
+  SPEED_CAP:               13.0,  // max scroll speed (official MAX_SPEED)
+  ACCELERATION:             0.001, // linear speed gain per fixed step (official)
   SCORE_PER_LEVEL:        100,    // score points per level — used for milestone flash effects only
-  SCORE_INCREMENT:          0.1,  // score added per frame while RUNNING
+  DISTANCE_COEFFICIENT:     0.025, // official: score = distance * this (accelerating climb)
 
   // --- Hitbox forgiveness (rendering uses full sprite; collision uses shrunken box) ---
   DINO_PAD_X:               8,
@@ -92,12 +90,10 @@ const GAME_CONFIG = Object.freeze({
   OBS_PAD_X:                3,
   OBS_PAD_Y:                2,
 
-  // --- Spawning ---
+  // --- Spawning (official gap model) ---
   GRACE_FRAMES:           240,    // ~4 s at 60 fps before first obstacle appears
-  MAX_SPAWN_GAP:          600,    // gap (px) between obstacles at INITIAL_SPEED
-  MIN_SPAWN_GAP:          340,    // gap (px) at SPEED_CAP — tuned minimum that's still clearable
-  SPAWN_GAP_SPEED_FACTOR:  50,    // gap shrinks by this much per +1 speed above INITIAL_SPEED
-  SPAWN_GAP_JITTER:         0.3,  // ±30% randomization; floored at MIN_SPAWN_GAP
+  GAP_COEFFICIENT:          0.6,  // official: minGap = width*speed + typeMinGap*GAP_COEFFICIENT
+  MAX_GAP_COEFFICIENT:      1.5,  // official: gap randomized up to minGap * this
 
   // --- Obstacle sprite (small cactus — baseline) ---
   OBS_WIDTH:               20,
@@ -107,10 +103,11 @@ const GAME_CONFIG = Object.freeze({
   // Each type unlocks at a score threshold and contributes its `weight` to the
   // weighted random pick once unlocked. `render` controls how drawObstacles()
   // paints it from the single cactus sprite.
+  // `minGap` is the per-type floor fed into the official gap formula (width*speed + minGap*GAP_COEFFICIENT).
   OBSTACLE_TYPES: Object.freeze([
-    Object.freeze({ id: 'small',   width: 20, height: 40, unlockScore:   0, weight: 50, render: 'single' }),
-    Object.freeze({ id: 'big',     width: 30, height: 55, unlockScore: 100, weight: 30, render: 'single' }),
-    Object.freeze({ id: 'cluster', width: 50, height: 40, unlockScore: 250, weight: 20, render: 'double' }),
+    Object.freeze({ id: 'small',   width: 20, height: 40, unlockScore:   0, weight: 50, render: 'single', minGap: 120 }),
+    Object.freeze({ id: 'big',     width: 30, height: 55, unlockScore: 100, weight: 30, render: 'single', minGap: 120 }),
+    Object.freeze({ id: 'cluster', width: 50, height: 40, unlockScore: 250, weight: 20, render: 'double', minGap: 150 }),
   ]),
 
   // --- Dino sprite ---
@@ -229,6 +226,20 @@ const ScoreStore = {
     }
   },
 };
+
+// One-time score-scale migration. v2 switched to distance-based scoring, so
+// pre-v2 high scores live on an incompatible scale — clear them once, guarded by
+// a version key so it never repeats.
+function migrateScoreScale() {
+  try {
+    if (localStorage.getItem('dino-score-scale') === 'v2') return;
+    localStorage.removeItem('dino-high-score');
+    localStorage.removeItem('dino-daily-best');
+    localStorage.removeItem('dino-daily-date');
+    localStorage.setItem('dino-score-scale', 'v2');
+  } catch (e) { /* storage unavailable — skip migration */ }
+}
+migrateScoreScale();
 
 const STATE = Object.freeze({
   LOADING: 'LOADING',
@@ -437,19 +448,14 @@ function mulberry32(seed) {
   };
 }
 
-// Compute the gap (px) to the next obstacle, given current speed + an RNG.
-// Jitter is applied ±SPAWN_GAP_JITTER around baseGap, then floored at
-// MIN_SPAWN_GAP so the smallest possible gap is always clearable. In classic
-// mode, jitter is skipped — gaps are deterministic.
-function computeNextSpawnGap(rng, currentSpeed, mode) {
-  const baseGap =
-    GAME_CONFIG.MAX_SPAWN_GAP -
-    (currentSpeed - GAME_CONFIG.INITIAL_SPEED) * GAME_CONFIG.SPAWN_GAP_SPEED_FACTOR;
-  if (mode === 'classic') {
-    return Math.max(GAME_CONFIG.MIN_SPAWN_GAP, Math.round(baseGap));
-  }
-  const jitter = (rng() - 0.5) * 2 * GAME_CONFIG.SPAWN_GAP_JITTER; // range [-J, +J]
-  return Math.max(GAME_CONFIG.MIN_SPAWN_GAP, Math.round(baseGap * (1 + jitter)));
+// Official gap model: gap scales with the chosen obstacle's width and the current
+// speed, randomized within [minGap, minGap*MAX_GAP_COEFFICIENT]. The rng() draw is
+// the second seeded call per spawn (type pick is first) — order is load-bearing
+// for the daily-challenge determinism contract.
+function computeNextSpawnGap(rng, speed, type) {
+  const minGap = Math.round(type.width * speed + type.minGap * GAME_CONFIG.GAP_COEFFICIENT);
+  const maxGap = Math.round(minGap * GAME_CONFIG.MAX_GAP_COEFFICIENT);
+  return minGap + Math.floor(rng() * (maxGap - minGap + 1));
 }
 
 // Pick an obstacle type weighted by score-tier eligibility. Types with
@@ -469,19 +475,12 @@ function pickObstacleType(rng, score, mode) {
 }
 
 const DifficultyProfile = {
-  speedAtScore(score) {
-    const { INITIAL_SPEED, PLATEAU_SPEED, RAMP_STEEPNESS, RAMP_MIDPOINT } = GAME_CONFIG;
-    return INITIAL_SPEED + (PLATEAU_SPEED - INITIAL_SPEED) *
-      (1 / (1 + Math.exp(-RAMP_STEEPNESS * (score - RAMP_MIDPOINT))));
-  },
-  nextObstacle(score, mode, rng) {
-    const speed = this.speedAtScore(score);
-    // RNG call order is load-bearing: type roll first, gap jitter second.
-    // Swapping breaks the daily-challenge seed sequence.
+  nextObstacle(score, mode, rng, speed) {
+    // RNG call order is load-bearing: type roll first, gap roll second.
     const type = pickObstacleType(rng, score, mode);
     return {
       type,
-      gap: computeNextSpawnGap(rng, speed, mode),
+      gap: computeNextSpawnGap(rng, speed, type),
     };
   },
 };
@@ -518,10 +517,11 @@ const game = {
   obstacles:        [],
   currentSpeed:     GAME_CONFIG.INITIAL_SPEED,
   lastObstacleX:    -300,
-  nextSpawnGap:     GAME_CONFIG.MAX_SPAWN_GAP,
+  nextSpawnGap:     0,            // set by resetGame() via computeNextSpawnGap
   graceFrames:      GAME_CONFIG.GRACE_FRAMES,
   animationFrameId: undefined,
   score:            0,
+  distance:         0,
   highScore:        ScoreStore.loadHighScore(),
   animFrame:        0,
   groundX:          0,
@@ -1310,12 +1310,15 @@ function resetGame() {
   dino.y = GAME_CONFIG.CANVAS_H - dino.height;
   dino.velocityY = 0;
   dino.isJumping = false;
+  loopAccumulator = 0;
+  loopLastTime = undefined;
 
   Particles.reset();
 
   game.obstacles.length = 0;
   game.stars.length = 0;
   game.score = 0;
+  game.distance = 0;
   game.animFrame = 0;
   game.groundX = 0;
   game.currentSpeed = GAME_CONFIG.INITIAL_SPEED;
@@ -1331,7 +1334,7 @@ function resetGame() {
   game.dailyBest = ScoreStore.loadDailyBest();
   const shareBtnEl = document.getElementById('share-btn');
   if (shareBtnEl && shareBtnEl.style) shareBtnEl.style.display = 'none';
-  game.nextSpawnGap = computeNextSpawnGap(game.rng, DifficultyProfile.speedAtScore(game.score), game.mode);
+  game.nextSpawnGap = computeNextSpawnGap(game.rng, game.currentSpeed, GAME_CONFIG.OBSTACLE_TYPES[0]);
   initClouds();
   initHills();
   announce('New game. Press space or tap to jump.');
@@ -1397,11 +1400,12 @@ function handleWaiting() {
 
 function handleRunning() {
   const prevLevel = Math.floor(game.score / GAME_CONFIG.SCORE_PER_LEVEL);
-  game.score += GAME_CONFIG.SCORE_INCREMENT;
+  game.distance += game.currentSpeed;
+  game.score = game.distance * GAME_CONFIG.DISTANCE_COEFFICIENT;
   game.animFrame++;
 
   const level = Math.floor(game.score / GAME_CONFIG.SCORE_PER_LEVEL);
-  game.currentSpeed = DifficultyProfile.speedAtScore(game.score);
+  game.currentSpeed = Math.min(game.currentSpeed + GAME_CONFIG.ACCELERATION, GAME_CONFIG.SPEED_CAP);
 
   // Milestone flash on level-up.
   if (level > prevLevel && level > 0) {
@@ -1431,15 +1435,17 @@ function handleRunning() {
   updateObstacles();
 
   // Speed-trail particles: subtle dust trailing off the dino approaching plateau speed.
-  if (isUpdatedMode() && game.currentSpeed >= GAME_CONFIG.PLATEAU_SPEED * 0.96) {
+  // Speed-trail particles kick in once the run is ~85% of the way to SPEED_CAP —
+  // a late-game cue that the speed ceiling is approaching.
+  if (isUpdatedMode() && game.currentSpeed >= GAME_CONFIG.SPEED_CAP * 0.85) {
     Particles.emit('trail', dino.x + 4, dino.y + dino.height - 4);
   }
 
-  // Obstacle spawning — in updated mode the gap is precomputed per-obstacle
-  // with ±SPAWN_GAP_JITTER so spacing doesn't feel metronomic; in classic mode
-  // it's deterministic. DifficultyProfile.nextObstacle() picks type + gap together.
+  // Obstacle spawning — gap is computed via the official model (width*speed + minGap*GAP_COEFFICIENT),
+  // randomized within [minGap, minGap*MAX_GAP_COEFFICIENT]. DifficultyProfile.nextObstacle() picks
+  // type first (one rng draw), then computes the gap from that type (second rng draw).
   if (game.lastObstacleX <= GAME_CONFIG.CANVAS_W - game.nextSpawnGap) {
-    const params = DifficultyProfile.nextObstacle(game.score, game.mode, game.rng);
+    const params = DifficultyProfile.nextObstacle(game.score, game.mode, game.rng, game.currentSpeed);
     spawnObstacle(params.type);
     game.lastObstacleX = GAME_CONFIG.CANVAS_W;
     game.nextSpawnGap = params.gap;
@@ -1512,9 +1518,37 @@ const STATE_HANDLERS = {
   [STATE.DEAD]:    handleDead,
 };
 
-function gameLoop() {
+// Fixed-timestep clock. Physics advances in MS_PER_STEP chunks so the game runs
+// at a true 60 Hz on any refresh rate. lastTime/accumulator reset in resetGame().
+const MS_PER_STEP = 1000 / 60;
+const MAX_CATCHUP_STEPS = 5;
+let loopLastTime;            // undefined until the first timestamped frame
+let loopAccumulator = 0;
+
+function gameLoop(now) {
   game.animationFrameId = requestAnimationFrame(gameLoop);
-  STATE_HANDLERS[game.state]();
+
+  // No-arg call = advance exactly one fixed step. Used by tests and by the
+  // kickoff/restart sites before the browser starts supplying timestamps.
+  if (now === undefined) {
+    STATE_HANDLERS[game.state]();
+    return;
+  }
+  if (!Number.isFinite(now)) return;                  // ignore bogus timestamps; keep the clock clean
+
+  if (loopLastTime === undefined) loopLastTime = now; // first timestamped frame: 0 delta
+  let frame = now - loopLastTime;
+  loopLastTime = now;
+  if (frame < 0 || frame > 250) frame = MS_PER_STEP;  // clock jumped (backward, or backgrounded tab) — take one step
+  loopAccumulator += frame;
+
+  let steps = 0;
+  while (loopAccumulator >= MS_PER_STEP && steps < MAX_CATCHUP_STEPS) {
+    STATE_HANDLERS[game.state]();
+    loopAccumulator -= MS_PER_STEP;
+    steps++;
+  }
+  if (steps === MAX_CATCHUP_STEPS) loopAccumulator = 0; // sustained-slowness clamp
 }
 
 // == SECTION 9: INITIALISATION ==
@@ -1579,6 +1613,9 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.dailySeed = dailySeed;
   global.dailyNumber = dailyNumber;
   global.ScoreStore = ScoreStore;
+  global.migrateScoreScale = migrateScoreScale;
   global.isDailyMode = isDailyMode;
   global.shareDailyResult = shareDailyResult;
+  global.MS_PER_STEP = MS_PER_STEP;
+  global.MAX_CATCHUP_STEPS = MAX_CATCHUP_STEPS;
 }

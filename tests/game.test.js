@@ -113,11 +113,11 @@ describe('Dinosaur Jump', () => {
     assertEquals(dino.y, GAME_CONFIG.CANVAS_H - dino.height, 'Dino should be back on the ground after landing');
   });
 
-  it('should have a peak jump height of ~144px', () => {
-    // jumpPower=-12, gravity=0.48 → peak ≈ 144px
+  it('should have a peak jump height of ~78px', () => {
+    // jumpPower=-10, gravity=0.6 → discrete peak ≈ 78px (official-feel snappy arc)
     resetGame();
     game.state = STATE.RUNNING;
-    const expectedPeak = 144;
+    const expectedPeak = 78;
     jump();
     let minY = dino.y;
     const groundY = GAME_CONFIG.CANVAS_H - dino.height;
@@ -220,85 +220,96 @@ describe('Scoring', () => {
 
     assert(game.score > initialScore, `Score (${game.score}) should be greater than initial score (${initialScore})`);
   });
+
+  it('score equals accumulated distance times DISTANCE_COEFFICIENT', () => {
+    resetGame();
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    for (let i = 0; i < 10; i++) { gameLoop(); cancelAnimationFrame(game.animationFrameId); }
+    assert(Math.abs(game.score - game.distance * GAME_CONFIG.DISTANCE_COEFFICIENT) < 1e-9,
+      `score ${game.score} must equal distance ${game.distance} * ${GAME_CONFIG.DISTANCE_COEFFICIENT}`);
+    assert(game.score > 0, 'score should have advanced over 10 steps');
+  });
+
+  it('migrateScoreScale clears pre-v2 scores exactly once', () => {
+    localStorage.setItem('dino-high-score', '9999');
+    localStorage.setItem('dino-daily-best', '4242');
+    localStorage.removeItem('dino-score-scale');
+    migrateScoreScale();
+    assertEquals(localStorage.getItem('dino-high-score'), null, 'pre-v2 high score cleared');
+    assertEquals(localStorage.getItem('dino-daily-best'), null, 'pre-v2 daily best cleared');
+    assertEquals(localStorage.getItem('dino-score-scale'), 'v2', 'scale marked v2');
+    // second run is a no-op
+    localStorage.setItem('dino-high-score', '50');
+    migrateScoreScale();
+    assertEquals(localStorage.getItem('dino-high-score'), '50', 'already-migrated: no further clearing');
+  });
 });
 
 describe('Obstacle Gap Enforcement', () => {
-  it('should not spawn a second obstacle until the dynamic gap threshold is met', () => {
+  it('does not spawn a second obstacle until the official gap threshold is met', () => {
     resetGame();
     game.graceFrames = 0;
     game.state = STATE.RUNNING;
-    // Pin the RNG to the middle of the jitter range so nextSpawnGap is deterministic.
-    game.rng = () => 0.5;
-    game.nextSpawnGap = 600; // base gap at INITIAL_SPEED, zero jitter — triggers first spawn
+    game.rng = () => 0.5;                 // mid-range gap roll, deterministic
+    game.currentSpeed = GAME_CONFIG.INITIAL_SPEED;
+    game.nextSpawnGap = 100;             // small threshold so frame 1 spawns
 
-    // Frame 1: lastObstacleX=-300 ≤ GAME_CONFIG.CANVAS_W-600 → first spawn
-    gameLoop();
-    cancelAnimationFrame(game.animationFrameId);
-    assertEquals(game.obstacles.length, 1, 'Should have 1 obstacle after first gameLoop frame');
+    gameLoop(); cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.obstacles.length, 1, 'first obstacle spawns on frame 1');
 
-    // After spawn, nextSpawnGap was recomputed via DifficultyProfile.nextObstacle(score=0).
-    // At rng=0.5 jitter is zero, so gap = round(MAX_SPAWN_GAP - (speed - INITIAL_SPEED) * FACTOR).
-    const expectedGap = Math.round(
-      GAME_CONFIG.MAX_SPAWN_GAP -
-      (DifficultyProfile.speedAtScore(0) - GAME_CONFIG.INITIAL_SPEED) * GAME_CONFIG.SPAWN_GAP_SPEED_FACTOR
-    );
-    assertEquals(game.nextSpawnGap, expectedGap, `Next gap should be ${expectedGap} at speedAtScore(0) with zero jitter`);
+    // Recomputed gap must sit within the official band for the spawned type at this speed.
+    const type   = game.obstacles[0].type ? GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === game.obstacles[0].type) : GAME_CONFIG.OBSTACLE_TYPES[0];
+    const minGap = Math.round(type.width * game.currentSpeed + type.minGap * GAME_CONFIG.GAP_COEFFICIENT);
+    const maxGap = Math.round(minGap * GAME_CONFIG.MAX_GAP_COEFFICIENT);
+    assert(game.nextSpawnGap >= minGap && game.nextSpawnGap <= maxGap,
+      `recomputed gap ${game.nextSpawnGap} must be in [${minGap}, ${maxGap}]`);
 
-    // Frame 2: obstacle hasn't drifted far enough yet — not a spawn frame.
-    gameLoop();
-    cancelAnimationFrame(game.animationFrameId);
-    assertEquals(game.obstacles.length, 1, `Should still be 1 obstacle — ${expectedGap}px gap not met`);
+    gameLoop(); cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.obstacles.length, 1, 'no new obstacle until gap distance elapses');
 
-    // Force obstacle just past the threshold
     game.obstacles[0].x = GAME_CONFIG.CANVAS_W - (game.nextSpawnGap + 1);
-    game.lastObstacleX = game.obstacles[0].x;
-
-    gameLoop();
-    cancelAnimationFrame(game.animationFrameId);
-    assertEquals(game.obstacles.length, 2, 'Should now be 2 obstacles — gap threshold met');
+    game.lastObstacleX  = game.obstacles[0].x;
+    gameLoop(); cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.obstacles.length, 2, 'second obstacle spawns once gap threshold met');
   });
 });
 
-describe('Spawn Gap Jitter', () => {
-  it('nextObstacle gap stays within [MIN_SPAWN_GAP, baseGap * (1 + JITTER)]', () => {
-    const scores = [0, 200, 500];
-    scores.forEach(score => {
-      const speed = DifficultyProfile.speedAtScore(score);
-      const baseGap = Math.max(
-        GAME_CONFIG.MIN_SPAWN_GAP,
-        GAME_CONFIG.MAX_SPAWN_GAP - (speed - GAME_CONFIG.INITIAL_SPEED) * GAME_CONFIG.SPAWN_GAP_SPEED_FACTOR
-      );
-      const upperBound = Math.round(baseGap * (1 + GAME_CONFIG.SPAWN_GAP_JITTER));
-      const rng = mulberry32(12345);
-      for (let i = 0; i < 500; i++) {
-        const { gap } = DifficultyProfile.nextObstacle(score, MODES.UPDATED, rng);
-        assert(
-          gap >= GAME_CONFIG.MIN_SPAWN_GAP && gap <= upperBound,
-          `At score ${score}, gap ${gap} should be in [${GAME_CONFIG.MIN_SPAWN_GAP}, ${upperBound}]`
-        );
-      }
-    });
+describe('Spawn Gap (official model)', () => {
+  function band(type, speed) {
+    const minGap = Math.round(type.width * speed + type.minGap * GAME_CONFIG.GAP_COEFFICIENT);
+    return { minGap, maxGap: Math.round(minGap * GAME_CONFIG.MAX_GAP_COEFFICIENT) };
+  }
+
+  it('gap stays within [minGap, minGap*MAX_GAP_COEFFICIENT] for the chosen type', () => {
+    const speed = 8;
+    const rng = mulberry32(12345);
+    for (let i = 0; i < 500; i++) {
+      const { type, gap } = DifficultyProfile.nextObstacle(300, MODES.UPDATED, rng, speed);
+      const { minGap, maxGap } = band(type, speed);
+      assert(gap >= minGap && gap <= maxGap,
+        `gap ${gap} for type ${type.id} at speed ${speed} must be in [${minGap}, ${maxGap}]`);
+    }
   });
 
-  it('produces different gaps across spawns (breaks the metronome)', () => {
+  it('gap grows with speed (official: width*speed dominates)', () => {
+    const rng = () => 0.5;  // fixed mid roll isolates the speed term
+    const slow = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng, 6);
+    const fast = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng, 13);
+    assert(fast.gap > slow.gap,
+      `gap at speed 13 (${fast.gap}) should exceed gap at speed 6 (${slow.gap})`);
+  });
+
+  it('produces gap variety across spawns (breaks the metronome)', () => {
     const rng = mulberry32(7);
     const gaps = new Set();
-    for (let i = 0; i < 50; i++) gaps.add(DifficultyProfile.nextObstacle(100, MODES.UPDATED, rng).gap);
-    assert(gaps.size >= 5, `Expected gap variety; got ${gaps.size} distinct values across 50 draws`);
-  });
-
-  it('smallest achievable gap is still at least MIN_SPAWN_GAP (always clearable)', () => {
-    // Force rng to 0 → maximum negative jitter on the gap roll.
-    const worstCaseRng = () => 0;
-    const { gap } = DifficultyProfile.nextObstacle(500, MODES.UPDATED, worstCaseRng);
-    assert(gap >= GAME_CONFIG.MIN_SPAWN_GAP,
-      `At max negative jitter + near-plateau speed, gap ${gap} must be >= MIN_SPAWN_GAP ${GAME_CONFIG.MIN_SPAWN_GAP}`);
+    for (let i = 0; i < 50; i++) gaps.add(DifficultyProfile.nextObstacle(100, MODES.UPDATED, rng, 8).gap);
+    assert(gaps.size >= 5, `expected gap variety; got ${gaps.size} distinct values`);
   });
 
   it('mulberry32 is deterministic given same seed', () => {
-    const a = mulberry32(42);
-    const b = mulberry32(42);
-    for (let i = 0; i < 10; i++) assertEquals(a(), b(), 'Same seed should produce same sequence');
+    const a = mulberry32(42), b = mulberry32(42);
+    for (let i = 0; i < 10; i++) assertEquals(a(), b(), 'same seed → same sequence');
   });
 });
 
@@ -368,8 +379,12 @@ describe('Ambient depth + confetti (PR-D)', () => {
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
     // Clear pool and fast-forward to just before a level boundary.
+    // Distance-based scoring: score = distance * DISTANCE_COEFFICIENT.
+    // Set distance so score is just below SCORE_PER_LEVEL; the next tick adds
+    // INITIAL_SPEED to distance and crosses the boundary.
     Particles.reset();
-    game.score = GAME_CONFIG.SCORE_PER_LEVEL - 0.05; // next gameLoop tick crosses
+    game.distance = (GAME_CONFIG.SCORE_PER_LEVEL - 0.05) / GAME_CONFIG.DISTANCE_COEFFICIENT;
+    game.score = game.distance * GAME_CONFIG.DISTANCE_COEFFICIENT; // keep prevLevel consistent
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
     const live = Particles.particles.filter(p => p.life > 0 && p.color === '#ffd700').length;
@@ -383,7 +398,13 @@ describe('Ambient depth + confetti (PR-D)', () => {
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
     Particles.reset();
-    game.score = GAME_CONFIG.SCORE_PER_LEVEL - 0.05;
+    // Set distance so that after handleRunning adds currentSpeed the score crosses SCORE_PER_LEVEL.
+    // score = distance * DISTANCE_COEFFICIENT, so we need:
+    //   (distance + currentSpeed) * DISTANCE_COEFFICIENT >= SCORE_PER_LEVEL
+    // Priming distance to (SCORE_PER_LEVEL - 0.05) / DISTANCE_COEFFICIENT ensures the boundary
+    // is genuinely crossed in the tick — the gate being tested is Particles.emit's isUpdatedMode()
+    // check, not a miss of the milestone branch.
+    game.distance = (GAME_CONFIG.SCORE_PER_LEVEL - 0.05) / GAME_CONFIG.DISTANCE_COEFFICIENT; // crosses level boundary on next step
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
     const gold = Particles.particles.filter(p => p.life > 0 && p.color === '#ffd700').length;
@@ -639,25 +660,37 @@ describe('Mode Toggle', () => {
     const rng = mulberry32(99);
     for (const score of [0, 100, 250, 1000]) {
       for (let i = 0; i < 50; i++) {
-        const { type } = DifficultyProfile.nextObstacle(score, MODES.CLASSIC, rng);
+        const { type } = DifficultyProfile.nextObstacle(score, MODES.CLASSIC, rng, 8);
         assertEquals(type.id, 'small', `Classic@${score}: expected small, got ${type.id}`);
       }
     }
   });
 
-  it('classic mode returns deterministic gap (no jitter)', () => {
-    const rng = () => 0; // worst-case jitter input — should have no effect in classic
-    const a = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng).gap;
-    const b = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng).gap;
-    assertEquals(a, b, 'Classic gap should not vary');
-    assert(a >= GAME_CONFIG.MIN_SPAWN_GAP && a <= GAME_CONFIG.MAX_SPAWN_GAP,
-      `Classic gap at score 0 (${a}) should be within [MIN_SPAWN_GAP, MAX_SPAWN_GAP]`);
+  it('classic mode gap uses the official band (rng-driven)', () => {
+    // Classic mode runs the same official gap formula as updated mode; the old
+    // "no-jitter" carve-out is gone (chrome://dino itself jitters spacing).
+    // Verify: gaps stay within [minGap, minGap*MAX_GAP_COEFFICIENT] and the
+    // seeded rng produces real variety.
+    const rng = mulberry32(2026);
+    const speed = GAME_CONFIG.INITIAL_SPEED;
+    const small = GAME_CONFIG.OBSTACLE_TYPES[0]; // classic only ever spawns small
+    const minGap = Math.round(small.width * speed + small.minGap * GAME_CONFIG.GAP_COEFFICIENT);
+    const maxGap = Math.round(minGap * GAME_CONFIG.MAX_GAP_COEFFICIENT);
+
+    const gaps = new Set();
+    for (let i = 0; i < 50; i++) {
+      const { type, gap } = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng, speed);
+      assertEquals(type.id, 'small', 'classic mode must only spawn the small cactus');
+      assert(gap >= minGap && gap <= maxGap, `gap ${gap} must be in band [${minGap}, ${maxGap}]`);
+      gaps.add(gap);
+    }
+    assert(gaps.size >= 5, `seeded rng should produce gap variety in classic; got ${gaps.size} distinct values`);
   });
 
   it('updated mode still produces variety', () => {
     const rng = mulberry32(11);
     const gaps = new Set();
-    for (let i = 0; i < 30; i++) gaps.add(DifficultyProfile.nextObstacle(200, MODES.UPDATED, rng).gap);
+    for (let i = 0; i < 30; i++) gaps.add(DifficultyProfile.nextObstacle(200, MODES.UPDATED, rng, 8).gap);
     assert(gaps.size >= 5, `Updated mode should jitter; got ${gaps.size} distinct values`);
   });
 
@@ -676,7 +709,7 @@ describe('Obstacle Types', () => {
   it('only returns small cactus when score < 100', () => {
     const rng = mulberry32(1);
     for (let i = 0; i < 200; i++) {
-      const { type } = DifficultyProfile.nextObstacle(50, MODES.UPDATED, rng);
+      const { type } = DifficultyProfile.nextObstacle(50, MODES.UPDATED, rng, 8);
       assertEquals(type.id, 'small', `At score 50 expected small, got ${type.id}`);
     }
   });
@@ -684,7 +717,7 @@ describe('Obstacle Types', () => {
   it('can return big cactus at score 100+ but never cluster before 250', () => {
     const rng = mulberry32(2);
     const seen = new Set();
-    for (let i = 0; i < 500; i++) seen.add(DifficultyProfile.nextObstacle(150, MODES.UPDATED, rng).type.id);
+    for (let i = 0; i < 500; i++) seen.add(DifficultyProfile.nextObstacle(150, MODES.UPDATED, rng, 8).type.id);
     assert(seen.has('small') && seen.has('big'), `Expected small+big at score 150, saw ${[...seen]}`);
     assert(!seen.has('cluster'), `Cluster should not appear before score 250, saw ${[...seen]}`);
   });
@@ -692,7 +725,7 @@ describe('Obstacle Types', () => {
   it('can return all three types at score 250+', () => {
     const rng = mulberry32(3);
     const seen = new Set();
-    for (let i = 0; i < 2000; i++) seen.add(DifficultyProfile.nextObstacle(300, MODES.UPDATED, rng).type.id);
+    for (let i = 0; i < 2000; i++) seen.add(DifficultyProfile.nextObstacle(300, MODES.UPDATED, rng, 8).type.id);
     assert(seen.has('small') && seen.has('big') && seen.has('cluster'),
       `Expected all 3 types at score 300, saw ${[...seen]}`);
   });
@@ -701,7 +734,7 @@ describe('Obstacle Types', () => {
     const rng = mulberry32(4);
     const counts = { small: 0, big: 0, cluster: 0 };
     const total = 20000;
-    for (let i = 0; i < total; i++) counts[DifficultyProfile.nextObstacle(300, MODES.UPDATED, rng).type.id]++;
+    for (let i = 0; i < total; i++) counts[DifficultyProfile.nextObstacle(300, MODES.UPDATED, rng, 8).type.id]++;
     const expected = { small: 0.5, big: 0.3, cluster: 0.2 };
     Object.keys(expected).forEach(id => {
       const observed = counts[id] / total;
@@ -749,19 +782,20 @@ describe('Obstacle Types', () => {
 });
 
 describe('Difficulty Curve', () => {
-  it('currentSpeed approaches PLATEAU_SPEED at high score and never exceeds it', () => {
-    resetGame();
-    game.state = STATE.RUNNING;
-    game.graceFrames = 0;
+  it('currentSpeed accelerates by ACCELERATION each step and caps at SPEED_CAP', () => {
+    resetGame(); game.state = STATE.RUNNING; game.graceFrames = 0;
+    const s0 = game.currentSpeed;
+    assertEquals(s0, GAME_CONFIG.INITIAL_SPEED, 'run starts at INITIAL_SPEED');
 
-    game.score = 2000;
-    gameLoop();
-    cancelAnimationFrame(game.animationFrameId);
+    gameLoop(); cancelAnimationFrame(game.animationFrameId);
+    game.obstacles.length = 0;   // keep the dino alive for the rest of the checks
+    assert(Math.abs(game.currentSpeed - (s0 + GAME_CONFIG.ACCELERATION)) < 1e-9,
+      `one step should add ACCELERATION; got ${game.currentSpeed} from ${s0}`);
 
-    assert(game.currentSpeed <= GAME_CONFIG.PLATEAU_SPEED,
-      `currentSpeed at score 2000 (${game.currentSpeed}) must not exceed PLATEAU_SPEED (${GAME_CONFIG.PLATEAU_SPEED})`);
-    assert(game.currentSpeed > GAME_CONFIG.PLATEAU_SPEED - 0.1,
-      `currentSpeed at score 2000 (${game.currentSpeed}) should be very close to PLATEAU_SPEED — sigmoid has converged`);
+    game.currentSpeed = GAME_CONFIG.SPEED_CAP - GAME_CONFIG.ACCELERATION / 2;
+    game.obstacles.length = 0;
+    gameLoop(); cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.currentSpeed, GAME_CONFIG.SPEED_CAP, 'speed clamps at SPEED_CAP');
   });
 
   it('should not set a .speed property on spawned obstacles', () => {
@@ -831,7 +865,10 @@ describe('Day/Night Cycle', () => {
     assert(!game.starsInitialised, 'starsInitialised should be false after reset');
     assertEquals(game.stars.length, 0, 'stars should be empty after reset');
 
-    game.score = 400;
+    // Distance-based scoring: score = distance * DISTANCE_COEFFICIENT.
+    // Set distance so score is at 400 when handleRunning reads it.
+    game.distance = 400 / GAME_CONFIG.DISTANCE_COEFFICIENT;
+    game.score = game.distance * GAME_CONFIG.DISTANCE_COEFFICIENT;
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
     gameLoop();
@@ -854,6 +891,8 @@ describe('High Score', () => {
     game.obstacles.push({ x: 50, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
+    // Distance-based scoring: set distance so score computes to 100 after one step.
+    game.distance = 100 / GAME_CONFIG.DISTANCE_COEFFICIENT;
     game.score = 100;
     game.highScore = 50;
 
@@ -1386,7 +1425,10 @@ describe('Death screen', () => {
     const origGraceFrames = game.graceFrames;
 
     game.highScore         = 1000;
-    game.score             = 1200;
+    // Distance-based scoring: score = distance * DISTANCE_COEFFICIENT.
+    // Set distance so that after handleRunning's step, Math.floor(score) = 1200.
+    game.distance          = 1200 / GAME_CONFIG.DISTANCE_COEFFICIENT; // score will be ~1200 after one step
+    game.score             = game.distance * GAME_CONFIG.DISTANCE_COEFFICIENT; // pre-tick score for prevLevel
     game.state             = STATE.RUNNING;
     game.graceFrames       = 0;
     game.lastObstacleX     = canvas.width; // prevent an extra spawn firing
@@ -1550,78 +1592,40 @@ describe('Hill colour interpolation (polish pass)', () => {
 });
 
 describe('DifficultyProfile', () => {
-  it('speedAtScore returns exactly the midpoint speed at RAMP_MIDPOINT', () => {
-    const expected = GAME_CONFIG.INITIAL_SPEED +
-      (GAME_CONFIG.PLATEAU_SPEED - GAME_CONFIG.INITIAL_SPEED) / 2;
-    assertEquals(
-      DifficultyProfile.speedAtScore(GAME_CONFIG.RAMP_MIDPOINT), expected,
-      'At RAMP_MIDPOINT the sigmoid is exactly 0.5, so speed must be the midpoint between INITIAL and PLATEAU'
-    );
-  });
-
-  it('speedAtScore is slightly above INITIAL_SPEED at score 0 — curve starts gently', () => {
-    const speed = DifficultyProfile.speedAtScore(0);
-    assert(speed > GAME_CONFIG.INITIAL_SPEED,
-      `Score 0 speed ${speed} should be above INITIAL_SPEED ${GAME_CONFIG.INITIAL_SPEED}`);
-    assert(speed < GAME_CONFIG.INITIAL_SPEED + 0.5,
-      `Score 0 speed ${speed} should still be close to INITIAL_SPEED — gentle start`);
-  });
-
-  it('speedAtScore never exceeds PLATEAU_SPEED', () => {
-    for (const score of [500, 1000, 5000]) {
-      const speed = DifficultyProfile.speedAtScore(score);
-      assert(speed <= GAME_CONFIG.PLATEAU_SPEED,
-        `Score ${score} speed ${speed} must not exceed PLATEAU_SPEED ${GAME_CONFIG.PLATEAU_SPEED}`);
-    }
-  });
-
-  it('speedAtScore is monotonically increasing', () => {
-    const s0   = DifficultyProfile.speedAtScore(0);
-    const s100 = DifficultyProfile.speedAtScore(100);
-    const s300 = DifficultyProfile.speedAtScore(300);
-    const s600 = DifficultyProfile.speedAtScore(600);
-    assert(s0 < s100 && s100 < s300 && s300 < s600,
-      `Speed must strictly increase: ${s0} < ${s100} < ${s300} < ${s600}`);
-  });
-
-  it('nextObstacle returns an object with a numeric gap and a typed obstacle', () => {
+  it('nextObstacle returns a numeric gap and a typed obstacle', () => {
     const rng = mulberry32(42);
-    const params = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng);
-    assert(typeof params.gap === 'number',
-      'gap must be a number');
-    assert(params.type && typeof params.type.id === 'string',
-      'type must be an obstacle-type object with an id string');
+    const params = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng, 6);
+    assert(typeof params.gap === 'number', 'gap must be a number');
+    assert(params.type && typeof params.type.id === 'string', 'type must have an id string');
   });
 
-  it('nextObstacle classic mode: gap shrinks as score rises', () => {
-    const rng = mulberry32(42); // not consumed in classic mode — safe to reuse
-    const paramsLow  = DifficultyProfile.nextObstacle(0,   MODES.CLASSIC, rng);
-    const paramsHigh = DifficultyProfile.nextObstacle(500, MODES.CLASSIC, rng);
-    assert(paramsHigh.gap < paramsLow.gap,
-      `Gap at score 500 (${paramsHigh.gap}) should be less than gap at score 0 (${paramsLow.gap}) — higher speed means shorter gap`);
+  it('nextObstacle classic mode: gap grows as speed rises', () => {
+    const rng = () => 0.5;
+    const low  = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng, 6);
+    const high = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng, 13);
+    assert(high.gap > low.gap, `gap at speed 13 (${high.gap}) should exceed speed 6 (${low.gap})`);
   });
 
   it('nextObstacle classic mode: type is always small cactus', () => {
     const rng = mulberry32(42);
-    const params = DifficultyProfile.nextObstacle(500, MODES.CLASSIC, rng);
-    assertEquals(params.type.id, 'small',
-      'Classic mode must always return the small cactus');
+    const params = DifficultyProfile.nextObstacle(500, MODES.CLASSIC, rng, 10);
+    assertEquals(params.type.id, 'small', 'classic mode always returns the small cactus');
   });
 
-  it('nextObstacle updated mode: gap is within valid range at score 0', () => {
+  it('nextObstacle updated mode: gap within official band at low speed', () => {
     const rng = mulberry32(42);
-    const params = DifficultyProfile.nextObstacle(0, MODES.UPDATED, rng);
-    assert(params.gap >= GAME_CONFIG.MIN_SPAWN_GAP,
-      `Gap (${params.gap}) must be at least MIN_SPAWN_GAP (${GAME_CONFIG.MIN_SPAWN_GAP})`);
-    assert(params.gap <= Math.round(GAME_CONFIG.MAX_SPAWN_GAP * (1 + GAME_CONFIG.SPAWN_GAP_JITTER)),
-      `Gap (${params.gap}) must not exceed MAX_SPAWN_GAP with max jitter (${GAME_CONFIG.MAX_SPAWN_GAP} * ${1 + GAME_CONFIG.SPAWN_GAP_JITTER})`);
+    const speed = 6;
+    const params = DifficultyProfile.nextObstacle(0, MODES.UPDATED, rng, speed);
+    const minGap = Math.round(params.type.width * speed + params.type.minGap * GAME_CONFIG.GAP_COEFFICIENT);
+    const maxGap = Math.round(minGap * GAME_CONFIG.MAX_GAP_COEFFICIENT);
+    assert(params.gap >= minGap && params.gap <= maxGap,
+      `gap ${params.gap} must be in [${minGap}, ${maxGap}]`);
   });
 
   it('nextObstacle updated mode: cluster cactus returned at score 250 with max roll', () => {
-    const rng = () => 0.99; // constant roll — pushes weighted pick to last eligible type
-    const params = DifficultyProfile.nextObstacle(250, MODES.UPDATED, rng);
-    assertEquals(params.type.id, 'cluster',
-      'At score 250 with max rng roll, all three types eligible and cluster wins the weighted draw');
+    const rng = () => 0.99;  // type pick (call 1) → last eligible; gap roll (call 2) → top of band
+    const params = DifficultyProfile.nextObstacle(250, MODES.UPDATED, rng, 8);
+    assertEquals(params.type.id, 'cluster', 'at score 250 with max roll, cluster wins the weighted draw');
   });
 });
 
@@ -1994,10 +1998,10 @@ describe('Daily mode RNG seeding', () => {
     const origMode = game.mode;
     game.mode = MODES.DAILY;
     resetGame();
-    const type1 = DifficultyProfile.nextObstacle(300, MODES.DAILY, game.rng).type;
+    const type1 = DifficultyProfile.nextObstacle(300, MODES.DAILY, game.rng, 8).type;
     game.mode = MODES.DAILY;
     resetGame();
-    const type2 = DifficultyProfile.nextObstacle(300, MODES.DAILY, game.rng).type;
+    const type2 = DifficultyProfile.nextObstacle(300, MODES.DAILY, game.rng, 8).type;
     assertEquals(type1.id, type2.id, 'Same seed should produce same obstacle type');
     game.mode = origMode;
     resetGame();
@@ -2062,6 +2066,62 @@ describe('Daily best persistence', () => {
 
     origDate !== null ? localStorage.setItem('dino-daily-date', origDate) : localStorage.removeItem('dino-daily-date');
     origBest !== null ? localStorage.setItem('dino-daily-best', origBest) : localStorage.removeItem('dino-daily-best');
+  });
+});
+
+describe('Fixed-timestep loop', () => {
+  const MS = 1000 / 60;
+
+  // Drive the loop with explicit timestamps and report how many physics
+  // steps (game.animFrame ticks) ran over the timeline.
+  function runTimeline(frameCount, deltaPerFrame) {
+    resetGame();
+    game.graceFrames = 0;
+    game.state = STATE.RUNNING;
+    game.rng = mulberry32(2024);      // pin RNG so both timelines spawn identically
+    const startAnim = game.animFrame;
+    let t = 1000;
+    gameLoop(t);                       // baseline frame — establishes lastTime, runs 0 steps
+    cancelAnimationFrame(game.animationFrameId);
+    for (let i = 0; i < frameCount; i++) {
+      t += deltaPerFrame;
+      gameLoop(t);
+      cancelAnimationFrame(game.animationFrameId);
+    }
+    return game.animFrame - startAnim;
+  }
+
+  it('runs the same number of physics steps per wall-clock second regardless of refresh rate', () => {
+    const steps60  = runTimeline(60,  MS);        // 60 frames * 16.67ms ≈ 1000ms
+    const steps144 = runTimeline(144, MS / 2.4);  // 144 frames * 6.94ms ≈ 1000ms
+    assert(steps60 >= 58 && steps60 <= 62,   `60Hz: expected ~60 steps, got ${steps60}`);
+    assert(steps144 >= 58 && steps144 <= 62, `144Hz: expected ~60 steps (not ~144), got ${steps144}`);
+    assert(Math.abs(steps60 - steps144) <= 2, `step counts must match across refresh rates: 60Hz=${steps60}, 144Hz=${steps144}`);
+  });
+
+  it('clamps catch-up to MAX_CATCHUP_STEPS on sustained slow frames', () => {
+    resetGame(); game.graceFrames = 0; game.state = STATE.RUNNING; game.rng = mulberry32(1);
+    const start = game.animFrame;
+    let t = 1000; gameLoop(t); cancelAnimationFrame(game.animationFrameId);   // baseline
+    t += 100;     gameLoop(t); cancelAnimationFrame(game.animationFrameId);   // 100ms → 6 wanted, clamp 5
+    assert(game.animFrame - start <= MAX_CATCHUP_STEPS, `catch-up must clamp to ${MAX_CATCHUP_STEPS} steps, got ${game.animFrame - start}`);
+  });
+
+  it('treats a backgrounded-tab gap as a single step', () => {
+    resetGame(); game.graceFrames = 0; game.state = STATE.RUNNING; game.rng = mulberry32(1);
+    const start = game.animFrame;
+    let t = 1000; gameLoop(t);  cancelAnimationFrame(game.animationFrameId);  // baseline
+    t += 5000;    gameLoop(t);  cancelAnimationFrame(game.animationFrameId);  // 5s gap → frame>250 → 1 step
+    assertEquals(game.animFrame - start, 1, 'a >250ms frame should advance exactly one step');
+  });
+
+  it('ignores a bogus (NaN) timestamp without freezing the clock', () => {
+    resetGame(); game.graceFrames = 0; game.state = STATE.RUNNING; game.rng = mulberry32(1);
+    const start = game.animFrame;
+    let t = 1000; gameLoop(t); cancelAnimationFrame(game.animationFrameId);   // baseline
+    gameLoop(NaN);            cancelAnimationFrame(game.animationFrameId);     // bogus — must be ignored
+    for (let i = 0; i < 4; i++) { t += 1000 / 60; gameLoop(t); cancelAnimationFrame(game.animationFrameId); }
+    assert(game.animFrame - start >= 3, `clock must keep stepping after a NaN timestamp, got ${game.animFrame - start} steps`);
   });
 });
 
