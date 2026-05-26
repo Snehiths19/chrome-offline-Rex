@@ -75,8 +75,8 @@ const GAME_CONFIG = Object.freeze({
   CANVAS_H: 200,
 
   // --- Physics ---
-  JUMP_POWER:              -12,   // negative = upward impulse applied on jump
-  GRAVITY:                  0.48, // added to velocityY each frame while airborne
+  JUMP_POWER:              -10,   // negative = upward impulse applied on jump (official)
+  GRAVITY:                  0.6,  // added to velocityY each frame while airborne (official)
   INITIAL_SPEED:            3.0,  // obstacle scroll speed at score 0
   SPEED_CAP:               13.0,  // max scroll speed (matches Chrome T-Rex)
   PLATEAU_SPEED:            8.0,  // sigmoid ceiling — focusable-but-demanding speed the curve approaches

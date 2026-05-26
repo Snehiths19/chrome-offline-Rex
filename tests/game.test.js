@@ -113,11 +113,11 @@ describe('Dinosaur Jump', () => {
     assertEquals(dino.y, GAME_CONFIG.CANVAS_H - dino.height, 'Dino should be back on the ground after landing');
   });
 
-  it('should have a peak jump height of ~144px', () => {
-    // jumpPower=-12, gravity=0.48 → peak ≈ 144px
+  it('should have a peak jump height of ~78px', () => {
+    // jumpPower=-10, gravity=0.6 → discrete peak ≈ 78px (official-feel snappy arc)
     resetGame();
     game.state = STATE.RUNNING;
-    const expectedPeak = 144;
+    const expectedPeak = 78;
     jump();
     let minY = dino.y;
     const groundY = GAME_CONFIG.CANVAS_H - dino.height;
