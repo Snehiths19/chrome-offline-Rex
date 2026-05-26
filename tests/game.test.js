@@ -740,19 +740,20 @@ describe('Obstacle Types', () => {
 });
 
 describe('Difficulty Curve', () => {
-  it('currentSpeed approaches PLATEAU_SPEED at high score and never exceeds it', () => {
-    resetGame();
-    game.state = STATE.RUNNING;
-    game.graceFrames = 0;
+  it('currentSpeed accelerates by ACCELERATION each step and caps at SPEED_CAP', () => {
+    resetGame(); game.state = STATE.RUNNING; game.graceFrames = 0;
+    const s0 = game.currentSpeed;
+    assertEquals(s0, GAME_CONFIG.INITIAL_SPEED, 'run starts at INITIAL_SPEED');
 
-    game.score = 2000;
-    gameLoop();
-    cancelAnimationFrame(game.animationFrameId);
+    gameLoop(); cancelAnimationFrame(game.animationFrameId);
+    game.obstacles.length = 0;   // keep the dino alive for the rest of the checks
+    assert(Math.abs(game.currentSpeed - (s0 + GAME_CONFIG.ACCELERATION)) < 1e-9,
+      `one step should add ACCELERATION; got ${game.currentSpeed} from ${s0}`);
 
-    assert(game.currentSpeed <= GAME_CONFIG.PLATEAU_SPEED,
-      `currentSpeed at score 2000 (${game.currentSpeed}) must not exceed PLATEAU_SPEED (${GAME_CONFIG.PLATEAU_SPEED})`);
-    assert(game.currentSpeed > GAME_CONFIG.PLATEAU_SPEED - 0.1,
-      `currentSpeed at score 2000 (${game.currentSpeed}) should be very close to PLATEAU_SPEED — sigmoid has converged`);
+    game.currentSpeed = GAME_CONFIG.SPEED_CAP - GAME_CONFIG.ACCELERATION / 2;
+    game.obstacles.length = 0;
+    gameLoop(); cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.currentSpeed, GAME_CONFIG.SPEED_CAP, 'speed clamps at SPEED_CAP');
   });
 
   it('should not set a .speed property on spawned obstacles', () => {
@@ -1541,40 +1542,6 @@ describe('Hill colour interpolation (polish pass)', () => {
 });
 
 describe('DifficultyProfile', () => {
-  it('speedAtScore returns exactly the midpoint speed at RAMP_MIDPOINT', () => {
-    const expected = GAME_CONFIG.INITIAL_SPEED +
-      (GAME_CONFIG.PLATEAU_SPEED - GAME_CONFIG.INITIAL_SPEED) / 2;
-    assertEquals(
-      DifficultyProfile.speedAtScore(GAME_CONFIG.RAMP_MIDPOINT), expected,
-      'At RAMP_MIDPOINT the sigmoid is exactly 0.5, so speed must be the midpoint between INITIAL and PLATEAU'
-    );
-  });
-
-  it('speedAtScore is slightly above INITIAL_SPEED at score 0 — curve starts gently', () => {
-    const speed = DifficultyProfile.speedAtScore(0);
-    assert(speed > GAME_CONFIG.INITIAL_SPEED,
-      `Score 0 speed ${speed} should be above INITIAL_SPEED ${GAME_CONFIG.INITIAL_SPEED}`);
-    assert(speed < GAME_CONFIG.INITIAL_SPEED + 0.5,
-      `Score 0 speed ${speed} should still be close to INITIAL_SPEED — gentle start`);
-  });
-
-  it('speedAtScore never exceeds PLATEAU_SPEED', () => {
-    for (const score of [500, 1000, 5000]) {
-      const speed = DifficultyProfile.speedAtScore(score);
-      assert(speed <= GAME_CONFIG.PLATEAU_SPEED,
-        `Score ${score} speed ${speed} must not exceed PLATEAU_SPEED ${GAME_CONFIG.PLATEAU_SPEED}`);
-    }
-  });
-
-  it('speedAtScore is monotonically increasing', () => {
-    const s0   = DifficultyProfile.speedAtScore(0);
-    const s100 = DifficultyProfile.speedAtScore(100);
-    const s300 = DifficultyProfile.speedAtScore(300);
-    const s600 = DifficultyProfile.speedAtScore(600);
-    assert(s0 < s100 && s100 < s300 && s300 < s600,
-      `Speed must strictly increase: ${s0} < ${s100} < ${s300} < ${s600}`);
-  });
-
   it('nextObstacle returns a numeric gap and a typed obstacle', () => {
     const rng = mulberry32(42);
     const params = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng, 6);

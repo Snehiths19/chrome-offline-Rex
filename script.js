@@ -77,11 +77,9 @@ const GAME_CONFIG = Object.freeze({
   // --- Physics ---
   JUMP_POWER:              -10,   // negative = upward impulse applied on jump (official)
   GRAVITY:                  0.6,  // added to velocityY each frame while airborne (official)
-  INITIAL_SPEED:            3.0,  // obstacle scroll speed at score 0
-  SPEED_CAP:               13.0,  // max scroll speed (matches Chrome T-Rex)
-  PLATEAU_SPEED:            8.0,  // sigmoid ceiling — focusable-but-demanding speed the curve approaches
-  RAMP_MIDPOINT:          300,    // score where acceleration is steepest (day/night transition)
-  RAMP_STEEPNESS:           0.01, // sigmoid slope — controls how quickly speed rises through the midpoint
+  INITIAL_SPEED:            6.0,  // obstacle scroll speed at run start (official)
+  SPEED_CAP:               13.0,  // max scroll speed (official MAX_SPEED)
+  ACCELERATION:             0.001, // linear speed gain per fixed step (official)
   SCORE_PER_LEVEL:        100,    // score points per level — used for milestone flash effects only
   SCORE_INCREMENT:          0.1,  // score added per frame while RUNNING
 
@@ -463,11 +461,6 @@ function pickObstacleType(rng, score, mode) {
 }
 
 const DifficultyProfile = {
-  speedAtScore(score) {
-    const { INITIAL_SPEED, PLATEAU_SPEED, RAMP_STEEPNESS, RAMP_MIDPOINT } = GAME_CONFIG;
-    return INITIAL_SPEED + (PLATEAU_SPEED - INITIAL_SPEED) *
-      (1 / (1 + Math.exp(-RAMP_STEEPNESS * (score - RAMP_MIDPOINT))));
-  },
   nextObstacle(score, mode, rng, speed) {
     // RNG call order is load-bearing: type roll first, gap roll second.
     const type = pickObstacleType(rng, score, mode);
@@ -1395,7 +1388,7 @@ function handleRunning() {
   game.animFrame++;
 
   const level = Math.floor(game.score / GAME_CONFIG.SCORE_PER_LEVEL);
-  game.currentSpeed = DifficultyProfile.speedAtScore(game.score);
+  game.currentSpeed = Math.min(game.currentSpeed + GAME_CONFIG.ACCELERATION, GAME_CONFIG.SPEED_CAP);
 
   // Milestone flash on level-up.
   if (level > prevLevel && level > 0) {
@@ -1425,7 +1418,7 @@ function handleRunning() {
   updateObstacles();
 
   // Speed-trail particles: subtle dust trailing off the dino approaching plateau speed.
-  if (isUpdatedMode() && game.currentSpeed >= GAME_CONFIG.PLATEAU_SPEED * 0.96) {
+  if (isUpdatedMode() && game.currentSpeed >= GAME_CONFIG.SPEED_CAP * 0.85) {
     Particles.emit('trail', dino.x + 4, dino.y + dino.height - 4);
   }
 
