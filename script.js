@@ -1435,6 +1435,8 @@ function handleRunning() {
   updateObstacles();
 
   // Speed-trail particles: subtle dust trailing off the dino approaching plateau speed.
+  // Speed-trail particles kick in once the run is ~85% of the way to SPEED_CAP —
+  // a late-game cue that the speed ceiling is approaching.
   if (isUpdatedMode() && game.currentSpeed >= GAME_CONFIG.SPEED_CAP * 0.85) {
     Particles.emit('trail', dino.x + 4, dino.y + dino.height - 4);
   }

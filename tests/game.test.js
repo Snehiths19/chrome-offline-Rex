@@ -404,8 +404,7 @@ describe('Ambient depth + confetti (PR-D)', () => {
     // Priming distance to (SCORE_PER_LEVEL - 0.05) / DISTANCE_COEFFICIENT ensures the boundary
     // is genuinely crossed in the tick — the gate being tested is Particles.emit's isUpdatedMode()
     // check, not a miss of the milestone branch.
-    game.distance = (GAME_CONFIG.SCORE_PER_LEVEL - 0.05) / GAME_CONFIG.DISTANCE_COEFFICIENT;
-    game.score = GAME_CONFIG.SCORE_PER_LEVEL - 0.05;
+    game.distance = (GAME_CONFIG.SCORE_PER_LEVEL - 0.05) / GAME_CONFIG.DISTANCE_COEFFICIENT; // crosses level boundary on next step
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
     const gold = Particles.particles.filter(p => p.life > 0 && p.color === '#ffd700').length;
@@ -667,17 +666,25 @@ describe('Mode Toggle', () => {
     }
   });
 
-  it('classic mode returns deterministic gap (no jitter)', () => {
-    const rng = () => 0; // constant rng → both calls produce the same gap roll (determinism check)
+  it('classic mode gap uses the official band (rng-driven)', () => {
+    // Classic mode runs the same official gap formula as updated mode; the old
+    // "no-jitter" carve-out is gone (chrome://dino itself jitters spacing).
+    // Verify: gaps stay within [minGap, minGap*MAX_GAP_COEFFICIENT] and the
+    // seeded rng produces real variety.
+    const rng = mulberry32(2026);
     const speed = GAME_CONFIG.INITIAL_SPEED;
-    const a = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng, speed).gap;
-    const b = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng, speed).gap;
-    assertEquals(a, b, 'Classic gap should not vary');
-    const type = GAME_CONFIG.OBSTACLE_TYPES[0]; // classic always picks small
-    const minGap = Math.round(type.width * speed + type.minGap * GAME_CONFIG.GAP_COEFFICIENT);
+    const small = GAME_CONFIG.OBSTACLE_TYPES[0]; // classic only ever spawns small
+    const minGap = Math.round(small.width * speed + small.minGap * GAME_CONFIG.GAP_COEFFICIENT);
     const maxGap = Math.round(minGap * GAME_CONFIG.MAX_GAP_COEFFICIENT);
-    assert(a >= minGap && a <= maxGap,
-      `Classic gap at score 0 (${a}) should be within [${minGap}, ${maxGap}]`);
+
+    const gaps = new Set();
+    for (let i = 0; i < 50; i++) {
+      const { type, gap } = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng, speed);
+      assertEquals(type.id, 'small', 'classic mode must only spawn the small cactus');
+      assert(gap >= minGap && gap <= maxGap, `gap ${gap} must be in band [${minGap}, ${maxGap}]`);
+      gaps.add(gap);
+    }
+    assert(gaps.size >= 5, `seeded rng should produce gap variety in classic; got ${gaps.size} distinct values`);
   });
 
   it('updated mode still produces variety', () => {
