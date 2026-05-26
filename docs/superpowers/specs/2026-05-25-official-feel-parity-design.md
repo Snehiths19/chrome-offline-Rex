@@ -73,34 +73,47 @@ screen, and mobile scaling are untouched.
 ### 1. Fixed-timestep loop (Section 8)
 
 Decision: **fixed-timestep accumulator** (chosen over deltaTime-scaling and
-60 fps-cap). It fixes the 2.4× speed bug, keeps the physics code stepping by fixed
-amounts (minimal change), preserves the daily-challenge determinism contract, and
-still renders at full 144 Hz.
+60 fps-cap). It fixes the 2.4× speed bug, keeps the existing combined state
+handlers stepping by fixed amounts (minimal change), and preserves the
+daily-challenge determinism contract.
 
-Replace the loop:
+The accumulator drives the **existing** `STATE_HANDLERS[state]()` once per fixed
+1/60 s step — no handler split. Drawing happens inside the handler as today; on a
+144 Hz display most frames run 1 step (≈ every 2.4 rAF callbacks) and the rest run
+0 (the canvas simply retains the last image), so the game updates and renders at a
+true 60 Hz — exactly like the official. (Splitting update from draw to render at
+144 Hz would only redraw identical frames without render interpolation, which is
+out of scope; revisit later if true 144 Hz smoothness is wanted.)
 
 ```js
-const MS_PER_STEP = 1000 / 60;
-let lastTime = performance.now(), accumulator = 0;
+const MS_PER_STEP = 1000 / 60, MAX_STEPS = 5;
+let lastTime, accumulator = 0;          // reset in resetGame()
 
 function gameLoop(now) {
   game.animationFrameId = requestAnimationFrame(gameLoop);
+  if (now === undefined) {              // no-arg: single fixed step (tests + kickoff)
+    STATE_HANDLERS[game.state]();
+    return;
+  }
+  if (lastTime === undefined) lastTime = now;     // first timestamped frame: 0 delta
   let frame = now - lastTime; lastTime = now;
-  if (frame > 250) frame = MS_PER_STEP;        // tab was backgrounded — don't fast-forward
+  if (frame > 250) frame = MS_PER_STEP;           // tab was backgrounded — don't fast-forward
   accumulator += frame;
   let steps = 0;
-  while (accumulator >= MS_PER_STEP && steps++ < 5) {  // clamp 5 = no spiral-of-death
-    STATE_UPDATE[game.state]();                // physics / state mutation only
+  while (accumulator >= MS_PER_STEP && steps < MAX_STEPS) {
+    STATE_HANDLERS[game.state]();
     accumulator -= MS_PER_STEP;
+    steps++;
   }
-  STATE_DRAW[game.state]();                     // render exactly once per rAF
+  if (steps === MAX_STEPS) accumulator = 0;        // spiral-of-death clamp
 }
 ```
 
-This requires splitting each state handler (`handleIdle`, `handleWaiting`,
-`handleRunning`, `handleDead`) into an **update** half and a **draw** half. Today
-they interleave physics and drawing (e.g. `handleRunning` mutates state then draws
-at script.js:1501-1505).
+The **no-arg single-step path** is load-bearing: tests call `gameLoop()` (no
+timestamp) to advance exactly one frame, and the browser/init kickoff calls it the
+same way before rAF takes over with timestamps. This keeps the existing test suite
+driving the game unchanged — only assertions whose numbers change from retuning
+need editing.
 
 Beneficial side effect: all frame-counted animations (death shake, score pop,
 milestone, idle bob) currently run 2.4× too fast at 144 Hz. Because a "step" is now
@@ -207,9 +220,9 @@ Tests assert against `game.*` state, not pixels (CLAUDE.md test harness).
 
 ## Risks
 
-- **Loop refactor (update/draw split)** is the largest change; could disturb
-  death/idle animation timing. Mitigation: the split is mechanical, and the new
-  fixed-step clock makes frame-counted animations *more* correct, not less.
+- **Loop change** could disturb how tests drive frames. Mitigation: the no-arg
+  single-step path preserves the exact `gameLoop()` semantics tests rely on, so the
+  driving mechanism is unchanged; only retuned-number assertions move.
 - **Spiral-of-death** on a stalled/backgrounded tab. Mitigation: `frame > 250`
   reset and `steps < 5` clamp.
 - **High-score reset** is user-visible. Mitigation: one-time, version-guarded;
