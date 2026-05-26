@@ -398,6 +398,13 @@ describe('Ambient depth + confetti (PR-D)', () => {
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
     Particles.reset();
+    // Set distance so that after handleRunning adds currentSpeed the score crosses SCORE_PER_LEVEL.
+    // score = distance * DISTANCE_COEFFICIENT, so we need:
+    //   (distance + currentSpeed) * DISTANCE_COEFFICIENT >= SCORE_PER_LEVEL
+    // Priming distance to (SCORE_PER_LEVEL - 0.05) / DISTANCE_COEFFICIENT ensures the boundary
+    // is genuinely crossed in the tick — the gate being tested is Particles.emit's isUpdatedMode()
+    // check, not a miss of the milestone branch.
+    game.distance = (GAME_CONFIG.SCORE_PER_LEVEL - 0.05) / GAME_CONFIG.DISTANCE_COEFFICIENT;
     game.score = GAME_CONFIG.SCORE_PER_LEVEL - 0.05;
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);

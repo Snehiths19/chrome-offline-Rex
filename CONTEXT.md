@@ -34,26 +34,20 @@ _Avoid_: gap, spacing, next gap
 **Jitter** — a random ±variation applied to the **spawn gap** in updated mode to prevent metronomic spacing. Only applied in updated mode; classic-mode spawn gaps are deterministic.
 _Avoid_: randomness, variation
 
-**Score** — the primary measure of how far a run has progressed; the sole input to the difficulty curve.
+**Score** — the primary measure of how far a run has progressed; the sole input to the difficulty curve. Computed as `game.distance × DISTANCE_COEFFICIENT` (v2 scale), where `game.distance` accumulates `game.currentSpeed` each fixed step. `migrateScoreScale()` clears any pre-v2 stored scores on first boot after the upgrade.
 _Avoid_: distance, points
 
-**Speed** — the obstacle scroll speed in pixels per frame at the current score.
+**Speed** — the obstacle scroll speed in pixels per fixed step (1/60 s). Increases linearly by `ACCELERATION` per step from `INITIAL_SPEED`, capped at `SPEED_CAP`.
 _Avoid_: velocity, game speed, scroll speed
 
-**Initial speed** — the speed at score 0 — the lowest point of the difficulty curve.
+**Initial speed** — the speed at the start of a run — the lowest point of the difficulty curve (value: `INITIAL_SPEED`).
 _Avoid_: start speed, base speed
-
-**Ramp midpoint** — the score value where the difficulty curve's rate of change is steepest; the inflection point of the sigmoid.
-_Avoid_: midpoint, acceleration point
-
-**Ramp steepness** — a tuning coefficient that controls how sharply speed rises around the ramp midpoint.
-_Avoid_: slope, sigmoid slope
 
 **DifficultyProfile** — the module that owns the relationship between score and game feel. It defines how fast the game moves at any given score, when obstacles spawn, and what type they are. All tunable numbers live here; the game loop reads from it rather than computing inline.
 
-**Difficulty curve** — how speed and obstacle density scale with score. The curve starts gently, accelerates through the mid-game, and plateaus at a speed the player can sustain with focus. It is continuous (no sudden jumps at level boundaries) and sigmoid-shaped (slow ramp-up, steeper middle, soft plateau).
+**Difficulty curve** — how speed and obstacle density scale with score. Speed increases linearly from `INITIAL_SPEED` by `ACCELERATION` each fixed step (1/60 s), capping at `SPEED_CAP`. Obstacle density follows the official gap model: `spawn gap = round(obstacleWidth × speed + minGap × GAP_COEFFICIENT)`, randomised up to `MAX_GAP_COEFFICIENT`. The curve is continuous (no sudden jumps at level boundaries).
 
-**Plateau** — the ceiling of the difficulty curve. Chosen to feel "focusable but demanding" — a skilled player can hold this speed indefinitely, but it is not forgiving of lapses in attention. The plateau is communicated to the player exactly once per run via a light peripheral cue (e.g. a brief particle burst or flash) when they first reach it — never repeated, never prominent enough to break the obstacle lane's focus. The cue reframes failure at high score from "this is impossible" to "I've reached the hard part, now I need to hold it." Atmosphere rules apply: the signal must stay peripheral.
+**Plateau** — the ceiling of the difficulty curve, reached when `game.currentSpeed` hits `SPEED_CAP`. Chosen to feel "focusable but demanding" — a skilled player can hold this speed indefinitely, but it is not forgiving of lapses in attention. The plateau is communicated to the player exactly once per run via a light peripheral cue (e.g. a brief particle burst or flash) when they first reach it — never repeated, never prominent enough to break the obstacle lane's focus. The cue reframes failure at high score from "this is impossible" to "I've reached the hard part, now I need to hold it." Atmosphere rules apply: the signal must stay peripheral.
 
 **Level** — a discrete score milestone (every 100 points) used for milestone flash effects and visual feedback only. Speed no longer steps at level boundaries; it increases continuously.
 
@@ -93,5 +87,5 @@ _Avoid_: share score, copy result, clipboard share
 
 ## Flagged Ambiguities
 
-- **"speed cap"** appears in code as `SPEED_CAP` (kept for the particle-trail threshold) but is distinct from **plateau** — `SPEED_CAP` is a hard ceiling for particle effects, while **plateau** is the soft ceiling the difficulty curve targets. Prefer **plateau** in domain discussion; reserve "speed cap" for talking about the particle threshold specifically.
+- **"speed cap"** (`SPEED_CAP`) is the single hard ceiling for `game.currentSpeed`. It also doubles as the particle-trail threshold (trail activates at 85 % of `SPEED_CAP`). **Plateau** is the domain-level name for this ceiling — prefer **plateau** in design discussions; use "speed cap" only when referring to the code constant.
 - **"gap"** is overloaded: it can mean the on-screen pixel distance between obstacles (a rendering concept) or `nextSpawnGap` (the trigger threshold). Always qualify: **spawn gap** for the game-logic threshold.

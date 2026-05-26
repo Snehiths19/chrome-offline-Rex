@@ -132,6 +132,7 @@ const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matc
 | `dino-tuning` | JSON | `saveTuning()` | `loadTuning()` at boot |
 | `dino-daily-date` | YYYYMMDD integer string | `ScoreStore.saveDailyBest()` | `ScoreStore.loadDailyBest()` |
 | `dino-daily-best` | integer string | `ScoreStore.saveDailyBest()` | `ScoreStore.loadDailyBest()` |
+| `dino-score-scale` | `'v2'` | `migrateScoreScale()` | `migrateScoreScale()` at boot |
 
 ## Test harness
 
@@ -175,6 +176,10 @@ Read the `cfg()` block at the top of `script.js` Section 2 for the full list of 
 ## Known invariants
 
 Rules that apply across all call sites. Violating these silently misbehaves rather than crashes — so they must be checked during any refactor that touches the affected code.
+
+**Fixed-timestep loop.** `gameLoop(now)` accumulates real elapsed time and steps `STATE_HANDLERS` in fixed `MS_PER_STEP` (1/60 s) chunks, so the game runs at a true 60 Hz on any refresh rate. A **no-arg `gameLoop()` call advances exactly one step** — tests and the kickoff/restart sites depend on this. `loopAccumulator`/`loopLastTime` reset in `resetGame()`; bogus (NaN/backward/>250 ms) deltas collapse to a single step.
+
+**Score scale is v2 (distance-based).** `game.score = game.distance × DISTANCE_COEFFICIENT`; `game.distance` accumulates `game.currentSpeed` per step. `migrateScoreScale()` clears pre-v2 stored scores once at load, guarded by the `dino-score-scale` key.
 
 **`cancelAnimationFrame` before restarting the loop.** Any code path that calls `resetGame()` + `gameLoop()` must first call `cancelAnimationFrame(game.animationFrameId)`, or a duplicate loop is created and the game runs at double speed. Current compliant sites: `setMode()`, daily-mode toggle, `handleAction()` (DEAD→restart branch). Pattern: `cancelAnimationFrame(game.animationFrameId); resetGame(); gameLoop();`
 
