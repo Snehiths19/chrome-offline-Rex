@@ -854,7 +854,7 @@ describe('Day/Night Cycle', () => {
     // Distance-based scoring: score = distance * DISTANCE_COEFFICIENT.
     // Set distance so score is at 400 when handleRunning reads it.
     game.distance = 400 / GAME_CONFIG.DISTANCE_COEFFICIENT;
-    game.score = 400;
+    game.score = game.distance * GAME_CONFIG.DISTANCE_COEFFICIENT;
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
     gameLoop();

@@ -231,11 +231,13 @@ const ScoreStore = {
 // pre-v2 high scores live on an incompatible scale — clear them once, guarded by
 // a version key so it never repeats.
 function migrateScoreScale() {
-  if (localStorage.getItem('dino-score-scale') === 'v2') return;
-  localStorage.removeItem('dino-high-score');
-  localStorage.removeItem('dino-daily-best');
-  localStorage.removeItem('dino-daily-date');
-  localStorage.setItem('dino-score-scale', 'v2');
+  try {
+    if (localStorage.getItem('dino-score-scale') === 'v2') return;
+    localStorage.removeItem('dino-high-score');
+    localStorage.removeItem('dino-daily-best');
+    localStorage.removeItem('dino-daily-date');
+    localStorage.setItem('dino-score-scale', 'v2');
+  } catch (e) { /* storage unavailable — skip migration */ }
 }
 migrateScoreScale();
 
