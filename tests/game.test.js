@@ -2065,6 +2065,53 @@ describe('Daily best persistence', () => {
   });
 });
 
+describe('Fixed-timestep loop', () => {
+  const MS = 1000 / 60;
+
+  // Drive the loop with explicit timestamps and report how many physics
+  // steps (game.animFrame ticks) ran over the timeline.
+  function runTimeline(frameCount, deltaPerFrame) {
+    resetGame();
+    game.graceFrames = 0;
+    game.state = STATE.RUNNING;
+    game.rng = mulberry32(2024);      // pin RNG so both timelines spawn identically
+    const startAnim = game.animFrame;
+    let t = 1000;
+    gameLoop(t);                       // baseline frame — establishes lastTime, runs 0 steps
+    cancelAnimationFrame(game.animationFrameId);
+    for (let i = 0; i < frameCount; i++) {
+      t += deltaPerFrame;
+      gameLoop(t);
+      cancelAnimationFrame(game.animationFrameId);
+    }
+    return game.animFrame - startAnim;
+  }
+
+  it('runs the same number of physics steps per wall-clock second regardless of refresh rate', () => {
+    const steps60  = runTimeline(60,  MS);        // 60 frames * 16.67ms ≈ 1000ms
+    const steps144 = runTimeline(144, MS / 2.4);  // 144 frames * 6.94ms ≈ 1000ms
+    assert(steps60 >= 58 && steps60 <= 62,   `60Hz: expected ~60 steps, got ${steps60}`);
+    assert(steps144 >= 58 && steps144 <= 62, `144Hz: expected ~60 steps (not ~144), got ${steps144}`);
+    assert(Math.abs(steps60 - steps144) <= 2, `step counts must match across refresh rates: 60Hz=${steps60}, 144Hz=${steps144}`);
+  });
+
+  it('clamps catch-up to MAX_CATCHUP_STEPS on sustained slow frames', () => {
+    resetGame(); game.graceFrames = 0; game.state = STATE.RUNNING; game.rng = mulberry32(1);
+    const start = game.animFrame;
+    let t = 1000; gameLoop(t); cancelAnimationFrame(game.animationFrameId);   // baseline
+    t += 100;     gameLoop(t); cancelAnimationFrame(game.animationFrameId);   // 100ms → 6 wanted, clamp 5
+    assert(game.animFrame - start <= 5, `catch-up must clamp to 5 steps, got ${game.animFrame - start}`);
+  });
+
+  it('treats a backgrounded-tab gap as a single step', () => {
+    resetGame(); game.graceFrames = 0; game.state = STATE.RUNNING; game.rng = mulberry32(1);
+    const start = game.animFrame;
+    let t = 1000; gameLoop(t);  cancelAnimationFrame(game.animationFrameId);  // baseline
+    t += 5000;    gameLoop(t);  cancelAnimationFrame(game.animationFrameId);  // 5s gap → frame>250 → 1 step
+    assertEquals(game.animFrame - start, 1, 'a >250ms frame should advance exactly one step');
+  });
+});
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {

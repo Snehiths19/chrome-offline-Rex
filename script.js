@@ -1310,6 +1310,8 @@ function resetGame() {
   dino.y = GAME_CONFIG.CANVAS_H - dino.height;
   dino.velocityY = 0;
   dino.isJumping = false;
+  loopAccumulator = 0;
+  loopLastTime = undefined;
 
   Particles.reset();
 
@@ -1512,9 +1514,36 @@ const STATE_HANDLERS = {
   [STATE.DEAD]:    handleDead,
 };
 
-function gameLoop() {
+// Fixed-timestep clock. Physics advances in MS_PER_STEP chunks so the game runs
+// at a true 60 Hz on any refresh rate. lastTime/accumulator reset in resetGame().
+const MS_PER_STEP = 1000 / 60;
+const MAX_CATCHUP_STEPS = 5;
+let loopLastTime;            // undefined until the first timestamped frame
+let loopAccumulator = 0;
+
+function gameLoop(now) {
   game.animationFrameId = requestAnimationFrame(gameLoop);
-  STATE_HANDLERS[game.state]();
+
+  // No-arg call = advance exactly one fixed step. Used by tests and by the
+  // kickoff/restart sites before the browser starts supplying timestamps.
+  if (now === undefined) {
+    STATE_HANDLERS[game.state]();
+    return;
+  }
+
+  if (loopLastTime === undefined) loopLastTime = now;   // first timestamped frame: 0 delta
+  let frame = now - loopLastTime;
+  loopLastTime = now;
+  if (frame > 250) frame = MS_PER_STEP;                 // backgrounded tab — don't fast-forward
+  loopAccumulator += frame;
+
+  let steps = 0;
+  while (loopAccumulator >= MS_PER_STEP && steps < MAX_CATCHUP_STEPS) {
+    STATE_HANDLERS[game.state]();
+    loopAccumulator -= MS_PER_STEP;
+    steps++;
+  }
+  if (steps === MAX_CATCHUP_STEPS) loopAccumulator = 0; // sustained-slowness clamp
 }
 
 // == SECTION 9: INITIALISATION ==
