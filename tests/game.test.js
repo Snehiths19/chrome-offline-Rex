@@ -626,14 +626,14 @@ describe('Mode Toggle', () => {
     const rng = mulberry32(99);
     for (const score of [0, 100, 250, 1000]) {
       for (let i = 0; i < 50; i++) {
-        const { type } = DifficultyProfile.nextObstacle(score, MODES.CLASSIC, rng);
+        const { type } = DifficultyProfile.nextObstacle(score, MODES.CLASSIC, rng, 8);
         assertEquals(type.id, 'small', `Classic@${score}: expected small, got ${type.id}`);
       }
     }
   });
 
   it('classic mode returns deterministic gap (no jitter)', () => {
-    const rng = () => 0; // rng value should have no effect in classic
+    const rng = () => 0; // constant rng → both calls produce the same gap roll (determinism check)
     const speed = GAME_CONFIG.INITIAL_SPEED;
     const a = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng, speed).gap;
     const b = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng, speed).gap;
@@ -667,7 +667,7 @@ describe('Obstacle Types', () => {
   it('only returns small cactus when score < 100', () => {
     const rng = mulberry32(1);
     for (let i = 0; i < 200; i++) {
-      const { type } = DifficultyProfile.nextObstacle(50, MODES.UPDATED, rng);
+      const { type } = DifficultyProfile.nextObstacle(50, MODES.UPDATED, rng, 8);
       assertEquals(type.id, 'small', `At score 50 expected small, got ${type.id}`);
     }
   });
@@ -675,7 +675,7 @@ describe('Obstacle Types', () => {
   it('can return big cactus at score 100+ but never cluster before 250', () => {
     const rng = mulberry32(2);
     const seen = new Set();
-    for (let i = 0; i < 500; i++) seen.add(DifficultyProfile.nextObstacle(150, MODES.UPDATED, rng).type.id);
+    for (let i = 0; i < 500; i++) seen.add(DifficultyProfile.nextObstacle(150, MODES.UPDATED, rng, 8).type.id);
     assert(seen.has('small') && seen.has('big'), `Expected small+big at score 150, saw ${[...seen]}`);
     assert(!seen.has('cluster'), `Cluster should not appear before score 250, saw ${[...seen]}`);
   });
@@ -683,7 +683,7 @@ describe('Obstacle Types', () => {
   it('can return all three types at score 250+', () => {
     const rng = mulberry32(3);
     const seen = new Set();
-    for (let i = 0; i < 2000; i++) seen.add(DifficultyProfile.nextObstacle(300, MODES.UPDATED, rng).type.id);
+    for (let i = 0; i < 2000; i++) seen.add(DifficultyProfile.nextObstacle(300, MODES.UPDATED, rng, 8).type.id);
     assert(seen.has('small') && seen.has('big') && seen.has('cluster'),
       `Expected all 3 types at score 300, saw ${[...seen]}`);
   });
@@ -692,7 +692,7 @@ describe('Obstacle Types', () => {
     const rng = mulberry32(4);
     const counts = { small: 0, big: 0, cluster: 0 };
     const total = 20000;
-    for (let i = 0; i < total; i++) counts[DifficultyProfile.nextObstacle(300, MODES.UPDATED, rng).type.id]++;
+    for (let i = 0; i < total; i++) counts[DifficultyProfile.nextObstacle(300, MODES.UPDATED, rng, 8).type.id]++;
     const expected = { small: 0.5, big: 0.3, cluster: 0.2 };
     Object.keys(expected).forEach(id => {
       const observed = counts[id] / total;
@@ -1981,10 +1981,10 @@ describe('Daily mode RNG seeding', () => {
     const origMode = game.mode;
     game.mode = MODES.DAILY;
     resetGame();
-    const type1 = DifficultyProfile.nextObstacle(300, MODES.DAILY, game.rng).type;
+    const type1 = DifficultyProfile.nextObstacle(300, MODES.DAILY, game.rng, 8).type;
     game.mode = MODES.DAILY;
     resetGame();
-    const type2 = DifficultyProfile.nextObstacle(300, MODES.DAILY, game.rng).type;
+    const type2 = DifficultyProfile.nextObstacle(300, MODES.DAILY, game.rng, 8).type;
     assertEquals(type1.id, type2.id, 'Same seed should produce same obstacle type');
     game.mode = origMode;
     resetGame();

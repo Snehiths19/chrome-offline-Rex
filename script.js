@@ -105,6 +105,7 @@ const GAME_CONFIG = Object.freeze({
   // Each type unlocks at a score threshold and contributes its `weight` to the
   // weighted random pick once unlocked. `render` controls how drawObstacles()
   // paints it from the single cactus sprite.
+  // `minGap` is the per-type floor fed into the official gap formula (width*speed + minGap*GAP_COEFFICIENT).
   OBSTACLE_TYPES: Object.freeze([
     Object.freeze({ id: 'small',   width: 20, height: 40, unlockScore:   0, weight: 50, render: 'single', minGap: 120 }),
     Object.freeze({ id: 'big',     width: 30, height: 55, unlockScore: 100, weight: 30, render: 'single', minGap: 120 }),
