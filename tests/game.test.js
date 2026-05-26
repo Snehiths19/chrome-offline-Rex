@@ -223,82 +223,69 @@ describe('Scoring', () => {
 });
 
 describe('Obstacle Gap Enforcement', () => {
-  it('should not spawn a second obstacle until the dynamic gap threshold is met', () => {
+  it('does not spawn a second obstacle until the official gap threshold is met', () => {
     resetGame();
     game.graceFrames = 0;
     game.state = STATE.RUNNING;
-    // Pin the RNG to the middle of the jitter range so nextSpawnGap is deterministic.
-    game.rng = () => 0.5;
-    game.nextSpawnGap = 600; // base gap at INITIAL_SPEED, zero jitter — triggers first spawn
+    game.rng = () => 0.5;                 // mid-range gap roll, deterministic
+    game.currentSpeed = GAME_CONFIG.INITIAL_SPEED;
+    game.nextSpawnGap = 100;             // small threshold so frame 1 spawns
 
-    // Frame 1: lastObstacleX=-300 ≤ GAME_CONFIG.CANVAS_W-600 → first spawn
-    gameLoop();
-    cancelAnimationFrame(game.animationFrameId);
-    assertEquals(game.obstacles.length, 1, 'Should have 1 obstacle after first gameLoop frame');
+    gameLoop(); cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.obstacles.length, 1, 'first obstacle spawns on frame 1');
 
-    // After spawn, nextSpawnGap was recomputed via DifficultyProfile.nextObstacle(score=0).
-    // At rng=0.5 jitter is zero, so gap = round(MAX_SPAWN_GAP - (speed - INITIAL_SPEED) * FACTOR).
-    const expectedGap = Math.round(
-      GAME_CONFIG.MAX_SPAWN_GAP -
-      (DifficultyProfile.speedAtScore(0) - GAME_CONFIG.INITIAL_SPEED) * GAME_CONFIG.SPAWN_GAP_SPEED_FACTOR
-    );
-    assertEquals(game.nextSpawnGap, expectedGap, `Next gap should be ${expectedGap} at speedAtScore(0) with zero jitter`);
+    // Recomputed gap must sit within the official band for the spawned type at this speed.
+    const type   = game.obstacles[0].type ? GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === game.obstacles[0].type) : GAME_CONFIG.OBSTACLE_TYPES[0];
+    const minGap = Math.round(type.width * game.currentSpeed + type.minGap * GAME_CONFIG.GAP_COEFFICIENT);
+    const maxGap = Math.round(minGap * GAME_CONFIG.MAX_GAP_COEFFICIENT);
+    assert(game.nextSpawnGap >= minGap && game.nextSpawnGap <= maxGap,
+      `recomputed gap ${game.nextSpawnGap} must be in [${minGap}, ${maxGap}]`);
 
-    // Frame 2: obstacle hasn't drifted far enough yet — not a spawn frame.
-    gameLoop();
-    cancelAnimationFrame(game.animationFrameId);
-    assertEquals(game.obstacles.length, 1, `Should still be 1 obstacle — ${expectedGap}px gap not met`);
+    gameLoop(); cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.obstacles.length, 1, 'no new obstacle until gap distance elapses');
 
-    // Force obstacle just past the threshold
     game.obstacles[0].x = GAME_CONFIG.CANVAS_W - (game.nextSpawnGap + 1);
-    game.lastObstacleX = game.obstacles[0].x;
-
-    gameLoop();
-    cancelAnimationFrame(game.animationFrameId);
-    assertEquals(game.obstacles.length, 2, 'Should now be 2 obstacles — gap threshold met');
+    game.lastObstacleX  = game.obstacles[0].x;
+    gameLoop(); cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.obstacles.length, 2, 'second obstacle spawns once gap threshold met');
   });
 });
 
-describe('Spawn Gap Jitter', () => {
-  it('nextObstacle gap stays within [MIN_SPAWN_GAP, baseGap * (1 + JITTER)]', () => {
-    const scores = [0, 200, 500];
-    scores.forEach(score => {
-      const speed = DifficultyProfile.speedAtScore(score);
-      const baseGap = Math.max(
-        GAME_CONFIG.MIN_SPAWN_GAP,
-        GAME_CONFIG.MAX_SPAWN_GAP - (speed - GAME_CONFIG.INITIAL_SPEED) * GAME_CONFIG.SPAWN_GAP_SPEED_FACTOR
-      );
-      const upperBound = Math.round(baseGap * (1 + GAME_CONFIG.SPAWN_GAP_JITTER));
-      const rng = mulberry32(12345);
-      for (let i = 0; i < 500; i++) {
-        const { gap } = DifficultyProfile.nextObstacle(score, MODES.UPDATED, rng);
-        assert(
-          gap >= GAME_CONFIG.MIN_SPAWN_GAP && gap <= upperBound,
-          `At score ${score}, gap ${gap} should be in [${GAME_CONFIG.MIN_SPAWN_GAP}, ${upperBound}]`
-        );
-      }
-    });
+describe('Spawn Gap (official model)', () => {
+  function band(type, speed) {
+    const minGap = Math.round(type.width * speed + type.minGap * GAME_CONFIG.GAP_COEFFICIENT);
+    return { minGap, maxGap: Math.round(minGap * GAME_CONFIG.MAX_GAP_COEFFICIENT) };
+  }
+
+  it('gap stays within [minGap, minGap*MAX_GAP_COEFFICIENT] for the chosen type', () => {
+    const speed = 8;
+    const rng = mulberry32(12345);
+    for (let i = 0; i < 500; i++) {
+      const { type, gap } = DifficultyProfile.nextObstacle(300, MODES.UPDATED, rng, speed);
+      const { minGap, maxGap } = band(type, speed);
+      assert(gap >= minGap && gap <= maxGap,
+        `gap ${gap} for type ${type.id} at speed ${speed} must be in [${minGap}, ${maxGap}]`);
+    }
   });
 
-  it('produces different gaps across spawns (breaks the metronome)', () => {
+  it('gap grows with speed (official: width*speed dominates)', () => {
+    const rng = () => 0.5;  // fixed mid roll isolates the speed term
+    const slow = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng, 6);
+    const fast = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng, 13);
+    assert(fast.gap > slow.gap,
+      `gap at speed 13 (${fast.gap}) should exceed gap at speed 6 (${slow.gap})`);
+  });
+
+  it('produces gap variety across spawns (breaks the metronome)', () => {
     const rng = mulberry32(7);
     const gaps = new Set();
-    for (let i = 0; i < 50; i++) gaps.add(DifficultyProfile.nextObstacle(100, MODES.UPDATED, rng).gap);
-    assert(gaps.size >= 5, `Expected gap variety; got ${gaps.size} distinct values across 50 draws`);
-  });
-
-  it('smallest achievable gap is still at least MIN_SPAWN_GAP (always clearable)', () => {
-    // Force rng to 0 → maximum negative jitter on the gap roll.
-    const worstCaseRng = () => 0;
-    const { gap } = DifficultyProfile.nextObstacle(500, MODES.UPDATED, worstCaseRng);
-    assert(gap >= GAME_CONFIG.MIN_SPAWN_GAP,
-      `At max negative jitter + near-plateau speed, gap ${gap} must be >= MIN_SPAWN_GAP ${GAME_CONFIG.MIN_SPAWN_GAP}`);
+    for (let i = 0; i < 50; i++) gaps.add(DifficultyProfile.nextObstacle(100, MODES.UPDATED, rng, 8).gap);
+    assert(gaps.size >= 5, `expected gap variety; got ${gaps.size} distinct values`);
   });
 
   it('mulberry32 is deterministic given same seed', () => {
-    const a = mulberry32(42);
-    const b = mulberry32(42);
-    for (let i = 0; i < 10; i++) assertEquals(a(), b(), 'Same seed should produce same sequence');
+    const a = mulberry32(42), b = mulberry32(42);
+    for (let i = 0; i < 10; i++) assertEquals(a(), b(), 'same seed → same sequence');
   });
 });
 
@@ -646,18 +633,22 @@ describe('Mode Toggle', () => {
   });
 
   it('classic mode returns deterministic gap (no jitter)', () => {
-    const rng = () => 0; // worst-case jitter input — should have no effect in classic
-    const a = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng).gap;
-    const b = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng).gap;
+    const rng = () => 0; // rng value should have no effect in classic
+    const speed = GAME_CONFIG.INITIAL_SPEED;
+    const a = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng, speed).gap;
+    const b = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng, speed).gap;
     assertEquals(a, b, 'Classic gap should not vary');
-    assert(a >= GAME_CONFIG.MIN_SPAWN_GAP && a <= GAME_CONFIG.MAX_SPAWN_GAP,
-      `Classic gap at score 0 (${a}) should be within [MIN_SPAWN_GAP, MAX_SPAWN_GAP]`);
+    const type = GAME_CONFIG.OBSTACLE_TYPES[0]; // classic always picks small
+    const minGap = Math.round(type.width * speed + type.minGap * GAME_CONFIG.GAP_COEFFICIENT);
+    const maxGap = Math.round(minGap * GAME_CONFIG.MAX_GAP_COEFFICIENT);
+    assert(a >= minGap && a <= maxGap,
+      `Classic gap at score 0 (${a}) should be within [${minGap}, ${maxGap}]`);
   });
 
   it('updated mode still produces variety', () => {
     const rng = mulberry32(11);
     const gaps = new Set();
-    for (let i = 0; i < 30; i++) gaps.add(DifficultyProfile.nextObstacle(200, MODES.UPDATED, rng).gap);
+    for (let i = 0; i < 30; i++) gaps.add(DifficultyProfile.nextObstacle(200, MODES.UPDATED, rng, 8).gap);
     assert(gaps.size >= 5, `Updated mode should jitter; got ${gaps.size} distinct values`);
   });
 
@@ -1584,44 +1575,40 @@ describe('DifficultyProfile', () => {
       `Speed must strictly increase: ${s0} < ${s100} < ${s300} < ${s600}`);
   });
 
-  it('nextObstacle returns an object with a numeric gap and a typed obstacle', () => {
+  it('nextObstacle returns a numeric gap and a typed obstacle', () => {
     const rng = mulberry32(42);
-    const params = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng);
-    assert(typeof params.gap === 'number',
-      'gap must be a number');
-    assert(params.type && typeof params.type.id === 'string',
-      'type must be an obstacle-type object with an id string');
+    const params = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng, 6);
+    assert(typeof params.gap === 'number', 'gap must be a number');
+    assert(params.type && typeof params.type.id === 'string', 'type must have an id string');
   });
 
-  it('nextObstacle classic mode: gap shrinks as score rises', () => {
-    const rng = mulberry32(42); // not consumed in classic mode — safe to reuse
-    const paramsLow  = DifficultyProfile.nextObstacle(0,   MODES.CLASSIC, rng);
-    const paramsHigh = DifficultyProfile.nextObstacle(500, MODES.CLASSIC, rng);
-    assert(paramsHigh.gap < paramsLow.gap,
-      `Gap at score 500 (${paramsHigh.gap}) should be less than gap at score 0 (${paramsLow.gap}) — higher speed means shorter gap`);
+  it('nextObstacle classic mode: gap grows as speed rises', () => {
+    const rng = () => 0.5;
+    const low  = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng, 6);
+    const high = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng, 13);
+    assert(high.gap > low.gap, `gap at speed 13 (${high.gap}) should exceed speed 6 (${low.gap})`);
   });
 
   it('nextObstacle classic mode: type is always small cactus', () => {
     const rng = mulberry32(42);
-    const params = DifficultyProfile.nextObstacle(500, MODES.CLASSIC, rng);
-    assertEquals(params.type.id, 'small',
-      'Classic mode must always return the small cactus');
+    const params = DifficultyProfile.nextObstacle(500, MODES.CLASSIC, rng, 10);
+    assertEquals(params.type.id, 'small', 'classic mode always returns the small cactus');
   });
 
-  it('nextObstacle updated mode: gap is within valid range at score 0', () => {
+  it('nextObstacle updated mode: gap within official band at low speed', () => {
     const rng = mulberry32(42);
-    const params = DifficultyProfile.nextObstacle(0, MODES.UPDATED, rng);
-    assert(params.gap >= GAME_CONFIG.MIN_SPAWN_GAP,
-      `Gap (${params.gap}) must be at least MIN_SPAWN_GAP (${GAME_CONFIG.MIN_SPAWN_GAP})`);
-    assert(params.gap <= Math.round(GAME_CONFIG.MAX_SPAWN_GAP * (1 + GAME_CONFIG.SPAWN_GAP_JITTER)),
-      `Gap (${params.gap}) must not exceed MAX_SPAWN_GAP with max jitter (${GAME_CONFIG.MAX_SPAWN_GAP} * ${1 + GAME_CONFIG.SPAWN_GAP_JITTER})`);
+    const speed = 6;
+    const params = DifficultyProfile.nextObstacle(0, MODES.UPDATED, rng, speed);
+    const minGap = Math.round(params.type.width * speed + params.type.minGap * GAME_CONFIG.GAP_COEFFICIENT);
+    const maxGap = Math.round(minGap * GAME_CONFIG.MAX_GAP_COEFFICIENT);
+    assert(params.gap >= minGap && params.gap <= maxGap,
+      `gap ${params.gap} must be in [${minGap}, ${maxGap}]`);
   });
 
   it('nextObstacle updated mode: cluster cactus returned at score 250 with max roll', () => {
-    const rng = () => 0.99; // constant roll — pushes weighted pick to last eligible type
-    const params = DifficultyProfile.nextObstacle(250, MODES.UPDATED, rng);
-    assertEquals(params.type.id, 'cluster',
-      'At score 250 with max rng roll, all three types eligible and cluster wins the weighted draw');
+    const rng = () => 0.99;  // type pick (call 1) → last eligible; gap roll (call 2) → top of band
+    const params = DifficultyProfile.nextObstacle(250, MODES.UPDATED, rng, 8);
+    assertEquals(params.type.id, 'cluster', 'at score 250 with max roll, cluster wins the weighted draw');
   });
 });
 

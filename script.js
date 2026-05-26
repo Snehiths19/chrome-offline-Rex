@@ -92,12 +92,10 @@ const GAME_CONFIG = Object.freeze({
   OBS_PAD_X:                3,
   OBS_PAD_Y:                2,
 
-  // --- Spawning ---
+  // --- Spawning (official gap model) ---
   GRACE_FRAMES:           240,    // ~4 s at 60 fps before first obstacle appears
-  MAX_SPAWN_GAP:          600,    // gap (px) between obstacles at INITIAL_SPEED
-  MIN_SPAWN_GAP:          340,    // gap (px) at SPEED_CAP — tuned minimum that's still clearable
-  SPAWN_GAP_SPEED_FACTOR:  50,    // gap shrinks by this much per +1 speed above INITIAL_SPEED
-  SPAWN_GAP_JITTER:         0.3,  // ±30% randomization; floored at MIN_SPAWN_GAP
+  GAP_COEFFICIENT:          0.6,  // official: minGap = width*speed + typeMinGap*GAP_COEFFICIENT
+  MAX_GAP_COEFFICIENT:      1.5,  // official: gap randomized up to minGap * this
 
   // --- Obstacle sprite (small cactus — baseline) ---
   OBS_WIDTH:               20,
@@ -108,9 +106,9 @@ const GAME_CONFIG = Object.freeze({
   // weighted random pick once unlocked. `render` controls how drawObstacles()
   // paints it from the single cactus sprite.
   OBSTACLE_TYPES: Object.freeze([
-    Object.freeze({ id: 'small',   width: 20, height: 40, unlockScore:   0, weight: 50, render: 'single' }),
-    Object.freeze({ id: 'big',     width: 30, height: 55, unlockScore: 100, weight: 30, render: 'single' }),
-    Object.freeze({ id: 'cluster', width: 50, height: 40, unlockScore: 250, weight: 20, render: 'double' }),
+    Object.freeze({ id: 'small',   width: 20, height: 40, unlockScore:   0, weight: 50, render: 'single', minGap: 120 }),
+    Object.freeze({ id: 'big',     width: 30, height: 55, unlockScore: 100, weight: 30, render: 'single', minGap: 120 }),
+    Object.freeze({ id: 'cluster', width: 50, height: 40, unlockScore: 250, weight: 20, render: 'double', minGap: 150 }),
   ]),
 
   // --- Dino sprite ---
@@ -437,19 +435,14 @@ function mulberry32(seed) {
   };
 }
 
-// Compute the gap (px) to the next obstacle, given current speed + an RNG.
-// Jitter is applied ±SPAWN_GAP_JITTER around baseGap, then floored at
-// MIN_SPAWN_GAP so the smallest possible gap is always clearable. In classic
-// mode, jitter is skipped — gaps are deterministic.
-function computeNextSpawnGap(rng, currentSpeed, mode) {
-  const baseGap =
-    GAME_CONFIG.MAX_SPAWN_GAP -
-    (currentSpeed - GAME_CONFIG.INITIAL_SPEED) * GAME_CONFIG.SPAWN_GAP_SPEED_FACTOR;
-  if (mode === 'classic') {
-    return Math.max(GAME_CONFIG.MIN_SPAWN_GAP, Math.round(baseGap));
-  }
-  const jitter = (rng() - 0.5) * 2 * GAME_CONFIG.SPAWN_GAP_JITTER; // range [-J, +J]
-  return Math.max(GAME_CONFIG.MIN_SPAWN_GAP, Math.round(baseGap * (1 + jitter)));
+// Official gap model: gap scales with the chosen obstacle's width and the current
+// speed, randomized within [minGap, minGap*MAX_GAP_COEFFICIENT]. The rng() draw is
+// the second seeded call per spawn (type pick is first) — order is load-bearing
+// for the daily-challenge determinism contract.
+function computeNextSpawnGap(rng, speed, type) {
+  const minGap = Math.round(type.width * speed + type.minGap * GAME_CONFIG.GAP_COEFFICIENT);
+  const maxGap = Math.round(minGap * GAME_CONFIG.MAX_GAP_COEFFICIENT);
+  return minGap + Math.floor(rng() * (maxGap - minGap + 1));
 }
 
 // Pick an obstacle type weighted by score-tier eligibility. Types with
@@ -474,14 +467,12 @@ const DifficultyProfile = {
     return INITIAL_SPEED + (PLATEAU_SPEED - INITIAL_SPEED) *
       (1 / (1 + Math.exp(-RAMP_STEEPNESS * (score - RAMP_MIDPOINT))));
   },
-  nextObstacle(score, mode, rng) {
-    const speed = this.speedAtScore(score);
-    // RNG call order is load-bearing: type roll first, gap jitter second.
-    // Swapping breaks the daily-challenge seed sequence.
+  nextObstacle(score, mode, rng, speed) {
+    // RNG call order is load-bearing: type roll first, gap roll second.
     const type = pickObstacleType(rng, score, mode);
     return {
       type,
-      gap: computeNextSpawnGap(rng, speed, mode),
+      gap: computeNextSpawnGap(rng, speed, type),
     };
   },
 };
@@ -518,7 +509,7 @@ const game = {
   obstacles:        [],
   currentSpeed:     GAME_CONFIG.INITIAL_SPEED,
   lastObstacleX:    -300,
-  nextSpawnGap:     GAME_CONFIG.MAX_SPAWN_GAP,
+  nextSpawnGap:     0,            // set by resetGame() via computeNextSpawnGap
   graceFrames:      GAME_CONFIG.GRACE_FRAMES,
   animationFrameId: undefined,
   score:            0,
@@ -1333,7 +1324,7 @@ function resetGame() {
   game.dailyBest = ScoreStore.loadDailyBest();
   const shareBtnEl = document.getElementById('share-btn');
   if (shareBtnEl && shareBtnEl.style) shareBtnEl.style.display = 'none';
-  game.nextSpawnGap = computeNextSpawnGap(game.rng, DifficultyProfile.speedAtScore(game.score), game.mode);
+  game.nextSpawnGap = computeNextSpawnGap(game.rng, game.currentSpeed, GAME_CONFIG.OBSTACLE_TYPES[0]);
   initClouds();
   initHills();
   announce('New game. Press space or tap to jump.');
@@ -1437,11 +1428,11 @@ function handleRunning() {
     Particles.emit('trail', dino.x + 4, dino.y + dino.height - 4);
   }
 
-  // Obstacle spawning — in updated mode the gap is precomputed per-obstacle
-  // with ±SPAWN_GAP_JITTER so spacing doesn't feel metronomic; in classic mode
-  // it's deterministic. DifficultyProfile.nextObstacle() picks type + gap together.
+  // Obstacle spawning — gap is computed via the official model (width*speed + minGap*GAP_COEFFICIENT),
+  // randomized within [minGap, minGap*MAX_GAP_COEFFICIENT]. DifficultyProfile.nextObstacle() picks
+  // type first (one rng draw), then computes the gap from that type (second rng draw).
   if (game.lastObstacleX <= GAME_CONFIG.CANVAS_W - game.nextSpawnGap) {
-    const params = DifficultyProfile.nextObstacle(game.score, game.mode, game.rng);
+    const params = DifficultyProfile.nextObstacle(game.score, game.mode, game.rng, game.currentSpeed);
     spawnObstacle(params.type);
     game.lastObstacleX = GAME_CONFIG.CANVAS_W;
     game.nextSpawnGap = params.gap;
