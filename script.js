@@ -81,7 +81,7 @@ const GAME_CONFIG = Object.freeze({
   SPEED_CAP:               13.0,  // max scroll speed (official MAX_SPEED)
   ACCELERATION:             0.001, // linear speed gain per fixed step (official)
   SCORE_PER_LEVEL:        100,    // score points per level — used for milestone flash effects only
-  SCORE_INCREMENT:          0.1,  // score added per frame while RUNNING
+  DISTANCE_COEFFICIENT:     0.025, // official: score = distance * this (accelerating climb)
 
   // --- Hitbox forgiveness (rendering uses full sprite; collision uses shrunken box) ---
   DINO_PAD_X:               8,
@@ -226,6 +226,18 @@ const ScoreStore = {
     }
   },
 };
+
+// One-time score-scale migration. v2 switched to distance-based scoring, so
+// pre-v2 high scores live on an incompatible scale — clear them once, guarded by
+// a version key so it never repeats.
+function migrateScoreScale() {
+  if (localStorage.getItem('dino-score-scale') === 'v2') return;
+  localStorage.removeItem('dino-high-score');
+  localStorage.removeItem('dino-daily-best');
+  localStorage.removeItem('dino-daily-date');
+  localStorage.setItem('dino-score-scale', 'v2');
+}
+migrateScoreScale();
 
 const STATE = Object.freeze({
   LOADING: 'LOADING',
@@ -507,6 +519,7 @@ const game = {
   graceFrames:      GAME_CONFIG.GRACE_FRAMES,
   animationFrameId: undefined,
   score:            0,
+  distance:         0,
   highScore:        ScoreStore.loadHighScore(),
   animFrame:        0,
   groundX:          0,
@@ -1303,6 +1316,7 @@ function resetGame() {
   game.obstacles.length = 0;
   game.stars.length = 0;
   game.score = 0;
+  game.distance = 0;
   game.animFrame = 0;
   game.groundX = 0;
   game.currentSpeed = GAME_CONFIG.INITIAL_SPEED;
@@ -1384,7 +1398,8 @@ function handleWaiting() {
 
 function handleRunning() {
   const prevLevel = Math.floor(game.score / GAME_CONFIG.SCORE_PER_LEVEL);
-  game.score += GAME_CONFIG.SCORE_INCREMENT;
+  game.distance += game.currentSpeed;
+  game.score = game.distance * GAME_CONFIG.DISTANCE_COEFFICIENT;
   game.animFrame++;
 
   const level = Math.floor(game.score / GAME_CONFIG.SCORE_PER_LEVEL);
@@ -1594,6 +1609,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.dailySeed = dailySeed;
   global.dailyNumber = dailyNumber;
   global.ScoreStore = ScoreStore;
+  global.migrateScoreScale = migrateScoreScale;
   global.isDailyMode = isDailyMode;
   global.shareDailyResult = shareDailyResult;
   global.MS_PER_STEP = MS_PER_STEP;

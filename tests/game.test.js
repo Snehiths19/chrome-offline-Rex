@@ -220,6 +220,30 @@ describe('Scoring', () => {
 
     assert(game.score > initialScore, `Score (${game.score}) should be greater than initial score (${initialScore})`);
   });
+
+  it('score equals accumulated distance times DISTANCE_COEFFICIENT', () => {
+    resetGame();
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    for (let i = 0; i < 10; i++) { gameLoop(); cancelAnimationFrame(game.animationFrameId); }
+    assert(Math.abs(game.score - game.distance * GAME_CONFIG.DISTANCE_COEFFICIENT) < 1e-9,
+      `score ${game.score} must equal distance ${game.distance} * ${GAME_CONFIG.DISTANCE_COEFFICIENT}`);
+    assert(game.score > 0, 'score should have advanced over 10 steps');
+  });
+
+  it('migrateScoreScale clears pre-v2 scores exactly once', () => {
+    localStorage.setItem('dino-high-score', '9999');
+    localStorage.setItem('dino-daily-best', '4242');
+    localStorage.removeItem('dino-score-scale');
+    migrateScoreScale();
+    assertEquals(localStorage.getItem('dino-high-score'), null, 'pre-v2 high score cleared');
+    assertEquals(localStorage.getItem('dino-daily-best'), null, 'pre-v2 daily best cleared');
+    assertEquals(localStorage.getItem('dino-score-scale'), 'v2', 'scale marked v2');
+    // second run is a no-op
+    localStorage.setItem('dino-high-score', '50');
+    migrateScoreScale();
+    assertEquals(localStorage.getItem('dino-high-score'), '50', 'already-migrated: no further clearing');
+  });
 });
 
 describe('Obstacle Gap Enforcement', () => {
@@ -355,8 +379,12 @@ describe('Ambient depth + confetti (PR-D)', () => {
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
     // Clear pool and fast-forward to just before a level boundary.
+    // Distance-based scoring: score = distance * DISTANCE_COEFFICIENT.
+    // Set distance so score is just below SCORE_PER_LEVEL; the next tick adds
+    // INITIAL_SPEED to distance and crosses the boundary.
     Particles.reset();
-    game.score = GAME_CONFIG.SCORE_PER_LEVEL - 0.05; // next gameLoop tick crosses
+    game.distance = (GAME_CONFIG.SCORE_PER_LEVEL - 0.05) / GAME_CONFIG.DISTANCE_COEFFICIENT;
+    game.score = game.distance * GAME_CONFIG.DISTANCE_COEFFICIENT; // keep prevLevel consistent
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
     const live = Particles.particles.filter(p => p.life > 0 && p.color === '#ffd700').length;
@@ -823,6 +851,9 @@ describe('Day/Night Cycle', () => {
     assert(!game.starsInitialised, 'starsInitialised should be false after reset');
     assertEquals(game.stars.length, 0, 'stars should be empty after reset');
 
+    // Distance-based scoring: score = distance * DISTANCE_COEFFICIENT.
+    // Set distance so score is at 400 when handleRunning reads it.
+    game.distance = 400 / GAME_CONFIG.DISTANCE_COEFFICIENT;
     game.score = 400;
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
@@ -846,6 +877,8 @@ describe('High Score', () => {
     game.obstacles.push({ x: 50, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
+    // Distance-based scoring: set distance so score computes to 100 after one step.
+    game.distance = 100 / GAME_CONFIG.DISTANCE_COEFFICIENT;
     game.score = 100;
     game.highScore = 50;
 
@@ -1378,7 +1411,10 @@ describe('Death screen', () => {
     const origGraceFrames = game.graceFrames;
 
     game.highScore         = 1000;
-    game.score             = 1200;
+    // Distance-based scoring: score = distance * DISTANCE_COEFFICIENT.
+    // Set distance so that after handleRunning's step, Math.floor(score) = 1200.
+    game.distance          = 1200 / GAME_CONFIG.DISTANCE_COEFFICIENT; // score will be ~1200 after one step
+    game.score             = game.distance * GAME_CONFIG.DISTANCE_COEFFICIENT; // pre-tick score for prevLevel
     game.state             = STATE.RUNNING;
     game.graceFrames       = 0;
     game.lastObstacleX     = canvas.width; // prevent an extra spawn firing
