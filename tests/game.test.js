@@ -2100,7 +2100,7 @@ describe('Fixed-timestep loop', () => {
     const start = game.animFrame;
     let t = 1000; gameLoop(t); cancelAnimationFrame(game.animationFrameId);   // baseline
     t += 100;     gameLoop(t); cancelAnimationFrame(game.animationFrameId);   // 100ms → 6 wanted, clamp 5
-    assert(game.animFrame - start <= 5, `catch-up must clamp to 5 steps, got ${game.animFrame - start}`);
+    assert(game.animFrame - start <= MAX_CATCHUP_STEPS, `catch-up must clamp to ${MAX_CATCHUP_STEPS} steps, got ${game.animFrame - start}`);
   });
 
   it('treats a backgrounded-tab gap as a single step', () => {
@@ -2109,6 +2109,15 @@ describe('Fixed-timestep loop', () => {
     let t = 1000; gameLoop(t);  cancelAnimationFrame(game.animationFrameId);  // baseline
     t += 5000;    gameLoop(t);  cancelAnimationFrame(game.animationFrameId);  // 5s gap → frame>250 → 1 step
     assertEquals(game.animFrame - start, 1, 'a >250ms frame should advance exactly one step');
+  });
+
+  it('ignores a bogus (NaN) timestamp without freezing the clock', () => {
+    resetGame(); game.graceFrames = 0; game.state = STATE.RUNNING; game.rng = mulberry32(1);
+    const start = game.animFrame;
+    let t = 1000; gameLoop(t); cancelAnimationFrame(game.animationFrameId);   // baseline
+    gameLoop(NaN);            cancelAnimationFrame(game.animationFrameId);     // bogus — must be ignored
+    for (let i = 0; i < 4; i++) { t += 1000 / 60; gameLoop(t); cancelAnimationFrame(game.animationFrameId); }
+    assert(game.animFrame - start >= 3, `clock must keep stepping after a NaN timestamp, got ${game.animFrame - start} steps`);
   });
 });
 

@@ -1530,11 +1530,12 @@ function gameLoop(now) {
     STATE_HANDLERS[game.state]();
     return;
   }
+  if (!Number.isFinite(now)) return;                  // ignore bogus timestamps; keep the clock clean
 
-  if (loopLastTime === undefined) loopLastTime = now;   // first timestamped frame: 0 delta
+  if (loopLastTime === undefined) loopLastTime = now; // first timestamped frame: 0 delta
   let frame = now - loopLastTime;
   loopLastTime = now;
-  if (frame > 250) frame = MS_PER_STEP;                 // backgrounded tab — don't fast-forward
+  if (frame < 0 || frame > 250) frame = MS_PER_STEP;  // clock jumped (backward, or backgrounded tab) — take one step
   loopAccumulator += frame;
 
   let steps = 0;
@@ -1610,4 +1611,6 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.ScoreStore = ScoreStore;
   global.isDailyMode = isDailyMode;
   global.shareDailyResult = shareDailyResult;
+  global.MS_PER_STEP = MS_PER_STEP;
+  global.MAX_CATCHUP_STEPS = MAX_CATCHUP_STEPS;
 }
