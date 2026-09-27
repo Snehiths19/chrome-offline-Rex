@@ -727,11 +727,20 @@ describe('Obstacle Types', () => {
     assertEquals(game.obstacles[0].type, 'small', 'At score 0 only small is eligible');
   });
 
-  it('drawObstacles calls drawImage twice for a cluster obstacle', () => {
+  it('cluster draws two full small sprites with a visible gap', () => {
     resetGame();
     const cluster = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'cluster');
-    const half = cluster.width / 2;
-    game.obstacles = [{ x: 100, y: 160, width: cluster.width, height: cluster.height, render: cluster.render, type: cluster.id }];
+    const small = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'small');
+    // Draw-only change: hitbox, unlock, and weight stay on GAME_CONFIG.
+    assertEquals(cluster.width, 50, 'cluster hitbox width stays 50');
+    assertEquals(cluster.height, 40, 'cluster hitbox height stays 40');
+    assertEquals(cluster.unlockScore, 250, 'cluster still unlocks at 250');
+    assertEquals(cluster.weight, 20, 'cluster weight stays 20');
+
+    game.obstacles = [{
+      x: 100, y: 160, width: cluster.width, height: cluster.height,
+      render: cluster.render, type: cluster.id,
+    }];
 
     const calls = [];
     const origDrawImage = ctx.drawImage;
@@ -740,11 +749,35 @@ describe('Obstacle Types', () => {
     ctx.drawImage = origDrawImage;
     game.obstacles = [];
 
-    assertEquals(calls.length, 2, 'Cluster obstacle must call drawImage exactly twice');
-    assertEquals(calls[0][1], 100,        'First draw x must be obstacle.x');
-    assertEquals(calls[1][1], 100 + half, 'Second draw x must be obstacle.x + half');
-    assertEquals(calls[0][3], half, 'First draw width must be half');
-    assertEquals(calls[1][3], half, 'Second draw width must be half');
+    assertEquals(calls.length, 2, 'Cluster must paint two sprites, not one stretched cactus');
+    const [first, second] = calls;
+    assertEquals(first[3], small.width, 'First sprite must be the full small-cactus width');
+    assertEquals(second[3], small.width, 'Second sprite must be the full small-cactus width');
+    assertEquals(first[4], small.height, 'First sprite must be the full small-cactus height');
+    assertEquals(second[4], small.height, 'Second sprite must be the full small-cactus height');
+    assertEquals(first[1], 100, 'First sprite starts at the obstacle left edge');
+    const gap = second[1] - (first[1] + first[3]);
+    assert(gap >= 8, `Gap between the two cacti must be visible at a glance (got ${gap}px)`);
+    assertEquals(second[1] + second[3], 100 + cluster.width,
+      'The pair should span the existing hitbox so the gap sits inside it');
+  });
+
+  it('a single cactus still draws once at its own size', () => {
+    const small = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'small');
+    game.obstacles = [{
+      x: 40, y: 160, width: small.width, height: small.height,
+      render: small.render, type: small.id,
+    }];
+    const calls = [];
+    const origDrawImage = ctx.drawImage;
+    ctx.drawImage = (...args) => calls.push(args);
+    drawObstacles();
+    ctx.drawImage = origDrawImage;
+    game.obstacles = [];
+
+    assertEquals(calls.length, 1, 'Small cactus is one sprite');
+    assertEquals(calls[0][3], small.width, 'Small cactus keeps its own width');
+    assertEquals(calls[0][4], small.height, 'Small cactus keeps its own height');
   });
 });
 
@@ -2235,6 +2268,155 @@ describe('Restart countdown', () => {
       `first countdown must not announce a jump, got: ${firstRun}`);
     assert(/space or tap to start/i.test(afterDeath),
       `post-death countdown should announce space or tap to start, got: ${afterDeath}`);
+  });
+});
+
+describe('Plateau cue', () => {
+  function runOneFrame(mode, score, alreadyShown) {
+    const origMode = game.mode;
+    resetGame();
+    cancelAnimationFrame(game.animationFrameId);
+    game.mode = mode;
+    game.rng = mulberry32(99);
+    game.state = STATE.RUNNING;
+    game.score = score;
+    game.graceFrames = 0;
+    game.plateauCueShown = !!alreadyShown;
+    Animations.plateauCueFrames = 0;
+    game.hills.forEach(h => { h.x = 200; });
+    const kinds = [];
+    const origEmit = Particles.emit;
+    Particles.emit = (kind, x, y) => {
+      kinds.push(kind);
+      return origEmit(kind, x, y);
+    };
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+    Particles.emit = origEmit;
+    const rolls = [game.rng(), game.rng(), game.rng()];
+    const shown = game.plateauCueShown;
+    const frames = Animations.plateauCueFrames;
+    game.mode = origMode;
+    return { kinds, rolls, shown, frames };
+  }
+
+  it('fires once when speed first reaches the plateau in updated mode', () => {
+    const first = runOneFrame(MODES.UPDATED, 2000, false);
+    assert(first.shown, 'Reaching the plateau must latch the per-run flag');
+    assert(first.kinds.includes('plateau'), 'Updated mode must emit the one-shot plateau burst');
+    assertEquals(first.frames, GAME_CONFIG.PLATEAU_CUE_FRAMES - 1,
+      'Sky-tint pulse starts the same frame and then counts down');
+
+    const second = runOneFrame(MODES.UPDATED, 2000, true);
+    assert(!second.kinds.includes('plateau'), 'The cue must not repeat once the flag is set');
+  });
+
+  it('also fires in daily mode, and never in classic', () => {
+    const daily = runOneFrame(MODES.DAILY, 2000, false);
+    assert(daily.shown, 'Daily runs use Updated atmosphere, so they get the one-shot cue');
+    assert(daily.kinds.includes('plateau'), 'Daily mode must emit the plateau burst');
+
+    const classic = runOneFrame(MODES.CLASSIC, 2000, false);
+    assert(!classic.shown, 'Classic must not latch the plateau cue');
+    assert(!classic.kinds.includes('plateau'), 'Classic must not emit the plateau burst');
+    assertEquals(classic.frames, 0, 'Classic must not start a sky-tint pulse');
+  });
+
+  it('does not fire before speed is near the plateau', () => {
+    const early = runOneFrame(MODES.UPDATED, 100, false);
+    assert(!early.shown, 'A mid-ramp score must not signal the plateau');
+    assert(!early.kinds.includes('plateau'), 'No plateau burst before arrival');
+  });
+
+  it('does not consume game.rng, so daily spawn order stays put', () => {
+    const withCue = runOneFrame(MODES.UPDATED, 2000, false);
+    const withoutCue = runOneFrame(MODES.UPDATED, 2000, true);
+    assertEquals(withCue.rolls.join(','), withoutCue.rolls.join(','),
+      'Firing the cue must not change the next RNG values');
+  });
+
+  it('resetGame clears the cue so the next run can signal again', () => {
+    const origMode = game.mode;
+    game.mode = MODES.UPDATED;
+    game.plateauCueShown = true;
+    Animations.plateauCueFrames = 12;
+    resetGame();
+    assertEquals(game.plateauCueShown, false, 'resetGame must clear the per-run flag');
+    assertEquals(Animations.plateauCueFrames, 0, 'resetGame must clear the sky-tint countdown');
+    game.mode = origMode;
+  });
+});
+
+describe('Daily HUD', () => {
+  function captureFillText(draw) {
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    draw();
+    ctx.fillText = origFill;
+    return calls;
+  }
+
+  it('RUNNING and WAITING show the current score only — no TODAY, no HI', () => {
+    const origMode = game.mode;
+    const origState = game.state;
+    const origScore = game.score;
+    const origBest = game.dailyBest;
+    const origHS = game.highScore;
+    const origPop = Animations.scorePopFrames;
+
+    game.mode = MODES.DAILY;
+    game.score = 42;
+    game.dailyBest = 500;
+    game.highScore = 900;
+    Animations.scorePopFrames = 0;
+
+    game.state = STATE.RUNNING;
+    const running = captureFillText(drawScore);
+    game.state = STATE.WAITING;
+    const waiting = captureFillText(drawScore);
+
+    game.mode = origMode;
+    game.state = origState;
+    game.score = origScore;
+    game.dailyBest = origBest;
+    game.highScore = origHS;
+    Animations.scorePopFrames = origPop;
+
+    [running, waiting].forEach((calls, i) => {
+      const when = i === 0 ? 'RUNNING' : 'WAITING';
+      assert(calls.some(t => t === '00042'),
+        `${when} daily HUD should show the current score, got: ${JSON.stringify(calls)}`);
+      assert(!calls.some(t => t.includes('TODAY')),
+        `${when} daily HUD must not show TODAY, got: ${JSON.stringify(calls)}`);
+      assert(!calls.some(t => t.startsWith('HI ')),
+        `${when} daily HUD must not show HI, got: ${JSON.stringify(calls)}`);
+    });
+  });
+
+  it('Game Over still shows TODAY BEST, and share still includes the score', () => {
+    const origMode = game.mode;
+    const origBest = game.dailyBest;
+    const origScore = game.score;
+    const origAnim = Animations.deathAnimFrame;
+
+    game.mode = MODES.DAILY;
+    game.dailyBest = 500;
+    game.score = 120;
+    Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    const calls = captureFillText(drawGameOverScreen);
+    const shared = shareDailyResult();
+
+    game.mode = origMode;
+    game.dailyBest = origBest;
+    game.score = origScore;
+    Animations.deathAnimFrame = origAnim;
+
+    assert(calls.some(t => t === 'TODAY BEST'),
+      `Game Over must keep TODAY BEST, got: ${JSON.stringify(calls)}`);
+    assert(calls.some(t => t === '00500'),
+      `Game Over must show today's best score, got: ${JSON.stringify(calls)}`);
+    assert(shared.includes('500'), 'Share result must still include the daily best');
   });
 });
 

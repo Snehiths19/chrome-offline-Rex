@@ -154,6 +154,11 @@ const GAME_CONFIG = Object.freeze({
   CLOUD_SPEED_FACTOR_UPDATED: 1.5, // multiply cloud speed in updated mode for stronger parallax
   SKY_TINT_PEAK_ALPHA:      0.12, // gold sky-flash peak alpha during milestone
   SKY_TINT_COLOR_RGB:      '255, 215, 0',   // gold sky-flash colour (rgb triplet, alpha applied at draw)
+  // One-shot "you reached the plateau" cue. Ratio is the arrival moment on the
+  // existing speed curve — read GAME_CONFIG directly, never cfg(), so a tuning
+  // session can't move when the cue fires. Frames are the pulse length only.
+  PLATEAU_CUE_RATIO:        0.98, // fraction of PLATEAU_SPEED that counts as arrived
+  PLATEAU_CUE_FRAMES:      28,    // sky-tint pulse length (~0.5 s at 60 fps)
   PARTICLE_EMIT_SPREAD:     4,    // px width of the cosmetic xy jitter on every particle emit
 
   // --- Effects ---
@@ -539,6 +544,8 @@ const game = {
   // False until the player has died once this session. First IDLE → WAITING
   // keeps the full countdown; restarts after death can skip it.
   countdownSkippable: false,
+  // Latches the one-shot plateau cue so a run signals arrival once, then stays quiet.
+  plateauCueShown:  false,
 };
 
 // All per-run animation countdown timers. Kept separate from the game object
@@ -551,10 +558,11 @@ const Animations = {
   milestoneFrames:  0,
   newBestFrames:    0,
   copyFlashFrames:  0,
+  plateauCueFrames: 0,
   reset() {
     this.deathAnimFrame = this.deathShakeFrames = this.deathFlashFrames = 0;
     this.scorePopFrames = this.milestoneFrames  = this.newBestFrames    = 0;
-    this.copyFlashFrames = 0;
+    this.copyFlashFrames = this.plateauCueFrames = 0;
   },
 };
 
@@ -699,12 +707,22 @@ function drawHills() {
   }
 }
 
-// PR-D: gentle gold sky-tint pulse during a milestone flash. Subtle on top of
-// the existing day/night background.
+// PR-D: gentle gold sky-tint pulse during a milestone flash, and the same
+// treatment for the one-shot plateau cue. Subtle on top of the day/night
+// background. Reduced-motion and Classic both skip it.
 function drawSkyTint() {
   if (!isUpdatedMode() || reducedMotion) return;
-  if (Animations.milestoneFrames <= 0) return;
-  const alpha = (Animations.milestoneFrames / GAME_CONFIG.MILESTONE_FRAMES) * cfg('SKY_TINT_PEAK_ALPHA');
+  let alpha = 0;
+  if (Animations.milestoneFrames > 0) {
+    alpha = (Animations.milestoneFrames / GAME_CONFIG.MILESTONE_FRAMES) * cfg('SKY_TINT_PEAK_ALPHA');
+  }
+  if (Animations.plateauCueFrames > 0) {
+    const cueAlpha =
+      (Animations.plateauCueFrames / GAME_CONFIG.PLATEAU_CUE_FRAMES) * cfg('SKY_TINT_PEAK_ALPHA');
+    if (cueAlpha > alpha) alpha = cueAlpha;
+    Animations.plateauCueFrames--;
+  }
+  if (alpha <= 0) return;
   ctx.save();
   ctx.fillStyle = 'rgba(' + cfg('SKY_TINT_COLOR_RGB') + ', ' + alpha.toFixed(3) + ')';
   ctx.fillRect(0, 0, GAME_CONFIG.CANVAS_W, GAME_CONFIG.CANVAS_H);
@@ -734,22 +752,37 @@ function drawGround() {
   ctx.drawImage(groundImage, game.groundX + groundImage.width, groundY, groundImage.width, groundImage.height);
 }
 
+// Cluster hitbox stays GAME_CONFIG width. Paint two full small-cactus sprites
+// and leave the leftover width as a gap so the pair reads as two cacti.
+function clusterSpriteSlots(obstacle) {
+  const small = GAME_CONFIG.OBSTACLE_TYPES[0];
+  const gap = obstacle.width - small.width * 2;
+  const y = obstacle.y + (obstacle.height - small.height);
+  return [
+    { x: obstacle.x, y: y, w: small.width, h: small.height },
+    { x: obstacle.x + small.width + gap, y: y, w: small.width, h: small.height },
+  ];
+}
+
 function drawObstacles() {
   game.obstacles.forEach(obstacle => {
+    if (obstacle.render === 'double') {
+      const slots = clusterSpriteSlots(obstacle);
+      if (!imageReady(obstacleImage)) {
+        ctx.fillStyle = '#2d7a2d';
+        slots.forEach(slot => ctx.fillRect(slot.x, slot.y, slot.w, slot.h));
+        return;
+      }
+      slots.forEach(slot => ctx.drawImage(obstacleImage, slot.x, slot.y, slot.w, slot.h));
+      return;
+    }
     if (!imageReady(obstacleImage)) {
       ctx.fillStyle = '#2d7a2d';
       ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
       return;
     }
-    if (obstacle.render === 'double') {
-      // Cluster: draw two small cacti side by side to fill the 50-wide box.
-      const half = obstacle.width / 2;
-      ctx.drawImage(obstacleImage, obstacle.x,         obstacle.y, half, obstacle.height);
-      ctx.drawImage(obstacleImage, obstacle.x + half,  obstacle.y, half, obstacle.height);
-    } else {
-      // Single (small, big): scale the sprite to the type's width/height.
-      ctx.drawImage(obstacleImage, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
-    }
+    // Single (small, big): scale the sprite to the type's width/height.
+    ctx.drawImage(obstacleImage, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
   });
 }
 
@@ -792,15 +825,10 @@ function drawScore() {
     GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET,
     GAME_CONFIG.SCORE_Y
   );
-  if (isDailyMode()) {
-    // TODAY label replaces HI in daily challenge mode
-    const todayBest = game.dailyBest > 0 ? String(game.dailyBest).padStart(5, '0') : '-----';
-    ctx.fillText(
-      'TODAY ' + todayBest,
-      GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET - GAME_CONFIG.SCORE_HI_X_OFFSET - 20,
-      GAME_CONFIG.SCORE_Y
-    );
-  } else if (game.highScore > 0) {
+  // Daily HUD is the current score only. TODAY BEST stays on the Game Over
+  // screen (and in the share result) so the social comparison sits at the
+  // edge of the run, not beside the obstacle lane.
+  if (!isDailyMode() && game.highScore > 0) {
     ctx.fillText(
       'HI ' + String(game.highScore).padStart(5, '0'),
       GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET - GAME_CONFIG.SCORE_HI_X_OFFSET,
@@ -996,7 +1024,9 @@ const Particles = (() => {
   const KINDS = Object.freeze({
     jump:      { count:  6, color: '#9c8770',                size: 3, life: 18, vyMin: -2.0, vyMax: -0.5, vxSpread: 1.5, gravity: 0.05 },
     land:      { count:  9, color: '#9c8770',                size: 3, life: 14, vyMin: -1.5, vyMax: -0.2, vxSpread: 2.5, gravity: 0.08 },
-    trail:     { count:  1, color: 'rgba(150,150,150,0.55)', size: 2, life: 10, vyMin: -0.2, vyMax:  0.2, vxSpread: 0.4, gravity: 0    },
+    trail:     { count:  1, color: 'rgba(150,150,150,0.22)', size: 2, life:  8, vyMin: -0.15, vyMax: 0.15, vxSpread: 0.25, gravity: 0    },
+    // One-shot arrival burst. Softer and shorter than confetti so it stays peripheral.
+    plateau:   { count:  8, color: 'rgba(255,215,0,0.5)',    size: 2, life: 20, vyMin: -1.4, vyMax: -0.4, vxSpread: 1.6, gravity: 0.03 },
     collision: { count: 22, color: '#d04a2a',                size: 3, life: 24, vyMin: -3.0, vyMax:  1.0, vxSpread: 4.0, gravity: 0.10 },
     confetti:  { count: 20, color: '#ffd700',                size: 3, life: 40, vyMin: -3.5, vyMax: -1.5, vxSpread: 3.0, gravity: 0.12 },
   });
@@ -1340,6 +1370,7 @@ function resetGame() {
   game.state = STATE.WAITING;
   if (restartAfterDeath) game.countdownSkippable = true;
   game.starsInitialised = false;
+  game.plateauCueShown = false;
   Animations.reset();
   game.newBestShown      = false;
   game.isNewBest         = false;
@@ -1414,6 +1445,18 @@ function handleWaiting() {
   drawGetReadyOverlay();
 }
 
+// One peripheral "you've reached the plateau" signal per run. Updated and Daily
+// only. Reduced-motion skips it entirely (no pulse, no burst). Classic never
+// enters. Particles.emit uses Math.random — this must not touch game.rng().
+function cuePlateauOnce() {
+  if (game.plateauCueShown || reducedMotion || !isUpdatedMode()) return;
+  const arrived = GAME_CONFIG.PLATEAU_SPEED * GAME_CONFIG.PLATEAU_CUE_RATIO;
+  if (game.currentSpeed < arrived) return;
+  game.plateauCueShown = true;
+  Animations.plateauCueFrames = GAME_CONFIG.PLATEAU_CUE_FRAMES;
+  Particles.emit('plateau', dino.x + 4, dino.y + dino.height - 4);
+}
+
 function handleRunning() {
   const prevLevel = Math.floor(game.score / GAME_CONFIG.SCORE_PER_LEVEL);
   game.score += GAME_CONFIG.SCORE_INCREMENT;
@@ -1449,10 +1492,13 @@ function handleRunning() {
   drawGround();
   updateObstacles();
 
-  // Speed-trail particles: subtle dust trailing off the dino approaching plateau speed.
-  if (isUpdatedMode() && game.currentSpeed >= GAME_CONFIG.PLATEAU_SPEED * 0.96) {
+  // Faint dust once speed is near the plateau. Sparse on purpose — the one-shot
+  // cue below is the signal that the hard part has started.
+  if (isUpdatedMode() && game.currentSpeed >= GAME_CONFIG.PLATEAU_SPEED * 0.96
+      && game.animFrame % 4 === 0) {
     Particles.emit('trail', dino.x + 4, dino.y + dino.height - 4);
   }
+  cuePlateauOnce();
 
   // Obstacle spawning — in updated mode the gap is precomputed per-obstacle
   // with ±SPAWN_GAP_JITTER so spacing doesn't feel metronomic; in classic mode
