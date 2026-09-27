@@ -727,6 +727,20 @@ describe('Obstacle Types', () => {
     assertEquals(game.obstacles[0].type, 'small', 'At score 0 only small is eligible');
   });
 
+  it('spawnObstacle() with no arg stays small in classic even after cluster unlocks', () => {
+    const origMode = game.mode;
+    game.mode = MODES.CLASSIC;
+    resetGame();
+    game.score = 500; // cluster is eligible once mode is ignored
+    game.rng = () => 0.99; // last eligible type in updated mode is cluster
+    game.obstacles.length = 0;
+    spawnObstacle();
+    assertEquals(game.obstacles[0].type, 'small',
+      'Classic bare spawnObstacle() must not roll cluster');
+    game.mode = origMode;
+    resetGame();
+  });
+
   it('cluster draws two full small sprites with a visible gap', () => {
     resetGame();
     const cluster = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'cluster');
@@ -1291,6 +1305,46 @@ describe('HUD score format (polish pass)', () => {
     Animations.scorePopFrames = origPop;
     assert(!calls.some(t => t.startsWith('HI ')),
       `Expected no 'HI ...' label when highScore is 0, got: ${JSON.stringify(calls)}`);
+  });
+
+  it('in-run HUD omits the Daily TODAY label; game over still shows TODAY BEST', () => {
+    const origMode = game.mode;
+    const origBest = game.dailyBest;
+    const origScore = game.score;
+    const origHS = game.highScore;
+    const origState = game.state;
+    const origPop = Animations.scorePopFrames;
+    const origAnim = Animations.deathAnimFrame;
+    const origFill = ctx.fillText;
+    game.mode = MODES.DAILY;
+    game.state = STATE.RUNNING;
+    game.dailyBest = 120;
+    game.score = 40;
+    game.highScore = 0;
+    Animations.scorePopFrames = 0;
+
+    const hud = [];
+    ctx.fillText = (text) => hud.push(String(text));
+    drawScore();
+
+    const over = [];
+    ctx.fillText = (text) => over.push(String(text));
+    Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    drawGameOverScreen();
+    ctx.fillText = origFill;
+
+    game.mode = origMode;
+    game.dailyBest = origBest;
+    game.score = origScore;
+    game.highScore = origHS;
+    game.state = origState;
+    Animations.scorePopFrames = origPop;
+    Animations.deathAnimFrame = origAnim;
+
+    assert(!hud.some(t => t.indexOf('TODAY') !== -1),
+      `In-run HUD must not show TODAY, got: ${JSON.stringify(hud)}`);
+    assert(over.some(t => t === 'TODAY BEST'),
+      `Game over must still show TODAY BEST, got: ${JSON.stringify(over)}`);
   });
 });
 
@@ -2005,6 +2059,122 @@ describe('Share result', () => {
     try { shareDailyResult(); } catch (e) { threw = true; }
     assert(!threw, 'shareDailyResult() should not throw even with no clipboard');
     game.dailyBest = origDailyBest;
+  });
+});
+
+describe('Daily obstacle sequence vs reduced motion', () => {
+  function collectDailySpawns(useHills) {
+    game.mode = MODES.DAILY;
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    const startX = game.hills.map(h => h.x);
+    const seq = [];
+    for (let i = 0; i < 4000; i++) {
+      game.score += GAME_CONFIG.SCORE_INCREMENT;
+      game.currentSpeed = DifficultyProfile.speedAtScore(game.score);
+      if (useHills) updateHills();
+      updateObstacles();
+      if (game.lastObstacleX <= GAME_CONFIG.CANVAS_W - game.nextSpawnGap) {
+        const params = DifficultyProfile.nextObstacle(game.score, game.mode, game.rng);
+        seq.push(params.type.id + '@' + params.gap);
+        spawnObstacle(params.type);
+        game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+        game.nextSpawnGap = params.gap;
+      }
+    }
+    return { seq, startX, endX: game.hills.map(h => h.x) };
+  }
+
+  it('same daily seed keeps the obstacle sequence when hills do not scroll', () => {
+    const origMode = game.mode;
+    try {
+      setReducedMotion(false);
+      const moving = collectDailySpawns(true);
+      setReducedMotion(true);
+      const reduced = collectDailySpawns(true);
+      setReducedMotion(false);
+      const skipped = collectDailySpawns(false);
+
+      assert(moving.endX.some((x, i) => x !== moving.startX[i]),
+        'Scrolling run must move hills so respawn draws are actually exercised');
+      assert(reduced.endX.every((x, i) => x === reduced.startX[i]),
+        'Reduced motion must leave drawn hill positions unchanged');
+      assertNotEquals(moving.seq.join('|'), skipped.seq.join('|'),
+        'Skipping hill updates must be able to change later obstacle rolls');
+
+      const movingKey = moving.seq.join('|');
+      const reducedKey = reduced.seq.join('|');
+      if (movingKey !== reducedKey) {
+        let i = 0;
+        while (i < moving.seq.length && reduced.seq[i] === moving.seq[i]) i++;
+        assert(false,
+          `Daily obstacle sequence diverged at spawn ${i}: moving=${moving.seq[i]} reduced=${reduced.seq[i]}`);
+      }
+    } finally {
+      setReducedMotion(false);
+      game.mode = origMode;
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+});
+
+describe('Restart cancels the animation frame first', () => {
+  function assertCancelBeforeReset(trigger) {
+    const origCancel = global.cancelAnimationFrame;
+    const origRAF = global.requestAnimationFrame;
+    game.score = 77;
+    let scoreAtCancel = null;
+    let scoreAtLoop = null;
+    global.cancelAnimationFrame = (id) => {
+      if (scoreAtCancel === null) scoreAtCancel = game.score;
+      return origCancel(id);
+    };
+    global.requestAnimationFrame = (cb) => {
+      if (scoreAtLoop === null) scoreAtLoop = game.score;
+      return origRAF(cb);
+    };
+    try {
+      trigger();
+    } finally {
+      global.cancelAnimationFrame = origCancel;
+      global.requestAnimationFrame = origRAF;
+      if (game.animationFrameId) origCancel(game.animationFrameId);
+    }
+    assert(scoreAtCancel !== null, 'restart path must call cancelAnimationFrame');
+    assertEquals(scoreAtCancel, 77,
+      'cancelAnimationFrame must run before resetGame clears the score');
+    assertEquals(scoreAtLoop, 0, 'gameLoop must run after resetGame');
+  }
+
+  it('setMode cancels the frame before resetGame and gameLoop', () => {
+    const origMode = game.mode;
+    assertCancelBeforeReset(() => setMode(MODES.CLASSIC));
+    setMode(origMode === MODES.CLASSIC ? MODES.CLASSIC : MODES.UPDATED);
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+  });
+
+  it('daily toggle cancels the frame before resetGame and gameLoop', () => {
+    const origMode = game.mode;
+    const btn = document.getElementById('daily-btn');
+    const handler = btn && btn._listeners && btn._listeners.click && btn._listeners.click[0];
+    assert(typeof handler === 'function', 'daily button must register a click handler');
+    assertCancelBeforeReset(() => handler({ stopPropagation() {} }));
+    game.mode = origMode;
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+  });
+
+  it('DEAD restart via handleAction cancels the frame before resetGame and gameLoop', () => {
+    const origMode = game.mode;
+    const origState = game.state;
+    game.state = STATE.DEAD;
+    Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    assertCancelBeforeReset(() => handleAction());
+    game.mode = origMode;
+    game.state = origState;
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
   });
 });
 
