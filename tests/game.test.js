@@ -2739,16 +2739,25 @@ describe('Death log (opt-in seed dump)', () => {
 
   function silenceClipboard() {
     const copies = [];
-    const prev = navigator.clipboard;
-    navigator.clipboard = {
+    // Node's test harness has no DOM. CI (Node 20) has no navigator at all;
+    // newer Node exposes a getter-only navigator, which must not be replaced.
+    const hadNavigator = typeof global.navigator !== 'undefined';
+    if (!hadNavigator) global.navigator = {};
+    const nav = global.navigator;
+    const prev = nav.clipboard;
+    nav.clipboard = {
       writeText(text) {
         copies.push(text);
         return Promise.resolve();
       },
     };
     copies.restore = () => {
-      if (prev === undefined) delete navigator.clipboard;
-      else navigator.clipboard = prev;
+      if (!hadNavigator) {
+        delete global.navigator;
+        return;
+      }
+      if (prev === undefined) delete nav.clipboard;
+      else nav.clipboard = prev;
     };
     return copies;
   }
