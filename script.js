@@ -7,47 +7,58 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
     innerWidth: 600,
     devicePixelRatio: 1,
   };
+  const nodeStubs = {};
+  function stubNode() {
+    return {
+      _listeners: {},
+      addEventListener(type, fn) {
+        (this._listeners[type] || (this._listeners[type] = [])).push(fn);
+      },
+      setAttribute() {},
+      dataset: {},
+      textContent: '',
+    };
+  }
   global.document = {
     getElementById: (id) => {
       if (id === 'gameCanvas') {
-        return {
-          width: 600,
-          height: 200,
-          style: {},
-          getContext: () => ({
-            drawImage: () => {},
-            clearRect: () => {},
-            fillRect: () => {},
-            fillText: () => {},
-            arc: () => {},
-            beginPath: () => {},
-            closePath: () => {},
-            fill: () => {},
-            stroke: () => {},
-            moveTo: () => {},
-            lineTo: () => {},
-            measureText: () => ({ width: 0 }),
-            save: () => {},
-            restore: () => {},
-            translate: () => {},
-            scale: () => {},
-            setTransform: () => {},
-            ellipse: () => {},
-            fillStyle: '',
-            strokeStyle: '',
-            font: '',
-            textAlign: '',
-            globalAlpha: 1,
-          }),
-          addEventListener: () => {},
-        };
+        if (!nodeStubs.gameCanvas) {
+          nodeStubs.gameCanvas = {
+            width: 600,
+            height: 200,
+            style: {},
+            getContext: () => ({
+              drawImage: () => {},
+              clearRect: () => {},
+              fillRect: () => {},
+              fillText: () => {},
+              arc: () => {},
+              beginPath: () => {},
+              closePath: () => {},
+              fill: () => {},
+              stroke: () => {},
+              moveTo: () => {},
+              lineTo: () => {},
+              measureText: () => ({ width: 0 }),
+              save: () => {},
+              restore: () => {},
+              translate: () => {},
+              scale: () => {},
+              setTransform: () => {},
+              ellipse: () => {},
+              fillStyle: '',
+              strokeStyle: '',
+              font: '',
+              textAlign: '',
+              globalAlpha: 1,
+            }),
+            addEventListener: () => {},
+          };
+        }
+        return nodeStubs.gameCanvas;
       }
-      return {
-        addEventListener: () => {},
-        setAttribute: () => {},
-        dataset: {},
-        textContent: '',
-      };
+      if (!nodeStubs[id]) nodeStubs[id] = stubNode();
+      return nodeStubs[id];
     },
     addEventListener: () => {},
   };
@@ -239,9 +250,14 @@ const STATE = Object.freeze({
 });
 
 // Respect the user's OS-level reduce-motion preference. Read once at startup —
-// background animations (clouds, stars, day/night interpolation) skip rendering
-// when true, but core gameplay (dino + obstacles) is unaffected.
-const reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+// ambient motion is suppressed when true. Hill respawn still consumes game.rng()
+// (see updateHills) so a Daily seed yields the same obstacle sequence either way.
+// Tests flip the flag through setReducedMotion(); players do not.
+let reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+function setReducedMotion(enabled) {
+  reducedMotion = !!enabled;
+}
 
 // --- Web Audio module (PR-B) ---
 // Synthesised SFX — no asset files. Lazy-creates AudioContext on first user
@@ -634,7 +650,12 @@ function updateClouds() {
 // --- Mid-ground hills (PR-D, updated mode only) ---
 // Soft mounds drawn behind the ground at slow parallax. Deterministic shape
 // per-run via game.rng so the same seed yields identical scenery.
+// Shadow copy used only while reduced motion freezes the drawn hills. It must
+// stay on game.rng so respawn draws are not skipped.
+let hillLayout = null;
+
 function initHills() {
+  hillLayout = null;
   game.hills.length = 0;
   const slot = GAME_CONFIG.CANVAS_W / GAME_CONFIG.HILL_COUNT;
   for (let i = 0; i < GAME_CONFIG.HILL_COUNT; i++) {
@@ -647,8 +668,18 @@ function initHills() {
 }
 
 function updateHills() {
-  if (!isUpdatedMode() || reducedMotion) return;
-  for (const hill of game.hills) {
+  if (!isUpdatedMode()) return;
+  // Reduced motion freezes the mounds the player sees, but the respawn rolls
+  // still have to come off game.rng(). Skipping them shifts every later
+  // obstacle type and gap for that Daily seed.
+  let hills = game.hills;
+  if (reducedMotion) {
+    if (!hillLayout) {
+      hillLayout = game.hills.map(h => ({ x: h.x, width: h.width, height: h.height }));
+    }
+    hills = hillLayout;
+  }
+  for (const hill of hills) {
     hill.x -= game.currentSpeed * GAME_CONFIG.HILL_PARALLAX;
     if (hill.x + hill.width < 0) {
       hill.x = GAME_CONFIG.CANVAS_W + game.rng() * cfg('HILL_RESPAWN_X_RANGE');
@@ -792,15 +823,8 @@ function drawScore() {
     GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET,
     GAME_CONFIG.SCORE_Y
   );
-  if (isDailyMode()) {
-    // TODAY label replaces HI in daily challenge mode
-    const todayBest = game.dailyBest > 0 ? String(game.dailyBest).padStart(5, '0') : '-----';
-    ctx.fillText(
-      'TODAY ' + todayBest,
-      GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET - GAME_CONFIG.SCORE_HI_X_OFFSET - 20,
-      GAME_CONFIG.SCORE_Y
-    );
-  } else if (game.highScore > 0) {
+  // Daily framing stays off the in-run HUD (game-over and share still carry it).
+  if (game.highScore > 0) {
     ctx.fillText(
       'HI ' + String(game.highScore).padStart(5, '0'),
       GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET - GAME_CONFIG.SCORE_HI_X_OFFSET,
@@ -1087,7 +1111,8 @@ function runFeatureDraws(layer) {
 
 function spawnObstacle(type) {
   // Default to a tier-appropriate random pick; tests may pass a specific type.
-  const t = type || pickObstacleType(game.rng, game.score);
+  // Mode is required: omitting it lets Classic roll cluster once that tier unlocks.
+  const t = type || pickObstacleType(game.rng, game.score, game.mode);
   game.obstacles.push({
     x: GAME_CONFIG.CANVAS_W,
     y: GAME_CONFIG.CANVAS_H - t.height,
@@ -1601,4 +1626,5 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.ScoreStore = ScoreStore;
   global.isDailyMode = isDailyMode;
   global.shareDailyResult = shareDailyResult;
+  global.setReducedMotion = setReducedMotion;
 }
