@@ -2711,6 +2711,326 @@ describe('Daily HUD', () => {
   });
 });
 
+describe('Death log (opt-in seed dump)', () => {
+  function restoreDebug(orig) {
+    if (typeof disableDeathLog === 'function') disableDeathLog();
+    game.seedOverride = null;
+    game.mode = orig.mode;
+    game.state = orig.state;
+    Date.now = orig.now;
+    console.log = orig.log;
+    ctx.fillText = orig.fill;
+    if (orig.location === undefined) delete global.location;
+    else global.location = orig.location;
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+  }
+
+  function snapshotEnv() {
+    return {
+      mode: game.mode,
+      state: game.state,
+      now: Date.now,
+      log: console.log,
+      fill: ctx.fillText,
+      location: global.location,
+    };
+  }
+
+  function silenceClipboard() {
+    const copies = [];
+    // Node's test harness has no DOM. CI (Node 20) has no navigator at all;
+    // newer Node exposes a getter-only navigator, which must not be replaced.
+    const hadNavigator = typeof global.navigator !== 'undefined';
+    if (!hadNavigator) global.navigator = {};
+    const nav = global.navigator;
+    const prev = nav.clipboard;
+    nav.clipboard = {
+      writeText(text) {
+        copies.push(text);
+        return Promise.resolve();
+      },
+    };
+    copies.restore = () => {
+      if (!hadNavigator) {
+        delete global.navigator;
+        return;
+      }
+      if (prev === undefined) delete nav.clipboard;
+      else nav.clipboard = prev;
+    };
+    return copies;
+  }
+
+  it('resetGame stores the seed that was handed to the RNG', () => {
+    const orig = snapshotEnv();
+    try {
+      game.mode = MODES.UPDATED;
+      const frozen = 1700000123456;
+      Date.now = () => frozen;
+      resetGame();
+      const expected = frozen >>> 0;
+      assert(expected > 0x7fffffff, 'fixture must set the 32-bit sign bit');
+      assertEquals(game.runSeed, expected, 'free-play reset stores the unsigned 32-bit clock seed');
+      assert(game.runSeed >= 0, 'run seed is not a negative signed int');
+      const gap = game.nextSpawnGap;
+      resetGame();
+      assertEquals(
+        game.runSeed,
+        expected,
+        'a second reset with the same clock keeps the same seed'
+      );
+      assertEquals(game.nextSpawnGap, gap, 'the same seed still yields the same first spawn gap');
+    } finally {
+      restoreDebug(orig);
+    }
+  });
+
+  it('daily reset stores dailySeed(); free play stores Date.now()', () => {
+    const orig = snapshotEnv();
+    try {
+      Date.now = () => 42;
+      game.mode = MODES.DAILY;
+      resetGame();
+      assertEquals(game.runSeed, dailySeed(), 'daily run seed comes from dailySeed()');
+      assertNotEquals(game.runSeed, 42, 'daily run seed is not the free-play clock');
+
+      game.mode = MODES.CLASSIC;
+      resetGame();
+      assertEquals(game.runSeed, 42, 'classic free play stores the masked Date.now seed');
+
+      game.mode = MODES.UPDATED;
+      resetGame();
+      assertEquals(game.runSeed, 42, 'updated free play stores the masked Date.now seed');
+      assertNotEquals(game.runSeed, dailySeed(), 'free play does not use the daily seed');
+    } finally {
+      restoreDebug(orig);
+    }
+  });
+
+  it('the same run seed reproduces the same spawn gaps', () => {
+    const orig = snapshotEnv();
+    try {
+      enableDeathLog();
+      game.mode = MODES.UPDATED;
+
+      function collect(seed) {
+        replayRunSeed(seed);
+        resetGame();
+        if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+        const firstGap = game.nextSpawnGap;
+        const gaps = [];
+        game.state = STATE.RUNNING;
+        for (let i = 0; i < 4; i++) {
+          game.obstacles.length = 0;
+          gameLoop();
+          cancelAnimationFrame(game.animationFrameId);
+          gaps.push(game.lastGaps[game.lastGaps.length - 1].px);
+        }
+        return { firstGap, gaps, seed: game.runSeed };
+      }
+
+      const a = collect(123456);
+      const b = collect(123456);
+      assertEquals(a.seed, 123456, 'replayRunSeed is the seed stored on the run');
+      assertEquals(b.seed, 123456, 'a second replay stores the same seed');
+      assertEquals(a.firstGap, b.firstGap, 'same seed → same first spawn gap');
+      assertEquals(
+        JSON.stringify(a.gaps),
+        JSON.stringify(b.gaps),
+        'same seed → same later spawn gaps'
+      );
+      assertEquals(a.gaps.length, 4, 'four spawns were recorded');
+    } finally {
+      restoreDebug(orig);
+    }
+  });
+
+  it('death with debug on records a small JSON dump and copies it', () => {
+    const orig = snapshotEnv();
+    const logs = [];
+    let copies;
+    try {
+      console.log = (...args) => logs.push(args.map(String).join(' '));
+      copies = silenceClipboard();
+      enableDeathLog();
+      replayRunSeed(4242);
+      game.mode = MODES.UPDATED;
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+
+      game.state = STATE.RUNNING;
+      game.obstacles.length = 0;
+      gameLoop();
+      cancelAnimationFrame(game.animationFrameId);
+      const spawnedType = game.obstacles[0].type;
+
+      jump();
+      game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
+      gameLoop();
+      cancelAnimationFrame(game.animationFrameId);
+
+      const dump = dumpRun();
+      assert(dump && typeof dump === 'object', 'dumpRun() returns the death log');
+      assertEquals(dump.mode, MODES.UPDATED, 'dump includes mode');
+      assertEquals(dump.seed, 4242, 'dump includes the run seed');
+      assertEquals(dump.score, Math.floor(game.score), 'dump score matches the run');
+      assert(typeof dump.speed === 'number', 'dump includes speed');
+      assert(typeof dump.nextSpawnGap === 'number', 'dump includes the next spawn gap');
+      assert(
+        Array.isArray(dump.lastGaps) && dump.lastGaps.length >= 1,
+        'dump includes recent gaps'
+      );
+      const gap = dump.lastGaps[0];
+      assert(typeof gap.px === 'number' && gap.px > 0, 'gap px is a positive number');
+      assert(
+        Number.isInteger(gap.framesApprox) && gap.framesApprox >= 1,
+        'framesApprox is a positive frame count'
+      );
+      assertEquals(
+        gap.msApprox,
+        Math.round((gap.framesApprox * 1000) / 60),
+        'msApprox is frames at 60fps'
+      );
+      const impliedPx = gap.framesApprox * dump.speed;
+      assert(
+        Math.abs(impliedPx - gap.px) < dump.speed * 2,
+        'framesApprox is about the gap in pixels divided by speed'
+      );
+      assert(Array.isArray(dump.lastObstacleTypes), 'dump includes obstacle types');
+      assertEquals(dump.lastObstacleTypes[0], spawnedType, 'first recorded type matches the spawn');
+      assert(typeof dump.diedAtFrame === 'number', 'dump includes the death frame');
+      assert(
+        typeof dump.framesSinceJump === 'number' && dump.framesSinceJump >= 1,
+        'dump includes frames from the last jump to the hit'
+      );
+      assert(
+        logs.some((line) => line.includes('[rex-death-log]')),
+        'death logs the JSON'
+      );
+      assert(copies.length >= 1 && copies[0].includes('"seed": 4242'), 'death copies the JSON');
+
+      const viaCopy = copyDeathLog();
+      assert(
+        typeof viaCopy === 'string' && viaCopy.includes('"seed": 4242'),
+        'copyDeathLog() returns the JSON text'
+      );
+    } finally {
+      if (copies) copies.restore();
+      restoreDebug(orig);
+    }
+  });
+
+  it('debug off produces no dump and no HUD line', () => {
+    const orig = snapshotEnv();
+    const logs = [];
+    try {
+      console.log = (...args) => logs.push(args.map(String).join(' '));
+      disableDeathLog();
+      game.mode = MODES.UPDATED;
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      game.state = STATE.RUNNING;
+      game.obstacles.length = 0;
+      gameLoop();
+      cancelAnimationFrame(game.animationFrameId);
+      jump();
+      game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
+      gameLoop();
+      cancelAnimationFrame(game.animationFrameId);
+
+      assertEquals(game.state, STATE.DEAD, 'the run still ends on a hit');
+      assertEquals(dumpRun(), null, 'dumpRun() is empty when debug is off');
+      assertEquals(copyDeathLog(), null, 'copyDeathLog() is empty when debug is off');
+      assertEquals(game.deathLog, null, 'no death log is stored when debug is off');
+      assert(
+        !logs.some((line) => line.includes('[rex-death-log]') || line.includes('"seed"')),
+        'debug off does not print a dump'
+      );
+      assert(!game.lastGaps || game.lastGaps.length === 0, 'debug off does not keep a gap log');
+
+      const calls = [];
+      ctx.fillText = (text) => calls.push(String(text));
+      drawScore();
+      drawGameOverScreen();
+      assert(
+        !calls.some((text) => text.startsWith('dbg ') || text.includes('seed ')),
+        'debug off does not draw a debug HUD line'
+      );
+    } finally {
+      restoreDebug(orig);
+    }
+  });
+
+  it('debug on draws a peripheral HUD line with mode, score, speed, gap, and seed', () => {
+    const orig = snapshotEnv();
+    try {
+      enableDeathLog();
+      replayRunSeed(77);
+      game.mode = MODES.CLASSIC;
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      game.score = 12;
+      const calls = [];
+      ctx.fillText = (text) => calls.push(String(text));
+      drawScore();
+      const line = calls.find((text) => text.startsWith('dbg '));
+      assert(line, `debug HUD line missing, got: ${JSON.stringify(calls)}`);
+      assert(line.includes('classic'), 'HUD shows mode');
+      assert(line.includes('12'), 'HUD shows score');
+      assert(line.includes('spd '), 'HUD shows speed');
+      assert(line.includes('gap ' + game.nextSpawnGap), 'HUD shows the next spawn gap');
+      assert(line.includes('seed 77'), 'HUD shows the run seed');
+    } finally {
+      restoreDebug(orig);
+    }
+  });
+
+  it('?debug=1 and enableDeathLog() opt in; Key L dumps the current run', () => {
+    const orig = snapshotEnv();
+    let copies;
+    try {
+      disableDeathLog();
+      global.location = { search: '?debug=1' };
+      applyDebugFromLocation();
+      assertEquals(isDeathLogEnabled(), true, '?debug=1 turns the death log on');
+      assert(typeof window.enableDeathLog === 'function', 'DevTools hook is on window');
+      assert(typeof window.dumpRun === 'function', 'dumpRun is on window');
+      assert(typeof window.copyDeathLog === 'function', 'copyDeathLog is on window');
+      assert(typeof window.replayRunSeed === 'function', 'replayRunSeed is on window');
+
+      disableDeathLog();
+      global.location = { search: '' };
+      applyDebugFromLocation();
+      assertEquals(isDeathLogEnabled(), false, 'a URL without debug=1 does not turn logging on');
+
+      enableDeathLog();
+      replayRunSeed(99);
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      copies = silenceClipboard();
+      const logs = [];
+      console.log = (...args) => logs.push(args.map(String).join(' '));
+      handleDebugKey({ code: 'KeyL' });
+      const dump = dumpRun();
+      assertEquals(dump.seed, 99, 'Key L snapshot carries the run seed');
+      assertEquals(dump.diedAtFrame, null, 'a mid-run key dump is not marked as a death');
+      assertEquals(copies.length, 1, 'Key L copies one JSON payload');
+
+      disableDeathLog();
+      handleDebugKey({ code: 'KeyL' });
+      assertEquals(copies.length, 1, 'Key L does nothing while debug is off');
+      assert(
+        logs.some((line) => line.includes('[rex-death-log]')),
+        'Key L prints the snapshot'
+      );
+    } finally {
+      if (copies) copies.restore();
+      restoreDebug(orig);
+    }
+  });
+});
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {
