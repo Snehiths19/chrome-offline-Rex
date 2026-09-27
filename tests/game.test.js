@@ -261,7 +261,8 @@ describe('Obstacle Gap Enforcement', () => {
 
 describe('Spawn Gap Jitter', () => {
   it('nextObstacle gap stays within [MIN_SPAWN_GAP, baseGap * (1 + JITTER)]', () => {
-    const scores = [0, 200, 500];
+    // Late-game Updated gaps are speed-scaled; see 'Late-game spawn gap'.
+    const scores = [0, 200];
     scores.forEach(score => {
       const speed = DifficultyProfile.speedAtScore(score);
       const baseGap = Math.max(
@@ -299,6 +300,202 @@ describe('Spawn Gap Jitter', () => {
     const a = mulberry32(42);
     const b = mulberry32(42);
     for (let i = 0; i < 10; i++) assertEquals(a(), b(), 'Same seed should produce same sequence');
+  });
+});
+
+describe('Late-game spawn gap (Updated/Daily)', () => {
+  // Full jump, takeoff to landing, using the same integration order as the game loop.
+  function jumpAirtimeFrames() {
+    const ground = GAME_CONFIG.CANVAS_H - GAME_CONFIG.DINO_HEIGHT;
+    let y = ground;
+    let v = GAME_CONFIG.JUMP_POWER;
+    let frames = 0;
+    while (frames < 500) {
+      v += GAME_CONFIG.GRAVITY;
+      y += v;
+      frames++;
+      if (frames > 1 && y >= ground) return frames;
+    }
+    throw new Error('jump did not land');
+  }
+
+  // Constant 0.5 zeroes gap jitter. Updated/Daily consume an earlier roll for type.
+  function zeroJitterGap(score, mode) {
+    return DifficultyProfile.nextObstacle(score, mode, () => 0.5).gap;
+  }
+
+  // Constant 0 is maximum negative jitter (-SPAWN_GAP_JITTER).
+  function worstGap(score, mode) {
+    return DifficultyProfile.nextObstacle(score, mode, () => 0).gap;
+  }
+
+  function focusedJumpFrames(score) {
+    const speed = DifficultyProfile.speedAtScore(score);
+    const cluster = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'cluster');
+    // One jump, plus the frames a cluster occupies at this speed, plus a short read.
+    return jumpAirtimeFrames() + cluster.width / speed + 12;
+  }
+
+  it('updated zero-jitter gap grows with speed from 450 to 640', () => {
+    const g450 = zeroJitterGap(450, MODES.UPDATED);
+    const g640 = zeroJitterGap(640, MODES.UPDATED);
+    assert(g640 > g450,
+      `Gap at 640 (${g640}) should exceed gap at 450 (${g450}) so time-between holds as speed rises`);
+  });
+
+  it('updated zero-jitter time between obstacles holds from 450 through 640', () => {
+    const timeAt = (score) => zeroJitterGap(score, MODES.UPDATED) / DifficultyProfile.speedAtScore(score);
+    const t450 = timeAt(450);
+    const t640 = timeAt(640);
+    const ratio = t640 / t450;
+    assert(ratio > 0.95 && ratio < 1.05,
+      `Time-between should stay level as speed rises; 450=${t450.toFixed(1)}f 640=${t640.toFixed(1)}f ratio=${ratio.toFixed(3)}`);
+  });
+
+  it('updated worst-case gap stays above one focused jump from 300 through 640', () => {
+    for (const score of [300, 450, 640]) {
+      const speed = DifficultyProfile.speedAtScore(score);
+      const frames = worstGap(score, MODES.UPDATED) / speed;
+      const minFrames = focusedJumpFrames(score);
+      assert(frames >= minFrames,
+        `Score ${score}: worst gap ${frames.toFixed(1)}f should be >= ${minFrames.toFixed(1)}f`);
+      assert(frames + 1e-6 >= GAME_CONFIG.UPDATED_MIN_GAP_FRAMES,
+        `Score ${score}: worst gap ${frames.toFixed(1)}f should hold UPDATED_MIN_GAP_FRAMES (${GAME_CONFIG.UPDATED_MIN_GAP_FRAMES})`);
+    }
+  });
+
+  // Steps the running spawn path: move sprites, then spawn when the anchor
+  // has traveled nextSpawnGap. Mirrors handleRunning's obstacle block.
+  function framesUntilNextSpawn(maxFrames) {
+    for (let frame = 1; frame <= maxFrames; frame++) {
+      updateObstacles();
+      if (game.lastObstacleX <= GAME_CONFIG.CANVAS_W - game.nextSpawnGap) return frame;
+    }
+    return null;
+  }
+
+  it('a gap wider than the screen still spawns the next obstacle', () => {
+    const speed = DifficultyProfile.speedAtScore(640);
+    const wide = DifficultyProfile.nextObstacle(640, MODES.UPDATED, () => 1).gap;
+    assert(wide > 900,
+      `Max jitter at score 640 (${wide}) should pass the old 900px spawn sentinel`);
+
+    const orig = {
+      mode: game.mode,
+      state: game.state,
+      speed: game.currentSpeed,
+      obstacles: game.obstacles,
+      lastObstacleX: game.lastObstacleX,
+      nextSpawnGap: game.nextSpawnGap,
+    };
+    game.mode = MODES.UPDATED;
+    game.state = STATE.RUNNING;
+    game.currentSpeed = speed;
+    game.obstacles = [];
+    spawnObstacle(GAME_CONFIG.OBSTACLE_TYPES[0]);
+    game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+    game.nextSpawnGap = wide;
+
+    const frame = framesUntilNextSpawn(400);
+    const expected = wide / speed;
+    assert(frame !== null, `A ${wide}px gap must still produce another obstacle after the sprite leaves`);
+    assert(Math.abs(frame - expected) <= 2,
+      `Spawn landed on frame ${frame}; a ${wide}px gap at speed ${speed.toFixed(2)} should take about ${expected.toFixed(1)} frames, not the screen-exit clip`);
+
+    game.mode = orig.mode;
+    game.state = orig.state;
+    game.currentSpeed = orig.speed;
+    game.obstacles = orig.obstacles;
+    game.lastObstacleX = orig.lastObstacleX;
+    game.nextSpawnGap = orig.nextSpawnGap;
+  });
+
+  it('updated gap at score 300 and 450 is wider than the classic shrinking gap', () => {
+    for (const score of [300, 450]) {
+      const updated = zeroJitterGap(score, MODES.UPDATED);
+      const classic = zeroJitterGap(score, MODES.CLASSIC);
+      assert(updated > classic,
+        `Score ${score}: updated gap ${updated} should be wider than classic ${classic}`);
+    }
+  });
+
+  it('early updated gaps match classic so the opening is not opened up', () => {
+    for (const score of [0, 150, 200]) {
+      assertEquals(
+        zeroJitterGap(score, MODES.UPDATED),
+        zeroJitterGap(score, MODES.CLASSIC),
+        `Score ${score}: early updated gap should match classic`
+      );
+    }
+  });
+
+  it('classic high-score gap still follows the shrinking curve', () => {
+    const speed = DifficultyProfile.speedAtScore(450);
+    const expected = Math.max(
+      GAME_CONFIG.MIN_SPAWN_GAP,
+      Math.round(
+        GAME_CONFIG.MAX_SPAWN_GAP -
+        (speed - GAME_CONFIG.INITIAL_SPEED) * GAME_CONFIG.SPAWN_GAP_SPEED_FACTOR
+      )
+    );
+    const classic = DifficultyProfile.nextObstacle(450, MODES.CLASSIC, () => 0).gap;
+    assertEquals(classic, expected, 'Classic gap must keep the shrinking curve');
+    assert(
+      zeroJitterGap(640, MODES.CLASSIC) < zeroJitterGap(450, MODES.CLASSIC),
+      'Classic gap should still shrink as score rises'
+    );
+  });
+
+  it('daily gaps match updated at the same score and rng', () => {
+    for (const score of [0, 300, 450, 640]) {
+      assertEquals(
+        zeroJitterGap(score, MODES.DAILY),
+        zeroJitterGap(score, MODES.UPDATED),
+        `Daily zero-jitter gap should match updated at score ${score}`
+      );
+      assertEquals(
+        worstGap(score, MODES.DAILY),
+        worstGap(score, MODES.UPDATED),
+        `Daily worst-case gap should match updated at score ${score}`
+      );
+    }
+  });
+
+  it('same seed replays the same updated gap sequence', () => {
+    const seq = (seed) => {
+      const rng = mulberry32(seed);
+      const gaps = [];
+      for (let i = 0; i < 20; i++) gaps.push(DifficultyProfile.nextObstacle(450, MODES.UPDATED, rng).gap);
+      return gaps.join(',');
+    };
+    assertEquals(seq(20260927), seq(20260927), 'Same seed must replay the same gaps');
+    assert(seq(1) !== seq(2), 'Different seeds should not collapse to one gap');
+  });
+
+  it('updated gaps are whole pixels, including the speed-scaled floor', () => {
+    for (const score of [0, 300, 400, 450, 640]) {
+      const gap = worstGap(score, MODES.UPDATED);
+      assertEquals(gap, Math.round(gap), `Worst gap at score ${score} should be an integer, got ${gap}`);
+      assertEquals(
+        zeroJitterGap(score, MODES.UPDATED),
+        Math.round(zeroJitterGap(score, MODES.UPDATED)),
+        `Zero-jitter gap at score ${score} should be an integer`
+      );
+    }
+  });
+
+  it('updated jitter at score 450 does not pile up on MIN_SPAWN_GAP', () => {
+    const rng = mulberry32(99);
+    const gaps = [];
+    for (let i = 0; i < 400; i++) gaps.push(DifficultyProfile.nextObstacle(450, MODES.UPDATED, rng).gap);
+    const slammed = gaps.filter(g => g <= GAME_CONFIG.MIN_SPAWN_GAP + 1).length / gaps.length;
+    assert(slammed < 0.05,
+      `Only ${(slammed * 100).toFixed(1)}% of gaps should sit on MIN_SPAWN_GAP; got a floor pile-up`);
+    gaps.sort((a, b) => a - b);
+    const tightest = gaps[0];
+    const median = gaps[Math.floor(gaps.length / 2)];
+    assert(median >= tightest * 1.1,
+      `Median gap ${median} should sit above the tightest gap ${tightest}`);
   });
 });
 

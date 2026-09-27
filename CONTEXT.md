@@ -28,7 +28,7 @@ _Avoid_: enemy, object
 **Obstacle type** — the category of a spawned obstacle (e.g. small cactus, cluster cactus).
 _Avoid_: obstacle kind, obstacle variant
 
-**Spawn gap** — the pixel distance between the right edge of the canvas and the trigger point for the next obstacle spawn.
+**Spawn gap** — the pixel distance between the right edge of the canvas and the trigger point for the next obstacle spawn. In Updated and Daily, once the shrinking curve would leave less than one focused jump between obstacles, the gap scales with speed so the time between them holds. Classic keeps the shrinking pixel gap.
 _Avoid_: gap, spacing, next gap
 
 **Jitter** — a random ±variation applied to the **spawn gap** in updated mode to prevent metronomic spacing. Only applied in updated mode; classic-mode spawn gaps are deterministic.
