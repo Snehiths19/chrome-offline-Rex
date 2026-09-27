@@ -3392,6 +3392,208 @@ describe('Plateau cue', () => {
   });
 });
 
+describe('Daily pre-run framing', () => {
+  const LINE = 'Same course as everyone today';
+
+  function captureFillText(draw) {
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text, x, y) => calls.push({ text: String(text), x, y, font: ctx.font, fillStyle: ctx.fillStyle });
+    draw();
+    ctx.fillText = origFill;
+    return calls;
+  }
+
+  function overlayCalls() {
+    return captureFillText(drawGetReadyOverlay);
+  }
+
+  function withDailyWaiting(graceFrames, draw) {
+    const orig = {
+      mode: game.mode,
+      state: game.state,
+      grace: game.graceFrames,
+      skip: game.countdownSkippable,
+      frame: game.animFrame,
+    };
+    game.mode = MODES.DAILY;
+    game.state = STATE.WAITING;
+    game.graceFrames = graceFrames;
+    game.countdownSkippable = false;
+    game.animFrame = 0;
+    const calls = draw();
+    game.mode = orig.mode;
+    game.state = orig.state;
+    game.graceFrames = orig.grace;
+    game.countdownSkippable = orig.skip;
+    game.animFrame = orig.frame;
+    return calls;
+  }
+
+  it('Daily GET READY shows a short shared-course line', () => {
+    const calls = withDailyWaiting(GAME_CONFIG.GRACE_FRAMES, overlayCalls);
+    const line = calls.find((c) => c.text === LINE);
+    assert(line, `Daily WAITING should show the shared-run line, got: ${JSON.stringify(calls.map((c) => c.text))}`);
+    assert(calls.some((c) => c.text === 'GET READY'), 'GET READY should stay on the overlay');
+    assert(line.y > GAME_CONFIG.SCORE_Y, 'the line should sit with the overlay, not in the score HUD');
+    assert(line.y < GAME_CONFIG.CANVAS_H - GAME_CONFIG.DINO_HEIGHT, 'the line should stay above the dino');
+  });
+
+  it('Daily countdown still shows the line, and the text does not pulse', () => {
+    const early = withDailyWaiting(GAME_CONFIG.GRACE_FRAMES, overlayCalls);
+    const late = withDailyWaiting(40, () => {
+      game.animFrame = 90;
+      return overlayCalls();
+    });
+    const earlyLine = early.find((c) => c.text === LINE);
+    const lateLine = late.find((c) => c.text === LINE);
+    assert(late.some((c) => c.text !== 'GET READY' && c.text !== LINE),
+      `countdown phase should still draw a count, got: ${JSON.stringify(late.map((c) => c.text))}`);
+    assert(lateLine, 'the shared-run line should stay through the countdown');
+    assertEquals(lateLine.fillStyle, earlyLine.fillStyle, 'the line should stay static when frames advance');
+    assertEquals(lateLine.font, earlyLine.font, 'the line should not scale or pulse');
+  });
+
+  it('Classic and Updated WAITING do not show the line', () => {
+    const orig = {
+      mode: game.mode,
+      state: game.state,
+      grace: game.graceFrames,
+    };
+    game.state = STATE.WAITING;
+    game.graceFrames = GAME_CONFIG.GRACE_FRAMES;
+
+    game.mode = MODES.CLASSIC;
+    const classic = overlayCalls();
+    game.mode = MODES.UPDATED;
+    const updated = overlayCalls();
+
+    game.mode = orig.mode;
+    game.state = orig.state;
+    game.graceFrames = orig.grace;
+
+    assert(!classic.some((c) => c.text === LINE),
+      `Classic must not show Daily framing, got: ${JSON.stringify(classic.map((c) => c.text))}`);
+    assert(!updated.some((c) => c.text === LINE),
+      `Updated must not show Daily framing, got: ${JSON.stringify(updated.map((c) => c.text))}`);
+    assert(classic.some((c) => c.text === 'GET READY'), 'Classic GET READY should be unchanged');
+    assert(updated.some((c) => c.text === 'GET READY'), 'Updated GET READY should be unchanged');
+  });
+
+  it('a Daily RUNNING frame does not paint the line, and Game Over keeps TODAY BEST', () => {
+    const orig = {
+      mode: game.mode,
+      state: game.state,
+      score: game.score,
+      grace: game.graceFrames,
+      skip: game.countdownSkippable,
+      best: game.dailyBest,
+      anim: Animations.deathAnimFrame,
+      hs: game.highScore,
+      lastX: game.lastObstacleX,
+      gap: game.nextSpawnGap,
+      obstacles: game.obstacles.slice(),
+    };
+    game.mode = MODES.DAILY;
+    game.state = STATE.RUNNING;
+    game.score = 10;
+    game.graceFrames = 0;
+    game.dailyBest = 500;
+    game.highScore = 900;
+    game.obstacles.length = 0;
+    game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+    game.nextSpawnGap = GAME_CONFIG.MAX_SPAWN_GAP;
+    dino.y = GAME_CONFIG.CANVAS_H - dino.height;
+    dino.isJumping = false;
+
+    const running = captureFillText(() => STATE_HANDLERS[STATE.RUNNING]());
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+
+    game.state = STATE.DEAD;
+    Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    const over = captureFillText(drawGameOverScreen);
+
+    game.mode = orig.mode;
+    game.state = orig.state;
+    game.score = orig.score;
+    game.graceFrames = orig.grace;
+    game.countdownSkippable = orig.skip;
+    game.dailyBest = orig.best;
+    Animations.deathAnimFrame = orig.anim;
+    game.highScore = orig.hs;
+    game.lastObstacleX = orig.lastX;
+    game.nextSpawnGap = orig.gap;
+    game.obstacles.length = 0;
+    orig.obstacles.forEach((o) => game.obstacles.push(o));
+
+    assert(!running.some((c) => c.text === LINE),
+      `RUNNING must not show the shared-run line, got: ${JSON.stringify(running.map((c) => c.text))}`);
+    assert(!running.some((c) => c.text.includes('TODAY')),
+      `RUNNING must not grow a TODAY HUD, got: ${JSON.stringify(running.map((c) => c.text))}`);
+    assert(!over.some((c) => c.text === LINE),
+      `Game Over should keep its own result screen, got: ${JSON.stringify(over.map((c) => c.text))}`);
+    assert(over.some((c) => c.text === 'TODAY BEST'), 'Game Over should still show TODAY BEST');
+  });
+
+  it('the screen reader hears the line only when a Daily countdown starts', () => {
+    const orig = {
+      mode: game.mode,
+      state: game.state,
+      skip: game.countdownSkippable,
+      text: a11yLive.textContent,
+    };
+
+    game.mode = MODES.UPDATED;
+    game.countdownSkippable = false;
+    game.state = STATE.WAITING;
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    const updated = a11yLive.textContent;
+
+    game.mode = MODES.DAILY;
+    game.countdownSkippable = false;
+    game.state = STATE.WAITING;
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    const daily = a11yLive.textContent;
+
+    game.mode = orig.mode;
+    game.state = orig.state;
+    game.countdownSkippable = orig.skip;
+    a11yLive.textContent = orig.text;
+
+    assert(!updated.includes(LINE), `Updated countdown must stay quiet, got: ${updated}`);
+    assert(daily.includes('Get ready'), `Daily countdown should still say get ready, got: ${daily}`);
+    assert(daily.includes(LINE), `Daily countdown should mention the shared course, got: ${daily}`);
+  });
+
+  it('the Daily button announces the shared course, and leaving does not', () => {
+    const origMode = game.mode;
+    const origText = a11yLive.textContent;
+    const btn = document.getElementById('daily-btn');
+    const handler = btn && btn._listeners && btn._listeners.click && btn._listeners.click[0];
+    assert(typeof handler === 'function', 'daily button must register a click handler');
+    game.mode = MODES.UPDATED;
+    handler({ stopPropagation() {} });
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    const entered = a11yLive.textContent;
+
+    handler({ stopPropagation() {} });
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    const left = a11yLive.textContent;
+
+    game.mode = origMode;
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    a11yLive.textContent = origText;
+
+    assert(/Daily challenge #\d+/.test(entered), `entering Daily should name the challenge, got: ${entered}`);
+    assert(entered.includes(LINE), `entering Daily should mention the shared course, got: ${entered}`);
+    assert(!left.includes(LINE), `leaving Daily must drop the shared-course line, got: ${left}`);
+    assert(left.includes('Updated mode'), `leaving Daily should announce Updated mode, got: ${left}`);
+  });
+});
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {

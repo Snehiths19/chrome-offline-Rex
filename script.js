@@ -566,6 +566,10 @@ function dailyNumber() {
   return Math.floor((Date.now() - DAILY_EPOCH_MS) / 86400000) + 1;
 }
 
+// Pre-run framing. A shared-course reminder, not a score. Drawn only on the
+// GET READY overlay while WAITING in a Daily Challenge.
+const DAILY_PRE_RUN_LINE = 'Same course as everyone today';
+
 // All mutable game state lives on this object. Keeping it in one place prevents
 // stray top-level globals and makes resets + test inspection simpler.
 // One clock read so the stored run seed is the same integer the RNG was built from.
@@ -1081,6 +1085,18 @@ function drawGetReadyOverlay() {
     ctx.font = '48px ' + cfg('SCORE_FONT_FAMILY');
     ctx.fillText(count || 'GO!', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 16);
   }
+  drawDailyPreRunLine();
+}
+
+// One shared run, at the edge of the run only. Static text — no pulse — so
+// prefers-reduced-motion has nothing extra to suppress. The RUNNING loop
+// never calls this overlay, and the state check keeps it off if it did.
+function drawDailyPreRunLine() {
+  if (game.state !== STATE.WAITING || !isDailyMode()) return;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+  ctx.font = '12px ' + cfg('SCORE_FONT_FAMILY');
+  ctx.fillText(DAILY_PRE_RUN_LINE, GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 46);
 }
 
 function drawGameOverScreen() {
@@ -1545,7 +1561,9 @@ if (dailyBtn && dailyBtn.addEventListener) {
     cancelAnimationFrame(game.animationFrameId);
     resetGame();
     gameLoop();
-    announce(entering ? `Daily challenge #${dailyNumber()}` : 'Updated mode');
+    announce(entering
+      ? `Daily challenge #${dailyNumber()}. ${DAILY_PRE_RUN_LINE}.`
+      : 'Updated mode');
   };
   dailyBtn.addEventListener('click', onDailyTap);
   dailyBtn.addEventListener('touchstart', (event) => {
@@ -1609,9 +1627,10 @@ function resetGame() {
   game.nextSpawnGap = computeNextSpawnGap(game.rng, DifficultyProfile.speedAtScore(game.score), game.mode);
   initClouds();
   initHills();
-  announce(game.countdownSkippable
+  const ready = game.countdownSkippable
     ? 'Get ready. Press space or tap to start.'
-    : 'Get ready.');
+    : 'Get ready.';
+  announce(isDailyMode() ? ready + ' ' + DAILY_PRE_RUN_LINE + '.' : ready);
   if (document.body) document.body.style.background = '';
 }
 
