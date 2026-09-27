@@ -106,9 +106,14 @@ const GAME_CONFIG = Object.freeze({
   // --- Spawning ---
   GRACE_FRAMES:           240,    // ~4 s at 60 fps before first obstacle appears
   MAX_SPAWN_GAP:          600,    // gap (px) between obstacles at INITIAL_SPEED
-  MIN_SPAWN_GAP:          340,    // gap (px) at SPEED_CAP — tuned minimum that's still clearable
-  SPAWN_GAP_SPEED_FACTOR:  50,    // gap shrinks by this much per +1 speed above INITIAL_SPEED
-  SPAWN_GAP_JITTER:         0.3,  // ±30% randomization; floored at MIN_SPAWN_GAP
+  MIN_SPAWN_GAP:          340,    // classic floor (px). Updated/Daily never go below this either.
+  SPAWN_GAP_SPEED_FACTOR:  50,    // classic gap shrinks by this much per +1 speed above INITIAL_SPEED
+  SPAWN_GAP_JITTER:         0.3,  // ±30% in Updated/Daily; classic skips jitter
+  // Worst-case frames between Updated/Daily obstacles once the shrinking curve
+  // would leave less than one focused jump. A jump is 49 frames at the current
+  // JUMP_POWER/GRAVITY; 72 also covers a cluster's width plus a short read.
+  // The base gap sits at this / (1 - JITTER), so ±30% rarely piles onto the floor.
+  UPDATED_MIN_GAP_FRAMES:  72,
 
   // --- Obstacle sprite (small cactus — baseline) ---
   OBS_WIDTH:               20,
@@ -454,18 +459,25 @@ function mulberry32(seed) {
 }
 
 // Compute the gap (px) to the next obstacle, given current speed + an RNG.
-// Jitter is applied ±SPAWN_GAP_JITTER around baseGap, then floored at
-// MIN_SPAWN_GAP so the smallest possible gap is always clearable. In classic
-// mode, jitter is skipped — gaps are deterministic.
+// Classic keeps the shrinking pixel curve, floored at MIN_SPAWN_GAP, with no
+// jitter. Updated and Daily use that same curve early; once it would compress
+// time-between-obstacles below one focused jump, the gap scales with speed so
+// the worst jitter still leaves UPDATED_MIN_GAP_FRAMES. Jitter is one rng()
+// call, same as before — type is rolled first by the caller.
 function computeNextSpawnGap(rng, currentSpeed, mode) {
-  const baseGap =
+  const classicBase =
     GAME_CONFIG.MAX_SPAWN_GAP -
     (currentSpeed - GAME_CONFIG.INITIAL_SPEED) * GAME_CONFIG.SPAWN_GAP_SPEED_FACTOR;
   if (mode === 'classic') {
-    return Math.max(GAME_CONFIG.MIN_SPAWN_GAP, Math.round(baseGap));
+    return Math.max(GAME_CONFIG.MIN_SPAWN_GAP, Math.round(classicBase));
   }
+  const minTimeGap = currentSpeed * GAME_CONFIG.UPDATED_MIN_GAP_FRAMES;
+  const fairBase = minTimeGap / (1 - GAME_CONFIG.SPAWN_GAP_JITTER);
+  const baseGap = Math.max(classicBase, fairBase);
   const jitter = (rng() - 0.5) * 2 * GAME_CONFIG.SPAWN_GAP_JITTER; // range [-J, +J]
-  return Math.max(GAME_CONFIG.MIN_SPAWN_GAP, Math.round(baseGap * (1 + jitter)));
+  // ceil keeps the worst gap on a whole pixel without dipping under the frame budget.
+  const floor = Math.max(GAME_CONFIG.MIN_SPAWN_GAP, Math.ceil(minTimeGap));
+  return Math.max(floor, Math.round(baseGap * (1 + jitter)));
 }
 
 // Pick an obstacle type weighted by score-tier eligibility. Types with
@@ -1141,13 +1153,26 @@ function spawnObstacle(type) {
 }
 
 function updateObstacles() {
+  // Rightmost cull wins: the spawn gap is measured from the newest obstacle,
+  // and the loop walks from the right. Keep that x after the sprite leaves so
+  // a gap wider than the screen still counts down instead of snapping to -300
+  // (which either spawns immediately or, past 900px, never spawns again).
+  let culledX = null;
   for (let i = game.obstacles.length - 1; i >= 0; i--) {
-    game.obstacles[i].x -= game.currentSpeed;
-    if (game.obstacles[i].x + game.obstacles[i].width < 0) {
+    const obs = game.obstacles[i];
+    obs.x -= game.currentSpeed;
+    if (obs.x + obs.width < 0) {
+      if (culledX === null) culledX = obs.x;
       game.obstacles.splice(i, 1);
     }
   }
-  game.lastObstacleX = game.obstacles.length > 0 ? game.obstacles[game.obstacles.length - 1].x : -300;
+  if (game.obstacles.length > 0) {
+    game.lastObstacleX = game.obstacles[game.obstacles.length - 1].x;
+  } else if (culledX !== null) {
+    game.lastObstacleX = culledX;
+  } else {
+    game.lastObstacleX -= game.currentSpeed;
+  }
 }
 
 function checkCollision(dino, obstacle) {
@@ -1496,9 +1521,9 @@ function handleRunning() {
     Particles.emit('trail', dino.x + 4, dino.y + dino.height - 4);
   }
 
-  // Obstacle spawning — in updated mode the gap is precomputed per-obstacle
-  // with ±SPAWN_GAP_JITTER so spacing doesn't feel metronomic; in classic mode
-  // it's deterministic. DifficultyProfile.nextObstacle() picks type + gap together.
+  // Obstacle spawning — Updated/Daily precompute a jittered gap that scales
+  // with speed once the shrinking curve would outrun a jump. Classic stays
+  // deterministic. DifficultyProfile.nextObstacle() picks type + gap together.
   if (game.lastObstacleX <= GAME_CONFIG.CANVAS_W - game.nextSpawnGap) {
     const params = DifficultyProfile.nextObstacle(game.score, game.mode, game.rng);
     spawnObstacle(params.type);
