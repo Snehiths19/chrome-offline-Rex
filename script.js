@@ -765,22 +765,37 @@ function drawGround() {
   ctx.drawImage(groundImage, game.groundX + groundImage.width, groundY, groundImage.width, groundImage.height);
 }
 
+// Cluster hitbox stays GAME_CONFIG width. Paint two full small-cactus sprites
+// and leave the leftover width as a gap so the pair reads as two cacti.
+function clusterSpriteSlots(obstacle) {
+  const small = GAME_CONFIG.OBSTACLE_TYPES[0];
+  const gap = obstacle.width - small.width * 2;
+  const y = obstacle.y + (obstacle.height - small.height);
+  return [
+    { x: obstacle.x, y: y, w: small.width, h: small.height },
+    { x: obstacle.x + small.width + gap, y: y, w: small.width, h: small.height },
+  ];
+}
+
 function drawObstacles() {
   game.obstacles.forEach(obstacle => {
+    if (obstacle.render === 'double') {
+      const slots = clusterSpriteSlots(obstacle);
+      if (!imageReady(obstacleImage)) {
+        ctx.fillStyle = '#2d7a2d';
+        slots.forEach(slot => ctx.fillRect(slot.x, slot.y, slot.w, slot.h));
+        return;
+      }
+      slots.forEach(slot => ctx.drawImage(obstacleImage, slot.x, slot.y, slot.w, slot.h));
+      return;
+    }
     if (!imageReady(obstacleImage)) {
       ctx.fillStyle = '#2d7a2d';
       ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
       return;
     }
-    if (obstacle.render === 'double') {
-      // Cluster: draw two small cacti side by side to fill the 50-wide box.
-      const half = obstacle.width / 2;
-      ctx.drawImage(obstacleImage, obstacle.x,         obstacle.y, half, obstacle.height);
-      ctx.drawImage(obstacleImage, obstacle.x + half,  obstacle.y, half, obstacle.height);
-    } else {
-      // Single (small, big): scale the sprite to the type's width/height.
-      ctx.drawImage(obstacleImage, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
-    }
+    // Single (small, big): scale the sprite to the type's width/height.
+    ctx.drawImage(obstacleImage, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
   });
 }
 
@@ -823,8 +838,10 @@ function drawScore() {
     GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET,
     GAME_CONFIG.SCORE_Y
   );
-  // Daily framing stays off the in-run HUD (game-over and share still carry it).
-  if (game.highScore > 0) {
+  // Daily HUD is the current score only. TODAY BEST stays on the Game Over
+  // screen (and in the share result) so the social comparison sits at the
+  // edge of the run, not beside the obstacle lane.
+  if (!isDailyMode() && game.highScore > 0) {
     ctx.fillText(
       'HI ' + String(game.highScore).padStart(5, '0'),
       GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET - GAME_CONFIG.SCORE_HI_X_OFFSET,
