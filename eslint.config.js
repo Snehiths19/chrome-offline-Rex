@@ -9,6 +9,8 @@ export default [
       globals: {
         window: 'readonly',
         document: 'readonly',
+        location: 'readonly',
+        URLSearchParams: 'readonly',
         console: 'readonly',
         Image: 'readonly',
         localStorage: 'readonly',
@@ -102,6 +104,9 @@ export default [
         saveTuning: 'readonly',
         setMode: 'readonly',
         setReducedMotion: 'readonly',
+        setQaPlateau: 'readonly',
+        readQaPlateauFlag: 'readonly',
+        QA_PLATEAU_SCORE: 'readonly',
         shareDailyResult: 'readonly',
         updateHills: 'readonly',
         enableDeathLog: 'readonly',
