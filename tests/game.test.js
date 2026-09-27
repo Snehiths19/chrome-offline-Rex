@@ -3031,6 +3031,218 @@ describe('Death log (opt-in seed dump)', () => {
   });
 });
 
+describe('Plateau cue', () => {
+  // The sigmoid never reaches PLATEAU_SPEED. "Reached the plateau" is the first
+  // frame speed hits PLATEAU_REACH_RATIO of that ceiling (~score 641 today).
+  function plateauCrossScore() {
+    const { INITIAL_SPEED, PLATEAU_SPEED, RAMP_STEEPNESS, RAMP_MIDPOINT, PLATEAU_REACH_RATIO } =
+      GAME_CONFIG;
+    const sig = (PLATEAU_REACH_RATIO * PLATEAU_SPEED - INITIAL_SPEED) / (PLATEAU_SPEED - INITIAL_SPEED);
+    return RAMP_MIDPOINT - Math.log(1 / sig - 1) / RAMP_STEEPNESS;
+  }
+
+  function scoreJustBeforePlateau() {
+    const cross = plateauCrossScore();
+    const after = Math.ceil((cross - 1e-9) * 10) / 10;
+    return after - GAME_CONFIG.SCORE_INCREMENT;
+  }
+
+  function plateauParticles() {
+    const kind = Particles.KINDS.plateau;
+    if (!kind) return [];
+    return Particles.particles.filter((p) => p.life > 0 && p.color === kind.color);
+  }
+
+  function armUpdatedRun(mode) {
+    game.mode = mode;
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    game.state = STATE.RUNNING;
+    Particles.reset();
+    game.plateauCueShown = false;
+    game.score = scoreJustBeforePlateau();
+    game.obstacles.length = 0;
+    game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+    game.nextSpawnGap = GAME_CONFIG.MAX_SPAWN_GAP;
+    dino.y = GAME_CONFIG.CANVAS_H - dino.height;
+    dino.isJumping = false;
+  }
+
+  function tick() {
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+  }
+
+  it('marks the plateau at 98% of plateau speed, near score 640', () => {
+    assertEquals(
+      GAME_CONFIG.PLATEAU_REACH_RATIO,
+      0.98,
+      'the cue should mark 98% of plateau speed, the soft ceiling the curve approaches'
+    );
+    // Score ticks in 0.1 steps. Compare those frames, not the continuous
+    // inverse — that inverse sits one rounding step under the threshold.
+    const before = scoreJustBeforePlateau();
+    const reached = before + GAME_CONFIG.SCORE_INCREMENT;
+    assert(
+      reached > 620 && reached < 660,
+      `first reach should land near score 640 on the current curve, got ${reached}`
+    );
+    const threshold = GAME_CONFIG.PLATEAU_SPEED * GAME_CONFIG.PLATEAU_REACH_RATIO;
+    assert(
+      DifficultyProfile.speedAtScore(reached) >= threshold,
+      'speed on the reaching frame should be on the plateau side of the cue'
+    );
+    assert(
+      DifficultyProfile.speedAtScore(before) < threshold,
+      'the frame before should still be short of the cue'
+    );
+  });
+
+  it('fires a small heel puff once when an Updated run first reaches the plateau', () => {
+    const origMode = game.mode;
+    try {
+      setReducedMotion(false);
+      armUpdatedRun(MODES.UPDATED);
+      tick();
+
+      const burst = plateauParticles();
+      const kind = Particles.KINDS.plateau;
+      assert(kind, 'plateau should be a particle kind, not a separate effect system');
+      assert(kind.count <= 12, `plateau burst should stay small, count was ${kind.count}`);
+      assert(kind.size <= 3, `plateau specks should stay small, size was ${kind.size}`);
+      assertEquals(burst.length, kind.count, 'the first reach should emit one full puff');
+      assert(game.plateauCueShown === true, 'the run should remember that the cue already played');
+      assert(
+        burst.every((p) => p.x < GAME_CONFIG.CANVAS_W / 2),
+        'the puff should stay on the dino side, off the obstacle lane'
+      );
+      assert(
+        burst.every((p) => p.y > GAME_CONFIG.CANVAS_H * 0.75),
+        'the puff should stay low, not a center-screen flash'
+      );
+
+      tick();
+      assertEquals(
+        plateauParticles().length,
+        burst.length,
+        'later frames of the same run must not emit another puff'
+      );
+    } finally {
+      setReducedMotion(false);
+      game.mode = origMode;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      Particles.reset();
+    }
+  });
+
+  it('does not fire on the frame before the plateau', () => {
+    const origMode = game.mode;
+    try {
+      setReducedMotion(false);
+      armUpdatedRun(MODES.UPDATED);
+      game.score = scoreJustBeforePlateau() - GAME_CONFIG.SCORE_INCREMENT;
+      tick();
+      assertEquals(plateauParticles().length, 0, 'one frame early should not cue');
+      assert(!game.plateauCueShown, 'an early frame must not consume the once-per-run cue');
+    } finally {
+      setReducedMotion(false);
+      game.mode = origMode;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      Particles.reset();
+    }
+  });
+
+  it('does not fire in Classic', () => {
+    const origMode = game.mode;
+    try {
+      setReducedMotion(false);
+      armUpdatedRun(MODES.CLASSIC);
+      tick();
+      tick();
+      assertEquals(plateauParticles().length, 0, 'Classic should never show the plateau cue');
+      assert(!game.plateauCueShown, 'Classic should not latch a cue it did not show');
+    } finally {
+      setReducedMotion(false);
+      game.mode = origMode;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      Particles.reset();
+    }
+  });
+
+  it('fires in Daily, which shares Updated atmosphere', () => {
+    const origMode = game.mode;
+    try {
+      setReducedMotion(false);
+      armUpdatedRun(MODES.DAILY);
+      tick();
+      assert(plateauParticles().length > 0, 'Daily should show the same once-per-run plateau cue');
+      assert(game.plateauCueShown === true, 'Daily should latch the cue after the first reach');
+    } finally {
+      setReducedMotion(false);
+      game.mode = origMode;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      Particles.reset();
+    }
+  });
+
+  it('can fire again on the next run', () => {
+    const origMode = game.mode;
+    try {
+      setReducedMotion(false);
+      armUpdatedRun(MODES.UPDATED);
+      tick();
+      assert(game.plateauCueShown === true, 'first run should latch the cue');
+
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      assert(game.plateauCueShown === false, 'resetGame should clear the cue for the next run');
+
+      game.state = STATE.RUNNING;
+      Particles.reset();
+      game.score = scoreJustBeforePlateau();
+      game.obstacles.length = 0;
+      game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+      tick();
+      assert(plateauParticles().length > 0, 'the next run should cue on its own first reach');
+    } finally {
+      setReducedMotion(false);
+      game.mode = origMode;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      Particles.reset();
+    }
+  });
+
+  it('damps the puff when the player prefers reduced motion', () => {
+    const origMode = game.mode;
+    try {
+      setReducedMotion(true);
+      armUpdatedRun(MODES.UPDATED);
+      tick();
+      const burst = plateauParticles();
+      const kind = Particles.KINDS.plateau;
+      assert(kind, 'plateau kind should exist before reduced-motion can damp it');
+      assert(burst.length > 0, 'reduced motion still acknowledges the reach');
+      assert(
+        burst.length < kind.count,
+        `reduced motion should damp the puff below ${kind.count}, got ${burst.length}`
+      );
+      assert(
+        burst.every((p) => p.maxLife < kind.life),
+        'reduced motion should also shorten the puff'
+      );
+      assert(game.plateauCueShown === true, 'the damped puff still counts as the one cue for the run');
+      tick();
+      assertEquals(plateauParticles().length, burst.length, 'reduced motion must not repeat the cue');
+    } finally {
+      setReducedMotion(false);
+      game.mode = origMode;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      Particles.reset();
+    }
+  });
+});
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {

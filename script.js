@@ -182,6 +182,10 @@ const GAME_CONFIG = Object.freeze({
   SCORE_POP_FRAMES:        12,    // PR-C: HUD score scale-up duration during death shake
   MILESTONE_FRAMES:        90,
   NEW_BEST_FRAMES:        120,
+  // Soft ceiling for the once-per-run plateau cue. The speed curve approaches
+  // PLATEAU_SPEED but never reaches it; 0.98 is about score 641. Visual only —
+  // speed, gaps, and scoring still read the curve directly, not this ratio.
+  PLATEAU_REACH_RATIO:      0.98,
 
   // --- HUD ---
   SCORE_X_OFFSET:         150,    // pixels from right edge for the current-score label
@@ -561,6 +565,7 @@ const game = {
   hills:            [],
   milestoneText:    '',
   newBestShown:     false,
+  plateauCueShown:  false,
   isNewBest:         false,
   previousHighScore: 0,
   // Boot seed matches the RNG created below. resetGame() replaces it with
@@ -1198,6 +1203,9 @@ const Particles = (() => {
     trail:     { count:  1, color: 'rgba(150,150,150,0.55)', size: 2, life: 10, vyMin: -0.2, vyMax:  0.2, vxSpread: 0.4, gravity: 0    },
     collision: { count: 22, color: '#d04a2a',                size: 3, life: 24, vyMin: -3.0, vyMax:  1.0, vxSpread: 4.0, gravity: 0.10 },
     confetti:  { count: 20, color: '#ffd700',                size: 3, life: 40, vyMin: -3.5, vyMax: -1.5, vxSpread: 3.0, gravity: 0.12 },
+    // Once-per-run plateau cue. Cool and small so it stays at the heel,
+    // distinct from gold confetti and brown foot dust.
+    plateau:   { count:  8, color: '#c5d4e4',                size: 2, life: 24, vyMin: -1.0, vyMax: -0.3, vxSpread: 0.6, gravity: 0.02 },
   });
   const REDUCED_FACTOR = 0.25;
   const pool = [];
@@ -1558,6 +1566,7 @@ function resetGame() {
   game.starsInitialised = false;
   Animations.reset();
   game.newBestShown      = false;
+  game.plateauCueShown   = false;
   game.isNewBest         = false;
   game.previousHighScore = 0;
   game.lastGaps = [];
@@ -1669,6 +1678,18 @@ function handleRunning() {
   runFeatureDraws('background');    // drawHills, drawClouds
   drawGround();
   updateObstacles();
+
+  // Plateau cue: the first frame speed reaches the soft ceiling. One cool puff
+  // at the dino's heel — off the obstacle lane, no HUD text. Classic never
+  // enters. Particles.emit damps the burst under reduced motion (Math.random).
+  if (
+    isUpdatedMode() &&
+    !game.plateauCueShown &&
+    game.currentSpeed >= GAME_CONFIG.PLATEAU_SPEED * GAME_CONFIG.PLATEAU_REACH_RATIO
+  ) {
+    game.plateauCueShown = true;
+    Particles.emit('plateau', dino.x + 4, dino.y + dino.height - 4);
+  }
 
   // Speed-trail particles: subtle dust trailing off the dino approaching plateau speed.
   if (isUpdatedMode() && game.currentSpeed >= GAME_CONFIG.PLATEAU_SPEED * 0.96) {
