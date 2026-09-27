@@ -3594,6 +3594,256 @@ describe('Daily pre-run framing', () => {
   });
 });
 
+describe('Daily death-screen hint', () => {
+  const HINT = 'Share TODAY BEST with Copy result';
+  const PRE_RUN = 'Same course as everyone today';
+
+  function captureFillText(draw) {
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text, x, y) => calls.push({
+      text: String(text),
+      x,
+      y,
+      font: ctx.font,
+      fillStyle: ctx.fillStyle,
+    });
+    draw();
+    ctx.fillText = origFill;
+    return calls;
+  }
+
+  function withGameOver(mode, extras, draw) {
+    const shareBtn = document.getElementById('share-btn');
+    const orig = {
+      mode: game.mode,
+      state: game.state,
+      score: game.score,
+      best: game.dailyBest,
+      hs: game.highScore,
+      newBest: game.isNewBest,
+      prev: game.previousHighScore,
+      anim: Animations.deathAnimFrame,
+      flash: Animations.copyFlashFrames,
+      frame: game.animFrame,
+      btnStyle: shareBtn.style,
+      btnText: shareBtn.textContent,
+    };
+    game.mode = mode;
+    game.state = STATE.DEAD;
+    game.score = 120;
+    game.dailyBest = 500;
+    game.highScore = 900;
+    game.isNewBest = false;
+    game.previousHighScore = 800;
+    Animations.copyFlashFrames = 0;
+    game.animFrame = 0;
+    shareBtn.style = { display: 'none' };
+    shareBtn.textContent = '📋 Copy result';
+    if (extras) extras();
+    const calls = draw();
+    const button = { display: shareBtn.style.display, text: shareBtn.textContent };
+    game.mode = orig.mode;
+    game.state = orig.state;
+    game.score = orig.score;
+    game.dailyBest = orig.best;
+    game.highScore = orig.hs;
+    game.isNewBest = orig.newBest;
+    game.previousHighScore = orig.prev;
+    Animations.deathAnimFrame = orig.anim;
+    Animations.copyFlashFrames = orig.flash;
+    game.animFrame = orig.frame;
+    if (orig.btnStyle === undefined) delete shareBtn.style;
+    else shareBtn.style = orig.btnStyle;
+    shareBtn.textContent = orig.btnText;
+    return { calls, button };
+  }
+
+  it('settled Daily Game Over points at TODAY BEST and Copy result', () => {
+    let shared = '';
+    const { calls, button } = withGameOver(MODES.DAILY, () => {
+      Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    }, () => {
+      const drawn = captureFillText(drawGameOverScreen);
+      shared = shareDailyResult();
+      return drawn;
+    });
+    const hint = calls.find((c) => c.text === HINT);
+    assert(hint, `Daily Game Over should nudge toward sharing, got: ${JSON.stringify(calls.map((c) => c.text))}`);
+    assert(calls.some((c) => c.text === 'TODAY BEST'), 'TODAY BEST should stay on the death screen');
+    assert(calls.some((c) => c.text === '00500'), 'the today-best score should stay on the death screen');
+    assert(!calls.some((c) => c.text === PRE_RUN), 'the pre-run line should stay off Game Over');
+    assertEquals(hint.y, GAME_CONFIG.CANVAS_H - 16, 'the hint should sit on the bottom edge, under the scores');
+    assertEquals(button.display, 'block', 'Copy result should still appear once the count-up finishes');
+    assertEquals(button.text, '📋 Copy result', 'the share button label should stay Copy result');
+    assert(shared.includes('500'), 'Share result should still include the daily best');
+  });
+
+  it('the hint stays static, including when motion is reduced and after a copy', () => {
+    const first = withGameOver(MODES.DAILY, () => {
+      Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+      setReducedMotion(false);
+    }, () => captureFillText(drawGameOverScreen));
+    const later = withGameOver(MODES.DAILY, () => {
+      Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+      game.animFrame = 90;
+      setReducedMotion(true);
+    }, () => captureFillText(drawGameOverScreen));
+    const copied = withGameOver(MODES.DAILY, () => {
+      Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+      Animations.copyFlashFrames = 40;
+      setReducedMotion(true);
+    }, () => captureFillText(drawGameOverScreen));
+    setReducedMotion(false);
+
+    const a = first.calls.find((c) => c.text === HINT);
+    const b = later.calls.find((c) => c.text === HINT);
+    const c = copied.calls.find((c) => c.text === HINT);
+    assert(a && b && c, 'the hint should stay up after the count-up, with or without motion');
+    assertEquals(b.fillStyle, a.fillStyle, 'the hint should not pulse');
+    assertEquals(b.font, a.font, 'the hint should not scale');
+    assertEquals(c.text, HINT, 'a copy flash should not replace the hint');
+    assertEquals(copied.button.text, '✓ Copied!', 'Copy result should still flash Copied');
+  });
+
+  it('the hint waits until the score count-up finishes', () => {
+    const mid = withGameOver(MODES.DAILY, () => {
+      Animations.deathAnimFrame = 0;
+    }, () => captureFillText(drawGameOverScreen));
+    assert(!mid.calls.some((c) => c.text === HINT),
+      `the hint should wait for the settled screen, got: ${JSON.stringify(mid.calls.map((c) => c.text))}`);
+    assertEquals(mid.button.display, 'none', 'Copy result should still wait for the count-up');
+  });
+
+  it('Classic and Updated Game Over do not show the Daily hint', () => {
+    const classic = withGameOver(MODES.CLASSIC, () => {
+      Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    }, () => captureFillText(drawGameOverScreen));
+    const updated = withGameOver(MODES.UPDATED, () => {
+      Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    }, () => captureFillText(drawGameOverScreen));
+
+    assert(!classic.calls.some((c) => c.text === HINT),
+      `Classic Game Over must stay free of the Daily hint, got: ${JSON.stringify(classic.calls.map((c) => c.text))}`);
+    assert(!updated.calls.some((c) => c.text === HINT),
+      `Updated Game Over must stay free of the Daily hint, got: ${JSON.stringify(updated.calls.map((c) => c.text))}`);
+    assert(classic.calls.some((c) => c.text === 'Tap / Press Space to Restart'),
+      'Classic should keep its restart line');
+    assert(updated.calls.some((c) => c.text === 'YOUR BEST'),
+      'Updated should keep the free-play best comparison');
+    assertEquals(classic.button.display, 'none', 'Classic must not reveal Copy result');
+    assertEquals(updated.button.display, 'none', 'Updated must not reveal Copy result');
+  });
+
+  it('WAITING and RUNNING do not show the death hint', () => {
+    const orig = {
+      mode: game.mode,
+      state: game.state,
+      score: game.score,
+      best: game.dailyBest,
+      grace: game.graceFrames,
+      skip: game.countdownSkippable,
+      pop: Animations.scorePopFrames,
+      anim: Animations.deathAnimFrame,
+    };
+    game.mode = MODES.DAILY;
+    game.score = 42;
+    game.dailyBest = 500;
+    game.graceFrames = GAME_CONFIG.GRACE_FRAMES;
+    game.countdownSkippable = false;
+    Animations.scorePopFrames = 0;
+    Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+
+    game.state = STATE.WAITING;
+    const waiting = captureFillText(drawGetReadyOverlay);
+    game.state = STATE.RUNNING;
+    const running = captureFillText(drawScore);
+
+    game.mode = orig.mode;
+    game.state = orig.state;
+    game.score = orig.score;
+    game.dailyBest = orig.best;
+    game.graceFrames = orig.grace;
+    game.countdownSkippable = orig.skip;
+    Animations.scorePopFrames = orig.pop;
+    Animations.deathAnimFrame = orig.anim;
+
+    assert(!waiting.some((c) => c.text === HINT),
+      `WAITING should keep the pre-run line only, got: ${JSON.stringify(waiting.map((c) => c.text))}`);
+    assert(waiting.some((c) => c.text === PRE_RUN), 'the pre-run shared-course line should stay');
+    assert(!running.some((c) => c.text === HINT || c.text.includes('TODAY')),
+      `RUNNING HUD must stay score-only, got: ${JSON.stringify(running.map((c) => c.text))}`);
+  });
+
+  it('only a Daily death tells the screen reader to share TODAY BEST', () => {
+    function dieIn(mode) {
+      const orig = {
+        mode: game.mode,
+        state: game.state,
+        score: game.score,
+        best: game.dailyBest,
+        hs: game.highScore,
+        speed: game.currentSpeed,
+        lastX: game.lastObstacleX,
+        gap: game.nextSpawnGap,
+        obstacles: game.obstacles.slice(),
+        text: a11yLive.textContent,
+        storedHs: localStorage.getItem('dino-high-score'),
+        storedBest: localStorage.getItem('dino-daily-best'),
+        storedDate: localStorage.getItem('dino-daily-date'),
+      };
+      game.mode = mode;
+      game.state = STATE.RUNNING;
+      game.score = 40;
+      game.dailyBest = 10;
+      game.highScore = 80;
+      game.currentSpeed = 0;
+      game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+      game.nextSpawnGap = GAME_CONFIG.MAX_SPAWN_GAP;
+      game.obstacles.length = 0;
+      game.obstacles.push({
+        x: dino.x,
+        y: dino.y,
+        width: dino.width,
+        height: dino.height,
+      });
+      dino.isJumping = false;
+      a11yLive.textContent = '';
+      STATE_HANDLERS[STATE.RUNNING]();
+      const heard = a11yLive.textContent;
+
+      game.mode = orig.mode;
+      game.state = orig.state;
+      game.score = orig.score;
+      game.dailyBest = orig.best;
+      game.highScore = orig.hs;
+      game.currentSpeed = orig.speed;
+      game.lastObstacleX = orig.lastX;
+      game.nextSpawnGap = orig.gap;
+      game.obstacles.length = 0;
+      orig.obstacles.forEach((o) => game.obstacles.push(o));
+      a11yLive.textContent = orig.text;
+      if (orig.storedHs === null) localStorage.removeItem('dino-high-score');
+      else localStorage.setItem('dino-high-score', orig.storedHs);
+      if (orig.storedBest === null) localStorage.removeItem('dino-daily-best');
+      else localStorage.setItem('dino-daily-best', orig.storedBest);
+      if (orig.storedDate === null) localStorage.removeItem('dino-daily-date');
+      else localStorage.setItem('dino-daily-date', orig.storedDate);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      return heard;
+    }
+
+    const daily = dieIn(MODES.DAILY);
+    const classic = dieIn(MODES.CLASSIC);
+
+    assert(daily.includes(HINT), `Daily death should mention the share hint, got: ${daily}`);
+    assert(daily.includes('Today best'), `Daily death should name today best, got: ${daily}`);
+    assert(!classic.includes(HINT), `Classic death must not mention the Daily hint, got: ${classic}`);
+    assert(classic.includes('High score'), `Classic death should keep the high-score line, got: ${classic}`);
+  });
+});
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {
