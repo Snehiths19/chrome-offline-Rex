@@ -3047,18 +3047,28 @@ describe('Plateau cue', () => {
     return after - GAME_CONFIG.SCORE_INCREMENT;
   }
 
-  function plateauParticles() {
-    const kind = Particles.KINDS.plateau;
+  function particlesOf(kindName) {
+    const kind = Particles.KINDS[kindName];
     if (!kind) return [];
     return Particles.particles.filter((p) => p.life > 0 && p.color === kind.color);
   }
 
+  function plateauParticles() {
+    return particlesOf('plateau');
+  }
+
+  function qaPlateauParticles() {
+    return particlesOf('plateauQa');
+  }
+
   function armUpdatedRun(mode) {
-    setQaPlateau(false);
     game.mode = mode;
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     resetGame();
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    // resetGame re-reads ?qaPlateau=1. Production cases force the flag off
+    // after that so a leftover query cannot change plateau timing.
+    setQaPlateau(false);
     game.state = STATE.RUNNING;
     Particles.reset();
     game.plateauCueShown = false;
@@ -3252,7 +3262,7 @@ describe('Plateau cue', () => {
     assert(readQaPlateauFlag('?other=1') === false, 'an unrelated param must not enable the QA cue');
   });
 
-  it('with ?qaPlateau=1 fires the same puff once at a low score in Updated', () => {
+  it('with ?qaPlateau=1 fires a darker puff once as soon as the run starts', () => {
     const origMode = game.mode;
     try {
       setReducedMotion(false);
@@ -3261,13 +3271,25 @@ describe('Plateau cue', () => {
       game.score = QA_PLATEAU_SCORE - GAME_CONFIG.SCORE_INCREMENT;
       tick();
 
-      const burst = plateauParticles();
-      assertEquals(burst.length, Particles.KINDS.plateau.count, 'QA flag should emit the same heel puff');
+      const kind = Particles.KINDS.plateauQa;
+      const night = Particles.KINDS.plateau;
+      assertEquals(night.color, '#c5d4e4', 'production night puff color stays pale');
+      assertEquals(night.size, 2, 'production night puff stays small');
+      assertEquals(night.count, 8, 'production night puff count stays the same');
+      assertEquals(kind.color, '#3d4f63', 'QA puff should be dark enough to read on the day sky');
+      assert(kind.size >= 3 && kind.size <= 4, `QA puff size should be 3–4, was ${kind.size}`);
+      assert(kind.count >= 10 && kind.count <= 12, `QA puff count should be 10–12, was ${kind.count}`);
+
+      const burst = qaPlateauParticles();
+      assertEquals(burst.length, kind.count, 'QA flag should emit the visible day puff');
+      assert(burst.every((p) => p.size === kind.size), 'QA specks should use the larger size');
+      assert(burst.every((p) => p.x < dino.x), 'QA puff should sit just behind the sprite, not under it');
+      assertEquals(plateauParticles().length, 0, 'QA should not also emit the pale night puff');
       assert(game.plateauCueShown === true, 'QA cue still latches after the first puff');
-      assert(game.score < 20, 'QA cue should fire early, not at the real plateau');
+      assert(game.score <= QA_PLATEAU_SCORE + 0.2, 'QA cue should fire at the start of the run');
 
       tick();
-      assertEquals(plateauParticles().length, burst.length, 'QA cue must not repeat later in the run');
+      assertEquals(qaPlateauParticles().length, burst.length, 'QA cue must not repeat later in the run');
     } finally {
       setQaPlateau(false);
       setReducedMotion(false);
@@ -3287,6 +3309,7 @@ describe('Plateau cue', () => {
       tick();
       tick();
       assertEquals(plateauParticles().length, 0, 'Classic should ignore the QA flag');
+      assertEquals(qaPlateauParticles().length, 0, 'Classic should not show the day QA puff either');
       assert(!game.plateauCueShown, 'Classic should not latch a QA cue it did not show');
     } finally {
       setQaPlateau(false);
@@ -3305,11 +3328,43 @@ describe('Plateau cue', () => {
       setQaPlateau(true);
       game.score = QA_PLATEAU_SCORE - GAME_CONFIG.SCORE_INCREMENT;
       tick();
-      assert(plateauParticles().length > 0, 'Daily should show the early QA puff');
+      assert(qaPlateauParticles().length > 0, 'Daily should show the early QA puff');
+      assertEquals(plateauParticles().length, 0, 'Daily QA should use the day puff, not the night one');
       assert(game.plateauCueShown === true, 'Daily QA cue should still latch');
     } finally {
       setQaPlateau(false);
       setReducedMotion(false);
+      game.mode = origMode;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      Particles.reset();
+    }
+  });
+
+  it('resetGame re-reads ?qaPlateau=1 from the page query', () => {
+    const origMode = game.mode;
+    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
+    const prevLocation = global.location;
+    global.location = { search: '?qaPlateau=1' };
+    try {
+      setQaPlateau(false);
+      game.mode = MODES.UPDATED;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      game.state = STATE.RUNNING;
+      Particles.reset();
+      game.score = QA_PLATEAU_SCORE - GAME_CONFIG.SCORE_INCREMENT;
+      game.obstacles.length = 0;
+      game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+      dino.y = GAME_CONFIG.CANVAS_H - dino.height;
+      dino.isJumping = false;
+      tick();
+      assert(qaPlateauParticles().length > 0, 'resetGame should arm the QA puff from location.search');
+      assert(game.plateauCueShown === true, 'the re-read flag should still latch after one puff');
+    } finally {
+      if (hadLocation) global.location = prevLocation;
+      else delete global.location;
+      setQaPlateau(false);
       game.mode = origMode;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       Particles.reset();
@@ -3325,6 +3380,7 @@ describe('Plateau cue', () => {
       game.score = QA_PLATEAU_SCORE - GAME_CONFIG.SCORE_INCREMENT;
       tick();
       assertEquals(plateauParticles().length, 0, 'production timing should still wait for the plateau');
+      assertEquals(qaPlateauParticles().length, 0, 'a normal visit should not show the day QA puff');
       assert(!game.plateauCueShown, 'an early production frame must not consume the cue');
     } finally {
       setQaPlateau(false);
