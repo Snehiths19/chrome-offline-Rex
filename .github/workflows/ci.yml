@@ -15,5 +15,11 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
       - name: Run game tests
         run: node tests/game.test.js
