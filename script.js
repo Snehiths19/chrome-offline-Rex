@@ -158,7 +158,10 @@ const GAME_CONFIG = Object.freeze({
   // existing speed curve — read GAME_CONFIG directly, never cfg(), so a tuning
   // session can't move when the cue fires. Frames are the pulse length only.
   PLATEAU_CUE_RATIO:        0.98, // fraction of PLATEAU_SPEED that counts as arrived
-  PLATEAU_CUE_FRAMES:      28,    // sky-tint pulse length (~0.5 s at 60 fps)
+  PLATEAU_CUE_FRAMES:      45,    // sky-tint pulse length (~0.75 s at 60 fps)
+  // Own peak, not SKY_TINT_PEAK_ALPHA. The cue fires after night has started,
+  // and 0.12 gold on that dark sky disappears beside the obstacle lane.
+  PLATEAU_CUE_PEAK_ALPHA:   0.28,
   PARTICLE_EMIT_SPREAD:     4,    // px width of the cosmetic xy jitter on every particle emit
 
   // --- Effects ---
@@ -707,9 +710,9 @@ function drawHills() {
   }
 }
 
-// PR-D: gentle gold sky-tint pulse during a milestone flash, and the same
-// treatment for the one-shot plateau cue. Subtle on top of the day/night
-// background. Reduced-motion and Classic both skip it.
+// PR-D: gentle gold sky-tint during a milestone flash. The one-shot plateau
+// cue uses a stronger peak (it fires at night, where the milestone tint
+// disappears). Reduced-motion and Classic both skip it.
 function drawSkyTint() {
   if (!isUpdatedMode() || reducedMotion) return;
   let alpha = 0;
@@ -718,7 +721,7 @@ function drawSkyTint() {
   }
   if (Animations.plateauCueFrames > 0) {
     const cueAlpha =
-      (Animations.plateauCueFrames / GAME_CONFIG.PLATEAU_CUE_FRAMES) * cfg('SKY_TINT_PEAK_ALPHA');
+      (Animations.plateauCueFrames / GAME_CONFIG.PLATEAU_CUE_FRAMES) * cfg('PLATEAU_CUE_PEAK_ALPHA');
     if (cueAlpha > alpha) alpha = cueAlpha;
     Animations.plateauCueFrames--;
   }
@@ -1025,8 +1028,9 @@ const Particles = (() => {
     jump:      { count:  6, color: '#9c8770',                size: 3, life: 18, vyMin: -2.0, vyMax: -0.5, vxSpread: 1.5, gravity: 0.05 },
     land:      { count:  9, color: '#9c8770',                size: 3, life: 14, vyMin: -1.5, vyMax: -0.2, vxSpread: 2.5, gravity: 0.08 },
     trail:     { count:  1, color: 'rgba(150,150,150,0.22)', size: 2, life:  8, vyMin: -0.15, vyMax: 0.15, vxSpread: 0.25, gravity: 0    },
-    // One-shot arrival burst. Softer and shorter than confetti so it stays peripheral.
-    plateau:   { count:  8, color: 'rgba(255,215,0,0.5)',    size: 2, life: 20, vyMin: -1.4, vyMax: -0.4, vxSpread: 1.6, gravity: 0.03 },
+    // One-shot arrival puff at the feet. Denser than the dim trail, quieter than
+    // level-up confetti, and rising rather than spraying into the obstacle lane.
+    plateau:   { count: 12, color: 'rgba(255,215,0,0.8)',    size: 3, life: 26, vyMin: -1.8, vyMax: -0.6, vxSpread: 1.2, gravity: 0.02 },
     collision: { count: 22, color: '#d04a2a',                size: 3, life: 24, vyMin: -3.0, vyMax:  1.0, vxSpread: 4.0, gravity: 0.10 },
     confetti:  { count: 20, color: '#ffd700',                size: 3, life: 40, vyMin: -3.5, vyMax: -1.5, vxSpread: 3.0, gravity: 0.12 },
   });

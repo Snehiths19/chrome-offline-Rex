@@ -2335,6 +2335,20 @@ describe('Plateau cue', () => {
       'Firing the cue must not change the next RNG values');
   });
 
+  it('plateau cue is easier to see than the dim trail, and quieter than a level-up', () => {
+    assert(GAME_CONFIG.PLATEAU_CUE_PEAK_ALPHA > GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
+      'Plateau sky tint must peak stronger than the milestone tint — 0.12 gold vanishes at night');
+    assert(GAME_CONFIG.PLATEAU_CUE_FRAMES > 28,
+      'Pulse should last longer than the original half-second flash');
+    assert(Particles.KINDS.plateau.count > Particles.KINDS.trail.count,
+      'Arrival burst should be denser than the continuous trail');
+    assert(Particles.KINDS.plateau.size > Particles.KINDS.trail.size,
+      'Arrival burst should be larger than the trail specks');
+    assert(Particles.KINDS.plateau.count < Particles.KINDS.confetti.count,
+      'Arrival burst must stay quieter than level-up confetti');
+    assert(Particles.KINDS.trail.count === 1, 'Continuous trail stays a single dim speck');
+  });
+
   it('resetGame clears the cue so the next run can signal again', () => {
     const origMode = game.mode;
     game.mode = MODES.UPDATED;
