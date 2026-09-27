@@ -2065,6 +2065,179 @@ describe('Daily best persistence', () => {
   });
 });
 
+describe('Restart countdown', () => {
+  function overlayText() {
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    drawGetReadyOverlay();
+    ctx.fillText = origFill;
+    return calls;
+  }
+
+  it('first WAITING does not skip on Space or Tap', () => {
+    const origState = game.state;
+    const origGrace = game.graceFrames;
+    const origSkip = game.countdownSkippable;
+
+    game.countdownSkippable = false;
+    game.state = STATE.IDLE;
+    handleAction();
+
+    const graceAfterEnter = game.graceFrames;
+    handleAction();
+
+    const stateAfter = game.state;
+    const graceAfter = game.graceFrames;
+
+    game.state = origState;
+    game.graceFrames = origGrace;
+    game.countdownSkippable = origSkip;
+
+    assertEquals(graceAfterEnter, GAME_CONFIG.GRACE_FRAMES,
+      'first visit should arm the full countdown');
+    assertEquals(stateAfter, STATE.WAITING,
+      'Space/Tap during the first countdown should leave the game in WAITING');
+    assertEquals(graceAfter, graceAfterEnter,
+      'Space/Tap during the first countdown should not consume grace frames');
+  });
+
+  it('post-death WAITING skips to RUNNING on Space or Tap', () => {
+    const origState = game.state;
+    const origGrace = game.graceFrames;
+    const origSkip = game.countdownSkippable;
+    const origAnim = Animations.deathAnimFrame;
+    const origJumping = dino.isJumping;
+
+    game.countdownSkippable = false;
+    game.state = STATE.DEAD;
+    Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    dino.isJumping = false;
+
+    handleAction();
+    cancelAnimationFrame(game.animationFrameId);
+
+    const stateAfterRestart = game.state;
+    const graceAfterRestart = game.graceFrames;
+    const skipAfterRestart = game.countdownSkippable;
+
+    handleAction();
+
+    const stateAfterSkip = game.state;
+    const jumpingAfterSkip = dino.isJumping;
+
+    cancelAnimationFrame(game.animationFrameId);
+    game.state = origState;
+    game.graceFrames = origGrace;
+    game.countdownSkippable = origSkip;
+    Animations.deathAnimFrame = origAnim;
+    dino.isJumping = origJumping;
+
+    assertEquals(stateAfterRestart, STATE.WAITING,
+      'restart after death should land in GET READY');
+    assert(graceAfterRestart > 0,
+      'restart after death should still show a countdown until the player skips');
+    assertEquals(skipAfterRestart, true,
+      'restart after death should mark the countdown skippable');
+    assertEquals(stateAfterSkip, STATE.RUNNING,
+      'Space/Tap during post-death GET READY should start the run immediately');
+    assertEquals(jumpingAfterSkip, false,
+      'the skip press should start the run without also jumping');
+  });
+
+  it('post-death skip works in Classic mode', () => {
+    const origState = game.state;
+    const origGrace = game.graceFrames;
+    const origSkip = game.countdownSkippable;
+    const origMode = game.mode;
+    const origAnim = Animations.deathAnimFrame;
+
+    game.mode = MODES.CLASSIC;
+    game.countdownSkippable = false;
+    game.state = STATE.DEAD;
+    Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+
+    handleAction();
+    cancelAnimationFrame(game.animationFrameId);
+    handleAction();
+
+    const stateAfterSkip = game.state;
+
+    cancelAnimationFrame(game.animationFrameId);
+    game.state = origState;
+    game.graceFrames = origGrace;
+    game.countdownSkippable = origSkip;
+    game.mode = origMode;
+    Animations.deathAnimFrame = origAnim;
+
+    assertEquals(stateAfterSkip, STATE.RUNNING,
+      'Classic mode should skip GET READY after death the same way Updated does');
+  });
+
+  it('first-run overlay does not promise a jump', () => {
+    const origGrace = game.graceFrames;
+    const origSkip = game.countdownSkippable;
+
+    game.countdownSkippable = false;
+    game.graceFrames = GAME_CONFIG.GRACE_FRAMES;
+    const calls = overlayText();
+
+    game.graceFrames = origGrace;
+    game.countdownSkippable = origSkip;
+
+    assert(calls.some(t => t === 'GET READY'),
+      `Expected 'GET READY', got: ${JSON.stringify(calls)}`);
+    assert(!calls.some(t => t === 'Press Space / Tap to jump'),
+      'first-run overlay must not say Press Space / Tap to jump');
+    assert(!calls.some(t => /space|tap/i.test(t)),
+      `first-run overlay must not mention Space or Tap, got: ${JSON.stringify(calls)}`);
+  });
+
+  it('post-death overlay says Space or Tap starts the run', () => {
+    const origGrace = game.graceFrames;
+    const origSkip = game.countdownSkippable;
+
+    game.countdownSkippable = true;
+    game.graceFrames = GAME_CONFIG.GRACE_FRAMES;
+    const calls = overlayText();
+
+    game.graceFrames = origGrace;
+    game.countdownSkippable = origSkip;
+
+    assert(calls.some(t => t === 'GET READY'),
+      `Expected 'GET READY', got: ${JSON.stringify(calls)}`);
+    assert(calls.some(t => t === 'Press Space / Tap to start'),
+      `Expected 'Press Space / Tap to start', got: ${JSON.stringify(calls)}`);
+    assert(!calls.some(t => t === 'Press Space / Tap to jump'),
+      'post-death overlay must not tell the player to jump');
+  });
+
+  it('screen reader prompt matches whether the countdown can be skipped', () => {
+    const origState = game.state;
+    const origSkip = game.countdownSkippable;
+    const origText = a11yLive.textContent;
+
+    game.countdownSkippable = false;
+    game.state = STATE.WAITING;
+    resetGame();
+    const firstRun = a11yLive.textContent;
+
+    game.countdownSkippable = false;
+    game.state = STATE.DEAD;
+    resetGame();
+    const afterDeath = a11yLive.textContent;
+
+    game.state = origState;
+    game.countdownSkippable = origSkip;
+    a11yLive.textContent = origText;
+
+    assert(!/jump/i.test(firstRun),
+      `first countdown must not announce a jump, got: ${firstRun}`);
+    assert(/space or tap to start/i.test(afterDeath),
+      `post-death countdown should announce space or tap to start, got: ${afterDeath}`);
+  });
+});
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {

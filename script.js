@@ -536,6 +536,9 @@ const game = {
   rng:              mulberry32(Date.now() & 0xffffffff),
   mode:             loadMode(),
   dailyBest:        ScoreStore.loadDailyBest(),
+  // False until the player has died once this session. First IDLE → WAITING
+  // keeps the full countdown; restarts after death can skip it.
+  countdownSkippable: false,
 };
 
 // All per-run animation countdown timers. Kept separate from the game object
@@ -840,8 +843,12 @@ function drawGetReadyOverlay() {
   if (game.graceFrames > GAME_CONFIG.GRACE_FRAMES * 0.33) {
     ctx.font = '28px ' + cfg('SCORE_FONT_FAMILY');
     ctx.fillText('GET READY', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 10);
-    ctx.font = '14px ' + cfg('SCORE_FONT_FAMILY');
-    ctx.fillText('Press Space / Tap to jump', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 16);
+    // Space/Tap does nothing on the first countdown, so don't promise a jump.
+    // After death the same input skips straight into the run.
+    if (game.countdownSkippable) {
+      ctx.font = '14px ' + cfg('SCORE_FONT_FAMILY');
+      ctx.fillText('Press Space / Tap to start', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 16);
+    }
   } else {
     const step = Math.ceil(GAME_CONFIG.GRACE_FRAMES / 9);
     const count = Math.ceil(game.graceFrames / step);
@@ -1140,6 +1147,14 @@ function handleAction() {
   if (game.state === STATE.IDLE) {
     game.state       = STATE.WAITING;
     game.graceFrames = GAME_CONFIG.GRACE_FRAMES;
+  } else if (game.state === STATE.WAITING) {
+    // First visit of the session keeps the full countdown. After a death,
+    // Space/Tap (and the other action keys) skip it. Stay on the current
+    // loop — restarting gameLoop here would double the frame rate.
+    if (!game.countdownSkippable) return;
+    game.graceFrames = 0;
+    game.state = STATE.RUNNING;
+    announce('Go!');
   } else if (game.state === STATE.RUNNING) {
     jump();
   } else if (game.state === STATE.DEAD) {
@@ -1307,6 +1322,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
 // == SECTION 8: GAME LOOP ==
 
 function resetGame() {
+  const restartAfterDeath = game.state === STATE.DEAD;
   dino.y = GAME_CONFIG.CANVAS_H - dino.height;
   dino.velocityY = 0;
   dino.isJumping = false;
@@ -1322,6 +1338,7 @@ function resetGame() {
   game.lastObstacleX = -300;
   game.graceFrames = GAME_CONFIG.GRACE_FRAMES;
   game.state = STATE.WAITING;
+  if (restartAfterDeath) game.countdownSkippable = true;
   game.starsInitialised = false;
   Animations.reset();
   game.newBestShown      = false;
@@ -1334,7 +1351,9 @@ function resetGame() {
   game.nextSpawnGap = computeNextSpawnGap(game.rng, DifficultyProfile.speedAtScore(game.score), game.mode);
   initClouds();
   initHills();
-  announce('New game. Press space or tap to jump.');
+  announce(game.countdownSkippable
+    ? 'Get ready. Press space or tap to start.'
+    : 'Get ready.');
   if (document.body) document.body.style.background = '';
 }
 
@@ -1551,6 +1570,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.drawGameOverScreen = drawGameOverScreen;
   global.computeRunResult = computeRunResult;
   global.drawIdleScreen = drawIdleScreen;
+  global.drawGetReadyOverlay = drawGetReadyOverlay;
   global.handleAction   = handleAction;
   global.initCanvasScale = initCanvasScale;
   global.handleResize   = handleResize;
