@@ -108,6 +108,7 @@ export default [
         readQaPlateauFlag: 'readonly',
         QA_PLATEAU_SCORE: 'readonly',
         shareDailyResult: 'readonly',
+        STATE_HANDLERS: 'readonly',
         updateHills: 'readonly',
         enableDeathLog: 'readonly',
         disableDeathLog: 'readonly',
