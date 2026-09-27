@@ -541,6 +541,8 @@ function dailyNumber() {
 
 // All mutable game state lives on this object. Keeping it in one place prevents
 // stray top-level globals and makes resets + test inspection simpler.
+// One clock read so the stored run seed is the same integer the RNG was built from.
+const bootSeed = Date.now() >>> 0;
 const game = {
   state:            STATE.LOADING,
   obstacles:        [],
@@ -561,7 +563,15 @@ const game = {
   newBestShown:     false,
   isNewBest:         false,
   previousHighScore: 0,
-  rng:              mulberry32(Date.now() & 0xffffffff),
+  // Boot seed matches the RNG created below. resetGame() replaces it with
+  // the daily seed or a fresh clock seed before the next run.
+  runSeed:           bootSeed,
+  seedOverride:      null,
+  lastGaps:          [],
+  lastObstacleTypes: [],
+  lastJumpFrame:     null,
+  deathLog:          null,
+  rng:               mulberry32(bootSeed),
   mode:             loadMode(),
   dailyBest:        ScoreStore.loadDailyBest(),
   // False until the player has died once this session. First IDLE → WAITING
@@ -611,6 +621,140 @@ function shareDailyResult() {
   return text;
 }
 
+// --- Opt-in death log (Scout / bug evidence) ---------------------------
+// Off unless the page is opened with ?debug=1 or DevTools calls
+// enableDeathLog(). Nothing here feeds spawn, score, or hitboxes.
+//
+//   enableDeathLog()     // start recording this session
+//   disableDeathLog()
+//   replayRunSeed(12345) // next resetGame() uses this seed, then forgets it
+//   dumpRun()            // latest death JSON, or a live snapshot
+//   copyDeathLog()       // same payload on the clipboard
+// Press L while debug is on to log the current run.
+const DEATH_LOG_HISTORY = 8;
+let runDebug = false;
+
+function isDeathLogEnabled() {
+  return runDebug;
+}
+
+function enableDeathLog() {
+  runDebug = true;
+}
+
+function disableDeathLog() {
+  runDebug = false;
+}
+
+function applyDebugFromLocation() {
+  if (typeof location === 'undefined' || !location || typeof location.search !== 'string') return;
+  if (/(?:^|[?&])debug=1(?:&|$)/.test(location.search)) runDebug = true;
+}
+
+function replayRunSeed(seed) {
+  const n = Number(seed);
+  if (!Number.isFinite(n)) return;
+  game.seedOverride = n >>> 0;
+}
+
+function takeRunSeed() {
+  if (game.seedOverride != null) {
+    const seed = game.seedOverride >>> 0;
+    game.seedOverride = null;
+    return seed;
+  }
+  return isDailyMode() ? dailySeed() : (Date.now() >>> 0);
+}
+
+function copyText(text) {
+  if (typeof navigator === 'undefined' || !navigator.clipboard || !navigator.clipboard.writeText) return;
+  try {
+    const pending = navigator.clipboard.writeText(text);
+    if (pending && typeof pending.catch === 'function') pending.catch(() => {});
+  } catch { /* clipboard unavailable or blocked */ }
+}
+
+function noteSpawnForDeathLog(gapPx, typeId, speed) {
+  if (!runDebug) return;
+  const framesApprox = speed > 0 ? Math.max(1, Math.round(gapPx / speed)) : 0;
+  game.lastGaps.push({
+    px: gapPx,
+    framesApprox,
+    msApprox: Math.round(framesApprox * 1000 / 60),
+  });
+  game.lastObstacleTypes.push(typeId);
+  if (game.lastGaps.length > DEATH_LOG_HISTORY) game.lastGaps.shift();
+  if (game.lastObstacleTypes.length > DEATH_LOG_HISTORY) game.lastObstacleTypes.shift();
+}
+
+function buildRunSnapshot(reason) {
+  return {
+    reason,
+    mode: game.mode,
+    score: Math.floor(game.score),
+    seed: game.runSeed,
+    speed: Math.round(game.currentSpeed * 100) / 100,
+    nextSpawnGap: game.nextSpawnGap,
+    lastGaps: game.lastGaps.map(g => ({ px: g.px, framesApprox: g.framesApprox, msApprox: g.msApprox })),
+    lastObstacleTypes: game.lastObstacleTypes.slice(),
+    diedAtFrame: reason === 'death' ? game.animFrame : null,
+    framesSinceJump: game.lastJumpFrame == null ? null : game.animFrame - game.lastJumpFrame,
+  };
+}
+
+function publishRunSnapshot(snapshot) {
+  game.deathLog = snapshot;
+  const text = JSON.stringify(snapshot, null, 2);
+  console.log('[rex-death-log]\n' + text);
+  copyText(text);
+  return snapshot;
+}
+
+function dumpRun() {
+  if (!runDebug) return null;
+  if (game.state === STATE.DEAD && game.deathLog) return game.deathLog;
+  return buildRunSnapshot('key');
+}
+
+function copyDeathLog() {
+  if (!runDebug) return null;
+  const snapshot = (game.state === STATE.DEAD && game.deathLog) ? game.deathLog : buildRunSnapshot('key');
+  const text = JSON.stringify(snapshot, null, 2);
+  copyText(text);
+  return text;
+}
+
+function handleDebugKey(event) {
+  if (!runDebug || !event || event.code !== 'KeyL') return;
+  if (game.state === STATE.DEAD && game.deathLog) {
+    copyText(JSON.stringify(game.deathLog, null, 2));
+    return;
+  }
+  publishRunSnapshot(buildRunSnapshot('key'));
+}
+
+function drawDebugHud() {
+  if (!runDebug) return;
+  const speed = (Math.round(game.currentSpeed * 100) / 100).toFixed(2);
+  const line = 'dbg ' + game.mode + ' ' + Math.floor(game.score)
+    + ' spd ' + speed
+    + ' gap ' + game.nextSpawnGap
+    + ' seed ' + game.runSeed;
+  ctx.save();
+  ctx.globalAlpha = 0.55;
+  ctx.fillStyle = game.score >= GAME_CONFIG.DAY_NIGHT_START ? '#c8c8c8' : '#6a6a6a';
+  ctx.font = '11px ' + cfg('SCORE_FONT_FAMILY');
+  ctx.textAlign = 'left';
+  ctx.fillText(line, 8, 12);
+  ctx.restore();
+}
+
+applyDebugFromLocation();
+window.enableDeathLog = enableDeathLog;
+window.disableDeathLog = disableDeathLog;
+window.dumpRun = dumpRun;
+window.copyDeathLog = copyDeathLog;
+window.replayRunSeed = replayRunSeed;
 
 // == SECTION 5: RENDERING ==
 
@@ -861,6 +1005,7 @@ function drawScore() {
     );
   }
   if (popping) ctx.restore();
+  drawDebugHud();
 }
 
 // PR-C: white-flash overlay drawn on top of the world during the first few
@@ -1007,6 +1152,7 @@ function drawGameOverScreen() {
     ctx.font = '13px ' + font;
     ctx.fillText('Tap / Press Space to Restart', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H - 16);
   }
+  drawDebugHud();
 }
 
 function drawMilestoneFlash() {
@@ -1202,6 +1348,7 @@ function jump() {
   if (!dino.isJumping) {
     dino.velocityY = dino.jumpPower;
     dino.isJumping = true;
+    if (runDebug) game.lastJumpFrame = game.animFrame;
     Particles.emit('jump', dino.x + dino.width / 2, dino.y + dino.height);
     audio.jump();
   }
@@ -1240,6 +1387,8 @@ document.addEventListener('keydown', (event) => {
   if (event.code === 'Space' || event.code === 'ArrowUp' || event.code === 'KeyW') {
     event.preventDefault();
     handleAction();
+  } else {
+    handleDebugKey(event);
   }
 });
 
@@ -1411,7 +1560,12 @@ function resetGame() {
   game.newBestShown      = false;
   game.isNewBest         = false;
   game.previousHighScore = 0;
-  game.rng = mulberry32(isDailyMode() ? dailySeed() : (Date.now() & 0xffffffff));
+  game.lastGaps = [];
+  game.lastObstacleTypes = [];
+  game.lastJumpFrame = null;
+  game.deathLog = null;
+  game.runSeed = takeRunSeed();
+  game.rng = mulberry32(game.runSeed);
   game.dailyBest = ScoreStore.loadDailyBest();
   const shareBtnEl = document.getElementById('share-btn');
   if (shareBtnEl && shareBtnEl.style) shareBtnEl.style.display = 'none';
@@ -1525,8 +1679,10 @@ function handleRunning() {
   // with speed once the shrinking curve would outrun a jump. Classic stays
   // deterministic. DifficultyProfile.nextObstacle() picks type + gap together.
   if (game.lastObstacleX <= GAME_CONFIG.CANVAS_W - game.nextSpawnGap) {
+    const consumedGap = game.nextSpawnGap;
     const params = DifficultyProfile.nextObstacle(game.score, game.mode, game.rng);
     spawnObstacle(params.type);
+    noteSpawnForDeathLog(consumedGap, params.type.id, game.currentSpeed);
     game.lastObstacleX = GAME_CONFIG.CANVAS_W;
     game.nextSpawnGap = params.gap;
   }
@@ -1559,6 +1715,7 @@ function handleRunning() {
         game.dailyBest = ScoreStore.loadDailyBest();
       }
       announce('Game over. Score ' + finalScore + '. High score ' + game.highScore + '. Press space to restart.');
+      if (runDebug) publishRunSnapshot(buildRunSnapshot('death'));
       return;
     }
   }
@@ -1669,4 +1826,12 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.isDailyMode = isDailyMode;
   global.shareDailyResult = shareDailyResult;
   global.setReducedMotion = setReducedMotion;
+  global.enableDeathLog = enableDeathLog;
+  global.disableDeathLog = disableDeathLog;
+  global.isDeathLogEnabled = isDeathLogEnabled;
+  global.applyDebugFromLocation = applyDebugFromLocation;
+  global.replayRunSeed = replayRunSeed;
+  global.dumpRun = dumpRun;
+  global.copyDeathLog = copyDeathLog;
+  global.handleDebugKey = handleDebugKey;
 }

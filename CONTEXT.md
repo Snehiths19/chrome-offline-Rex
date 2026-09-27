@@ -66,6 +66,12 @@ _Avoid_: slope, sigmoid slope
 **RNG** — the seeded pseudo-random number generator used for all in-run randomness; shared between obstacle type selection and spawn gap jitter to preserve determinism. Consumed in a fixed order (type first, gap second) per spawn — swapping breaks deterministic replay. `Math.random()` is reserved for cosmetic effects only (particles, clouds, audio pitch).
 _Avoid_: random, rand
 
+**Run seed** — the integer actually passed to the RNG when a run starts. A Daily Challenge uses the **daily seed**. Free play uses `Date.now()` masked to 32 bits. Stored on the run so a reported free-play death can be seeded again with `replayRunSeed`.
+_Avoid_: random seed, session id
+
+**Death log** — an opt-in JSON snapshot for unfairness reports: mode, score, run seed, speed, recent spawn gaps (pixels and approximate time), and obstacle types. Off unless the page is opened with `?debug=1` or DevTools calls `enableDeathLog()`. It does not change the run. Press L while it is on to copy the current snapshot.
+_Avoid_: replay, telemetry, input log
+
 ## Daily Challenge
 
 **Daily Challenge** — a play mode in which the obstacle sequence is seeded from the current calendar date, giving every player the same run each day. Activated by a dedicated button; always runs in Updated mode.
@@ -85,7 +91,9 @@ _Avoid_: share score, copy result, clipboard share
 
 ## Relationships
 
-- A **Daily Challenge** run uses one **Daily seed** derived from the current date
+- A **Daily Challenge** run uses one **Daily seed** derived from the current date; that value is the run's **run seed**
+- A free-play **run seed** is the clock value captured at reset, not the daily seed
+- A **death log** is written only while debug is on, and it reads the **run seed** without changing spawns
 - The **Daily seed** is the sole input to `game.rng` for a daily challenge run, replacing the `Date.now()` seed used in free play
 - The **Daily number** is computed from the same date as the **Daily seed** but is display-only — it does not influence the obstacle sequence
 - **Daily best** is independent of all-time best; both are shown on the Game Over screen when in Daily Challenge
