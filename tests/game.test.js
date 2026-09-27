@@ -3054,6 +3054,7 @@ describe('Plateau cue', () => {
   }
 
   function armUpdatedRun(mode) {
+    setQaPlateau(false);
     game.mode = mode;
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     resetGame();
@@ -3235,6 +3236,98 @@ describe('Plateau cue', () => {
       tick();
       assertEquals(plateauParticles().length, burst.length, 'reduced motion must not repeat the cue');
     } finally {
+      setReducedMotion(false);
+      game.mode = origMode;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      Particles.reset();
+    }
+  });
+
+  it('recognizes only ?qaPlateau=1', () => {
+    assert(readQaPlateauFlag('?qaPlateau=1') === true, '?qaPlateau=1 should enable the QA cue');
+    assert(readQaPlateauFlag('?foo=1&qaPlateau=1') === true, 'the flag should work alongside other params');
+    assert(readQaPlateauFlag('') === false, 'a normal visit should leave the QA cue off');
+    assert(readQaPlateauFlag('?qaPlateau=0') === false, 'only the value 1 enables the QA cue');
+    assert(readQaPlateauFlag('?qaPlateau=12') === false, 'qaPlateau=12 must not count as the flag');
+    assert(readQaPlateauFlag('?other=1') === false, 'an unrelated param must not enable the QA cue');
+  });
+
+  it('with ?qaPlateau=1 fires the same puff once at a low score in Updated', () => {
+    const origMode = game.mode;
+    try {
+      setReducedMotion(false);
+      armUpdatedRun(MODES.UPDATED);
+      setQaPlateau(true);
+      game.score = QA_PLATEAU_SCORE - GAME_CONFIG.SCORE_INCREMENT;
+      tick();
+
+      const burst = plateauParticles();
+      assertEquals(burst.length, Particles.KINDS.plateau.count, 'QA flag should emit the same heel puff');
+      assert(game.plateauCueShown === true, 'QA cue still latches after the first puff');
+      assert(game.score < 20, 'QA cue should fire early, not at the real plateau');
+
+      tick();
+      assertEquals(plateauParticles().length, burst.length, 'QA cue must not repeat later in the run');
+    } finally {
+      setQaPlateau(false);
+      setReducedMotion(false);
+      game.mode = origMode;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      Particles.reset();
+    }
+  });
+
+  it('with ?qaPlateau=1 still does not fire in Classic', () => {
+    const origMode = game.mode;
+    try {
+      setReducedMotion(false);
+      armUpdatedRun(MODES.CLASSIC);
+      setQaPlateau(true);
+      game.score = QA_PLATEAU_SCORE - GAME_CONFIG.SCORE_INCREMENT;
+      tick();
+      tick();
+      assertEquals(plateauParticles().length, 0, 'Classic should ignore the QA flag');
+      assert(!game.plateauCueShown, 'Classic should not latch a QA cue it did not show');
+    } finally {
+      setQaPlateau(false);
+      setReducedMotion(false);
+      game.mode = origMode;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      Particles.reset();
+    }
+  });
+
+  it('with ?qaPlateau=1 also fires early in Daily', () => {
+    const origMode = game.mode;
+    try {
+      setReducedMotion(false);
+      armUpdatedRun(MODES.DAILY);
+      setQaPlateau(true);
+      game.score = QA_PLATEAU_SCORE - GAME_CONFIG.SCORE_INCREMENT;
+      tick();
+      assert(plateauParticles().length > 0, 'Daily should show the early QA puff');
+      assert(game.plateauCueShown === true, 'Daily QA cue should still latch');
+    } finally {
+      setQaPlateau(false);
+      setReducedMotion(false);
+      game.mode = origMode;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      Particles.reset();
+    }
+  });
+
+  it('without the QA flag a low score does not fire the cue', () => {
+    const origMode = game.mode;
+    try {
+      setReducedMotion(false);
+      armUpdatedRun(MODES.UPDATED);
+      setQaPlateau(false);
+      game.score = QA_PLATEAU_SCORE - GAME_CONFIG.SCORE_INCREMENT;
+      tick();
+      assertEquals(plateauParticles().length, 0, 'production timing should still wait for the plateau');
+      assert(!game.plateauCueShown, 'an early production frame must not consume the cue');
+    } finally {
+      setQaPlateau(false);
       setReducedMotion(false);
       game.mode = origMode;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);

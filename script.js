@@ -268,6 +268,28 @@ function setReducedMotion(enabled) {
   reducedMotion = !!enabled;
 }
 
+// QA/debug only — not for players. ?qaPlateau=1 fires the same once-per-run
+// heel puff at QA_PLATEAU_SCORE so playtest can see it without reaching the
+// plateau. Read once at boot. Does not change speed, gaps, or game.rng().
+// Tests flip it through setQaPlateau(); a normal visit leaves this false.
+const QA_PLATEAU_SCORE = 10;
+
+function readQaPlateauFlag(search) {
+  const query = search !== undefined
+    ? search
+    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
+      ? location.search
+      : '');
+  if (!query) return false;
+  return new URLSearchParams(query).get('qaPlateau') === '1';
+}
+
+let qaPlateau = readQaPlateauFlag();
+
+function setQaPlateau(enabled) {
+  qaPlateau = !!enabled;
+}
+
 // --- Web Audio module (PR-B) ---
 // Synthesised SFX — no asset files. Lazy-creates AudioContext on first user
 // gesture (Chrome's autoplay policy) and silently no-ops if AudioContext is
@@ -1679,14 +1701,14 @@ function handleRunning() {
   drawGround();
   updateObstacles();
 
-  // Plateau cue: the first frame speed reaches the soft ceiling. One cool puff
-  // at the dino's heel — off the obstacle lane, no HUD text. Classic never
-  // enters. Particles.emit damps the burst under reduced motion (Math.random).
-  if (
-    isUpdatedMode() &&
-    !game.plateauCueShown &&
-    game.currentSpeed >= GAME_CONFIG.PLATEAU_SPEED * GAME_CONFIG.PLATEAU_REACH_RATIO
-  ) {
+  // Plateau cue: one cool puff at the dino's heel, off the obstacle lane.
+  // Production waits for 98% of plateau speed (~score 641). QA/debug only —
+  // not for players: ?qaPlateau=1 uses a low score instead. Classic never
+  // enters. Particles.emit damps reduced motion and uses Math.random().
+  const plateauReached = qaPlateau
+    ? game.score >= QA_PLATEAU_SCORE
+    : game.currentSpeed >= GAME_CONFIG.PLATEAU_SPEED * GAME_CONFIG.PLATEAU_REACH_RATIO;
+  if (isUpdatedMode() && !game.plateauCueShown && plateauReached) {
     game.plateauCueShown = true;
     Particles.emit('plateau', dino.x + 4, dino.y + dino.height - 4);
   }
@@ -1855,4 +1877,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.dumpRun = dumpRun;
   global.copyDeathLog = copyDeathLog;
   global.handleDebugKey = handleDebugKey;
+  global.setQaPlateau = setQaPlateau;
+  global.readQaPlateauFlag = readQaPlateauFlag;
+  global.QA_PLATEAU_SCORE = QA_PLATEAU_SCORE;
 }
