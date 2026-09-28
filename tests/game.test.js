@@ -9366,6 +9366,7 @@ describe('QA flash flag (?qaFlash=1)', () => {
     setQaConfetti(false);
     setQaDust(false);
     setQaFlash(false);
+    setQaScorePop(false);
     setReducedMotion(false);
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
@@ -9586,6 +9587,434 @@ describe('QA flash flag (?qaFlash=1)', () => {
       game.mode = origMode;
       setQaFlash(false);
       setQaNight(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+});
+
+describe('Quieter death score pop', () => {
+  const OLD_SLAP = 1.4;
+
+  function withTuning(overrides, fn) {
+    const orig = window.GAME_TUNING;
+    window.GAME_TUNING = overrides;
+    try { fn(); } finally { window.GAME_TUNING = orig; }
+  }
+
+  function spyScale() {
+    const calls = [];
+    const origScale = ctx.scale;
+    const origFillText = ctx.fillText;
+    ctx.scale = function (x, y) {
+      calls.push({ op: 'scale', x: x, y: y });
+    };
+    ctx.fillText = function (text) {
+      calls.push({ op: 'text', text: String(text) });
+    };
+    return {
+      calls: calls,
+      restore() {
+        ctx.scale = origScale;
+        ctx.fillText = origFillText;
+      },
+    };
+  }
+
+  function scalesNear(calls, scale) {
+    return calls.filter((c) =>
+      c.op === 'scale' && Math.abs(c.x - scale) < 1e-9 && Math.abs(c.y - scale) < 1e-9
+    );
+  }
+
+  it('keeps the shake window and peaks as a breath, not a 1.4 slap', () => {
+    assertEquals(GAME_CONFIG.SCORE_POP_FRAMES, 12,
+      'the pop still shares the 12-frame death shake');
+    assertEquals(GAME_CONFIG.SCORE_POP_PEAK_SCALE, 1.12,
+      'the first frame grows the 20px digits by about 2.4px');
+    assert(GAME_CONFIG.SCORE_POP_PEAK_SCALE < OLD_SLAP,
+      'the peak stays under the old slap');
+    assert(GAME_CONFIG.SCORE_POP_PEAK_SCALE > 1,
+      'the number still grows, so the death cue still reads');
+    assertEquals(scorePopScale(1), GAME_CONFIG.SCORE_POP_PEAK_SCALE,
+      'the first pop frame is the quiet peak');
+    const mid = scorePopScale(0.5);
+    assert(mid > 1 && mid < GAME_CONFIG.SCORE_POP_PEAK_SCALE,
+      'later frames ease back toward the resting size');
+  });
+
+  it('Updated and Daily draw the first death frame at the quiet peak', () => {
+    const origMode = game.mode;
+    const origPop = Animations.scorePopFrames;
+    const origScore = game.score;
+    const spy = spyScale();
+    try {
+      setReducedMotion(false);
+      game.score = 42;
+      Animations.scorePopFrames = GAME_CONFIG.SCORE_POP_FRAMES;
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        game.mode = mode;
+        spy.calls.length = 0;
+        drawScore();
+        assertEquals(scalesNear(spy.calls, OLD_SLAP).length, 0,
+          mode + ' does not slap the score to 1.4');
+        assertEquals(scalesNear(spy.calls, GAME_CONFIG.SCORE_POP_PEAK_SCALE).length, 1,
+          mode + ' scales the HUD once, at the quiet peak');
+        const scaleAt = spy.calls.findIndex((c) => c.op === 'scale');
+        const textAt = spy.calls.findIndex((c) => c.op === 'text' && c.text === '00042');
+        assert(scaleAt !== -1 && textAt > scaleAt,
+          mode + ' draws the digits inside the scale');
+      }
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      game.score = origScore;
+      Animations.scorePopFrames = origPop;
+      setReducedMotion(false);
+    }
+  });
+
+  it('Classic does not scale the score', () => {
+    const origMode = game.mode;
+    const origPop = Animations.scorePopFrames;
+    const spy = spyScale();
+    try {
+      setReducedMotion(false);
+      game.mode = MODES.CLASSIC;
+      Animations.scorePopFrames = GAME_CONFIG.SCORE_POP_FRAMES;
+      drawScore();
+      assertEquals(spy.calls.filter((c) => c.op === 'scale').length, 0,
+        'Classic keeps the resting HUD even if a pop counter is set');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      Animations.scorePopFrames = origPop;
+      setReducedMotion(false);
+    }
+  });
+
+  it('reduced motion does not scale the score even when the counter is set', () => {
+    const origMode = game.mode;
+    const origPop = Animations.scorePopFrames;
+    const spy = spyScale();
+    try {
+      setReducedMotion(true);
+      game.mode = MODES.UPDATED;
+      Animations.scorePopFrames = GAME_CONFIG.SCORE_POP_FRAMES;
+      drawScore();
+      game.mode = MODES.DAILY;
+      drawScore();
+      assertEquals(spy.calls.filter((c) => c.op === 'scale').length, 0,
+        'reduced motion skips the real pop in Updated and Daily');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      Animations.scorePopFrames = origPop;
+      setReducedMotion(false);
+    }
+  });
+
+  it('a tune can soften the peak and cannot slap past the old 1.4', () => {
+    const origMode = game.mode;
+    const origPop = Animations.scorePopFrames;
+    const spy = spyScale();
+    try {
+      setReducedMotion(false);
+      game.mode = MODES.UPDATED;
+      Animations.scorePopFrames = GAME_CONFIG.SCORE_POP_FRAMES;
+      withTuning({ SCORE_POP_PEAK_SCALE: 1.05 }, () => {
+        assertEquals(scorePopScale(1), 1.05, 'a softer peak is honored');
+        spy.calls.length = 0;
+        drawScore();
+        assertEquals(scalesNear(spy.calls, 1.05).length, 1, 'the draw uses the tuned peak');
+      });
+      withTuning({ SCORE_POP_PEAK_SCALE: OLD_SLAP }, () => {
+        assertEquals(scorePopScale(1), OLD_SLAP,
+          'the old peak is the loudest tune still allowed');
+      });
+      withTuning({ SCORE_POP_PEAK_SCALE: 2 }, () => {
+        assertEquals(scorePopScale(1), GAME_CONFIG.SCORE_POP_PEAK_SCALE,
+          'a peak past 1.4 falls back to the quiet breath');
+      });
+      withTuning({ SCORE_POP_PEAK_SCALE: 0.8 }, () => {
+        assertEquals(scorePopScale(1), GAME_CONFIG.SCORE_POP_PEAK_SCALE,
+          'a shrink falls back so the cue cannot invert');
+      });
+      withTuning({ SCORE_POP_PEAK_SCALE: 'big' }, () => {
+        assertEquals(scorePopScale(1), GAME_CONFIG.SCORE_POP_PEAK_SCALE,
+          'a non-numeric peak falls back to the quiet breath');
+      });
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      Animations.scorePopFrames = origPop;
+      setReducedMotion(false);
+    }
+  });
+});
+
+describe('QA score pop flag (?qaScorePop=1)', () => {
+  function tick() {
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+  }
+
+  function spyPaint() {
+    const calls = [];
+    const origScale = ctx.scale;
+    const origFillText = ctx.fillText;
+    const origFillRect = ctx.fillRect;
+    ctx.scale = function (x, y) {
+      calls.push({ op: 'scale', x: x, y: y });
+    };
+    ctx.fillText = function (text) {
+      calls.push({ op: 'text', text: String(text) });
+    };
+    ctx.fillRect = function (x, y, w, h) {
+      calls.push({
+        op: 'rect',
+        style: ctx.fillStyle,
+        x: x,
+        y: y,
+        w: w,
+        h: h,
+        alpha: ctx.globalAlpha,
+      });
+    };
+    return {
+      calls: calls,
+      restore() {
+        ctx.scale = origScale;
+        ctx.fillText = origFillText;
+        ctx.fillRect = origFillRect;
+      },
+    };
+  }
+
+  function scalesNear(calls, scale) {
+    return calls.filter((c) =>
+      c.op === 'scale' && Math.abs(c.x - scale) < 1e-9 && Math.abs(c.y - scale) < 1e-9
+    );
+  }
+
+  function armFreshRun(mode) {
+    game.mode = mode;
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    setQaLevel(false);
+    setQaNight(false);
+    setQaPlateau(false);
+    setQaTrail(false);
+    setQaConfetti(false);
+    setQaDust(false);
+    setQaFlash(false);
+    setQaScorePop(false);
+    setReducedMotion(false);
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    game.obstacles.length = 0;
+    game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+    game.nextSpawnGap = GAME_CONFIG.MAX_SPAWN_GAP;
+    game.highScore = 0;
+    dino.y = GAME_CONFIG.CANVAS_H - dino.height;
+    dino.isJumping = false;
+    dino.velocityY = 0;
+    Animations.scorePopFrames = 0;
+    Particles.reset();
+  }
+
+  it('recognizes only ?qaScorePop=1', () => {
+    assert(readQaScorePopFlag('?qaScorePop=1') === true, '?qaScorePop=1 should hold the score pop');
+    assert(readQaScorePopFlag('?qaNight=1&qaScorePop=1') === true,
+      'the flag should work beside ?qaNight=1');
+    assert(readQaScorePopFlag('?qaScorePop=1&qaFlash=1') === true, 'param order should not matter');
+    assert(readQaScorePopFlag('') === false, 'a normal visit should leave the pop for a real death');
+    assert(readQaScorePopFlag('?qaScorePop=0') === false, 'only the value 1 enables the flag');
+    assert(readQaScorePopFlag('?qaScorePop=12') === false, 'qaScorePop=12 must not count as the flag');
+    assert(readQaScorePopFlag('?qaFlash=1') === false, 'the death blink must not hold the score pop');
+  });
+
+  it('holds the quieter peak from the first frame even when the pop timer is zero', () => {
+    const origMode = game.mode;
+    const spy = spyPaint();
+    try {
+      assert(QA_SCORE_POP_HOLD >= 120, 'the debug hold must outlast a quick capture');
+      const peak = GAME_CONFIG.SCORE_POP_PEAK_SCALE;
+      const cover = qaScorePopCover();
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        armFreshRun(mode);
+        game.rng = mulberry32(11);
+        setQaScorePop(false);
+        spy.calls.length = 0;
+        tick();
+        const rngAfterOff = game.rng();
+        const speedOff = game.currentSpeed;
+        const scoreOff = game.score;
+        assertEquals(scalesNear(spy.calls, peak).length, 0,
+          mode + ' without the flag does not scale the HUD');
+        assertEquals(game.qaScorePopHold, 0, mode + ' without the flag does not start the hold');
+
+        armFreshRun(mode);
+        game.rng = mulberry32(11);
+        setQaScorePop(true);
+        Animations.scorePopFrames = 0;
+        Particles.reset();
+        for (let i = 0; i < Particles.POOL_SIZE; i++) Particles.particles[i].life = 8;
+        spy.calls.length = 0;
+        tick();
+        const popped = scalesNear(spy.calls, peak);
+        assertEquals(popped.length, 1, mode + ' scales the HUD once, at the quiet peak');
+        assertEquals(scalesNear(spy.calls, 1.4).length, 0, mode + ' does not hold the old slap');
+        const coverAt = spy.calls.findIndex((c) =>
+          c.op === 'rect' && c.style === '#ffffff'
+          && c.x === cover.x && c.y === cover.y && c.w === cover.w && c.h === cover.h
+          && c.alpha === 1
+        );
+        const scaleAt = spy.calls.findIndex((c) => c.op === 'scale');
+        const textAt = spy.calls.findIndex((c, i) =>
+          i > scaleAt && c.op === 'text' && c.text === '00000'
+        );
+        assert(coverAt !== -1, mode + ' covers the resting digits so they cannot ghost');
+        assert(scaleAt > coverAt, mode + ' scales after the cover');
+        assert(textAt > scaleAt, mode + ' draws the score inside the scale, after the frame');
+        assertEquals(game.qaScorePopHold, QA_SCORE_POP_HOLD, mode + ' latches the full hold');
+        assertEquals(game.qaScorePopShown, true, mode + ' spends the latch');
+        assertEquals(Animations.scorePopFrames, 0, mode + ' does not borrow the real pop timer');
+        assertEquals(game.score, scoreOff, mode + ' hold must not write the score');
+        assertEquals(game.currentSpeed, speedOff, mode + ' hold must not change speed');
+        assertEquals(game.rng(), rngAfterOff, mode + ' hold must not consume the run seed');
+      }
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaScorePop(false);
+      setReducedMotion(false);
+      Particles.reset();
+      Animations.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('still paints the pop when a hit returns before the death draw', () => {
+    const origMode = game.mode;
+    const spy = spyPaint();
+    try {
+      armFreshRun(MODES.UPDATED);
+      setQaScorePop(true);
+      game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
+      spy.calls.length = 0;
+      tick();
+      assertEquals(game.state, STATE.DEAD, 'the cactus still ends the run');
+      assertEquals(scalesNear(spy.calls, GAME_CONFIG.SCORE_POP_PEAK_SCALE).length, 1,
+        'the hold still paints after the collision return');
+      assertEquals(Animations.scorePopFrames, GAME_CONFIG.SCORE_POP_FRAMES,
+        'the real pop timer is still armed for the death shake');
+      assertEquals(Animations.deathFlashFrames, GAME_CONFIG.DEATH_FLASH_FRAMES,
+        'the death blink is unchanged');
+      assertEquals(Animations.deathShakeFrames, GAME_CONFIG.DEATH_SHAKE_FRAMES,
+        'the death shake is unchanged');
+      assert(game.score < 1, 'dying on the QA frame does not invent score');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaScorePop(false);
+      game.obstacles.length = 0;
+      Particles.reset();
+      Animations.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('Classic with ?qaScorePop=1 still paints nothing', () => {
+    const origMode = game.mode;
+    const spy = spyPaint();
+    try {
+      armFreshRun(MODES.CLASSIC);
+      setQaScorePop(true);
+      tick();
+      tick();
+      assertEquals(spy.calls.filter((c) => c.op === 'scale').length, 0,
+        'Classic never scales the HUD');
+      assertEquals(game.qaScorePopShown, false, 'Classic does not spend the Updated latch');
+      assertEquals(game.qaScorePopHold, 0, 'Classic does not start the hold');
+      assertEquals(Animations.scorePopFrames, 0, 'Classic still does not start the real pop');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaScorePop(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('reduced motion shortens and damps the hold, and still paints it', () => {
+    const origMode = game.mode;
+    const spy = spyPaint();
+    try {
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        armFreshRun(mode);
+        setReducedMotion(true);
+        setQaScorePop(true);
+        spy.calls.length = 0;
+        tick();
+        const damped = qaScorePopScale();
+        const peak = GAME_CONFIG.SCORE_POP_PEAK_SCALE;
+        assertEquals(game.qaScorePopHold, qaScorePopHoldFrames(),
+          mode + ' hold uses the shorter window');
+        assert(game.qaScorePopHold < QA_SCORE_POP_HOLD,
+          mode + ' hold is shorter than the full capture');
+        assert(qaScorePopHoldFrames() >= 2, mode + ' hold still lasts long enough to see');
+        assert(damped > 1, mode + ' damped hold still grows the number');
+        assert(damped < peak, mode + ' damped hold is softer than the motion-allowed peak');
+        assertEquals(scalesNear(spy.calls, damped).length, 1,
+          mode + ' reduced motion still paints the swell');
+        assertEquals(scalesNear(spy.calls, peak).length, 0,
+          mode + ' reduced motion does not keep the full peak');
+        assertEquals(Animations.scorePopFrames, 0, mode + ' hold does not arm the real pop');
+        assert(game.score < 1, mode + ' damped hold must not write the score');
+      }
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaScorePop(false);
+      setReducedMotion(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('resetGame re-reads ?qaScorePop=1 from the page query', () => {
+    const origMode = game.mode;
+    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
+    const prevLocation = global.location;
+    const spy = spyPaint();
+    global.location = { search: '?qaScorePop=1' };
+    try {
+      setQaScorePop(false);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      game.state = STATE.RUNNING;
+      game.mode = MODES.UPDATED;
+      game.obstacles.length = 0;
+      game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+      game.nextSpawnGap = GAME_CONFIG.MAX_SPAWN_GAP;
+      game.highScore = 0;
+      Animations.scorePopFrames = 0;
+      Particles.reset();
+      tick();
+      assertEquals(scalesNear(spy.calls, GAME_CONFIG.SCORE_POP_PEAK_SCALE).length, 1,
+        're-read flag paints the quiet peak');
+      assertEquals(game.qaScorePopHold, QA_SCORE_POP_HOLD, 'the re-read flag latches the hold');
+      assert(game.score < 1, 're-reading the flag must not change the score');
+      assertEquals(game.qaScorePopShown, true, 'the re-read flag spends the latch');
+    } finally {
+      spy.restore();
+      if (hadLocation) global.location = prevLocation;
+      else delete global.location;
+      game.mode = origMode;
+      setQaScorePop(false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
