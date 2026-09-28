@@ -113,6 +113,7 @@ export default [
         setQaNight: 'readonly',
         readQaNightFlag: 'readonly',
         obstacleNightBrightness: 'readonly',
+        dinoNightBrightness: 'readonly',
         shareDailyResult: 'readonly',
         STATE_HANDLERS: 'readonly',
         updateHills: 'readonly',
