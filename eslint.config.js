@@ -117,6 +117,7 @@ export default [
         obstacleNightBrightness: 'readonly',
         dinoNightBrightness: 'readonly',
         cloudPaintAlpha: 'readonly',
+        landDustColor: 'readonly',
         shareDailyResult: 'readonly',
         STATE_HANDLERS: 'readonly',
         updateHills: 'readonly',

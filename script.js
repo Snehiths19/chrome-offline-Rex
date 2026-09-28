@@ -177,6 +177,15 @@ const GAME_CONFIG = Object.freeze({
   // obstacles still win the eye. The day sprite is #535353; a lift during
   // twilight lands on the hill. Classic does not read this. Read through cfg().
   NIGHT_DINO_BRIGHTNESS: 1.35,
+  // Visual only. Jump and land foot dust once the sky is fully night, in
+  // Updated and Daily. Day dust stays the brown on those kinds (#9c8770).
+  // On the night sky that brown reads as warm day-dirt. #6a686e is cooler
+  // and quieter than the night dino (1.35) and cactus (1.65), and a step
+  // above the soft night cloud, so the puff stays at the feet. Classic does
+  // not read this. Eases with the sky from DAY_NIGHT_START to DAY_NIGHT_END.
+  // Reduced motion skips that ease and snaps to this at DAY_NIGHT_END.
+  // Read through cfg().
+  NIGHT_LAND_DUST_COLOR:    '#6a686e',
 
   // --- Ambient depth (PR-D, updated mode only) ---
   HILL_COUNT:               3,    // mid-ground silhouette mounds
@@ -357,8 +366,8 @@ function setQaBig(enabled) {
 // QA/debug only — not for players. ?qaNight=1 paints full night from the
 // first frame so the star fade can be seen without a score-400 run.
 // Sky, hills, HUD ink, star init, the Updated/Daily night cactus and dino
-// lifts, and the Updated/Daily night cloud dim read it through
-// scoreForNightSky. Speed, gaps, scoring, and
+// lifts, the Updated/Daily night cloud dim, and Updated/Daily jump/land
+// dust read it through scoreForNightSky. Speed, gaps, scoring, and
 // game.rng() do not. Re-read in resetGame() like the other QA flags.
 // Tests flip it through setQaNight(); a normal visit leaves this false.
 function readQaNightFlag(search) {
@@ -1542,6 +1551,36 @@ function drawNewBestBadge() {
 function isDailyMode()   { return game.mode === MODES.DAILY; }
 function isUpdatedMode() { return game.mode === MODES.UPDATED || game.mode === MODES.DAILY; }
 
+function hexChannels(hex) {
+  if (typeof hex !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(hex)) return null;
+  return [
+    parseInt(hex.slice(1, 3), 16),
+    parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16),
+  ];
+}
+
+// Day foot dust stays the brown on the jump and land kinds. In Updated and
+// Daily it eases toward quiet night ground dust with the sky. Classic keeps
+// the day brown. Reduced motion snaps at full night, same as the sky.
+function landDustColor(dayColor) {
+  if (!isUpdatedMode()) return dayColor;
+  const nightChannels = hexChannels(cfg('NIGHT_LAND_DUST_COLOR'))
+    || hexChannels(GAME_CONFIG.NIGHT_LAND_DUST_COLOR);
+  const s = scoreForNightSky(game.score);
+  if (s < GAME_CONFIG.DAY_NIGHT_START) return dayColor;
+  if (s >= GAME_CONFIG.DAY_NIGHT_END) {
+    return '#' + nightChannels.map(v => v.toString(16).padStart(2, '0')).join('');
+  }
+  if (reducedMotion) return dayColor;
+  const dayChannels = hexChannels(dayColor);
+  if (!dayChannels) return dayColor;
+  const t = (s - GAME_CONFIG.DAY_NIGHT_START) /
+            (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
+  const mixed = dayChannels.map((c, i) => Math.round(c + (nightChannels[i] - c) * t));
+  return '#' + mixed.map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
 const Particles = (() => {
   const POOL_SIZE = 80;
   const KINDS = Object.freeze({
@@ -1584,7 +1623,7 @@ const Particles = (() => {
         p.maxLife = life;
         p.life = life;
         p.size = config.size;
-        p.color = config.color;
+        p.color = (kind === 'jump' || kind === 'land') ? landDustColor(config.color) : config.color;
         p.gravity = config.gravity;
         emitted++;
       }
@@ -2259,4 +2298,5 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.obstacleNightBrightness = obstacleNightBrightness;
   global.dinoNightBrightness = dinoNightBrightness;
   global.cloudPaintAlpha = cloudPaintAlpha;
+  global.landDustColor = landDustColor;
 }
