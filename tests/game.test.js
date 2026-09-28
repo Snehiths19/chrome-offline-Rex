@@ -602,7 +602,8 @@ describe('Death flash + score pop (PR-C)', () => {
     cancelAnimationFrame(game.animationFrameId);
     assertEquals(game.state, STATE.DEAD, 'should be dead');
     assertEquals(Animations.deathFlashFrames, GAME_CONFIG.DEATH_FLASH_FRAMES, 'flash counter set');
-    assertEquals(Animations.scorePopFrames, GAME_CONFIG.SCORE_POP_FRAMES, 'score pop counter set');
+    assertEquals(Animations.scorePopFrames, GAME_CONFIG.UPDATED_DEATH_SHAKE_FRAMES,
+      'score pop counter matches the quieter shake');
   });
 
   it('classic mode collision leaves deathFlashFrames + scorePopFrames at 0', () => {
@@ -8313,9 +8314,10 @@ describe('Night death flash', () => {
 
 describe('Soft death shake', () => {
   // Classic sin(frame * 1.5) * 4 reverses five times and steps ~5.5px.
-  // Updated/Daily should be one half-turn at 1.5px: a nudge, still a cue.
-  const QUIET_AMPLITUDE = 1.5;
-  const QUIET_FREQ = Math.PI / 12;
+  // Updated/Daily round 2 is one half-turn at 1px across 8 frames.
+  const QUIET_AMPLITUDE = 1;
+  const QUIET_FREQ = Math.PI / 8;
+  const QUIET_FRAMES = 8;
 
   function withTuning(overrides, fn) {
     const orig = window.GAME_TUNING;
@@ -8344,14 +8346,15 @@ describe('Soft death shake', () => {
       return origTranslate.call(ctx, x, y);
     };
     try {
-      Animations.deathShakeFrames = GAME_CONFIG.DEATH_SHAKE_FRAMES;
+      const frames = deathShakeFrameCount();
+      Animations.deathShakeFrames = frames;
       Animations.deathFlashFrames = 0;
       Animations.scorePopFrames = 0;
       game.state = STATE.DEAD;
-      for (let i = 0; i < GAME_CONFIG.DEATH_SHAKE_FRAMES; i++) {
+      for (let i = 0; i < frames; i++) {
         STATE_HANDLERS[STATE.DEAD]();
       }
-      assertEquals(samples.length, GAME_CONFIG.DEATH_SHAKE_FRAMES,
+      assertEquals(samples.length, frames,
         'each shake frame translates once');
       assertEquals(rngCalls, 0, 'the death shake does not consume the run seed');
       assertEquals(game.score, origScore, 'the death shake does not move the score');
@@ -8374,7 +8377,7 @@ describe('Soft death shake', () => {
 
   function assertWave(samples, amp, freq, label) {
     for (let i = 0; i < samples.length; i++) {
-      const frame = GAME_CONFIG.DEATH_SHAKE_FRAMES - i;
+      const frame = samples.length - i;
       const expected = expectedOffset(frame, amp, freq);
       assert(
         Math.abs(samples[i].x - expected) < 1e-9,
@@ -8394,8 +8397,12 @@ describe('Soft death shake', () => {
       assert(QUIET_AMPLITUDE > 0, 'the death cue still moves');
       assert(QUIET_FREQ < GAME_CONFIG.DEATH_SHAKE_FREQ,
         'the quiet shake turns slower than the Classic buzz');
-      assertEquals(GAME_CONFIG.DEATH_SHAKE_FRAMES * QUIET_FREQ, Math.PI,
-        'twelve frames at the quiet frequency are one half-turn');
+      assertEquals(GAME_CONFIG.UPDATED_DEATH_SHAKE_FRAMES, QUIET_FRAMES,
+        'the quiet settle is about two thirds of the Classic window');
+      assert(QUIET_FRAMES < GAME_CONFIG.DEATH_SHAKE_FRAMES,
+        'Updated finishes before the Classic shake');
+      assertEquals(QUIET_FRAMES * QUIET_FREQ, Math.PI,
+        'eight frames at the quiet frequency are one half-turn');
 
       game.mode = MODES.CLASSIC;
       game.score = 0;
@@ -8410,8 +8417,23 @@ describe('Soft death shake', () => {
       game.score = 0;
       const updatedDay = sampleShake();
       assertWave(updatedDay, QUIET_AMPLITUDE, QUIET_FREQ, 'Updated day');
-      assert(Math.abs(updatedDay[0].x) < Math.abs(classicDay[0].x),
-        'the first Updated frame is already quieter than Classic');
+      assertEquals(updatedDay.length, QUIET_FRAMES, 'Updated samples the shorter window');
+      let quietPeak = 0;
+      let classicPeak = 0;
+      for (let i = 0; i < updatedDay.length; i++) {
+        quietPeak = Math.max(quietPeak, Math.abs(updatedDay[i].x));
+        if (i > 0) {
+          assert(Math.abs(updatedDay[i].x - updatedDay[i - 1].x) < 0.5,
+            'each quiet step stays under half a pixel');
+        }
+        assert(updatedDay[i].x >= -1e-9, 'the quiet half-turn does not reverse');
+      }
+      for (let i = 0; i < classicDay.length; i++) {
+        classicPeak = Math.max(classicPeak, Math.abs(classicDay[i].x));
+      }
+      assert(quietPeak <= QUIET_AMPLITUDE + 1e-9, 'the quiet peak is the 1px settle');
+      assert(quietPeak > 0, 'the settle still moves');
+      assert(quietPeak < classicPeak / 2, 'the settle stays under half the Classic yank');
       game.score = 350;
       assertWave(sampleShake(), QUIET_AMPLITUDE, QUIET_FREQ, 'Updated twilight');
       game.score = GAME_CONFIG.DAY_NIGHT_END;
@@ -8487,10 +8509,34 @@ describe('Soft death shake', () => {
         assertWave(sampleShake(), QUIET_AMPLITUDE, QUIET_FREQ,
           'a non-numeric amplitude falls back to the quiet nudge');
       });
+      withTuning({ UPDATED_DEATH_SHAKE_FRAMES: 6 }, () => {
+        const tuned = sampleShake();
+        assertEquals(tuned.length, 6, 'a shorter whole-frame tune is honored');
+        assertWave(tuned, QUIET_AMPLITUDE, QUIET_FREQ, 'Updated frame tune');
+      });
+      withTuning({ UPDATED_DEATH_SHAKE_FRAMES: 40 }, () => {
+        assertEquals(sampleShake().length, QUIET_FRAMES,
+          'a frame count past Classic falls back to the quiet settle');
+      });
+      withTuning({ UPDATED_DEATH_SHAKE_FRAMES: 0 }, () => {
+        assertEquals(sampleShake().length, QUIET_FRAMES,
+          'a zero frame count falls back to the quiet settle');
+      });
+      withTuning({ UPDATED_DEATH_SHAKE_FRAMES: 1.5 }, () => {
+        assertEquals(sampleShake().length, QUIET_FRAMES,
+          'a fractional frame count falls back to the quiet settle');
+      });
+      withTuning({ UPDATED_DEATH_SHAKE_FRAMES: 'short' }, () => {
+        assertEquals(sampleShake().length, QUIET_FRAMES,
+          'a non-numeric frame count falls back to the quiet settle');
+      });
 
       game.mode = MODES.CLASSIC;
-      withTuning({ UPDATED_DEATH_SHAKE_AMPLITUDE: 0.5, UPDATED_DEATH_SHAKE_FREQ: 0.1 }, () => {
-        assertWave(sampleShake(), GAME_CONFIG.DEATH_SHAKE_AMPLITUDE, GAME_CONFIG.DEATH_SHAKE_FREQ,
+      withTuning({ UPDATED_DEATH_SHAKE_AMPLITUDE: 0.5, UPDATED_DEATH_SHAKE_FREQ: 0.1, UPDATED_DEATH_SHAKE_FRAMES: 6 }, () => {
+        const classic = sampleShake();
+        assertEquals(classic.length, GAME_CONFIG.DEATH_SHAKE_FRAMES,
+          'Classic keeps the 12-frame shake');
+        assertWave(classic, GAME_CONFIG.DEATH_SHAKE_AMPLITUDE, GAME_CONFIG.DEATH_SHAKE_FREQ,
           'Classic ignores the Updated shake tunes');
       });
       withTuning({ DEATH_SHAKE_AMPLITUDE: 2, DEATH_SHAKE_FREQ: 0.8 }, () => {
@@ -8523,14 +8569,315 @@ describe('Soft death shake', () => {
       gameLoop();
       cancelAnimationFrame(game.animationFrameId);
       assertEquals(game.state, STATE.DEAD, 'collision still ends the run');
-      assertEquals(Animations.deathShakeFrames, GAME_CONFIG.DEATH_SHAKE_FRAMES,
-        'the shake countdown is unchanged');
+      assertEquals(Animations.deathShakeFrames, GAME_CONFIG.UPDATED_DEATH_SHAKE_FRAMES,
+        'reduced motion keeps the shorter Updated shake');
       assertEquals(Animations.deathFlashFrames, 1,
         'reduced motion still caps the flash at one frame');
       assertEquals(Animations.scorePopFrames, 0, 'reduced motion still skips the score pop');
     } finally {
       setReducedMotion(false);
       game.mode = origMode;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('eases the score pop across the shorter shake, then opens Game Over at rest', () => {
+    const origMode = game.mode;
+    const origScale = ctx.scale;
+    try {
+      setReducedMotion(false);
+      setQaNight(false);
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        game.mode = mode;
+        if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+        resetGame();
+        game.state = STATE.RUNNING;
+        game.graceFrames = 0;
+        game.obstacles.length = 0;
+        game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
+        gameLoop();
+        cancelAnimationFrame(game.animationFrameId);
+        assertEquals(game.state, STATE.DEAD, mode + ' collision still ends the run');
+        assertEquals(Animations.deathShakeFrames, QUIET_FRAMES,
+          mode + ' shake starts on the shorter window');
+        assertEquals(Animations.scorePopFrames, QUIET_FRAMES,
+          mode + ' score pop starts on that same window');
+        const scales = [];
+        ctx.scale = (x) => { scales.push(x); };
+        for (let i = 0; i < QUIET_FRAMES; i++) STATE_HANDLERS[STATE.DEAD]();
+        assertEquals(scales.length, QUIET_FRAMES, mode + ' scales once per shake frame');
+        assertEquals(scales[0], GAME_CONFIG.SCORE_POP_PEAK_SCALE,
+          mode + ' opens the pop at the quiet peak');
+        const peak = GAME_CONFIG.SCORE_POP_PEAK_SCALE;
+        const last = scales[scales.length - 1];
+        assert(last > 1 && last < 1 + (peak - 1) * 0.25,
+          mode + ' last shake frame has nearly settled the score');
+        assertEquals(Animations.scorePopFrames, 0, mode + ' pop is done when the shake is');
+        assertEquals(Animations.deathShakeFrames, 0, mode + ' shake is done');
+        STATE_HANDLERS[STATE.DEAD]();
+        assertEquals(scales.length, QUIET_FRAMES, mode + ' Game Over does not keep scaling the HUD');
+        assertEquals(game.state, STATE.DEAD, mode + ' the run stays over');
+      }
+
+      game.mode = MODES.CLASSIC;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      resetGame();
+      game.state = STATE.RUNNING;
+      game.graceFrames = 0;
+      game.obstacles.length = 0;
+      game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
+      gameLoop();
+      cancelAnimationFrame(game.animationFrameId);
+      assertEquals(Animations.deathShakeFrames, GAME_CONFIG.DEATH_SHAKE_FRAMES,
+        'Classic still starts the 12-frame shake');
+      assertEquals(Animations.scorePopFrames, 0, 'Classic still does not start the pop');
+    } finally {
+      ctx.scale = origScale;
+      game.mode = origMode;
+      setReducedMotion(false);
+      setQaNight(false);
+      game.obstacles.length = 0;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+});
+
+describe('QA death shake flag (?qaShake=1)', () => {
+  function tick() {
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+  }
+
+  function spyTranslate() {
+    const calls = [];
+    const orig = ctx.translate;
+    ctx.translate = function (x, y) {
+      calls.push({ x: x, y: y });
+    };
+    return {
+      calls: calls,
+      restore() { ctx.translate = orig; },
+    };
+  }
+
+  function armFreshRun(mode) {
+    game.mode = mode;
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    setQaLevel(false);
+    setQaNight(false);
+    setQaPlateau(false);
+    setQaTrail(false);
+    setQaConfetti(false);
+    setQaDust(false);
+    setQaFlash(false);
+    setQaScorePop(false);
+    setQaShake(false);
+    setReducedMotion(false);
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    game.obstacles.length = 0;
+    game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+    game.nextSpawnGap = GAME_CONFIG.MAX_SPAWN_GAP;
+    game.highScore = 0;
+    dino.y = GAME_CONFIG.CANVAS_H - dino.height;
+    dino.isJumping = false;
+    dino.velocityY = 0;
+    Animations.deathShakeFrames = 0;
+    Animations.scorePopFrames = 0;
+    Particles.reset();
+  }
+
+  it('recognizes only ?qaShake=1', () => {
+    assert(readQaShakeFlag('?qaShake=1') === true, '?qaShake=1 should hold the death nudge');
+    assert(readQaShakeFlag('?qaNight=1&qaShake=1') === true,
+      'the flag should work beside ?qaNight=1');
+    assert(readQaShakeFlag('?qaShake=1&qaFlash=1') === true, 'param order should not matter');
+    assert(readQaShakeFlag('') === false, 'a normal visit should leave the nudge for a real death');
+    assert(readQaShakeFlag('?qaShake=0') === false, 'only the value 1 enables the flag');
+    assert(readQaShakeFlag('?qaShake=8') === false, 'qaShake=8 must not count as the flag');
+    assert(readQaShakeFlag('?qaScorePop=1') === false, 'the score pop must not hold the shake');
+  });
+
+  it('holds the quieter peak from the first frame without arming the real shake', () => {
+    const origMode = game.mode;
+    const spy = spyTranslate();
+    try {
+      assert(QA_SHAKE_HOLD >= 120, 'the debug hold must outlast a quick capture');
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        armFreshRun(mode);
+        game.rng = mulberry32(11);
+        setQaShake(false);
+        spy.calls.length = 0;
+        tick();
+        const rngAfterOff = game.rng();
+        const speedOff = game.currentSpeed;
+        const scoreOff = game.score;
+        const dinoX = dino.x;
+        assertEquals(spy.calls.length, 0, mode + ' without the flag does not shift the camera');
+        assertEquals(game.qaShakeHold, 0, mode + ' without the flag does not start the hold');
+
+        armFreshRun(mode);
+        game.rng = mulberry32(11);
+        setQaShake(true);
+        game.score = 0;
+        spy.calls.length = 0;
+        tick();
+        assertEquals(spy.calls.length, 1, mode + ' shifts the camera once');
+        assertEquals(spy.calls[0].x, GAME_CONFIG.UPDATED_DEATH_SHAKE_AMPLITUDE,
+          mode + ' holds the quiet peak, not a louder debug shift');
+        assertEquals(spy.calls[0].y, 0, mode + ' hold stays horizontal');
+        assertEquals(qaShakeOffset(), GAME_CONFIG.UPDATED_DEATH_SHAKE_AMPLITUDE,
+          mode + ' playtest offset is the real quiet amplitude');
+        assertEquals(game.qaShakeHold, QA_SHAKE_HOLD, mode + ' latches the full hold');
+        assertEquals(game.qaShakeShown, true, mode + ' spends the latch');
+        assertEquals(Animations.deathShakeFrames, 0, mode + ' does not arm the real shake');
+        assertEquals(Animations.scorePopFrames, 0, mode + ' does not arm the real pop');
+        assertEquals(dino.x, dinoX, mode + ' hold must not move the dino');
+        assertEquals(game.score, scoreOff, mode + ' hold must not write the score');
+        assertEquals(game.currentSpeed, speedOff, mode + ' hold must not change speed');
+        assertEquals(game.rng(), rngAfterOff, mode + ' hold must not consume the run seed');
+
+        game.score = GAME_CONFIG.DAY_NIGHT_END;
+        spy.calls.length = 0;
+        tick();
+        assertEquals(spy.calls.length, 1, mode + ' night still shifts once');
+        assertEquals(spy.calls[0].x, GAME_CONFIG.UPDATED_DEATH_SHAKE_AMPLITUDE,
+          mode + ' night uses the same quiet peak');
+      }
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaShake(false);
+      setQaNight(false);
+      setReducedMotion(false);
+      Particles.reset();
+      Animations.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('still shifts the frame when a hit returns before the death draw', () => {
+    const origMode = game.mode;
+    const spy = spyTranslate();
+    try {
+      armFreshRun(MODES.UPDATED);
+      setQaShake(true);
+      game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
+      spy.calls.length = 0;
+      tick();
+      assertEquals(game.state, STATE.DEAD, 'the cactus still ends the run');
+      assertEquals(spy.calls.length, 1, 'the hold still shifts the hit frame');
+      assertEquals(spy.calls[0].x, GAME_CONFIG.UPDATED_DEATH_SHAKE_AMPLITUDE,
+        'the hit frame uses the quiet peak');
+      assertEquals(Animations.deathShakeFrames, GAME_CONFIG.UPDATED_DEATH_SHAKE_FRAMES,
+        'the real shake timer is still armed');
+      assertEquals(Animations.scorePopFrames, GAME_CONFIG.UPDATED_DEATH_SHAKE_FRAMES,
+        'the real pop stays locked to that shake');
+      assert(game.score < 1, 'dying on the QA frame does not invent score');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaShake(false);
+      game.obstacles.length = 0;
+      Particles.reset();
+      Animations.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('Classic with ?qaShake=1 does not take the Updated nudge', () => {
+    const origMode = game.mode;
+    const spy = spyTranslate();
+    try {
+      armFreshRun(MODES.CLASSIC);
+      setQaShake(true);
+      spy.calls.length = 0;
+      tick();
+      tick();
+      assertEquals(spy.calls.length, 0, 'Classic does not shift the camera');
+      assertEquals(game.qaShakeShown, false, 'Classic does not spend the Updated latch');
+      assertEquals(game.qaShakeHold, 0, 'Classic does not start the hold');
+      assertEquals(Animations.deathShakeFrames, 0, 'Classic does not arm a shake while running');
+      assertEquals(qaShakeOffset(), 0, 'Classic playtest offset stays at rest');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaShake(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('reduced motion shortens and damps the hold, and still shifts', () => {
+    const origMode = game.mode;
+    const spy = spyTranslate();
+    try {
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        armFreshRun(mode);
+        setReducedMotion(true);
+        setQaShake(true);
+        spy.calls.length = 0;
+        tick();
+        const damped = qaShakeOffset();
+        const peak = GAME_CONFIG.UPDATED_DEATH_SHAKE_AMPLITUDE;
+        assertEquals(game.qaShakeHold, qaShakeHoldFrames(),
+          mode + ' hold uses the shorter window');
+        assert(game.qaShakeHold < QA_SHAKE_HOLD,
+          mode + ' hold is shorter than the full capture');
+        assert(qaShakeHoldFrames() >= 2, mode + ' hold still lasts long enough to see');
+        assert(damped > 0, mode + ' damped hold still moves the lane');
+        assert(damped < peak, mode + ' damped hold is softer than the motion-allowed peak');
+        assertEquals(damped, peak * 0.5, mode + ' reduced motion halves the shift');
+        assertEquals(spy.calls.length, 1, mode + ' reduced motion still shifts once');
+        assertEquals(spy.calls[0].x, damped, mode + ' the paint uses the damped shift');
+        assertEquals(Animations.deathShakeFrames, 0, mode + ' hold does not arm the real shake');
+        assert(game.score < 1, mode + ' damped hold must not write the score');
+      }
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaShake(false);
+      setReducedMotion(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('resetGame re-reads ?qaShake=1 from the page query', () => {
+    const origMode = game.mode;
+    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
+    const prevLocation = global.location;
+    const spy = spyTranslate();
+    global.location = { search: '?qaShake=1' };
+    try {
+      setQaShake(false);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      game.state = STATE.RUNNING;
+      game.mode = MODES.UPDATED;
+      game.obstacles.length = 0;
+      game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+      game.nextSpawnGap = GAME_CONFIG.MAX_SPAWN_GAP;
+      game.highScore = 0;
+      Animations.deathShakeFrames = 0;
+      Particles.reset();
+      tick();
+      assertEquals(spy.calls.length, 1, 're-read flag shifts the camera');
+      assertEquals(spy.calls[0].x, GAME_CONFIG.UPDATED_DEATH_SHAKE_AMPLITUDE,
+        're-read flag holds the quiet peak');
+      assertEquals(game.qaShakeHold, QA_SHAKE_HOLD, 'the re-read flag latches the hold');
+      assert(game.score < 1, 're-reading the flag must not change the score');
+      assertEquals(game.qaShakeShown, true, 'the re-read flag spends the latch');
+    } finally {
+      spy.restore();
+      if (hadLocation) global.location = prevLocation;
+      else delete global.location;
+      game.mode = origMode;
+      setQaShake(false);
+      Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
   });
@@ -10671,8 +11018,16 @@ describe('Quieter death score pop', () => {
   }
 
   it('keeps the shake window and peaks as a breath, not a 1.4 slap', () => {
+    const origMode = game.mode;
+    try {
     assertEquals(GAME_CONFIG.SCORE_POP_FRAMES, 12,
-      'the pop still shares the 12-frame death shake');
+      'the classic-length count stays 12');
+    game.mode = MODES.UPDATED;
+    assertEquals(scorePopWindow(), GAME_CONFIG.UPDATED_DEATH_SHAKE_FRAMES,
+      'the Updated pop eases across the quieter shake');
+    } finally {
+      game.mode = origMode;
+    }
     assertEquals(GAME_CONFIG.SCORE_POP_PEAK_SCALE, 1.12,
       'the first frame grows the 20px digits by about 2.4px');
     assert(GAME_CONFIG.SCORE_POP_PEAK_SCALE < OLD_SLAP,
@@ -10694,9 +11049,9 @@ describe('Quieter death score pop', () => {
     try {
       setReducedMotion(false);
       game.score = 42;
-      Animations.scorePopFrames = GAME_CONFIG.SCORE_POP_FRAMES;
       for (const mode of [MODES.UPDATED, MODES.DAILY]) {
         game.mode = mode;
+        Animations.scorePopFrames = scorePopWindow();
         spy.calls.length = 0;
         drawScore();
         assertEquals(scalesNear(spy.calls, OLD_SLAP).length, 0,
@@ -10951,12 +11306,12 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
       assertEquals(game.state, STATE.DEAD, 'the cactus still ends the run');
       assertEquals(scalesNear(spy.calls, GAME_CONFIG.SCORE_POP_PEAK_SCALE).length, 1,
         'the hold still paints after the collision return');
-      assertEquals(Animations.scorePopFrames, GAME_CONFIG.SCORE_POP_FRAMES,
-        'the real pop timer is still armed for the death shake');
+      assertEquals(Animations.scorePopFrames, GAME_CONFIG.UPDATED_DEATH_SHAKE_FRAMES,
+        'the real pop timer is still armed for the quieter shake');
       assertEquals(Animations.deathFlashFrames, GAME_CONFIG.DEATH_FLASH_FRAMES,
         'the death blink is unchanged');
-      assertEquals(Animations.deathShakeFrames, GAME_CONFIG.DEATH_SHAKE_FRAMES,
-        'the death shake is unchanged');
+      assertEquals(Animations.deathShakeFrames, GAME_CONFIG.UPDATED_DEATH_SHAKE_FRAMES,
+        'the death shake uses the shorter window');
       assert(game.score < 1, 'dying on the QA frame does not invent score');
     } finally {
       spy.restore();

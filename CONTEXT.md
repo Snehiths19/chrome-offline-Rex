@@ -80,7 +80,7 @@ _Avoid_: sparkle, twinkle (those pull the eye; the field should not)
 **Clouds** — the soft sky mounds that drift behind the run. Their positions and speeds are cosmetic, never the run seed. In Updated and Daily the day puff is a quieter whisper on the white sky, and once the sky is fully night the same ink dims further so the large shapes stay peripheral Atmosphere and do not compete with the obstacle lane. Classic keeps the full-opacity puff even when the shared sky is night. They are not hills, **Stars**, or the **Ground strip**.
 _Avoid_: weather, fog
 
-**Animations** — the module that owns all per-run animation countdown timers (death shake, death flash, score pop, milestone flash, new-best badge, copy flash, death score count-up). A single `Animations.reset()` call zeroes all counters at the start of each run. Handlers and draw functions read and write counters directly via `Animations.X`.
+**Animations** — the module that owns all per-run animation countdown timers (death shake, death flash, score pop, milestone flash, new-best badge, copy flash, death score count-up). A single `Animations.reset()` call zeroes all counters at the start of each run. Handlers and draw functions read and write counters directly via `Animations.X`. In Updated and Daily the death shake is a short settle, and the score pop eases across that same window, so Game Over opens after the HUD has settled. Classic keeps the longer death shake and does not start the score pop. Under prefers-reduced-motion the death flash and the score pop keep their own shorten; the death shake values stay.
 
 ## Randomness
 
