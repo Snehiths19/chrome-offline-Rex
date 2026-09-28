@@ -656,7 +656,12 @@ function shareDailyResult() {
     'https://snehiths19.github.io/chrome-offline-Rex/',
   ].join('\n');
   if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).catch(() => {});
+    // writeText can throw synchronously when the clipboard is blocked.
+    // That must not escape: the Copied flash is independent of the write.
+    try {
+      const pending = navigator.clipboard.writeText(text);
+      if (pending && typeof pending.catch === 'function') pending.catch(() => {});
+    } catch { /* clipboard blocked */ }
   }
   return text;
 }
@@ -1565,8 +1570,11 @@ const shareBtn = document.getElementById('share-btn');
 if (shareBtn && shareBtn.addEventListener) {
   const onShareTap = (event) => {
     if (event) event.stopPropagation();
-    shareDailyResult();
+    // Start the flash before the clipboard call. A sync throw from
+    // writeText used to abort this handler, so the label never changed.
     Animations.copyFlashFrames = 90; // ~1.5 s at 60 fps
+    shareBtn.textContent = '✓ Copied!';
+    shareDailyResult();
   };
   shareBtn.addEventListener('click', onShareTap);
   shareBtn.addEventListener('touchstart', (event) => {

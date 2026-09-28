@@ -2257,6 +2257,50 @@ describe('Share result', () => {
     assert(!threw, 'shareDailyResult() should not throw even with no clipboard');
     game.dailyBest = origDailyBest;
   });
+
+  function withClipboard(writeText, run) {
+    const shareBtn = document.getElementById('share-btn');
+    const handler = shareBtn._listeners && shareBtn._listeners.click && shareBtn._listeners.click[0];
+    assert(typeof handler === 'function', 'share button must register a click handler');
+    const origDesc = Object.getOwnPropertyDescriptor(global, 'navigator');
+    const origFlash = Animations.copyFlashFrames;
+    const origText = shareBtn.textContent;
+    Animations.copyFlashFrames = 0;
+    shareBtn.textContent = '📋 Copy result';
+    Object.defineProperty(global, 'navigator', {
+      configurable: true,
+      writable: true,
+      value: { clipboard: { writeText } },
+    });
+    let threw = false;
+    try {
+      handler({ stopPropagation() {} });
+    } catch {
+      threw = true;
+    }
+    const flash = Animations.copyFlashFrames;
+    const label = shareBtn.textContent;
+    if (origDesc) Object.defineProperty(global, 'navigator', origDesc);
+    Animations.copyFlashFrames = origFlash;
+    shareBtn.textContent = origText;
+    run({ threw, flash, label });
+  }
+
+  it('Copy result still flashes when clipboard writeText throws', () => {
+    withClipboard(() => { throw new Error('clipboard blocked'); }, ({ threw, flash, label }) => {
+      assert(!threw, 'a blocked clipboard must not abort the share tap');
+      assert(flash > 0, 'copy flash should start even when writeText throws');
+      assertEquals(label, '✓ Copied!', 'the button should say Copied before the next frame');
+    });
+  });
+
+  it('Copy result still flashes when clipboard writeText rejects', () => {
+    withClipboard(() => Promise.reject(new Error('clipboard denied')), ({ threw, flash, label }) => {
+      assert(!threw, 'a rejected clipboard write must not abort the share tap');
+      assert(flash > 0, 'copy flash should start even when writeText rejects');
+      assertEquals(label, '✓ Copied!', 'the button should say Copied before the next frame');
+    });
+  });
 });
 
 describe('Daily obstacle sequence vs reduced motion', () => {
