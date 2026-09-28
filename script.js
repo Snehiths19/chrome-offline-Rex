@@ -2047,8 +2047,15 @@ const gameWrapper = document.getElementById('game-wrapper');
 function refreshDailyButton() {
   if (!dailyBtn || !dailyBtn.setAttribute) return;
   const active = isDailyMode();
+  // Same UTC #N as the seed, pre-run line, and share text. The calendar
+  // emoji stays so the control is still the Daily button before you tap.
+  const number = '#' + dailyNumber();
   dailyBtn.setAttribute('aria-pressed', String(active));
-  dailyBtn.setAttribute('aria-label', active ? 'Leave daily challenge' : 'Daily challenge');
+  dailyBtn.setAttribute(
+    'aria-label',
+    (active ? 'Leave daily challenge ' : 'Daily challenge ') + number
+  );
+  dailyBtn.textContent = '📅 ' + number;
   if (gameWrapper && gameWrapper.classList) {
     if (active) gameWrapper.classList.add('daily-active');
     else gameWrapper.classList.remove('daily-active');
@@ -2469,6 +2476,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.a11yLive = a11yLive;
   global.dailySeed = dailySeed;
   global.dailyNumber = dailyNumber;
+  global.refreshDailyButton = refreshDailyButton;
   global.ScoreStore = ScoreStore;
   global.isDailyMode = isDailyMode;
   global.shareDailyResult = shareDailyResult;

@@ -90,6 +90,7 @@ export default [
         computeRunResult: 'readonly',
         dailyNumber: 'readonly',
         dailySeed: 'readonly',
+        refreshDailyButton: 'readonly',
         drawGetReadyOverlay: 'readonly',
         drawIdleScreen: 'readonly',
         drawNewBestBadge: 'readonly',

@@ -53,8 +53,12 @@ body {
   left: 68px;
   z-index: 2;
   padding: 4px 8px;
-  font-size: 14px;
-  line-height: 1;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 14px; /* Match the mute pill height once #N sits beside the calendar. */
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap; /* A wider day number stays one label, never wraps under the emoji. */
   background: rgba(255, 255, 255, 0.85);
   border: 1px solid #999;
   border-radius: 999px;
@@ -62,6 +66,15 @@ body {
   user-select: none;
   -webkit-tap-highlight-color: transparent;
   transition: background-color 80ms ease-out, transform 80ms ease-out;
+}
+
+/* #N grows by a digit every few years. Keep the pill on the mute side of the mode toggle. */
+@media (max-width: 420px) {
+  #daily-btn {
+    padding: 4px 6px;
+    font-size: 12px;
+    letter-spacing: 0;
+  }
 }
 
 #daily-btn[aria-pressed='true'] {
