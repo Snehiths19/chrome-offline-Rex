@@ -121,6 +121,8 @@ export default [
         readQaNightFlag: 'readonly',
         setQaLevel: 'readonly',
         readQaLevelFlag: 'readonly',
+        setQaTrail: 'readonly',
+        readQaTrailFlag: 'readonly',
         obstacleNightBrightness: 'readonly',
         dinoNightBrightness: 'readonly',
         cloudPaintAlpha: 'readonly',

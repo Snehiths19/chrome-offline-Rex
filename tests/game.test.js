@@ -7244,7 +7244,7 @@ describe('Soft collision burst', () => {
   const UNCHANGED_KINDS = {
     jump:      { count: 6,  color: '#9c8770',                size: 3, life: 18, vyMin: -2.0, vyMax: -0.5, vxSpread: 1.5, gravity: 0.05 },
     land:      { count: 9,  color: '#9c8770',                size: 3, life: 14, vyMin: -1.5, vyMax: -0.2, vxSpread: 2.5, gravity: 0.08 },
-    trail:     { count: 1,  color: 'rgba(150,150,150,0.55)', size: 2, life: 10, vyMin: -0.2, vyMax:  0.2, vxSpread: 0.4, gravity: 0 },
+    trail:     { count: 1,  color: 'rgba(150,150,150,0.28)', size: 2, life:  6, vyMin: -0.1, vyMax:  0.1, vxSpread: 0.2, gravity: 0 },
     confetti:  { count: 20, color: '#ffd700',                size: 3, life: 40, vyMin: -3.5, vyMax: -1.5, vxSpread: 3.0, gravity: 0.12 },
     plateau:   { count: 8,  color: '#c5d4e4',                size: 2, life: 24, vyMin: -1.0, vyMax: -0.3, vxSpread: 0.6, gravity: 0.02 },
     plateauQa: { count: 12, color: '#3d4f63',                size: 4, life: 40, vyMin: -1.4, vyMax: -0.4, vxSpread: 1.0, gravity: 0.03 },
@@ -7399,6 +7399,342 @@ describe('Soft collision burst', () => {
       game.score = origScore;
       game.currentSpeed = origSpeed;
       setReducedMotion(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+});
+
+describe('Quiet late-run heel trail', () => {
+  // The late-run smear was one grey mote per frame, alpha 0.55, living 10
+  // frames, drifting ±0.4px. About ten specks stacked on the ground line
+  // where cacti arrive. The whisper keeps that one-mote cadence and the
+  // same grey, with less ink, a shorter life, and a tighter drift so it
+  // stays at the heel. Size stays 2 so the speck is still visible.
+  const WHISPER = {
+    count: 1,
+    color: 'rgba(150,150,150,0.28)',
+    size: 2,
+    life: 6,
+    vyMin: -0.1,
+    vyMax: 0.1,
+    vxSpread: 0.2,
+    gravity: 0,
+  };
+
+  const UNCHANGED_KINDS = {
+    jump:      { count: 6,  color: '#9c8770', size: 3, life: 18, vyMin: -2.0, vyMax: -0.5, vxSpread: 1.5, gravity: 0.05 },
+    land:      { count: 9,  color: '#9c8770', size: 3, life: 14, vyMin: -1.5, vyMax: -0.2, vxSpread: 2.5, gravity: 0.08 },
+    collision: { count: 8,  color: '#d04a2a', size: 3, life: 12, vyMin: -1.2, vyMax:  0.4, vxSpread: 1.0, gravity: 0.10 },
+    confetti:  { count: 20, color: '#ffd700', size: 3, life: 40, vyMin: -3.5, vyMax: -1.5, vxSpread: 3.0, gravity: 0.12 },
+    plateau:   { count: 8,  color: '#c5d4e4', size: 2, life: 24, vyMin: -1.0, vyMax: -0.3, vxSpread: 0.6, gravity: 0.02 },
+    plateauQa: { count: 12, color: '#3d4f63', size: 4, life: 40, vyMin: -1.4, vyMax: -0.4, vxSpread: 1.0, gravity: 0.03 },
+  };
+
+  function trailCrossScore() {
+    const { INITIAL_SPEED, PLATEAU_SPEED, RAMP_STEEPNESS, RAMP_MIDPOINT, TRAIL_SPEED_RATIO } =
+      GAME_CONFIG;
+    const sig = (TRAIL_SPEED_RATIO * PLATEAU_SPEED - INITIAL_SPEED) / (PLATEAU_SPEED - INITIAL_SPEED);
+    return RAMP_MIDPOINT - Math.log(1 / sig - 1) / RAMP_STEEPNESS;
+  }
+
+  function scoreJustBeforeTrail() {
+    const cross = trailCrossScore();
+    const after = Math.ceil((cross - 1e-9) * 10) / 10;
+    return after - GAME_CONFIG.SCORE_INCREMENT;
+  }
+
+  function trailMotes() {
+    return Particles.particles.filter((p) => p.life > 0 && p.color === WHISPER.color);
+  }
+
+  function armRun(mode) {
+    game.mode = mode;
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    setQaTrail(false);
+    setQaLevel(false);
+    setQaNight(false);
+    setQaPlateau(false);
+    setReducedMotion(false);
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    Particles.reset();
+    game.plateauCueShown = false;
+    game.obstacles.length = 0;
+    game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+    game.nextSpawnGap = GAME_CONFIG.MAX_SPAWN_GAP;
+    dino.y = GAME_CONFIG.CANVAS_H - dino.height;
+    dino.isJumping = false;
+    dino.velocityY = 0;
+  }
+
+  function tick() {
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+  }
+
+  it('is a shorter, fainter grey speck that still sits at the heel', () => {
+    const kind = Particles.KINDS.trail;
+    assertEquals(kind.count, WHISPER.count, 'still one mote per frame');
+    assertEquals(kind.color, WHISPER.color, 'same grey, about half the old 0.55 ink');
+    assertEquals(kind.size, WHISPER.size, 'size stays a readable 2px speck');
+    assertEquals(kind.life, WHISPER.life, 'life is shorter so the stack dies at the heel');
+    assertEquals(kind.vyMin, WHISPER.vyMin, 'the whisper does not lift off the heel');
+    assertEquals(kind.vyMax, WHISPER.vyMax, 'the whisper does not drop off the heel');
+    assertEquals(kind.vxSpread, WHISPER.vxSpread, 'horizontal drift stays tighter than the old smear');
+    assertEquals(kind.gravity, WHISPER.gravity, 'the mote does not fall away from the heel');
+    assert(kind.life < 10, 'shorter than the old 10-frame smear');
+    assert(kind.vxSpread < 0.4, 'tighter than the old ±0.4 drift');
+    const alpha = Number(kind.color.slice(kind.color.lastIndexOf(',') + 1, -1));
+    assert(alpha < 0.4, 'fainter than the old 0.55 alpha');
+    assert(kind.vxSpread * kind.life <= 2, 'a full life of drift stays within 2px of the heel');
+
+    for (const name of Object.keys(UNCHANGED_KINDS)) {
+      const got = Particles.KINDS[name];
+      const want = UNCHANGED_KINDS[name];
+      for (const key of Object.keys(want)) {
+        assertEquals(got[key], want[key], name + ' ' + key + ' stays unchanged');
+      }
+    }
+  });
+
+  it('emits in Updated and Daily once speed nears the plateau, and never in Classic', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      const before = scoreJustBeforeTrail();
+      const reached = before + GAME_CONFIG.SCORE_INCREMENT;
+      const threshold = GAME_CONFIG.PLATEAU_SPEED * GAME_CONFIG.TRAIL_SPEED_RATIO;
+      assert(
+        DifficultyProfile.speedAtScore(before) < threshold,
+        'the frame before the whisper should still be under the trail speed'
+      );
+      assert(
+        DifficultyProfile.speedAtScore(reached) >= threshold,
+        'the reaching frame should be on the trail side of the ratio'
+      );
+      assert(
+        threshold < GAME_CONFIG.PLATEAU_SPEED * GAME_CONFIG.PLATEAU_REACH_RATIO,
+        'the whisper starts before the once-per-run plateau cue'
+      );
+
+      armRun(MODES.UPDATED);
+      game.score = before - GAME_CONFIG.SCORE_INCREMENT;
+      tick();
+      assertEquals(trailMotes().length, 0, 'one frame early should not whisper');
+      assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
+        'an early frame still takes speed from the curve');
+
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        armRun(mode);
+        const seed = game.rng;
+        game.score = before;
+        tick();
+        const motes = trailMotes();
+        assertEquals(motes.length, WHISPER.count, mode + ' emits one whisper mote');
+        motes.forEach((p) => {
+          assertEquals(p.life, WHISPER.life, mode + ' mote uses the short life');
+          assertEquals(p.maxLife, WHISPER.life, mode + ' mote fades across that life');
+          assertEquals(p.size, WHISPER.size, mode + ' mote keeps the readable size');
+          assertEquals(p.color, WHISPER.color, mode + ' mote stays the quiet grey');
+          assertEquals(p.gravity, WHISPER.gravity, mode + ' mote stays weightless');
+          assert(Math.abs(p.x - (dino.x + 4)) <= cfg('PARTICLE_EMIT_SPREAD') / 2,
+            mode + ' mote stays on the heel, including emit jitter');
+          assertEquals(p.y, dino.y + dino.height - 4, mode + ' mote starts at the heel');
+        });
+        assertEquals(game.plateauCueShown, false, mode + ' whisper does not spend the plateau cue');
+        assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
+          mode + ' speed still follows the score');
+        assertEquals(game.rng, seed, mode + ' whisper does not replace the run seed');
+      }
+
+      armRun(MODES.CLASSIC);
+      game.score = before;
+      tick();
+      assertEquals(trailMotes().length, 0, 'Classic never trails');
+      assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
+        'Classic speed still follows the score');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setQaTrail(false);
+      setReducedMotion(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('still damps the whisper under reduced motion', () => {
+    const origMode = game.mode;
+    try {
+      game.mode = MODES.UPDATED;
+      setReducedMotion(true);
+      Particles.reset();
+      const n = Particles.emit('trail', dino.x + 4, dino.y + dino.height - 4);
+      const expectedCount = Math.max(1, Math.round(WHISPER.count * 0.25));
+      const expectedLife = Math.max(2, Math.round(WHISPER.life * 0.5));
+      assertEquals(n, expectedCount, 'reduced motion still applies the quarter-count floor');
+      assert(expectedLife < WHISPER.life, 'reduced motion still halves trail life');
+      trailMotes().forEach((p) => {
+        assertEquals(p.life, expectedLife, 'reduced motion still halves the whisper');
+        assertEquals(p.color, WHISPER.color, 'reduced motion keeps the quiet grey');
+      });
+
+      armRun(MODES.UPDATED);
+      setReducedMotion(true);
+      setQaTrail(true);
+      tick();
+      assertEquals(trailMotes().length, expectedCount, 'a running frame still damps the whisper');
+      trailMotes().forEach((p) => {
+        assertEquals(p.life, expectedLife, 'the running frame uses the halved life');
+      });
+      assert(game.score < 1, 'the damped whisper does not move the score');
+      assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
+        'the damped whisper does not move the speed');
+    } finally {
+      game.mode = origMode;
+      setQaTrail(false);
+      setReducedMotion(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+});
+
+describe('QA trail flag (?qaTrail=1)', () => {
+  const WHISPER_COLOR = 'rgba(150,150,150,0.28)';
+
+  function trailMotes() {
+    return Particles.particles.filter((p) => p.life > 0 && p.color === WHISPER_COLOR);
+  }
+
+  function tick() {
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+  }
+
+  function armFreshRun(mode) {
+    game.mode = mode;
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    setQaLevel(false);
+    setQaNight(false);
+    setQaPlateau(false);
+    setReducedMotion(false);
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    game.obstacles.length = 0;
+    game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+    game.nextSpawnGap = GAME_CONFIG.MAX_SPAWN_GAP;
+    dino.y = GAME_CONFIG.CANVAS_H - dino.height;
+    dino.isJumping = false;
+    dino.velocityY = 0;
+    Particles.reset();
+  }
+
+  it('recognizes only ?qaTrail=1', () => {
+    assert(readQaTrailFlag('?qaTrail=1') === true, '?qaTrail=1 should enable the early heel trail');
+    assert(readQaTrailFlag('?qaNight=1&qaTrail=1') === true, 'the flag should work beside ?qaNight=1');
+    assert(readQaTrailFlag('?qaTrail=1&qaNight=1') === true, 'param order should not matter');
+    assert(readQaTrailFlag('') === false, 'a normal visit should leave the trail on real speed');
+    assert(readQaTrailFlag('?qaTrail=0') === false, 'only the value 1 enables the flag');
+    assert(readQaTrailFlag('?qaTrail=12') === false, 'qaTrail=12 must not count as the flag');
+    assert(readQaTrailFlag('?qaNight=1') === false, 'night alone must not force the trail');
+  });
+
+  it('emits the whisper on the first Updated and Daily frame without moving score or speed', () => {
+    const origMode = game.mode;
+    try {
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        armFreshRun(mode);
+        game.rng = mulberry32(11);
+        setQaTrail(false);
+        tick();
+        const rngAfterOff = game.rng();
+        const speedOff = game.currentSpeed;
+        assertEquals(trailMotes().length, 0, mode + ' without the flag does not whisper at the start');
+
+        armFreshRun(mode);
+        game.rng = mulberry32(11);
+        setQaTrail(true);
+        tick();
+        const motes = trailMotes();
+        assertEquals(motes.length, Particles.KINDS.trail.count, mode + ' emits the whisper immediately');
+        motes.forEach((p) => {
+          assertEquals(p.life, Particles.KINDS.trail.life, mode + ' uses the quiet life');
+          assertEquals(p.color, WHISPER_COLOR, mode + ' uses the quiet grey');
+          assert(Math.abs(p.x - (dino.x + 4)) <= cfg('PARTICLE_EMIT_SPREAD') / 2,
+            mode + ' QA mote stays at the heel');
+          assertEquals(p.y, dino.y + dino.height - 4, mode + ' QA mote starts at the heel');
+        });
+        assertEquals(game.score, GAME_CONFIG.SCORE_INCREMENT, mode + ' must not jump the score');
+        assertEquals(game.currentSpeed, speedOff, mode + ' must not change speed');
+        assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
+          mode + ' speed still follows the real score');
+        assertEquals(game.rng(), rngAfterOff, mode + ' does not consume the run seed');
+        assertEquals(game.plateauCueShown, false, mode + ' does not spend the plateau cue');
+
+        tick();
+        assertEquals(trailMotes().length, 2, mode + ' keeps whispering on the next frame');
+        assertEquals(game.score, GAME_CONFIG.SCORE_INCREMENT * 2, mode + ' scoring keeps its normal step');
+      }
+    } finally {
+      game.mode = origMode;
+      setQaTrail(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('Classic with ?qaTrail=1 still emits nothing', () => {
+    const origMode = game.mode;
+    try {
+      armFreshRun(MODES.CLASSIC);
+      setQaTrail(true);
+      tick();
+      tick();
+      assertEquals(trailMotes().length, 0, 'Classic never trails, even with the flag');
+      assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
+        'Classic speed still follows the score');
+    } finally {
+      game.mode = origMode;
+      setQaTrail(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('resetGame re-reads ?qaTrail=1 from the page query', () => {
+    const origMode = game.mode;
+    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
+    const prevLocation = global.location;
+    global.location = { search: '?qaNight=1&qaTrail=1' };
+    try {
+      setQaTrail(false);
+      setQaNight(false);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      game.state = STATE.RUNNING;
+      game.mode = MODES.UPDATED;
+      game.obstacles.length = 0;
+      game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+      game.nextSpawnGap = GAME_CONFIG.MAX_SPAWN_GAP;
+      tick();
+      assertEquals(trailMotes().length, Particles.KINDS.trail.count,
+        'resetGame should arm the early whisper from location.search');
+      assert(game.score < 1, 're-reading the flag must not change the score');
+      assertEquals(getBackgroundColor(game.score), '#1a1a2e',
+        'qaNight on the same query still paints night');
+    } finally {
+      if (hadLocation) global.location = prevLocation;
+      else delete global.location;
+      game.mode = origMode;
+      setQaTrail(false);
+      setQaNight(false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }

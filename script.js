@@ -259,6 +259,11 @@ const GAME_CONFIG = Object.freeze({
   // PLATEAU_SPEED but never reaches it; 0.98 is about score 641. Visual only —
   // speed, gaps, and scoring still read the curve directly, not this ratio.
   PLATEAU_REACH_RATIO:      0.98,
+  // Heel-trail whisper starts a little before that cue. 0.96 of plateau
+  // speed is still late-run, on the night sky (about score 568). Visual
+  // only — speed, gaps, and scoring do not read this ratio. ?qaTrail=1
+  // emits the same whisper without waiting for it.
+  TRAIL_SPEED_RATIO:        0.96,
 
   // --- HUD ---
   SCORE_X_OFFSET:         150,    // pixels from right edge for the current-score label
@@ -453,6 +458,29 @@ let qaLevel = readQaLevelFlag();
 
 function setQaLevel(enabled) {
   qaLevel = !!enabled;
+}
+
+// QA/debug only — not for players. ?qaTrail=1 emits the late-run heel
+// whisper from the first Updated/Daily RUNNING frame, so playtest can see
+// it without a score-~570 run. It does not write the score, speed, gaps,
+// or game.rng(). Classic never takes it. Pair with ?qaNight=1 to put that
+// whisper on the night sky it actually lives on. Re-read in resetGame()
+// like the other QA flags. Tests flip it through setQaTrail(); a normal
+// visit leaves this false.
+function readQaTrailFlag(search) {
+  const query = search !== undefined
+    ? search
+    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
+      ? location.search
+      : '');
+  if (!query) return false;
+  return new URLSearchParams(query).get('qaTrail') === '1';
+}
+
+let qaTrail = readQaTrailFlag();
+
+function setQaTrail(enabled) {
+  qaTrail = !!enabled;
 }
 
 // Score the night sky consults. The QA flag pretends night has fully arrived.
@@ -1733,7 +1761,16 @@ const Particles = (() => {
   const KINDS = Object.freeze({
     jump:      { count:  6, color: '#9c8770',                size: 3, life: 18, vyMin: -2.0, vyMax: -0.5, vxSpread: 1.5, gravity: 0.05 },
     land:      { count:  9, color: '#9c8770',                size: 3, life: 14, vyMin: -1.5, vyMax: -0.2, vxSpread: 2.5, gravity: 0.08 },
-    trail:     { count:  1, color: 'rgba(150,150,150,0.55)', size: 2, life: 10, vyMin: -0.2, vyMax:  0.2, vxSpread: 0.4, gravity: 0    },
+    // Late-run heel whisper in Updated and Daily. One grey mote per frame
+    // once speed is near the plateau, at the heel, off the obstacle lane.
+    // The old mote was rgba alpha 0.55 for 10 frames and drifted ±0.4px,
+    // so about ten specks stacked into a smear on the ground line where
+    // cacti arrive. Alpha 0.28 is about half that ink. Life 6 lets the
+    // stack die at the heel. vxSpread 0.2 keeps a full life inside 2px.
+    // Size stays 2 so the speck is still visible on the night sky. The
+    // grey stays 150,150,150. Reduced motion still applies REDUCED_FACTOR
+    // and half life. Classic never emits.
+    trail:     { count:  1, color: 'rgba(150,150,150,0.28)', size: 2, life:  6, vyMin: -0.1, vyMax:  0.1, vxSpread: 0.2, gravity: 0    },
     // Death puff in Updated and Daily. Classic never emits. The old burst
     // was 22 motes living 24 frames and flung ±4px/frame. The shake only
     // draws particles for 12 frames, and in that window a mote could travel
@@ -2136,6 +2173,7 @@ function resetGame() {
   qaBig = readQaBigFlag();
   qaNight = readQaNightFlag();
   qaLevel = readQaLevelFlag();
+  qaTrail = readQaTrailFlag();
   game.isNewBest         = false;
   game.previousHighScore = 0;
   game.isNewTodayBest    = false;
@@ -2307,8 +2345,16 @@ function handleRunning() {
     }
   }
 
-  // Speed-trail particles: subtle dust trailing off the dino approaching plateau speed.
-  if (isUpdatedMode() && game.currentSpeed >= GAME_CONFIG.PLATEAU_SPEED * 0.96) {
+  // Heel trail: one quiet grey mote per frame once speed is near the
+  // plateau, at the heel so late-run Atmosphere stays off the obstacle
+  // lane. QA/debug only — not for players: ?qaTrail=1 emits that same
+  // whisper from the first Updated/Daily frame. Pair with ?qaNight=1 to
+  // see it on the night sky. Classic never enters. Particles.emit uses
+  // Math.random(), not game.rng(). The flag does not change speed, gaps,
+  // or scoring.
+  const trailOn = qaTrail
+    || game.currentSpeed >= GAME_CONFIG.PLATEAU_SPEED * GAME_CONFIG.TRAIL_SPEED_RATIO;
+  if (isUpdatedMode() && trailOn) {
     Particles.emit('trail', dino.x + 4, dino.y + dino.height - 4);
   }
 
@@ -2500,6 +2546,8 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.readQaNightFlag = readQaNightFlag;
   global.setQaLevel = setQaLevel;
   global.readQaLevelFlag = readQaLevelFlag;
+  global.setQaTrail = setQaTrail;
+  global.readQaTrailFlag = readQaTrailFlag;
   global.obstacleNightBrightness = obstacleNightBrightness;
   global.dinoNightBrightness = dinoNightBrightness;
   global.cloudPaintAlpha = cloudPaintAlpha;
