@@ -313,6 +313,26 @@ const GAME_CONFIG = Object.freeze({
   // shrink the score. Playtest with ?qaScorePop=1. Read through cfg().
   SCORE_POP_PEAK_SCALE:     1.12,
   MILESTONE_FRAMES:        90,
+  // Visual only. Updated and Daily center LEVEL label. Classic keeps
+  // bold 22px for every one of these 90 frames, alpha =
+  // frames / MILESTONE_FRAMES, black by day and white from
+  // DAY_NIGHT_START. The word sits in the jump band for that whole
+  // wash, so full-black 22px pulls the eye off the obstacle lane.
+  // 16px is about three quarters of that size. 45 frames is half the
+  // wash: long enough to read LEVEL once, then the word is gone while
+  // the gold wash finishes its 90. Peak 0.5 is half the old ink. Day
+  // black lands near #808080. Night white stays a light mark on
+  // #1a1a2e. The wash, the confetti, and audio.milestone() do not
+  // read these. Reduced motion halves the text frames again and keeps
+  // this peak, so the cue still reads when the wash is suppressed.
+  // A tune outside 12..18px, 1..90 frames, or 0..1 alpha falls back,
+  // so a typo cannot restore the billboard or drop the word. Playtest
+  // with ?qaLevel=1, which also holds the quiet peak; that hold is
+  // half as long and half as strong under reduced motion. Read
+  // through cfg().
+  UPDATED_MILESTONE_FONT_PX:     16,
+  UPDATED_MILESTONE_TEXT_FRAMES: 45,
+  UPDATED_MILESTONE_PEAK_ALPHA:  0.5,
   NEW_BEST_FRAMES:        120,
   // Soft ceiling for the once-per-run plateau cue. The speed curve approaches
   // PLATEAU_SPEED but never reaches it; 0.98 is about score 641. Visual only —
@@ -512,12 +532,18 @@ function setQaNight(enabled) {
 }
 
 // QA/debug only — not for players. ?qaLevel=1 fires the first Updated/Daily
-// milestone flash on the opening RUNNING frames so the sky wash can be seen
-// without a score-100 run. It does not write the score, speed, gaps, or
-// game.rng(). Classic never takes it, so Classic still has no gold tint.
-// The day wash stays the day peak; pair with ?qaNight=1 for the quiet night
-// peak. Re-read in resetGame() like the other QA flags. Tests flip it
-// through setQaLevel(); a normal visit leaves this false.
+// milestone flash on the opening RUNNING frames so the sky wash and the
+// quiet LEVEL word can be seen without a score-100 run. The word also
+// stays up for QA_LEVEL_HOLD frames after that live fade, from
+// drawQaLevelLabel(), so a short label can still be captured. Reduced
+// motion halves that hold and halves its ink. It does not write the
+// score, speed, gaps, or game.rng(), and it does not lengthen the gold
+// wash. Classic never takes it, so Classic still has no gold tint and
+// no early word. The day wash stays the day peak; pair with ?qaNight=1
+// for the quiet night peak. Re-read in resetGame() like the other QA
+// flags. Tests flip it through setQaLevel(); a normal visit leaves this
+// false.
+const QA_LEVEL_HOLD = 180;
 function readQaLevelFlag(search) {
   const query = search !== undefined
     ? search
@@ -532,6 +558,11 @@ let qaLevel = readQaLevelFlag();
 
 function setQaLevel(enabled) {
   qaLevel = !!enabled;
+}
+
+function qaLevelHoldFrames() {
+  if (!reducedMotion) return QA_LEVEL_HOLD;
+  return Math.max(2, Math.round(QA_LEVEL_HOLD * 0.5));
 }
 
 // QA/debug only — not for players. ?qaTrail=1 emits the late-run heel
@@ -1257,6 +1288,8 @@ const game = {
   qaBigShown:       false,
   // QA/debug only. Latches after ?qaLevel=1 spends its one early milestone flash.
   qaLevelShown:     false,
+  // QA/debug only. Frames left on the ?qaLevel=1 quiet LEVEL label.
+  qaLevelHold:      0,
   // QA/debug only. Latches after ?qaConfetti=1 spends its one early gold puff.
   qaConfettiShown:  false,
   qaConfettiHold:   0,
@@ -2152,16 +2185,87 @@ function drawDailyDeathHint() {
   ctx.fillText(DAILY_DEATH_HINT, GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H - 16);
 }
 
-function drawMilestoneFlash() {
-  if (Animations.milestoneFrames <= 0) return;
+function milestoneFontPx() {
+  const tuned = cfg('UPDATED_MILESTONE_FONT_PX');
+  if (typeof tuned === 'number' && tuned >= 12 && tuned <= 18) return tuned;
+  return GAME_CONFIG.UPDATED_MILESTONE_FONT_PX;
+}
+
+function milestoneTextFrames() {
+  const tuned = cfg('UPDATED_MILESTONE_TEXT_FRAMES');
+  const fallback = GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES;
+  let frames = typeof tuned === 'number' && tuned >= 1 && tuned <= GAME_CONFIG.MILESTONE_FRAMES
+    ? Math.round(tuned)
+    : fallback;
+  if (reducedMotion) frames = Math.max(2, Math.round(frames * 0.5));
+  return frames;
+}
+
+function milestonePeakAlpha() {
+  return tunedUnitAlpha('UPDATED_MILESTONE_PEAK_ALPHA', GAME_CONFIG.UPDATED_MILESTONE_PEAK_ALPHA);
+}
+
+function milestoneLabelFill() {
+  return scoreForNightSky(game.score) >= GAME_CONFIG.DAY_NIGHT_START ? '#ffffff' : '#000000';
+}
+
+// Null once the Updated/Daily word has left. Classic always has a paint
+// while the wash timer is still running. framesRemaining is the value
+// before this frame's countdown.
+function milestoneLabelForFrame(framesRemaining) {
+  if (!isUpdatedMode()) {
+    return {
+      font: 'bold 22px ' + cfg('SCORE_FONT_FAMILY'),
+      alpha: framesRemaining / GAME_CONFIG.MILESTONE_FRAMES,
+    };
+  }
+  const textFrames = milestoneTextFrames();
+  const elapsed = GAME_CONFIG.MILESTONE_FRAMES - framesRemaining;
+  if (elapsed < 0 || elapsed >= textFrames) return null;
+  const remain = textFrames - elapsed;
+  return {
+    font: 'bold ' + milestoneFontPx() + 'px ' + cfg('SCORE_FONT_FAMILY'),
+    alpha: (remain / textFrames) * milestonePeakAlpha(),
+  };
+}
+
+function paintMilestoneLabel(paint) {
   ctx.save();
-  ctx.globalAlpha = Animations.milestoneFrames / GAME_CONFIG.MILESTONE_FRAMES;
-  ctx.fillStyle = scoreForNightSky(game.score) >= GAME_CONFIG.DAY_NIGHT_START ? '#ffffff' : '#000000';
+  ctx.globalAlpha = paint.alpha;
+  ctx.fillStyle = milestoneLabelFill();
   ctx.textAlign = 'center';
-  ctx.font = 'bold 22px ' + cfg('SCORE_FONT_FAMILY');
+  ctx.font = paint.font;
   ctx.fillText(game.milestoneText, GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 30);
   ctx.restore();
+}
+
+function drawMilestoneFlash() {
+  if (Animations.milestoneFrames <= 0) return;
+  // The playtest hold paints the quiet peak itself. Skip the live word
+  // on those frames so the two inks do not stack. The wash timer still
+  // counts down.
+  const holdCoversWord = isUpdatedMode() && game.qaLevelHold > 0;
+  const paint = milestoneLabelForFrame(Animations.milestoneFrames);
+  if (paint && !holdCoversWord) paintMilestoneLabel(paint);
   Animations.milestoneFrames--;
+}
+
+// Steady quiet peak while ?qaLevel=1's hold is running, so the short
+// word can be captured. Reduced motion keeps half that peak. Classic
+// never enters. Does not touch the wash timer.
+function qaLevelPaintAlpha() {
+  const peak = milestonePeakAlpha();
+  if (!reducedMotion) return peak;
+  return peak * 0.5;
+}
+
+function drawQaLevelLabel() {
+  if (!isUpdatedMode() || game.qaLevelHold <= 0) return;
+  if (!game.milestoneText) return;
+  paintMilestoneLabel({
+    font: 'bold ' + milestoneFontPx() + 'px ' + cfg('SCORE_FONT_FAMILY'),
+    alpha: qaLevelPaintAlpha(),
+  });
 }
 
 function drawNewBestBadge() {
@@ -2668,6 +2772,7 @@ function resetGame() {
   game.qaClusterShown    = false;
   game.qaBigShown        = false;
   game.qaLevelShown      = false;
+  game.qaLevelHold       = 0;
   game.qaConfettiShown   = false;
   game.qaConfettiHold    = 0;
   game.qaDustShown       = false;
@@ -2801,6 +2906,7 @@ function handleRunning() {
   game.currentSpeed = DifficultyProfile.speedAtScore(game.score);
 
   // Milestone flash on level-up.
+  let latchedQaLevel = false;
   if (level > prevLevel && level > 0) {
     game.milestoneText = 'LEVEL ' + (level + 1);
     Animations.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
@@ -2808,13 +2914,17 @@ function handleRunning() {
     Particles.emit('confetti', GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30, GAME_CONFIG.SCORE_Y);
   } else if (qaLevel && isUpdatedMode() && !game.qaLevelShown) {
     // QA/debug only. Same wash as the first real level, once, while the
-    // score is still near zero. Does not touch speed, gaps, or game.rng().
+    // score is still near zero. The hold keeps the quiet word up after
+    // that fade. Does not touch speed, gaps, or game.rng().
     game.qaLevelShown = true;
     game.milestoneText = 'LEVEL 2';
     Animations.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
     audio.milestone();
     Particles.emit('confetti', GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30, GAME_CONFIG.SCORE_Y);
+    game.qaLevelHold = qaLevelHoldFrames();
+    latchedQaLevel = true;
   }
+  if (!latchedQaLevel && game.qaLevelHold > 0) game.qaLevelHold--;
 
   // QA/debug only — not for players. Latch a hold on the first Updated
   // or Daily running frame. The paint is drawQaConfetti(), from this
@@ -2996,12 +3106,14 @@ function gameLoop() {
   STATE_HANDLERS[game.state]();
   // After the handler so a collision return, the score, and the death
   // card cannot cover the debug block. No-op unless the hold is running.
-  // The flash sits above the other marks. The score pop is last so that
+  // The flash sits above the other marks. The LEVEL hold sits above that
+  // blink so the word stays readable. The score pop is last so that a
   // full-canvas blink cannot cover the digits the hold exists to show.
   drawQaConfetti();
   drawQaDust();
   drawQaPlateau();
   drawQaFlash();
+  drawQaLevelLabel();
   drawQaScorePop();
 }
 
