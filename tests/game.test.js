@@ -7107,8 +7107,21 @@ describe('Night death flash', () => {
     try {
       setQaNight(false);
       setReducedMotion(false);
+      const dayPeak = GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA;
+      assert(dayPeak < 1, 'day peak is quieter than a full white overlay');
+      assert(dayPeak > 0, 'the day death cue still paints');
+      assert(dayPeak > GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
+        'the day blink stays stronger than the night blink');
+      const washedDino = whiteWash(dayPeak, dayDino);
+      const dinoLum = relLuminance(dayDino);
+      const dayLum = relLuminance(washedDino);
+      const daySlap = relLuminance(whiteWash(1, dayDino)) - dinoLum;
+      assert(dayLum > dinoLum * 2,
+        'the day blink more than doubles luminance on the dark shapes');
+      assert(dayLum - dinoLum < daySlap * 0.6,
+        'the day blink is quieter than a full white overlay on those shapes');
       assert(GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA < 1,
-        'night peak is lower than the full day blink');
+        'night peak is lower than a full white overlay');
       assert(GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA > 0,
         'the death cue still paints at night');
       const painted = whiteWash(GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA, nightSky);
@@ -7124,19 +7137,19 @@ describe('Night death flash', () => {
 
       game.mode = MODES.UPDATED;
       game.score = 0;
-      assertEquals(deathFlashPeakAlpha(), 1, 'day Updated keeps the full day blink');
+      assertEquals(deathFlashPeakAlpha(), dayPeak, 'day Updated uses the quieter day blink');
       game.score = GAME_CONFIG.DAY_NIGHT_START;
-      assertEquals(deathFlashPeakAlpha(), 1,
-        'the ease starts with the sky, still the day blink at the boundary');
+      assertEquals(deathFlashPeakAlpha(), dayPeak,
+        'the ease starts with the sky, still the quieter day blink at the boundary');
       game.score = 350;
-      const mid = 1 + (GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA - 1) * 0.5;
+      const mid = dayPeak + (GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA - dayPeak) * 0.5;
       assert(
         Math.abs(deathFlashPeakAlpha() - mid) < 1e-9,
         'mid-twilight is halfway from the day blink to the night peak'
       );
       game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
       assert(
-        deathFlashPeakAlpha() < 1
+        deathFlashPeakAlpha() < GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA
           && deathFlashPeakAlpha() > GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
         'one point before night is still easing, not snapped'
       );
@@ -7175,10 +7188,10 @@ describe('Night death flash', () => {
       game.mode = MODES.UPDATED;
       setReducedMotion(true);
       game.score = 350;
-      assertEquals(deathFlashPeakAlpha(), 1,
-        'reduced motion keeps the day blink while the sky is still day');
+      assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA,
+        'reduced motion keeps the quieter day blink while the sky is still day');
       game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
-      assertEquals(deathFlashPeakAlpha(), 1,
+      assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA,
         'reduced motion does not run the twilight ease');
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
@@ -7228,7 +7241,28 @@ describe('Night death flash', () => {
         'clearing the override returns the configured night peak');
       game.score = 0;
       withTuning({ NIGHT_DEATH_FLASH_PEAK_ALPHA: 0.05 }, () => {
-        assertEquals(deathFlashPeakAlpha(), 1, 'day blink ignores the night peak override');
+        assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA,
+          'day blink ignores the night peak override');
+      });
+      withTuning({ DAY_DEATH_FLASH_PEAK_ALPHA: 0.7 }, () => {
+        assertEquals(deathFlashPeakAlpha(), 0.7,
+          'a visual override should quiet or lift the day blink by the tuned amount');
+      });
+      assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA,
+        'clearing the day override returns the configured day peak');
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      withTuning({ DAY_DEATH_FLASH_PEAK_ALPHA: 0.7 }, () => {
+        assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
+          'a day peak override does not brighten the night blink');
+      });
+      game.score = 0;
+      withTuning({ DAY_DEATH_FLASH_PEAK_ALPHA: 'loud' }, () => {
+        assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA,
+          'a non-numeric day override falls back to the configured peak');
+      });
+      withTuning({ DAY_DEATH_FLASH_PEAK_ALPHA: 1.5 }, () => {
+        assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA,
+          'an out-of-range day override falls back to the configured peak');
       });
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       withTuning({ DEATH_FLASH_FRAMES: 3 }, () => {
@@ -7268,7 +7302,8 @@ describe('Night death flash', () => {
       const day = paintedFlash();
       const dayWhite = day.fillStyles.find(s => typeof s === 'string' && s.indexOf('rgba(255, 255, 255') === 0);
       assert(dayWhite, 'day death still paints the white blink');
-      assert(dayWhite.indexOf('1.000') !== -1, 'day blink uses the full day peak');
+      assert(dayWhite.indexOf(GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA.toFixed(3)) !== -1,
+        'day blink uses the quieter day peak');
       assertEquals(day.rects.length, 1, 'day blink is one full-canvas fill');
       assertEquals(day.rects[0][2], GAME_CONFIG.CANVAS_W, 'day blink covers the canvas width');
       assertEquals(day.rects[0][3], GAME_CONFIG.CANVAS_H, 'day blink covers the canvas height');
@@ -9008,6 +9043,288 @@ describe('QA dust flag (?qaDust=1)', () => {
       else delete global.location;
       game.mode = origMode;
       setQaDust(false);
+      setQaNight(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+});
+
+describe('QA flash flag (?qaFlash=1)', () => {
+  function tick() {
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+  }
+
+  function spyPaint() {
+    const calls = [];
+    const origFillRect = ctx.fillRect;
+    const origFillText = ctx.fillText;
+    ctx.fillRect = function (x, y, w, h) {
+      calls.push({
+        op: 'rect',
+        style: ctx.fillStyle,
+        x: x,
+        y: y,
+        w: w,
+        h: h,
+        alpha: ctx.globalAlpha,
+      });
+    };
+    ctx.fillText = function (text) {
+      calls.push({ op: 'text', text: String(text) });
+    };
+    return {
+      calls: calls,
+      restore() {
+        ctx.fillRect = origFillRect;
+        ctx.fillText = origFillText;
+      },
+    };
+  }
+
+  function flashFills(calls, alphaText) {
+    return calls.filter((c) =>
+      c.op === 'rect'
+      && typeof c.style === 'string'
+      && c.style.indexOf('rgba(255, 255, 255') === 0
+      && c.style.indexOf(alphaText) !== -1
+      && c.w === GAME_CONFIG.CANVAS_W
+      && c.h === GAME_CONFIG.CANVAS_H
+    );
+  }
+
+  function armFreshRun(mode) {
+    game.mode = mode;
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    setQaLevel(false);
+    setQaNight(false);
+    setQaPlateau(false);
+    setQaTrail(false);
+    setQaConfetti(false);
+    setQaDust(false);
+    setQaFlash(false);
+    setReducedMotion(false);
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    game.obstacles.length = 0;
+    game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+    game.nextSpawnGap = GAME_CONFIG.MAX_SPAWN_GAP;
+    dino.y = GAME_CONFIG.CANVAS_H - dino.height;
+    dino.isJumping = false;
+    dino.velocityY = 0;
+    Animations.deathFlashFrames = 0;
+    Particles.reset();
+  }
+
+  it('recognizes only ?qaFlash=1', () => {
+    assert(readQaFlashFlag('?qaFlash=1') === true, '?qaFlash=1 should hold the death blink');
+    assert(readQaFlashFlag('?qaNight=1&qaFlash=1') === true, 'the flag should work beside ?qaNight=1');
+    assert(readQaFlashFlag('?qaFlash=1&qaDust=1') === true, 'param order should not matter');
+    assert(readQaFlashFlag('') === false, 'a normal visit should leave the flash for a real death');
+    assert(readQaFlashFlag('?qaFlash=0') === false, 'only the value 1 enables the flag');
+    assert(readQaFlashFlag('?qaFlash=12') === false, 'qaFlash=12 must not count as the flag');
+    assert(readQaFlashFlag('?qaNight=1') === false, 'night alone must not hold the death blink');
+  });
+
+  it('paints the quieter day blink from the first frame even when the flash timer is zero', () => {
+    const origMode = game.mode;
+    const spy = spyPaint();
+    try {
+      assert(QA_FLASH_HOLD >= 120, 'the debug hold must outlast a quick capture');
+      const dayAlpha = GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA.toFixed(3);
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        armFreshRun(mode);
+        game.rng = mulberry32(11);
+        setQaFlash(false);
+        spy.calls.length = 0;
+        tick();
+        const rngAfterOff = game.rng();
+        const speedOff = game.currentSpeed;
+        const scoreOff = game.score;
+        assertEquals(flashFills(spy.calls, dayAlpha).length, 0, mode + ' without the flag does not wash the lane');
+        assertEquals(game.qaFlashHold, 0, mode + ' without the flag does not start the hold');
+
+        armFreshRun(mode);
+        game.rng = mulberry32(11);
+        setQaFlash(true);
+        Animations.deathFlashFrames = 0;
+        Particles.reset();
+        for (let i = 0; i < Particles.POOL_SIZE; i++) Particles.particles[i].life = 8;
+        spy.calls.length = 0;
+        tick();
+        const fills = flashFills(spy.calls, dayAlpha);
+        assertEquals(fills.length, 1, mode + ' paints one full-canvas blink');
+        assertEquals(fills[0].x, 0, mode + ' blink starts at the canvas origin');
+        assertEquals(fills[0].y, 0, mode + ' blink starts at the canvas top');
+        assertEquals(fills[0].alpha, 1, mode + ' blink is a real fill, not a hidden layer');
+        const lastHud = spy.calls.reduce((at, c, i) => (c.op === 'text' ? i : at), -1);
+        const flashAt = spy.calls.findIndex((c) => c.op === 'rect' && c.w === GAME_CONFIG.CANVAS_W && typeof c.style === 'string' && c.style.indexOf(dayAlpha) !== -1);
+        assert(flashAt > lastHud, mode + ' blink is painted after the frame, including the HUD');
+        assertEquals(game.qaFlashHold, QA_FLASH_HOLD, mode + ' latches the full hold');
+        assertEquals(game.qaFlashShown, true, mode + ' spends the latch');
+        assertEquals(Animations.deathFlashFrames, 0, mode + ' does not borrow the real death timer');
+        assertEquals(game.score, scoreOff, mode + ' hold must not write the score');
+        assertEquals(game.currentSpeed, speedOff, mode + ' hold must not change speed');
+        assertEquals(game.rng(), rngAfterOff, mode + ' hold must not consume the run seed');
+      }
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaFlash(false);
+      setReducedMotion(false);
+      Particles.reset();
+      Animations.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('still paints the blink when a hit returns before the death draw', () => {
+    const origMode = game.mode;
+    const spy = spyPaint();
+    try {
+      armFreshRun(MODES.UPDATED);
+      setQaFlash(true);
+      game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
+      spy.calls.length = 0;
+      tick();
+      const dayAlpha = GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA.toFixed(3);
+      assertEquals(game.state, STATE.DEAD, 'the cactus still ends the run');
+      assertEquals(flashFills(spy.calls, dayAlpha).length, 1,
+        'the hold still paints after the collision return');
+      assertEquals(Animations.deathFlashFrames, GAME_CONFIG.DEATH_FLASH_FRAMES,
+        'the real flash timer is still armed for the death shake');
+      assert(game.score < 1, 'dying on the QA frame does not invent score');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaFlash(false);
+      game.obstacles.length = 0;
+      Particles.reset();
+      Animations.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('?qaNight=1 holds the soft night blink without moving the score', () => {
+    const origMode = game.mode;
+    const spy = spyPaint();
+    try {
+      armFreshRun(MODES.UPDATED);
+      setQaFlash(true);
+      setQaNight(true);
+      spy.calls.length = 0;
+      tick();
+      const nightAlpha = GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA.toFixed(3);
+      const dayAlpha = GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA.toFixed(3);
+      assertEquals(flashFills(spy.calls, nightAlpha).length, 1, 'night hold paints the quiet peak');
+      assertEquals(flashFills(spy.calls, dayAlpha).length, 0, 'night hold does not paint the day peak');
+      assert(game.score < 1, 'the night hold must not write the score');
+      assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
+        'the night hold must not change speed');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaFlash(false);
+      setQaNight(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('Classic with ?qaFlash=1 still paints nothing', () => {
+    const origMode = game.mode;
+    const spy = spyPaint();
+    try {
+      armFreshRun(MODES.CLASSIC);
+      setQaFlash(true);
+      tick();
+      tick();
+      assertEquals(flashFills(spy.calls, '0.500').length, 0, 'Classic never paints the day hold');
+      assertEquals(flashFills(spy.calls, '0.200').length, 0, 'Classic never paints the night hold');
+      assertEquals(game.qaFlashShown, false, 'Classic does not spend the Updated latch');
+      assertEquals(game.qaFlashHold, 0, 'Classic does not start the hold');
+      assertEquals(Animations.deathFlashFrames, 0, 'Classic still does not start the real flash');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaFlash(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('reduced motion shortens and damps the hold, and still paints it', () => {
+    const origMode = game.mode;
+    const spy = spyPaint();
+    try {
+      for (const night of [false, true]) {
+        armFreshRun(MODES.UPDATED);
+        setReducedMotion(true);
+        setQaFlash(true);
+        setQaNight(night);
+        const peak = night
+          ? GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA
+          : GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA;
+        const damped = (peak * 0.5).toFixed(3);
+        spy.calls.length = 0;
+        tick();
+        const label = night ? 'night' : 'day';
+        assertEquals(game.qaFlashHold, qaFlashHoldFrames(), label + ' hold uses the shorter window');
+        assert(game.qaFlashHold < QA_FLASH_HOLD, label + ' hold is shorter than the full capture');
+        assert(qaFlashHoldFrames() >= 2, label + ' hold still lasts long enough to see');
+        assertEquals(flashFills(spy.calls, damped).length, 1, label + ' reduced motion still paints the wash');
+        assertEquals(flashFills(spy.calls, peak.toFixed(3)).length, 0,
+          label + ' reduced motion does not keep the full-strength ink');
+        assertEquals(Animations.deathFlashFrames, 0, label + ' hold does not arm the real flash');
+        assert(game.score < 1, label + ' damped hold must not write the score');
+      }
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaFlash(false);
+      setQaNight(false);
+      setReducedMotion(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('resetGame re-reads ?qaFlash=1 from the page query', () => {
+    const origMode = game.mode;
+    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
+    const prevLocation = global.location;
+    const spy = spyPaint();
+    global.location = { search: '?qaNight=1&qaFlash=1' };
+    try {
+      setQaFlash(false);
+      setQaNight(false);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      game.state = STATE.RUNNING;
+      game.mode = MODES.UPDATED;
+      game.obstacles.length = 0;
+      game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+      game.nextSpawnGap = GAME_CONFIG.MAX_SPAWN_GAP;
+      Animations.deathFlashFrames = 0;
+      Particles.reset();
+      tick();
+      assertEquals(flashFills(spy.calls, GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA.toFixed(3)).length, 1,
+        're-read flag paints the night blink');
+      assertEquals(game.qaFlashHold, QA_FLASH_HOLD, 'the re-read flag latches the hold');
+      assert(game.score < 1, 're-reading the flag must not change the score');
+      assertEquals(game.qaFlashShown, true, 'the re-read flag spends the latch');
+      assertEquals(getBackgroundColor(game.score), '#1a1a2e',
+        'qaNight on the same query still paints night');
+    } finally {
+      spy.restore();
+      if (hadLocation) global.location = prevLocation;
+      else delete global.location;
+      game.mode = origMode;
+      setQaFlash(false);
       setQaNight(false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
