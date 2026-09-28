@@ -10427,6 +10427,581 @@ describe('Quieter LEVEL label', () => {
   });
 });
 
+describe('Quieter NEW BEST badge', () => {
+  const CLASSIC_FONT = "bold 14px 'Courier New', Courier, monospace";
+  const QUIET_FONT = "bold 11px 'Courier New', Courier, monospace";
+
+  function withTuning(overrides, fn) {
+    const orig = window.GAME_TUNING;
+    window.GAME_TUNING = overrides;
+    try { fn(); } finally { window.GAME_TUNING = orig; }
+  }
+
+  function spyText() {
+    const calls = [];
+    const origFillText = ctx.fillText;
+    ctx.fillText = function (text, x, y) {
+      calls.push({
+        text: String(text),
+        x: x,
+        y: y,
+        font: ctx.font,
+        alpha: ctx.globalAlpha,
+        fill: ctx.fillStyle,
+      });
+    };
+    return {
+      calls: calls,
+      restore() { ctx.fillText = origFillText; },
+    };
+  }
+
+  function badgeCalls(calls) {
+    return calls.filter((c) => c.text === 'NEW BEST!');
+  }
+
+  function paintBadge(frames) {
+    const spy = spyText();
+    Animations.newBestFrames = frames;
+    try {
+      drawNewBestBadge();
+      return { calls: badgeCalls(spy.calls), framesAfter: Animations.newBestFrames };
+    } finally {
+      spy.restore();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function tick() {
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+  }
+
+  function armFreshRun() {
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    game.obstacles.length = 0;
+    game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+    game.nextSpawnGap = 10000;
+    game.score = 0;
+    game.highScore = 50;
+    game.newBestShown = false;
+    Animations.newBestFrames = 0;
+    Animations.milestoneFrames = 0;
+    game.qaNewBestShown = false;
+    game.qaNewBestHold = 0;
+    dino.y = GAME_CONFIG.CANVAS_H - dino.height;
+    dino.isJumping = false;
+    dino.velocityY = 0;
+    game.runSeed = 4242;
+    game.rng = mulberry32(4242);
+    initHills();
+  }
+
+  it('keeps the Classic badge at 14px gold for the full countdown', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      setReducedMotion(false);
+      setQaNewBest(false);
+      game.qaNewBestHold = 0;
+      game.mode = MODES.CLASSIC;
+      Animations.milestoneFrames = 0;
+      const first = paintBadge(GAME_CONFIG.NEW_BEST_FRAMES);
+      assertEquals(first.calls.length, 1, 'Classic paints the badge on the first frame');
+      assertEquals(first.calls[0].font, CLASSIC_FONT, 'Classic stays bold 14px');
+      assertEquals(first.calls[0].alpha, 1, 'Classic still opens at full gold');
+      assertEquals(first.calls[0].fill, '#ffd700', 'Classic stays gold');
+      assertEquals(first.calls[0].text, 'NEW BEST!', 'Classic still says NEW BEST!');
+      assertEquals(first.calls[0].x, GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET,
+        'the badge stays under the score');
+      assertEquals(first.calls[0].y, 70, 'the badge stays at the corner baseline');
+      assertEquals(first.framesAfter, GAME_CONFIG.NEW_BEST_FRAMES - 1,
+        'Classic still counts the shared timer down by one');
+
+      const mid = paintBadge(GAME_CONFIG.NEW_BEST_FRAMES / 2);
+      assertEquals(mid.calls[0].alpha, 0.5, 'Classic alpha is still frames / NEW_BEST_FRAMES');
+      assertEquals(mid.calls[0].font, CLASSIC_FONT, 'the mid Classic frame is still 14px');
+
+      const last = paintBadge(1);
+      assertEquals(last.calls.length, 1, 'Classic still paints on the last frame');
+      assert(Math.abs(last.calls[0].alpha - 1 / GAME_CONFIG.NEW_BEST_FRAMES) < 1e-12,
+        'the last Classic frame is still 1 / NEW_BEST_FRAMES');
+
+      Animations.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
+      const dropped = paintBadge(GAME_CONFIG.NEW_BEST_FRAMES);
+      assertEquals(dropped.calls[0].y, 100, 'Classic still drops 30px when a milestone is up');
+      assertEquals(dropped.calls[0].y - 70, 30, 'the Classic stagger is still 30px');
+
+      withTuning({
+        UPDATED_NEW_BEST_FONT_PX: 10,
+        UPDATED_NEW_BEST_PEAK_ALPHA: 0.2,
+        UPDATED_NEW_BEST_FRAMES: 12,
+      }, () => {
+        Animations.milestoneFrames = 0;
+        const tuned = paintBadge(GAME_CONFIG.NEW_BEST_FRAMES);
+        assertEquals(tuned.calls[0].font, CLASSIC_FONT, 'Classic does not read the Updated type size');
+        assertEquals(tuned.calls[0].alpha, 1, 'Classic does not read the Updated peak');
+        assertEquals(newBestDuration(), GAME_CONFIG.NEW_BEST_FRAMES,
+          'Classic duration ignores the Updated frame tune');
+      });
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      Animations.milestoneFrames = 0;
+      Animations.newBestFrames = 0;
+      game.qaNewBestHold = 0;
+      setReducedMotion(false);
+      setQaNewBest(false);
+      ctx.globalAlpha = 1;
+    }
+  });
+
+  it('Updated and Daily open quieter and leave after the short countdown', () => {
+    const origMode = game.mode;
+    try {
+      setReducedMotion(false);
+      setQaNewBest(false);
+      game.qaNewBestHold = 0;
+      assertEquals(GAME_CONFIG.UPDATED_NEW_BEST_FONT_PX, 11, 'the quiet badge is 11px');
+      assertEquals(GAME_CONFIG.UPDATED_NEW_BEST_FRAMES, 60,
+        'the badge lasts half of the 120-frame countdown');
+      assertEquals(GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA, 0.65,
+        'the first frame keeps the gold readable');
+      assert(GAME_CONFIG.UPDATED_NEW_BEST_FRAMES < GAME_CONFIG.NEW_BEST_FRAMES,
+        'the badge is shorter than the Classic countdown');
+      assert(GAME_CONFIG.UPDATED_NEW_BEST_FONT_PX < 14, 'the type is smaller than Classic');
+      assert(GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA < 1, 'the peak is quieter than solid gold');
+
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        game.mode = mode;
+        Animations.milestoneFrames = 0;
+        const first = paintBadge(GAME_CONFIG.UPDATED_NEW_BEST_FRAMES);
+        assertEquals(first.calls.length, 1, mode + ' still paints NEW BEST on the first frame');
+        assertEquals(first.calls[0].text, 'NEW BEST!', mode + ' still celebrates');
+        assertEquals(first.calls[0].font, QUIET_FONT, mode + ' uses the smaller type');
+        assertEquals(first.calls[0].alpha, GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
+          mode + ' opens at the quiet peak');
+        assertEquals(first.calls[0].fill, '#ffd700', mode + ' stays gold');
+        assertEquals(first.calls[0].y, 70, mode + ' stays in the corner');
+        assertEquals(first.framesAfter, GAME_CONFIG.UPDATED_NEW_BEST_FRAMES - 1,
+          mode + ' counts its own shorter timer');
+
+        const mid = paintBadge(GAME_CONFIG.UPDATED_NEW_BEST_FRAMES / 2);
+        assert(Math.abs(mid.calls[0].alpha - GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA * 0.5) < 1e-12,
+          mode + ' fades from the quiet peak');
+        assertEquals(mid.calls[0].font, QUIET_FONT, mode + ' stays on the small type while it fades');
+
+        const last = paintBadge(1);
+        assertEquals(last.calls.length, 1, mode + ' still paints on the last quiet frame');
+        assert(last.calls[0].alpha > 0 && last.calls[0].alpha < GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
+          mode + ' has faded below the peak by the last frame');
+
+        const gone = paintBadge(0);
+        assertEquals(gone.calls.length, 0, mode + ' badge is gone when the countdown ends');
+        assertEquals(gone.framesAfter, 0, mode + ' does not keep a leftover timer');
+
+        Animations.milestoneFrames = 10;
+        const dropped = paintBadge(GAME_CONFIG.UPDATED_NEW_BEST_FRAMES);
+        assertEquals(dropped.calls[0].y, 100, mode + ' still drops when a milestone is up');
+      }
+    } finally {
+      game.mode = origMode;
+      Animations.milestoneFrames = 0;
+      Animations.newBestFrames = 0;
+      game.qaNewBestHold = 0;
+      setReducedMotion(false);
+      ctx.globalAlpha = 1;
+    }
+  });
+
+  it('reads a safe tune and ignores a tune that would restore the old badge', () => {
+    const origMode = game.mode;
+    try {
+      setReducedMotion(false);
+      game.qaNewBestHold = 0;
+      game.mode = MODES.UPDATED;
+      Animations.milestoneFrames = 0;
+      withTuning({
+        UPDATED_NEW_BEST_FONT_PX: 13,
+        UPDATED_NEW_BEST_PEAK_ALPHA: 0.4,
+        UPDATED_NEW_BEST_FRAMES: 24,
+      }, () => {
+        assertEquals(newBestDuration(), 24, 'a frame tune inside 1..120 is the countdown');
+        const first = paintBadge(24);
+        assertEquals(first.calls[0].font, "bold 13px 'Courier New', Courier, monospace",
+          'a size inside 10..13 is used');
+        assertEquals(first.calls[0].alpha, 0.4, 'a peak inside 0..1 is used');
+        assertEquals(first.calls[0].fill, '#ffd700', 'a tune does not recolor the gold');
+      });
+      withTuning({
+        UPDATED_NEW_BEST_FONT_PX: 14,
+        UPDATED_NEW_BEST_PEAK_ALPHA: 2,
+        UPDATED_NEW_BEST_FRAMES: 0,
+      }, () => {
+        assertEquals(newBestDuration(), GAME_CONFIG.UPDATED_NEW_BEST_FRAMES,
+          'a zero frame tune falls back to 60');
+        const first = paintBadge(GAME_CONFIG.UPDATED_NEW_BEST_FRAMES);
+        assertEquals(first.calls[0].font, QUIET_FONT, '14px is outside 10..13 and falls back');
+        assertEquals(first.calls[0].alpha, GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
+          'a peak above 1 falls back');
+      });
+      withTuning({
+        UPDATED_NEW_BEST_FRAMES: 500,
+        UPDATED_NEW_BEST_FONT_PX: 'big',
+        UPDATED_NEW_BEST_PEAK_ALPHA: -0.2,
+      }, () => {
+        assertEquals(newBestDuration(), GAME_CONFIG.UPDATED_NEW_BEST_FRAMES,
+          'a frame tune past the Classic countdown falls back');
+        const first = paintBadge(GAME_CONFIG.UPDATED_NEW_BEST_FRAMES);
+        assertEquals(first.calls[0].font, QUIET_FONT, 'a non-number size falls back');
+        assertEquals(first.calls[0].alpha, GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
+          'a negative peak falls back');
+      });
+    } finally {
+      game.mode = origMode;
+      Animations.newBestFrames = 0;
+      setReducedMotion(false);
+      ctx.globalAlpha = 1;
+    }
+  });
+
+  it('shortens the Updated badge again under reduced motion without restoring Classic', () => {
+    const origMode = game.mode;
+    try {
+      setReducedMotion(true);
+      game.qaNewBestHold = 0;
+      game.mode = MODES.CLASSIC;
+      Animations.milestoneFrames = 0;
+      assertEquals(newBestDuration(), GAME_CONFIG.NEW_BEST_FRAMES,
+        'reduced motion does not shorten Classic');
+      const classic = paintBadge(GAME_CONFIG.NEW_BEST_FRAMES);
+      assertEquals(classic.calls[0].font, CLASSIC_FONT, 'reduced motion does not resize Classic');
+      assertEquals(classic.calls[0].alpha, 1, 'reduced motion does not fade Classic');
+      assertEquals(classic.calls[0].fill, '#ffd700', 'reduced motion does not recolor Classic');
+
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        game.mode = mode;
+        const half = Math.max(2, Math.round(GAME_CONFIG.UPDATED_NEW_BEST_FRAMES * 0.5));
+        assertEquals(newBestDuration(), half, mode + ' reduced motion halves the quiet countdown');
+        assert(half < GAME_CONFIG.UPDATED_NEW_BEST_FRAMES,
+          mode + ' reduced-motion badge is shorter than the motion-allowed badge');
+        const first = paintBadge(half);
+        assertEquals(first.calls[0].font, QUIET_FONT,
+          mode + ' stays on the small type under reduced motion');
+        assertEquals(first.calls[0].alpha, GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
+          mode + ' keeps the quiet peak so the gold still reads');
+        assertEquals(first.calls[0].fill, '#ffd700', mode + ' stays gold under reduced motion');
+        const last = paintBadge(1);
+        assertEquals(last.calls.length, 1, mode + ' still paints on the last reduced-motion frame');
+      }
+    } finally {
+      game.mode = origMode;
+      Animations.newBestFrames = 0;
+      setReducedMotion(false);
+      ctx.globalAlpha = 1;
+    }
+  });
+
+  it('arms the mode countdown when the run first beats the stored high score', () => {
+    const origMode = game.mode;
+    const origText = a11yLive.textContent;
+    try {
+      setReducedMotion(false);
+      setQaNewBest(false);
+      for (const mode of [MODES.UPDATED, MODES.DAILY, MODES.CLASSIC]) {
+        armFreshRun();
+        game.mode = mode;
+        game.highScore = 1;
+        game.score = 2;
+        const gapBefore = game.nextSpawnGap;
+        const seedBefore = game.runSeed;
+        const rngBefore = game.rng;
+        let rngCalls = 0;
+        game.rng = () => { rngCalls++; return rngBefore(); };
+        const spy = spyText();
+        try {
+          tick();
+          const expected = mode === MODES.CLASSIC
+            ? GAME_CONFIG.NEW_BEST_FRAMES
+            : GAME_CONFIG.UPDATED_NEW_BEST_FRAMES;
+          assertEquals(game.newBestShown, true, mode + ' still latches the once-per-run badge');
+          assertEquals(Animations.newBestFrames, expected - 1,
+            mode + ' starts the mode countdown and paints the first frame');
+          assertEquals(a11yLive.textContent, 'New best score!', mode + ' still announces the new best');
+          const painted = badgeCalls(spy.calls);
+          assertEquals(painted.length, 1, mode + ' paints the badge once on the beat frame');
+          assertEquals(painted[0].fill, '#ffd700', mode + ' beat frame stays gold');
+          if (mode === MODES.CLASSIC) {
+            assertEquals(painted[0].font, CLASSIC_FONT, 'the beat frame stays 14px in Classic');
+            assertEquals(painted[0].alpha, 1, 'the beat frame stays full gold in Classic');
+          } else {
+            assertEquals(painted[0].font, QUIET_FONT, mode + ' beat frame uses the quiet type');
+            assertEquals(painted[0].alpha, GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
+              mode + ' beat frame uses the quiet peak');
+          }
+          assertEquals(game.highScore, 1, mode + ' badge does not write the stored high score');
+          assertEquals(game.score, 2 + GAME_CONFIG.SCORE_INCREMENT,
+            mode + ' score still advances by the normal increment');
+          assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
+            mode + ' speed still follows the score');
+          assertEquals(game.nextSpawnGap, gapBefore, mode + ' does not change the spawn gap');
+          assertEquals(game.runSeed, seedBefore, mode + ' does not change the run seed');
+          assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
+            mode + ' speed on the next read still follows the score');
+          const again = rngCalls;
+          tick();
+          assertEquals(Animations.newBestFrames, expected - 2, mode + ' keeps counting down');
+          assert(rngCalls >= again, mode + ' later frames do not rewind gameplay rng');
+        } finally {
+          spy.restore();
+          game.rng = rngBefore;
+        }
+      }
+    } finally {
+      game.mode = origMode;
+      a11yLive.textContent = origText;
+      setQaNewBest(false);
+      setReducedMotion(false);
+      Animations.newBestFrames = 0;
+      game.newBestShown = false;
+      ctx.globalAlpha = 1;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('?qaNewBest=1 holds the quiet badge after GET READY without touching the run', () => {
+    const origMode = game.mode;
+    try {
+      setReducedMotion(false);
+      setQaNewBest(false);
+      assert(readQaNewBestFlag('?qaNewBest=1') === true, '?qaNewBest=1 should hold the badge');
+      assert(readQaNewBestFlag('?qaLevel=1&qaNewBest=1') === true, 'the flag should work beside other params');
+      assert(readQaNewBestFlag('?qaNewBest=1&qaScorePop=1') === true, 'param order should not matter');
+      assert(readQaNewBestFlag('?qaNewBest=0') === false, 'only the value 1 enables the flag');
+      assert(readQaNewBestFlag('?qaNewBest=12') === false, 'qaNewBest=12 must not count as the flag');
+      assert(readQaNewBestFlag('?qaLevel=1') === false, 'the level flag must not hold this badge');
+      assert(readQaNewBestFlag('?qaScorePop=1') === false, 'the score-pop flag must not hold this badge');
+      assert(readQaLevelFlag('?qaNewBest=1') === false, 'this flag must not fire the level wash');
+      assert(readQaScorePopFlag('?qaNewBest=1') === false, 'this flag must not swell the score');
+
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        armFreshRun();
+        game.mode = mode;
+        setQaNewBest(true);
+        const seed = game.runSeed;
+        const gap = game.nextSpawnGap;
+        const high = game.highScore;
+        const rngBefore = game.rng;
+        let rngCalls = 0;
+        game.rng = () => { rngCalls++; return rngBefore(); };
+        const spy = spyText();
+        try {
+          tick();
+          assertEquals(game.qaNewBestHold, QA_NEW_BEST_HOLD, mode + ' latches the full capture window');
+          assertEquals(game.qaNewBestShown, true, mode + ' spends the latch once');
+          assertEquals(game.newBestShown, false, mode + ' hold does not spend the real badge');
+          assertEquals(Animations.newBestFrames, 0, mode + ' hold does not start the live countdown');
+          assertEquals(a11yLive.textContent.indexOf('New best score!') === -1, true,
+            mode + ' hold does not announce a new best');
+          const painted = badgeCalls(spy.calls);
+          assertEquals(painted.length, 1, mode + ' paints the held badge once');
+          assertEquals(painted[0].font, QUIET_FONT, mode + ' hold uses the quiet type');
+          assertEquals(painted[0].alpha, GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
+            mode + ' hold uses the quiet peak');
+          assertEquals(painted[0].fill, '#ffd700', mode + ' hold stays gold');
+          assertEquals(painted[0].y, 70, mode + ' hold stays in the corner');
+          assertEquals(game.highScore, high, mode + ' hold does not write the high score');
+          assertEquals(game.score, GAME_CONFIG.SCORE_INCREMENT, mode + ' score still starts from zero');
+          assertEquals(game.nextSpawnGap, gap, mode + ' hold does not change the spawn gap');
+          assertEquals(game.runSeed, seed, mode + ' hold does not change the run seed');
+          assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
+            mode + ' speed still follows the score');
+          const afterFirst = rngCalls;
+          spy.calls.length = 0;
+          tick();
+          assertEquals(game.qaNewBestHold, QA_NEW_BEST_HOLD - 1, mode + ' hold counts down while running');
+          assertEquals(badgeCalls(spy.calls).length, 1, mode + ' hold keeps painting');
+          assertEquals(rngCalls, afterFirst, mode + ' the hold frame does not draw gameplay rng');
+        } finally {
+          spy.restore();
+          game.rng = rngBefore;
+        }
+      }
+
+      armFreshRun();
+      game.mode = MODES.CLASSIC;
+      setQaNewBest(true);
+      const classicSpy = spyText();
+      try {
+        tick();
+        tick();
+        assertEquals(game.qaNewBestHold, 0, 'Classic does not start the hold');
+        assertEquals(game.qaNewBestShown, false, 'Classic does not spend the Updated latch');
+        assertEquals(badgeCalls(classicSpy.calls).length, 0, 'Classic does not paint an early NEW BEST');
+        assertEquals(Animations.newBestFrames, 0, 'Classic hold does not start the live countdown');
+      } finally {
+        classicSpy.restore();
+      }
+    } finally {
+      game.mode = origMode;
+      setQaNewBest(false);
+      setReducedMotion(false);
+      game.qaNewBestHold = 0;
+      game.qaNewBestShown = false;
+      ctx.globalAlpha = 1;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('skips the live badge while the hold is up so the two golds do not stack', () => {
+    const origMode = game.mode;
+    try {
+      setReducedMotion(false);
+      game.mode = MODES.UPDATED;
+      game.qaNewBestShown = true;
+      game.qaNewBestHold = 40;
+      Animations.newBestFrames = GAME_CONFIG.UPDATED_NEW_BEST_FRAMES;
+      Animations.milestoneFrames = 0;
+      const spy = spyText();
+      try {
+        drawNewBestBadge();
+        drawQaNewBest();
+        const painted = badgeCalls(spy.calls);
+        assertEquals(painted.length, 1, 'only the hold paints while both timers are up');
+        assertEquals(painted[0].alpha, GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
+          'the visible badge is the quiet hold, not a second full-gold copy');
+        assertEquals(painted[0].font, QUIET_FONT, 'the stacked frame stays on the quiet type');
+        assertEquals(Animations.newBestFrames, GAME_CONFIG.UPDATED_NEW_BEST_FRAMES - 1,
+          'the live countdown still runs under the hold');
+        assertEquals(game.qaNewBestHold, 40, 'drawing does not spend the hold');
+      } finally {
+        spy.restore();
+      }
+    } finally {
+      game.mode = origMode;
+      game.qaNewBestHold = 0;
+      game.qaNewBestShown = false;
+      Animations.newBestFrames = 0;
+      setReducedMotion(false);
+      ctx.globalAlpha = 1;
+    }
+  });
+
+  it('reduced motion shortens and damps the hold, and still paints it', () => {
+    const origMode = game.mode;
+    try {
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        armFreshRun();
+        game.mode = mode;
+        setReducedMotion(true);
+        setQaNewBest(true);
+        const spy = spyText();
+        try {
+          tick();
+          assertEquals(game.qaNewBestHold, qaNewBestHoldFrames(),
+            mode + ' hold uses the shorter window');
+          assertEquals(game.qaNewBestHold, 90, mode + ' reduced motion halves the 180-frame hold');
+          assert(game.qaNewBestHold < QA_NEW_BEST_HOLD,
+            mode + ' hold is shorter than the full capture');
+          assert(qaNewBestHoldFrames() >= 2, mode + ' hold still lasts long enough to see');
+          const painted = badgeCalls(spy.calls);
+          assertEquals(painted.length, 1, mode + ' reduced motion still paints the badge');
+          assertEquals(painted[0].alpha, qaNewBestPaintAlpha(),
+            mode + ' reduced motion holds the damped peak');
+          assert(painted[0].alpha < GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
+            mode + ' damped hold is softer than the motion-allowed peak');
+          assert(painted[0].alpha > 0, mode + ' damped hold still reads');
+          assertEquals(painted[0].font, QUIET_FONT, mode + ' damped hold stays on the small type');
+          assertEquals(painted[0].fill, '#ffd700', mode + ' damped hold stays gold');
+          assertEquals(game.newBestShown, false, mode + ' damped hold does not spend the real badge');
+          assertEquals(Animations.newBestFrames, 0, mode + ' damped hold does not arm the live countdown');
+          assert(game.score < 1, mode + ' damped hold must not write the score');
+        } finally {
+          spy.restore();
+        }
+      }
+    } finally {
+      game.mode = origMode;
+      setQaNewBest(false);
+      setReducedMotion(false);
+      game.qaNewBestHold = 0;
+      ctx.globalAlpha = 1;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('resetGame re-reads ?qaNewBest=1 from the page query', () => {
+    const origMode = game.mode;
+    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
+    const prevLocation = global.location;
+    const spy = spyText();
+    global.location = { search: '?qaNewBest=1' };
+    try {
+      setQaNewBest(false);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      game.state = STATE.RUNNING;
+      game.mode = MODES.UPDATED;
+      game.obstacles.length = 0;
+      game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+      game.nextSpawnGap = GAME_CONFIG.MAX_SPAWN_GAP;
+      game.highScore = 40;
+      game.newBestShown = false;
+      Animations.newBestFrames = 0;
+      tick();
+      assertEquals(badgeCalls(spy.calls).length, 1, 're-read flag paints the quiet badge');
+      assertEquals(badgeCalls(spy.calls)[0].font, QUIET_FONT, 're-read flag uses the quiet type');
+      assertEquals(badgeCalls(spy.calls)[0].alpha, GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
+        're-read flag uses the quiet peak');
+      assertEquals(game.qaNewBestHold, QA_NEW_BEST_HOLD, 'the re-read flag latches the hold');
+      assertEquals(game.qaNewBestShown, true, 'the re-read flag spends the latch');
+      assertEquals(game.newBestShown, false, 'the re-read flag does not spend the real badge');
+      assert(game.score < 1, 're-reading the flag must not change the score');
+      assertEquals(game.highScore, 40, 're-reading the flag must not change the high score');
+    } finally {
+      spy.restore();
+      if (hadLocation) global.location = prevLocation;
+      else delete global.location;
+      game.mode = origMode;
+      setQaNewBest(false);
+      ctx.globalAlpha = 1;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('still paints the hold after a collision return', () => {
+    const origMode = game.mode;
+    const spy = spyText();
+    try {
+      armFreshRun();
+      game.mode = MODES.UPDATED;
+      setQaNewBest(true);
+      game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
+      spy.calls.length = 0;
+      tick();
+      assertEquals(game.state, STATE.DEAD, 'the cactus still ends the run');
+      assertEquals(badgeCalls(spy.calls).length, 1, 'the hold still paints after the collision return');
+      assertEquals(badgeCalls(spy.calls)[0].font, QUIET_FONT, 'the death-frame hold stays quiet');
+      assertEquals(game.newBestShown, false, 'dying on the QA frame does not latch a real new best');
+      assertEquals(Animations.newBestFrames, 0, 'dying on the QA frame does not start the live countdown');
+      assert(game.score < 1, 'dying on the QA frame does not invent score');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaNewBest(false);
+      game.obstacles.length = 0;
+      Particles.reset();
+      Animations.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+});
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {
