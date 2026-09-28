@@ -19,7 +19,7 @@ _Avoid_: grace period, warmup, delay
 
 ## Core Concepts
 
-**Cluster obstacle** — the obstacle type that unlocks at score 250, drawn as two full small-cactus sprites with a visible gap so a first encounter reads as two cacti at a glance. The hitbox width, unlock score, and weight stay on `GAME_CONFIG` and are not part of the draw. An unrecognisable first encounter at score 250+ is a fairness break, not an earned surprise — the player has invested a long run before losing to something confusing.
+**Cluster obstacle** — the obstacle type that unlocks at score 250, drawn as two full small-cactus sprites with one small cactus of sky between them so a first encounter reads as two cacti at a glance. The cactus art's arms run to the edge of the sprite, so the leftover space inside the hitbox still reads as one mass. The sprites may overhang the hitbox equally; the sky between them stays inside the hitbox, and the gap is narrower than the dino, so it is not a lane. The hitbox width, unlock score, and weight stay on `GAME_CONFIG` and are not part of the draw. An unrecognisable first encounter at score 250+ is a fairness break, not an earned surprise — the player has invested a long run before losing to something confusing.
 _Avoid_: double cactus, pair obstacle, twin obstacle
 
 **Obstacle** — any on-screen hazard the dino must jump over.

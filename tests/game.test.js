@@ -953,12 +953,14 @@ describe('Obstacle Types', () => {
       render: cluster.render, type: cluster.id,
     }];
 
+    const placed = game.obstacles[0];
     const calls = [];
     const origDrawImage = ctx.drawImage;
     ctx.drawImage = (...args) => calls.push(args);
     drawObstacles();
     ctx.drawImage = origDrawImage;
     game.obstacles = [];
+    assertEquals(placed.width, cluster.width, 'Drawing does not resize the hitbox');
 
     assertEquals(calls.length, 2, 'Cluster must paint two sprites, not one stretched cactus');
     const [first, second] = calls;
@@ -966,11 +968,28 @@ describe('Obstacle Types', () => {
     assertEquals(second[3], small.width, 'Second sprite must be the full small-cactus width');
     assertEquals(first[4], small.height, 'First sprite must be the full small-cactus height');
     assertEquals(second[4], small.height, 'Second sprite must be the full small-cactus height');
-    assertEquals(first[1], 100, 'First sprite starts at the obstacle left edge');
+    assertEquals(first[2], 160, 'Sprites stay on the ground line of the cluster hitbox');
+    assertEquals(second[2], 160, 'Both sprites share the same ground line');
+
+    // The cactus art's arms run to the cell edge. The leftover inside a 50px
+    // hitbox is only ~10px, which still reads as one bar at the speed a first
+    // cluster appears (~score 250). One small cactus of sky splits that bar.
     const gap = second[1] - (first[1] + first[3]);
-    assert(gap >= 8, `Gap between the two cacti must be visible at a glance (got ${gap}px)`);
-    assertEquals(second[1] + second[3], 100 + cluster.width,
-      'The pair should span the existing hitbox so the gap sits inside it');
+    assertEquals(gap, small.width,
+      'Sky between the two cacti is one small cactus wide');
+    assert(gap < GAME_CONFIG.DINO_WIDTH,
+      'The gap stays narrower than the dino, so it is not a lane to thread');
+
+    const hitLeft = 100;
+    const hitRight = 100 + cluster.width;
+    const overhangLeft = hitLeft - first[1];
+    const overhangRight = (second[1] + second[3]) - hitRight;
+    assert(overhangLeft > 0 && overhangRight > 0,
+      'The pair is wider than the hitbox so the gap can open without shrinking either sprite');
+    assertEquals(overhangLeft, overhangRight,
+      'The pair overhangs the hitbox equally on both sides');
+    assert(first[1] + first[3] >= hitLeft && second[1] <= hitRight,
+      'The sky between the cacti sits inside the hitbox, so it is not a sneak-through');
   });
 
   it('a single cactus still draws once at its own size', () => {

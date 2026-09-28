@@ -966,15 +966,21 @@ function drawGround() {
   ctx.drawImage(groundImage, game.groundX + groundImage.width, groundY, groundImage.width, groundImage.height);
 }
 
-// Cluster hitbox stays GAME_CONFIG width. Paint two full small-cactus sprites
-// and leave the leftover width as a gap so the pair reads as two cacti.
+// Cluster hitbox stays GAME_CONFIG width. Paint two full small-cactus sprites.
+// The art's arms run to the cell edge, so the leftover inside the hitbox (~10px)
+// still reads as one bar at the speed a first cluster appears. Open one small
+// cactus of sky between them — narrower than the dino, so it is not a lane —
+// and let the sprites overhang the hitbox equally. The sky stays inside the
+// hitbox, so the gap is not a sneak-through. Collision does not read these slots.
 function clusterSpriteSlots(obstacle) {
   const small = GAME_CONFIG.OBSTACLE_TYPES[0];
-  const gap = obstacle.width - small.width * 2;
+  const gap = small.width;
+  const overhang = (small.width * 2 + gap - obstacle.width) / 2;
   const y = obstacle.y + (obstacle.height - small.height);
+  const left = obstacle.x - overhang;
   return [
-    { x: obstacle.x, y: y, w: small.width, h: small.height },
-    { x: obstacle.x + small.width + gap, y: y, w: small.width, h: small.height },
+    { x: left, y: y, w: small.width, h: small.height },
+    { x: left + small.width + gap, y: y, w: small.width, h: small.height },
   ];
 }
 
