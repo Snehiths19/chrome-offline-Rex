@@ -1070,11 +1070,14 @@ function drawClouds() {
   ctx.fillStyle = GAME_CONFIG.CLOUD_COLOR;
   try {
     game.clouds.forEach(c => {
+      // One fill for the whole puff. Separate fills would stack the night
+      // alpha where the circles overlap and light the center back up.
+      ctx.beginPath();
       GAME_CONFIG.CLOUD_CIRCLES.forEach(([dx, dy, r]) => {
-        ctx.beginPath();
+        ctx.moveTo(c.x + dx + r, c.y + dy);
         ctx.arc(c.x + dx, c.y + dy, r, 0, Math.PI * 2);
-        ctx.fill();
       });
+      ctx.fill();
     });
   } finally {
     ctx.globalAlpha = previousAlpha;

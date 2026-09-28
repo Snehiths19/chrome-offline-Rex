@@ -5457,6 +5457,36 @@ describe('Night cloud dim', () => {
     }
   });
 
+  it('fills each cloud once so the night dim does not stack', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const origFill = ctx.fill;
+    let fills = 0;
+    ctx.fill = function () {
+      fills++;
+      return origFill.apply(this, arguments);
+    };
+    try {
+      setQaNight(false);
+      initClouds();
+      game.mode = MODES.UPDATED;
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      drawClouds();
+      assertEquals(fills, GAME_CONFIG.CLOUD_COUNT,
+        'each cloud is one fill so overlapping circles do not stack the night dim');
+      game.score = 0;
+      fills = 0;
+      drawClouds();
+      assertEquals(fills, GAME_CONFIG.CLOUD_COUNT,
+        'day clouds use the same single fill');
+    } finally {
+      ctx.fill = origFill;
+      game.mode = origMode;
+      game.score = origScore;
+      setQaNight(false);
+    }
+  });
+
   it('paints the dim only around Updated night clouds and then clears it', () => {
     const origMode = game.mode;
     const origScore = game.score;
