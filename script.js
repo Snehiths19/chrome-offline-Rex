@@ -165,7 +165,7 @@ const GAME_CONFIG = Object.freeze({
   // stars (0.35 of white, about 80, 80, and 73). A 60px shape at that lift
   // competes with the obstacle lane. Three-fifths of that band is alpha
   // 0.21, about 43, 43, and 39. The sum stays under the night stars, under
-  // the night dino (1.35, about 86, 86, and 66), and under the night cactus
+  // the night dino (1.2, about 74, 74, and 54), and under the night cactus
   // (1.65, about 111, 111, and 91). It stays lighter than the night hills
   // (#2d2d46, about 19, 19, and 24), so the mound still reads. Classic does
   // not read this. The day peak eases to this from DAY_NIGHT_START to
@@ -196,13 +196,13 @@ const GAME_CONFIG = Object.freeze({
   // of that band is alpha 0.6, about 137, 137, and 125 — still brighter
   // than the night cactus (the #535353 sprite at 1.65, about 111, 111,
   // and 91 off the same sky). A 2px point at that lift sparkles over the
-  // obstacle lane. 0.35 keeps about 80, 80, and 73. The sum stays just
-  // under the night dino (1.35, about 86, 86, and 66) and above
-  // the soft night clouds (0.21 of #e8e8e8). The field still reads as
-  // stars and stays peripheral. Classic does not read this. Classic keeps
-  // full white after the same fade. Day never paints stars. Reduced
-  // motion still skips star init. Playtest with ?qaNight=1. Read through
-  // cfg(). Physics does not read this.
+  // obstacle lane. 0.35 keeps about 80, 80, and 73. The sum stays under
+  // the night cactus and a step above the softer night dino (1.2, about
+  // 74, 74, and 54), and above the soft night clouds (0.21 of #e8e8e8).
+  // The field still reads as stars and stays peripheral. Classic does not
+  // read this. Classic keeps full white after the same fade. Day never
+  // paints stars. Reduced motion still skips star init. Playtest with
+  // ?qaNight=1. Read through cfg(). Physics does not read this.
   NIGHT_STAR_ALPHA:         0.35,
   // Visual only. CSS brightness applied to cactus sprites once the sky is
   // fully night, in Updated and Daily. The day sprite is #535353; night hills
@@ -211,16 +211,25 @@ const GAME_CONFIG = Object.freeze({
   // Read through cfg().
   NIGHT_OBSTACLE_BRIGHTNESS: 1.65,
   // Visual only. CSS brightness applied to the dino once the sky is fully
-  // night, in Updated and Daily. Quieter than the cactus lift (1.65) so
-  // obstacles still win the eye. The day sprite is #535353; a lift during
-  // twilight lands on the hill. Classic does not read this. Read through cfg().
-  NIGHT_DINO_BRIGHTNESS: 1.35,
+  // night, in Updated and Daily. The day sprite is #535353. On the night
+  // sky (#1a1a2e) the old 1.35 lift sat about 86, 86, and 66 levels off
+  // that sky — a glow beside the obstacle lane, where the cactus holds
+  // 1.65 (about 111, 111, and 91). 1.2 keeps about 74, 74, and 54. The
+  // sum stays under the night stars (0.35 of white, about 80, 80, and 73)
+  // and under the cactus, and it stays lighter than the night hills
+  // (#2d2d46) and the night sky, so the runner still reads. Day keeps the
+  // unlifted sprite. Classic does not read this. The lift waits until
+  // DAY_NIGHT_END; twilight keeps the day sprite. Reduced motion keeps
+  // that same snap, with no pulse. Playtest with ?qaNight=1. Read through
+  // cfg(). Physics does not read this.
+  NIGHT_DINO_BRIGHTNESS: 1.2,
   // Visual only. Jump and land foot dust once the sky is fully night, in
   // Updated and Daily. Day dust stays the brown on those kinds (#9c8770).
   // On the night sky that brown reads as warm day-dirt. #6a686e is cooler
-  // and quieter than the night dino (1.35) and cactus (1.65), and a step
-  // above the soft night cloud, so the puff stays at the feet. The gray
-  // stays. A darker gray at the night peaks below would sit on the road.
+  // and quieter than the night cactus (1.65). The gray sits a small step
+  // above the softer night dino (1.2) and a step above the soft night
+  // cloud, so the puff stays at the feet. The gray stays. A darker gray
+  // at the night peaks below would sit on the road.
   // The quieter night presence is those peaks, the shorter counts, and
   // the shorter life. Classic does not read this. Eases with the sky from
   // DAY_NIGHT_START to DAY_NIGHT_END. Reduced motion skips that ease and
@@ -233,7 +242,7 @@ const GAME_CONFIG = Object.freeze({
   // at the ankle. Three-fifths of the alpha (0.30) composites to about
   // 50, 49, and 65, which lands on the road, so the puff would stop
   // reading. 0.42 keeps about 10, 9, and 11 of those levels, three-fifths
-  // of the old lift over the road, and stays under the night dino (1.35).
+  // of the old lift over the road, and stays under the night dino (1.2).
   // Classic does not read this. The day peak eases to this from
   // DAY_NIGHT_START to DAY_NIGHT_END. Reduced motion skips that ease and
   // snaps to this at DAY_NIGHT_END. The ?qaDust=1 hold uses this peak at
@@ -313,7 +322,7 @@ const GAME_CONFIG = Object.freeze({
   // their band. Red and green stay matched, and blue stays a step above
   // them, so the shape is still a night silhouette. It stays under the
   // night ground (the #535353 strip at 0.42) and well under the night dino
-  // (1.35) and cactus (1.65). Twilight lerps HILL_COLOR_DAY into this from
+  // (1.2) and cactus (1.65). Twilight lerps HILL_COLOR_DAY into this from
   // DAY_NIGHT_START to DAY_NIGHT_END. Reduced motion skips that ease and
   // snaps to this at DAY_NIGHT_END. Classic does not draw hills. Playtest
   // with ?qaNight=1. Read through cfg(). Physics does not read this.
@@ -2062,8 +2071,9 @@ function drawObstacles() {
 }
 
 // Day sprite stays put until night has arrived. A lift partway through the
-// fade crosses the hill colour. Quieter than the cactus lift so obstacles
-// still win the eye. Classic has no hills, so its dark silhouette stays.
+// fade crosses the hill colour. The full-night peak is the softer 1.2 step,
+// quieter than the cactus lift so obstacles still win the eye. Classic has
+// no hills, so its dark silhouette stays.
 function dinoNightBrightness() {
   if (!isUpdatedMode()) return 1;
   if (scoreForNightSky(game.score) < GAME_CONFIG.DAY_NIGHT_END) return 1;
