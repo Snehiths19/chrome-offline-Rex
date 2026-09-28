@@ -1734,7 +1734,18 @@ const Particles = (() => {
     jump:      { count:  6, color: '#9c8770',                size: 3, life: 18, vyMin: -2.0, vyMax: -0.5, vxSpread: 1.5, gravity: 0.05 },
     land:      { count:  9, color: '#9c8770',                size: 3, life: 14, vyMin: -1.5, vyMax: -0.2, vxSpread: 2.5, gravity: 0.08 },
     trail:     { count:  1, color: 'rgba(150,150,150,0.55)', size: 2, life: 10, vyMin: -0.2, vyMax:  0.2, vxSpread: 0.4, gravity: 0    },
-    collision: { count: 22, color: '#d04a2a',                size: 3, life: 24, vyMin: -3.0, vyMax:  1.0, vxSpread: 4.0, gravity: 0.10 },
+    // Death puff in Updated and Daily. Classic never emits. The old burst
+    // was 22 motes living 24 frames and flung ±4px/frame. The shake only
+    // draws particles for 12 frames, and in that window a mote could travel
+    // 48px — past the 40px dino and onto the cactus — so the eye left the
+    // lane. 8 motes is under half, in the same neighborhood as the shake
+    // going from 4px to 1.5px. Life 12 fades the puff out as that nudge
+    // ends. vxSpread 1 keeps the farthest mote at 12px, on the body even
+    // with the emit jitter. Vertical is -1.2..0.4; gravity 0.10 then lifts
+    // under 8px and drops under 12px, inside the 50px dino. Size stays 3
+    // and the red stays #d04a2a so the hit still reads. Reduced motion
+    // still applies REDUCED_FACTOR and half life.
+    collision: { count:  8, color: '#d04a2a',                size: 3, life: 12, vyMin: -1.2, vyMax:  0.4, vxSpread: 1.0, gravity: 0.10 },
     confetti:  { count: 20, color: '#ffd700',                size: 3, life: 40, vyMin: -3.5, vyMax: -1.5, vxSpread: 3.0, gravity: 0.12 },
     // Once-per-run plateau cue. Cool and small so it stays at the heel on the
     // night sky (~score 641). Distinct from gold confetti and brown foot dust.
