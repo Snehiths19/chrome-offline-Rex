@@ -1403,8 +1403,10 @@ describe('Soft night stars', () => {
     assert(now < threeFifths, 'a full three-fifths of white still outruns the night cactus');
     assert(sum(starLifts(threeFifths)) > sum(cactusLifts),
       'three-fifths of full white is still brighter than night cacti');
-    assert(sum(nowLifts) < sum(dinoLifts),
-      'the whisper stays under the night dino');
+    assert(sum(nowLifts) > sum(dinoLifts),
+      'the softer night dino stays under this star whisper');
+    assert(sum(nowLifts) < sum(cactusLifts),
+      'the whisper stays under night cacti');
     assert(sum(nowLifts) > sum(cloudLifts(GAME_CONFIG.NIGHT_CLOUD_ALPHA)),
       'white at this peak stays a step above the soft night clouds');
     assert(sum(nowLifts) < sum(fullLifts) * 0.5,
@@ -1984,8 +1986,8 @@ describe('Live-tuning hook (PR-P3)', () => {
     game.mode = MODES.UPDATED;
     game.score = GAME_CONFIG.DAY_NIGHT_END;
     try {
-      withTuning({ NIGHT_DINO_BRIGHTNESS: 1.2 }, () => {
-        assertEquals(dinoNightBrightness(), 1.2,
+      withTuning({ NIGHT_DINO_BRIGHTNESS: 1.5 }, () => {
+        assertEquals(dinoNightBrightness(), 1.5,
           'a visual override should brighten the night dino by the tuned amount');
       });
       assertEquals(dinoNightBrightness(), GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
@@ -6087,8 +6089,8 @@ describe('Night dino contrast', () => {
     try {
       setQaNight(false);
       setReducedMotion(false);
-      assertEquals(GAME_CONFIG.NIGHT_DINO_BRIGHTNESS, 1.35,
-        'the night dino lift is a quiet brightness step');
+      assertEquals(GAME_CONFIG.NIGHT_DINO_BRIGHTNESS, 1.2,
+        'the night dino lift is the softer brightness step');
       assert(GAME_CONFIG.NIGHT_DINO_BRIGHTNESS < GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
         'the dino stays quieter than night cacti so obstacles still win the eye');
 
@@ -6204,7 +6206,7 @@ describe('Night dino contrast', () => {
       ctx.filter = 'contrast(2)';
       const seen = filtersDuringSpriteDraw();
       assertEquals(seen.length, 1, 'the dino is still one sprite');
-      assertEquals(seen[0], 'brightness(1.35)', 'night paint uses the quieter dino lift');
+      assertEquals(seen[0], 'brightness(1.20)', 'night paint uses the softer dino lift');
       assertEquals(ctx.filter, 'contrast(2)', 'the lift must not leak onto obstacles or the HUD');
       assertEquals(dino.x, origX, 'the lift does not move the dino');
       assertEquals(dino.y, origY, 'the lift does not move the dino');
@@ -6245,7 +6247,7 @@ describe('Night dino contrast', () => {
       ctx.filter = 'contrast(2)';
       drawDino();
       assertEquals(seen.length, 1, 'a missing sprite still paints one fallback rect');
-      assertEquals(seen[0].filter, 'brightness(1.35)', 'the fallback shares the night dino lift');
+      assertEquals(seen[0].filter, 'brightness(1.20)', 'the fallback shares the night dino lift');
       assertEquals(seen[0].style, '#535353', 'the fallback ink stays the day sprite colour');
       assertEquals(seen[0].args[2], dino.width, 'the fallback keeps the dino width');
       assertEquals(seen[0].args[3], dino.height, 'the fallback keeps the dino height');
@@ -6810,8 +6812,8 @@ describe('Night land dust', () => {
         'night dust stays a step above the soft night clouds'
       );
       assert(
-        relLuminance(night) < 0x53 * GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
-        'night dust stays quieter than the night dino'
+        relLuminance(night) > 0x53 * GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
+        'the softer night dino sits under this cool foot gray'
       );
       assert(
         relLuminance(night) < 0x53 * GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
