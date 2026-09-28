@@ -483,6 +483,29 @@ function setQaTrail(enabled) {
   qaTrail = !!enabled;
 }
 
+// QA/debug only — not for players. ?qaConfetti=1 emits the level-up gold
+// puff from the first Updated/Daily RUNNING frame, so playtest can see it
+// without a score-100 run or a new record. It does not write the score,
+// speed, gaps, or game.rng(). Classic never takes it. One burst per run,
+// at the same score corner as a real level. Re-read in resetGame() like
+// the other QA flags. Tests flip it through setQaConfetti(); a normal
+// visit leaves this false.
+function readQaConfettiFlag(search) {
+  const query = search !== undefined
+    ? search
+    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
+      ? location.search
+      : '');
+  if (!query) return false;
+  return new URLSearchParams(query).get('qaConfetti') === '1';
+}
+
+let qaConfetti = readQaConfettiFlag();
+
+function setQaConfetti(enabled) {
+  qaConfetti = !!enabled;
+}
+
 // Score the night sky consults. The QA flag pretends night has fully arrived.
 function scoreForNightSky(score) {
   if (!qaNight) return score;
@@ -834,6 +857,8 @@ const game = {
   qaBigShown:       false,
   // QA/debug only. Latches after ?qaLevel=1 spends its one early milestone flash.
   qaLevelShown:     false,
+  // QA/debug only. Latches after ?qaConfetti=1 spends its one early gold puff.
+  qaConfettiShown:  false,
   isNewBest:         false,
   previousHighScore: 0,
   // Set on a Daily death before today best is saved. Mirrors isNewBest:
@@ -1783,7 +1808,17 @@ const Particles = (() => {
     // and the red stays #d04a2a so the hit still reads. Reduced motion
     // still applies REDUCED_FACTOR and half life.
     collision: { count:  8, color: '#d04a2a',                size: 3, life: 12, vyMin: -1.2, vyMax:  0.4, vxSpread: 1.0, gravity: 0.10 },
-    confetti:  { count: 20, color: '#ffd700',                size: 3, life: 40, vyMin: -3.5, vyMax: -1.5, vxSpread: 3.0, gravity: 0.12 },
+    // Level gold at the score in Updated and Daily. Classic never emits.
+    // The old burst was 20 motes living 40 frames and flung ±3px/frame.
+    // From the score that is a 120px spray toward the lane and a fountain
+    // off the top of the canvas, so the celebration yanks the eye. Half
+    // the motes (10) and half the life (20) keep a gold puff. vxSpread
+    // 1.2 holds a full life inside 24px of the number. The rise is
+    // -1.6..-0.5 with gravity 0.10: about 14px up and under 10px down,
+    // on the score and on the canvas. Size stays 3 and the gold stays
+    // #ffd700 so the level still reads as a celebration. Reduced motion
+    // still applies REDUCED_FACTOR and half life.
+    confetti:  { count: 10, color: '#ffd700',                size: 3, life: 20, vyMin: -1.6, vyMax: -0.5, vxSpread: 1.2, gravity: 0.10 },
     // Once-per-run plateau cue. Cool and small so it stays at the heel on the
     // night sky (~score 641). Distinct from gold confetti and brown foot dust.
     plateau:   { count:  8, color: '#c5d4e4',                size: 2, life: 24, vyMin: -1.0, vyMax: -0.3, vxSpread: 0.6, gravity: 0.02 },
@@ -2167,6 +2202,7 @@ function resetGame() {
   game.qaClusterShown    = false;
   game.qaBigShown        = false;
   game.qaLevelShown      = false;
+  game.qaConfettiShown   = false;
   // QA/debug only. Re-read so a mode toggle still honors the page query.
   qaPlateau = readQaPlateauFlag();
   qaCluster = readQaClusterFlag();
@@ -2174,6 +2210,7 @@ function resetGame() {
   qaNight = readQaNightFlag();
   qaLevel = readQaLevelFlag();
   qaTrail = readQaTrailFlag();
+  qaConfetti = readQaConfettiFlag();
   game.isNewBest         = false;
   game.previousHighScore = 0;
   game.isNewTodayBest    = false;
@@ -2299,6 +2336,16 @@ function handleRunning() {
     game.milestoneText = 'LEVEL 2';
     Animations.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
     audio.milestone();
+    Particles.emit('confetti', GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30, GAME_CONFIG.SCORE_Y);
+  }
+
+  // QA/debug only — not for players. Same gold puff as a level-up, once,
+  // from the first Updated/Daily frame, at the score. A normal visit waits
+  // for the real level. Classic never enters. Particles.emit uses
+  // Math.random(), not game.rng(). The flag does not change speed, gaps,
+  // or scoring.
+  if (qaConfetti && isUpdatedMode() && !game.qaConfettiShown) {
+    game.qaConfettiShown = true;
     Particles.emit('confetti', GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30, GAME_CONFIG.SCORE_Y);
   }
 
@@ -2548,6 +2595,8 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.readQaLevelFlag = readQaLevelFlag;
   global.setQaTrail = setQaTrail;
   global.readQaTrailFlag = readQaTrailFlag;
+  global.setQaConfetti = setQaConfetti;
+  global.readQaConfettiFlag = readQaConfettiFlag;
   global.obstacleNightBrightness = obstacleNightBrightness;
   global.dinoNightBrightness = dinoNightBrightness;
   global.cloudPaintAlpha = cloudPaintAlpha;
