@@ -107,6 +107,8 @@ export default [
         setQaPlateau: 'readonly',
         readQaPlateauFlag: 'readonly',
         QA_PLATEAU_SCORE: 'readonly',
+        setQaCluster: 'readonly',
+        readQaClusterFlag: 'readonly',
         shareDailyResult: 'readonly',
         STATE_HANDLERS: 'readonly',
         updateHills: 'readonly',
