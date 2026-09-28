@@ -62,6 +62,9 @@ _Avoid_: slope, sigmoid slope
 
 **Particles** — the module that owns the particle pool, kind definitions, and all emit/update/draw/reset behaviour. Callers invoke `Particles.emit(kind, x, y)` without knowing pool size, reduced-motion rules, or mode gating — all suppression logic lives inside. Visual-only: uses `Math.random()`, never `game.rng()`.
 
+**Land dust** — the jump and land foot puffs in Updated and Daily. By day they are the familiar brown. As the sky eases into night they cool to quiet ground dust, in the same family as the soft night clouds, so they stay at the feet and off the obstacle lane. Classic never shows them. Trail, collision, confetti, and the plateau cue are not land dust.
+_Avoid_: foot dirt, jump smoke, dust particles (too broad — those include the trail and the plateau puff)
+
 **Animations** — the module that owns all per-run animation countdown timers (death shake, death flash, score pop, milestone flash, new-best badge, copy flash, death score count-up). A single `Animations.reset()` call zeroes all counters at the start of each run. Handlers and draw functions read and write counters directly via `Animations.X`.
 
 ## Randomness

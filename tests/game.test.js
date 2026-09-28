@@ -5744,6 +5744,225 @@ describe('Night cloud dim', () => {
   });
 });
 
+describe('Night land dust', () => {
+  const DAY_DUST = '#9c8770';
+
+  function withTuning(overrides, fn) {
+    const orig = window.GAME_TUNING;
+    window.GAME_TUNING = overrides;
+    try { fn(); } finally { window.GAME_TUNING = orig; }
+  }
+
+  function relLuminance(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = (n >> 16) & 255;
+    const g = (n >> 8) & 255;
+    const b = n & 255;
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+
+  function compositedCloudLuminance(alpha) {
+    const sky = [0x1a, 0x1a, 0x2e];
+    const cloud = [0xe8, 0xe8, 0xe8];
+    const mixed = sky.map((s, i) => s + (cloud[i] - s) * alpha);
+    return 0.2126 * mixed[0] + 0.7152 * mixed[1] + 0.0722 * mixed[2];
+  }
+
+  function liveColors(kind) {
+    Particles.reset();
+    Particles.emit(kind, 80, 140);
+    return Particles.particles.filter(p => p.life > 0).map(p => p.color);
+  }
+
+  it('keeps day jump and land dust brown, and cools it once the sky is night', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      assertEquals(Particles.KINDS.jump.color, DAY_DUST, 'jump kind stays the day brown');
+      assertEquals(Particles.KINDS.land.color, DAY_DUST, 'land kind stays the day brown');
+      assertEquals(GAME_CONFIG.NIGHT_LAND_DUST_COLOR, '#6a686e',
+        'night land dust is the quiet cool gray');
+      const night = GAME_CONFIG.NIGHT_LAND_DUST_COLOR;
+      const nightWarmth = parseInt(night.slice(1, 3), 16) - parseInt(night.slice(5, 7), 16);
+      const dayWarmth = 0x9c - 0x70;
+      assert(nightWarmth < dayWarmth, 'night dust is cooler than day brown');
+      assert(relLuminance(night) < relLuminance(DAY_DUST), 'night dust is quieter than day brown');
+      assert(
+        relLuminance(night) > compositedCloudLuminance(GAME_CONFIG.NIGHT_CLOUD_ALPHA),
+        'night dust stays a step above the soft night clouds'
+      );
+      assert(
+        relLuminance(night) < 0x53 * GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
+        'night dust stays quieter than the night dino'
+      );
+      assert(
+        relLuminance(night) < 0x53 * GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
+        'night dust stays quieter than night cacti'
+      );
+
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      assertEquals(landDustColor(DAY_DUST), DAY_DUST, 'day Updated keeps the brown foot dust');
+      assert(liveColors('jump').every(c => c === DAY_DUST), 'a day jump kicks brown dust');
+      assert(liveColors('land').every(c => c === DAY_DUST), 'a day landing kicks brown dust');
+
+      game.score = GAME_CONFIG.DAY_NIGHT_START;
+      assertEquals(landDustColor(DAY_DUST), DAY_DUST,
+        'the ease starts with the sky, still brown at the boundary');
+      game.score = 350;
+      const mid = landDustColor(DAY_DUST);
+      assert(mid !== DAY_DUST && mid !== night, 'mid-twilight is between brown and night dust');
+      game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
+      const almost = landDustColor(DAY_DUST);
+      assert(almost !== night, 'one point before night is still easing, not snapped');
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      assertEquals(landDustColor(DAY_DUST), night, 'full night holds the cool dust');
+      assert(liveColors('jump').every(c => c === night), 'a night jump kicks cool dust');
+      assert(liveColors('land').every(c => c === night), 'a night landing kicks cool dust');
+      game.score = 1000;
+      assertEquals(landDustColor(DAY_DUST), night, 'later night keeps the same cool dust');
+
+      game.mode = MODES.DAILY;
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      assertEquals(landDustColor(DAY_DUST), night, 'Daily shares the Updated night dust');
+      assert(liveColors('land').every(c => c === night), 'a Daily night landing kicks cool dust');
+
+      game.mode = MODES.CLASSIC;
+      game.score = 1000;
+      assertEquals(landDustColor(DAY_DUST), DAY_DUST, 'Classic night dust stays the day brown');
+      assertEquals(liveColors('jump').length, 0, 'Classic still emits no foot dust');
+      assertEquals(liveColors('land').length, 0, 'Classic still emits no land dust');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setQaNight(false);
+      setReducedMotion(false);
+      Particles.reset();
+    }
+  });
+
+  it('reduced motion snaps to night dust instead of easing, and still damps the burst', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      setQaNight(false);
+      game.mode = MODES.UPDATED;
+      setReducedMotion(true);
+      game.score = 350;
+      assertEquals(landDustColor(DAY_DUST), DAY_DUST,
+        'reduced motion keeps brown dust while the sky is still changing');
+      game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
+      assertEquals(landDustColor(DAY_DUST), DAY_DUST,
+        'reduced motion does not run the twilight ease');
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      assertEquals(landDustColor(DAY_DUST), GAME_CONFIG.NIGHT_LAND_DUST_COLOR,
+        'reduced motion still gets the static night dust');
+      const emitted = Particles.emit('land', 80, 140);
+      const damped = Math.max(1, Math.round(Particles.KINDS.land.count * 0.25));
+      assertEquals(emitted, damped, 'reduced motion still damps the land burst');
+      assert(
+        Particles.particles.filter(p => p.life > 0).every(p => p.color === GAME_CONFIG.NIGHT_LAND_DUST_COLOR),
+        'the damped night burst is still cool dust'
+      );
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setReducedMotion(false);
+      setQaNight(false);
+      Particles.reset();
+    }
+  });
+
+  it('?qaNight=1 cools Updated foot dust immediately without moving the score', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      setQaNight(true);
+      assertEquals(landDustColor(DAY_DUST), GAME_CONFIG.NIGHT_LAND_DUST_COLOR,
+        'the existing night QA flag is enough to see night dust');
+      assert(liveColors('jump').every(c => c === GAME_CONFIG.NIGHT_LAND_DUST_COLOR),
+        'a QA-night jump kicks cool dust at score 0');
+      assertEquals(game.score, 0, 'night dust must not write the score');
+
+      game.mode = MODES.CLASSIC;
+      assertEquals(landDustColor(DAY_DUST), DAY_DUST, 'QA night still leaves Classic dust brown');
+      assertEquals(liveColors('land').length, 0, 'QA night does not add Classic foot dust');
+      assertEquals(game.score, 0, 'Classic QA night must not write the score');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setQaNight(false);
+      Particles.reset();
+    }
+  });
+
+  it('NIGHT_LAND_DUST_COLOR override changes only the night dust', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      game.mode = MODES.UPDATED;
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      withTuning({ NIGHT_LAND_DUST_COLOR: '#556677' }, () => {
+        assertEquals(landDustColor(DAY_DUST), '#556677',
+          'a visual override should recolor night foot dust');
+        assert(liveColors('land').every(c => c === '#556677'),
+          'emitted night land dust uses the tuned color');
+      });
+      assertEquals(landDustColor(DAY_DUST), GAME_CONFIG.NIGHT_LAND_DUST_COLOR,
+        'clearing the override returns the configured night dust');
+      game.score = 0;
+      withTuning({ NIGHT_LAND_DUST_COLOR: '#556677' }, () => {
+        assertEquals(landDustColor(DAY_DUST), DAY_DUST, 'day dust ignores the night override');
+      });
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      withTuning({ NIGHT_LAND_DUST_COLOR: 'dust' }, () => {
+        assertEquals(landDustColor(DAY_DUST), GAME_CONFIG.NIGHT_LAND_DUST_COLOR,
+          'a non-color override falls back to the configured night dust');
+      });
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setQaNight(false);
+      setReducedMotion(false);
+      Particles.reset();
+    }
+  });
+
+  it('leaves trail, collision, confetti, and plateau colors alone at night', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const origRng = game.rng;
+    let rngCalls = 0;
+    game.rng = () => { rngCalls++; return origRng(); };
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      game.mode = MODES.UPDATED;
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      for (const kind of ['trail', 'collision', 'confetti', 'plateau', 'plateauQa']) {
+        const colors = liveColors(kind);
+        assert(colors.length > 0, kind + ' still emits at night');
+        assert(colors.every(c => c === Particles.KINDS[kind].color),
+          kind + ' keeps its own color at night');
+      }
+      assertEquals(rngCalls, 0, 'recoloring foot dust does not consume the run seed');
+    } finally {
+      game.rng = origRng;
+      game.mode = origMode;
+      game.score = origScore;
+      setQaNight(false);
+      setReducedMotion(false);
+      Particles.reset();
+    }
+  });
+});
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {
