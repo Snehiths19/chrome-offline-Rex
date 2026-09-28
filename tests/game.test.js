@@ -5963,6 +5963,232 @@ describe('Night land dust', () => {
   });
 });
 
+describe('Night ground cool', () => {
+  function withTuning(overrides, fn) {
+    const orig = window.GAME_TUNING;
+    window.GAME_TUNING = overrides;
+    try { fn(); } finally { window.GAME_TUNING = orig; }
+  }
+
+  // Night sky #1a1a2e showing through the day ground sprite #535353.
+  function compositedGround(alpha) {
+    const sky = [0x1a, 0x1a, 0x2e];
+    const ground = [0x53, 0x53, 0x53];
+    return sky.map((s, i) => s + (ground[i] - s) * alpha);
+  }
+
+  function relLuminance(channels) {
+    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+  }
+
+  function dustLuminance() {
+    const hex = GAME_CONFIG.NIGHT_LAND_DUST_COLOR;
+    return relLuminance([
+      parseInt(hex.slice(1, 3), 16),
+      parseInt(hex.slice(3, 5), 16),
+      parseInt(hex.slice(5, 7), 16),
+    ]);
+  }
+
+  it('eases Updated and Daily ground down after full night, cooler than the day strip', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      assert(GAME_CONFIG.NIGHT_GROUND_ALPHA < 1, 'night ground is dimmer than the day strip');
+      assert(GAME_CONFIG.NIGHT_GROUND_ALPHA > 0, 'night ground stays visible against the night sky');
+      assert(GAME_CONFIG.NIGHT_GROUND_ALPHA > GAME_CONFIG.NIGHT_CLOUD_ALPHA,
+        'the running line stays firmer than the soft night clouds');
+      const night = compositedGround(GAME_CONFIG.NIGHT_GROUND_ALPHA);
+      const day = compositedGround(1);
+      assert(relLuminance(night) < relLuminance(day), 'night ground is dimmer than the day strip');
+      assert(night[2] - night[0] > day[2] - day[0], 'night sky bleed cools the neutral day gray');
+      assert(relLuminance(night) < dustLuminance(),
+        'night ground stays quieter than the cooled foot dust');
+      assert(relLuminance(night) < 0x53 * GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
+        'night ground stays quieter than the night dino');
+      assert(relLuminance(night) < 0x53 * GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
+        'night ground stays quieter than night cacti');
+
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      assertEquals(groundPaintAlpha(), 1, 'day Updated keeps the day-bright ground');
+      game.score = GAME_CONFIG.DAY_NIGHT_START;
+      assertEquals(groundPaintAlpha(), 1, 'the ease starts with the sky, still day-bright at the boundary');
+      game.score = 350;
+      const mid = 1 + (GAME_CONFIG.NIGHT_GROUND_ALPHA - 1) * 0.5;
+      assert(
+        Math.abs(groundPaintAlpha() - mid) < 1e-9,
+        'mid-twilight is halfway from day-bright to the night cool'
+      );
+      game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
+      assert(groundPaintAlpha() < 1 && groundPaintAlpha() > GAME_CONFIG.NIGHT_GROUND_ALPHA,
+        'one point before night is still easing, not snapped');
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      assertEquals(groundPaintAlpha(), GAME_CONFIG.NIGHT_GROUND_ALPHA,
+        'full night holds the cool dim');
+      game.score = 1000;
+      assertEquals(groundPaintAlpha(), GAME_CONFIG.NIGHT_GROUND_ALPHA,
+        'later night keeps the same static dim');
+
+      game.mode = MODES.DAILY;
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      assertEquals(groundPaintAlpha(), GAME_CONFIG.NIGHT_GROUND_ALPHA,
+        'Daily shares the Updated night ground cool');
+
+      game.mode = MODES.CLASSIC;
+      game.score = 0;
+      assertEquals(groundPaintAlpha(), 1, 'Classic day ground stays as it is');
+      game.score = 350;
+      assertEquals(groundPaintAlpha(), 1, 'Classic twilight ground stays as it is');
+      game.score = 1000;
+      assertEquals(groundPaintAlpha(), 1, 'Classic night ground stays as it is');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setQaNight(false);
+      setReducedMotion(false);
+    }
+  });
+
+  it('reduced motion snaps to the static night dim instead of easing', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      setQaNight(false);
+      game.mode = MODES.UPDATED;
+      setReducedMotion(true);
+      game.score = 350;
+      assertEquals(groundPaintAlpha(), 1,
+        'reduced motion keeps day-bright ground while the sky is still day');
+      game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
+      assertEquals(groundPaintAlpha(), 1,
+        'reduced motion does not run the twilight ease');
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      assertEquals(groundPaintAlpha(), GAME_CONFIG.NIGHT_GROUND_ALPHA,
+        'reduced motion still gets the static night ground');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setReducedMotion(false);
+    }
+  });
+
+  it('?qaNight=1 cools Updated ground immediately without moving the score', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      setQaNight(true);
+      assertEquals(groundPaintAlpha(), GAME_CONFIG.NIGHT_GROUND_ALPHA,
+        'the existing night QA flag is enough to see the cool');
+      assertEquals(game.score, 0, 'the cool must not write the score');
+
+      game.mode = MODES.CLASSIC;
+      assertEquals(groundPaintAlpha(), 1,
+        'QA night still leaves Classic ground alone');
+      assertEquals(game.score, 0, 'Classic QA night must not write the score');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setQaNight(false);
+    }
+  });
+
+  it('NIGHT_GROUND_ALPHA override changes only the night dim', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      game.mode = MODES.UPDATED;
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      withTuning({ NIGHT_GROUND_ALPHA: 0.4 }, () => {
+        assertEquals(groundPaintAlpha(), 0.4,
+          'a visual override should dim night ground by the tuned amount');
+      });
+      assertEquals(groundPaintAlpha(), GAME_CONFIG.NIGHT_GROUND_ALPHA,
+        'clearing the override returns the configured night dim');
+      game.score = 0;
+      withTuning({ NIGHT_GROUND_ALPHA: 0.4 }, () => {
+        assertEquals(groundPaintAlpha(), 1, 'day ground ignores the night override');
+      });
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      withTuning({ NIGHT_GROUND_ALPHA: 'soft' }, () => {
+        assertEquals(groundPaintAlpha(), GAME_CONFIG.NIGHT_GROUND_ALPHA,
+          'a non-numeric override falls back to the configured dim');
+      });
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setQaNight(false);
+      setReducedMotion(false);
+    }
+  });
+
+  it('paints the cool only around the ground blit and then clears it', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const origAlpha = ctx.globalAlpha;
+    const origGroundX = game.groundX;
+    const origSpeed = game.currentSpeed;
+    const origRng = game.rng;
+    let rngCalls = 0;
+    game.rng = () => { rngCalls++; return origRng(); };
+    const seen = [];
+    const origDraw = ctx.drawImage;
+    ctx.drawImage = function (...args) {
+      seen.push(ctx.globalAlpha);
+      return origDraw.apply(this, args);
+    };
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      game.mode = MODES.UPDATED;
+      game.groundX = -40;
+      game.score = 0;
+      ctx.globalAlpha = 1;
+      drawGround();
+      assertEquals(seen.length, 2, 'day still blits the strip twice so it can scroll');
+      assert(seen.every(a => a === 1), 'day ground stays fully opaque');
+      assertEquals(ctx.globalAlpha, 1, 'a day draw leaves the obstacle lane alone');
+      assertEquals(game.groundX, -40, 'painting ground does not scroll it');
+
+      seen.length = 0;
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      ctx.globalAlpha = 0.8;
+      drawGround();
+      assertEquals(seen.length, 2, 'night still blits the same two tiles');
+      assert(seen.every(a => Math.abs(a - 0.8 * GAME_CONFIG.NIGHT_GROUND_ALPHA) < 1e-9),
+        'night paint multiplies the existing alpha by the ground cool');
+      assertEquals(ctx.globalAlpha, 0.8, 'the cool must not leak onto the dino or cacti');
+      assertEquals(game.groundX, -40, 'night paint does not scroll the strip');
+      assertEquals(game.currentSpeed, origSpeed, 'night paint does not change speed');
+      assertEquals(rngCalls, 0, 'painting ground does not consume the run seed');
+
+      seen.length = 0;
+      game.mode = MODES.CLASSIC;
+      game.score = 1000;
+      ctx.globalAlpha = 1;
+      drawGround();
+      assert(seen.every(a => a === 1), 'Classic night paint stays day-bright');
+      assertEquals(ctx.globalAlpha, 1, 'Classic paint leaves the lane alone');
+      assertEquals(game.groundX, -40, 'Classic paint does not scroll the strip');
+    } finally {
+      ctx.drawImage = origDraw;
+      game.rng = origRng;
+      game.mode = origMode;
+      game.score = origScore;
+      game.groundX = origGroundX;
+      ctx.globalAlpha = origAlpha;
+      setQaNight(false);
+      setReducedMotion(false);
+    }
+  });
+});
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {
