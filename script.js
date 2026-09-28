@@ -599,6 +599,10 @@ const game = {
   plateauCueShown:  false,
   isNewBest:         false,
   previousHighScore: 0,
+  // Set on a Daily death before today best is saved. Mirrors isNewBest:
+  // true when this run beats today, including the first run of the day.
+  isNewTodayBest:    false,
+  previousDailyBest: 0,
   // Boot seed matches the RNG created below. resetGame() replaces it with
   // the daily seed or a fresh clock seed before the next run.
   runSeed:           bootSeed,
@@ -1113,35 +1117,57 @@ function drawGameOverScreen() {
   ctx.textAlign = 'center';
 
   if (isDailyMode()) {
-    // Daily challenge death screen — THIS RUN vs TODAY BEST, no all-time comparison
-    const todayBest = game.dailyBest;
-    const delta = todayBest > 0 ? todayBest - displayScore : 0;
+    if (game.isNewTodayBest) {
+      // Same takeover as free-play NEW BEST. The daily number sits higher so
+      // it doesn't land on the title. Static text — no pulse.
+      ctx.fillStyle = 'rgba(255, 140, 0, 0.9)';
+      ctx.font = '13px ' + font;
+      ctx.fillText('📅 DAILY #' + dailyNumber(), GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 70);
 
-    ctx.fillStyle = 'rgba(255, 140, 0, 0.9)';
-    ctx.font = '13px ' + font;
-    ctx.fillText('📅 DAILY #' + dailyNumber(), GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 48);
+      ctx.fillStyle = 'white';
+      ctx.font = '15px ' + font;
+      ctx.fillText('★  NEW TODAY BEST  ★', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 36);
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-    ctx.font = '12px ' + font;
-    ctx.fillText('THIS RUN', GAME_CONFIG.CANVAS_W * 0.2, GAME_CONFIG.CANVAS_H / 2 - 14);
-    ctx.fillStyle = 'white';
-    ctx.font = '28px ' + font;
-    ctx.fillText(String(displayScore).padStart(5, '0'), GAME_CONFIG.CANVAS_W * 0.2, GAME_CONFIG.CANVAS_H / 2 + 14);
+      ctx.font = '42px ' + font;
+      ctx.fillText(String(displayScore).padStart(5, '0'), GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 4);
 
-    if (todayBest > 0) {
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-      ctx.font = '16px ' + font;
-      ctx.fillText(delta > 0 ? '← +' + delta + ' →' : '← best →', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 10);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-      ctx.font = '11px ' + font;
-      ctx.fillText('today best', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 10);
+      if (game.previousDailyBest > 0) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.font = '13px ' + font;
+        const improvement = displayScore - game.previousDailyBest;
+        ctx.fillText('+' + improvement + ' over your previous best', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 28);
+      }
+    } else {
+      // Daily challenge death screen — THIS RUN vs TODAY BEST, no all-time comparison
+      const todayBest = game.dailyBest;
+      const delta = todayBest > 0 ? todayBest - displayScore : 0;
+
+      ctx.fillStyle = 'rgba(255, 140, 0, 0.9)';
+      ctx.font = '13px ' + font;
+      ctx.fillText('📅 DAILY #' + dailyNumber(), GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 48);
 
       ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
       ctx.font = '12px ' + font;
-      ctx.fillText('TODAY BEST', GAME_CONFIG.CANVAS_W * 0.8, GAME_CONFIG.CANVAS_H / 2 - 14);
+      ctx.fillText('THIS RUN', GAME_CONFIG.CANVAS_W * 0.2, GAME_CONFIG.CANVAS_H / 2 - 14);
       ctx.fillStyle = 'white';
       ctx.font = '28px ' + font;
-      ctx.fillText(String(todayBest).padStart(5, '0'), GAME_CONFIG.CANVAS_W * 0.8, GAME_CONFIG.CANVAS_H / 2 + 14);
+      ctx.fillText(String(displayScore).padStart(5, '0'), GAME_CONFIG.CANVAS_W * 0.2, GAME_CONFIG.CANVAS_H / 2 + 14);
+
+      if (todayBest > 0) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.font = '16px ' + font;
+        ctx.fillText(delta > 0 ? '← +' + delta + ' →' : '← best →', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 10);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.font = '11px ' + font;
+        ctx.fillText('today best', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 10);
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.font = '12px ' + font;
+        ctx.fillText('TODAY BEST', GAME_CONFIG.CANVAS_W * 0.8, GAME_CONFIG.CANVAS_H / 2 - 14);
+        ctx.fillStyle = 'white';
+        ctx.font = '28px ' + font;
+        ctx.fillText(String(todayBest).padStart(5, '0'), GAME_CONFIG.CANVAS_W * 0.8, GAME_CONFIG.CANVAS_H / 2 + 14);
+      }
     }
 
     // Show or hide the DOM share button based on animation completion.
@@ -1634,6 +1660,8 @@ function resetGame() {
   qaPlateau = readQaPlateauFlag();
   game.isNewBest         = false;
   game.previousHighScore = 0;
+  game.isNewTodayBest    = false;
+  game.previousDailyBest = 0;
   game.lastGaps = [];
   game.lastObstacleTypes = [];
   game.lastJumpFrame = null;
@@ -1803,11 +1831,20 @@ function handleRunning() {
         ScoreStore.saveHighScore(game.highScore);
       }
       if (isDailyMode()) {
+        // Compare before saving, same as computeRunResult / isNewBest.
+        // A tie is not a new today best. No prior today best (0) is.
+        const todayResult = computeRunResult(finalScore, game.dailyBest);
+        game.isNewTodayBest = todayResult.isNewBest;
+        game.previousDailyBest = todayResult.previousHighScore;
         ScoreStore.saveDailyBest(finalScore);
         game.dailyBest = ScoreStore.loadDailyBest();
+      } else {
+        game.isNewTodayBest = false;
+        game.previousDailyBest = 0;
       }
+      const todayLine = game.isNewTodayBest ? 'New today best ' : 'Today best ';
       announce(isDailyMode()
-        ? 'Game over. Score ' + finalScore + '. Today best ' + game.dailyBest + '. ' + DAILY_DEATH_HINT + '. Press space to restart.'
+        ? 'Game over. Score ' + finalScore + '. ' + todayLine + game.dailyBest + '. ' + DAILY_DEATH_HINT + '. Press space to restart.'
         : 'Game over. Score ' + finalScore + '. High score ' + game.highScore + '. Press space to restart.');
       if (runDebug) publishRunSnapshot(buildRunSnapshot('death'));
       return;
