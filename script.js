@@ -209,6 +209,17 @@ const GAME_CONFIG = Object.freeze({
   CLOUD_SPEED_FACTOR_UPDATED: 1.5, // multiply cloud speed in updated mode for stronger parallax
   SKY_TINT_PEAK_ALPHA:      0.12, // gold sky-flash peak alpha during milestone
   SKY_TINT_COLOR_RGB:      '255, 215, 0',   // gold sky-flash colour (rgb triplet, alpha applied at draw)
+  // Visual only. Peak alpha of the gold milestone sky-flash once the sky is
+  // fully night, in Updated and Daily. Day flash stays SKY_TINT_PEAK_ALPHA
+  // (0.12), a whisper on white. The same 0.12 on the night sky (#1a1a2e) is
+  // a gold veil over the whole canvas, and the tint paints after the cacti,
+  // so it punches the obstacle lane. 0.04 is a third of that peak: the level
+  // cue stays gold, and the luminance lift stays near the day wash on white.
+  // Classic does not read this. Eases with the sky from DAY_NIGHT_START to
+  // DAY_NIGHT_END. Reduced motion skips that ease and snaps to this at
+  // DAY_NIGHT_END; the tint itself stays suppressed under reduced motion.
+  // Read through cfg().
+  NIGHT_SKY_TINT_PEAK_ALPHA: 0.04,
   PARTICLE_EMIT_SPREAD:     4,    // px width of the cosmetic xy jitter on every particle emit
 
   // --- Effects ---
@@ -376,8 +387,8 @@ function setQaBig(enabled) {
 // first frame so the star fade can be seen without a score-400 run.
 // Sky, hills, HUD ink, star init, the Updated/Daily night cactus and dino
 // lifts, the Updated/Daily night cloud dim, Updated/Daily jump/land
-// dust, and the Updated/Daily night ground cool read it through
-// scoreForNightSky. Speed, gaps, scoring, and
+// dust, the Updated/Daily night ground cool, and the Updated/Daily night
+// milestone tint read it through scoreForNightSky. Speed, gaps, scoring, and
 // game.rng() do not. Re-read in resetGame() like the other QA flags.
 // Tests flip it through setQaNight(); a normal visit leaves this false.
 function readQaNightFlag(search) {
@@ -394,6 +405,29 @@ let qaNight = readQaNightFlag();
 
 function setQaNight(enabled) {
   qaNight = !!enabled;
+}
+
+// QA/debug only — not for players. ?qaLevel=1 fires the first Updated/Daily
+// milestone flash on the opening RUNNING frames so the sky wash can be seen
+// without a score-100 run. It does not write the score, speed, gaps, or
+// game.rng(). Classic never takes it, so Classic still has no gold tint.
+// The day wash stays the day peak; pair with ?qaNight=1 for the quiet night
+// peak. Re-read in resetGame() like the other QA flags. Tests flip it
+// through setQaLevel(); a normal visit leaves this false.
+function readQaLevelFlag(search) {
+  const query = search !== undefined
+    ? search
+    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
+      ? location.search
+      : '');
+  if (!query) return false;
+  return new URLSearchParams(query).get('qaLevel') === '1';
+}
+
+let qaLevel = readQaLevelFlag();
+
+function setQaLevel(enabled) {
+  qaLevel = !!enabled;
 }
 
 // Score the night sky consults. The QA flag pretends night has fully arrived.
@@ -738,6 +772,8 @@ const game = {
   qaClusterShown:   false,
   // QA/debug only. Latches after ?qaBig=1 spends its one early big cactus.
   qaBigShown:       false,
+  // QA/debug only. Latches after ?qaLevel=1 spends its one early milestone flash.
+  qaLevelShown:     false,
   isNewBest:         false,
   previousHighScore: 0,
   // Set on a Daily death before today best is saved. Mirrors isNewBest:
@@ -1085,12 +1121,34 @@ function drawHills() {
   }
 }
 
+// Day milestone wash stays SKY_TINT_PEAK_ALPHA. In Updated and Daily the peak
+// eases down across twilight so the gold flash stays peripheral once the sky
+// is night. Classic keeps the day peak; drawSkyTint still skips Classic.
+// Reduced motion skips the ease and snaps. The overlay itself stays
+// suppressed when reduced motion is on.
+function skyTintPeakAlpha() {
+  const day = cfg('SKY_TINT_PEAK_ALPHA');
+  if (!isUpdatedMode()) return day;
+  const s = scoreForNightSky(game.score);
+  if (s < GAME_CONFIG.DAY_NIGHT_START) return day;
+  const tuned = cfg('NIGHT_SKY_TINT_PEAK_ALPHA');
+  const night = typeof tuned === 'number' && tuned >= 0 && tuned <= 1
+    ? tuned
+    : GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA;
+  if (s >= GAME_CONFIG.DAY_NIGHT_END) return night;
+  if (reducedMotion) return day;
+  const t = (s - GAME_CONFIG.DAY_NIGHT_START) /
+            (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
+  return day + (night - day) * t;
+}
+
 // PR-D: gentle gold sky-tint pulse during a milestone flash. Subtle on top of
-// the existing day/night background.
+// the existing day/night background. Night uses a lower peak so the wash
+// does not punch the obstacle lane.
 function drawSkyTint() {
   if (!isUpdatedMode() || reducedMotion) return;
   if (Animations.milestoneFrames <= 0) return;
-  const alpha = (Animations.milestoneFrames / GAME_CONFIG.MILESTONE_FRAMES) * cfg('SKY_TINT_PEAK_ALPHA');
+  const alpha = (Animations.milestoneFrames / GAME_CONFIG.MILESTONE_FRAMES) * skyTintPeakAlpha();
   ctx.save();
   ctx.fillStyle = 'rgba(' + cfg('SKY_TINT_COLOR_RGB') + ', ' + alpha.toFixed(3) + ')';
   ctx.fillRect(0, 0, GAME_CONFIG.CANVAS_W, GAME_CONFIG.CANVAS_H);
@@ -2000,11 +2058,13 @@ function resetGame() {
   game.plateauCueShown   = false;
   game.qaClusterShown    = false;
   game.qaBigShown        = false;
+  game.qaLevelShown      = false;
   // QA/debug only. Re-read so a mode toggle still honors the page query.
   qaPlateau = readQaPlateauFlag();
   qaCluster = readQaClusterFlag();
   qaBig = readQaBigFlag();
   qaNight = readQaNightFlag();
+  qaLevel = readQaLevelFlag();
   game.isNewBest         = false;
   game.previousHighScore = 0;
   game.isNewTodayBest    = false;
@@ -2096,6 +2156,14 @@ function handleRunning() {
   // Milestone flash on level-up.
   if (level > prevLevel && level > 0) {
     game.milestoneText = 'LEVEL ' + (level + 1);
+    Animations.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
+    audio.milestone();
+    Particles.emit('confetti', GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30, GAME_CONFIG.SCORE_Y);
+  } else if (qaLevel && isUpdatedMode() && !game.qaLevelShown) {
+    // QA/debug only. Same wash as the first real level, once, while the
+    // score is still near zero. Does not touch speed, gaps, or game.rng().
+    game.qaLevelShown = true;
+    game.milestoneText = 'LEVEL 2';
     Animations.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
     audio.milestone();
     Particles.emit('confetti', GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30, GAME_CONFIG.SCORE_Y);
@@ -2300,6 +2368,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.updateHills = updateHills;
   global.drawHills = drawHills;
   global.drawSkyTint = drawSkyTint;
+  global.skyTintPeakAlpha = skyTintPeakAlpha;
   global.FEATURES = FEATURES;
   global.runFeatureUpdates = runFeatureUpdates;
   global.runFeatureDraws = runFeatureDraws;
@@ -2332,6 +2401,8 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.readQaBigFlag = readQaBigFlag;
   global.setQaNight = setQaNight;
   global.readQaNightFlag = readQaNightFlag;
+  global.setQaLevel = setQaLevel;
+  global.readQaLevelFlag = readQaLevelFlag;
   global.obstacleNightBrightness = obstacleNightBrightness;
   global.dinoNightBrightness = dinoNightBrightness;
   global.cloudPaintAlpha = cloudPaintAlpha;
