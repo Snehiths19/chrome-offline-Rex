@@ -1214,14 +1214,16 @@ describe('Day/Night Cycle', () => {
     assertEquals(starPaintAlphas().length, 0, 'no star pixels before night');
   });
 
-  it('fades Updated stars in over a short beat, then holds the quiet peak', () => {
+  it('fades Updated stars in over the shorter beat, then holds the quiet peak', () => {
     const origMode = game.mode;
     try {
       game.mode = MODES.UPDATED;
       enterNightRun();
-      const total = GAME_CONFIG.STAR_FADE_FRAMES;
+      const total = GAME_CONFIG.UPDATED_STAR_FADE_FRAMES;
       const half = total / 2;
       const peak = GAME_CONFIG.NIGHT_STAR_ALPHA;
+      assertEquals(total, 24, 'Updated night settles in about 0.4 s');
+      assert(total < GAME_CONFIG.STAR_FADE_FRAMES, 'the brightening ramp is shorter than Classic');
       runRunningFrames(1);
       assertEquals(game.state, STATE.RUNNING, 'the fade window should still be a live run');
       assert(game.starsInitialised, 'night initialises the star field');
@@ -1284,8 +1286,19 @@ describe('Day/Night Cycle', () => {
       );
       assert(game.starsInitialised, 'Classic keeps the night stars');
       assertEquals(game.stars.length, GAME_CONFIG.STAR_COUNT);
-      assertEquals(game.starFadeFrames, 1, 'Classic uses the same fade, not a separate path');
-      assert(starFadeAlpha() < 1, 'Classic stars ease in instead of starting fully lit');
+      assertEquals(game.starFadeFrames, 1, 'Classic still starts the fade on the first night frame');
+      assert(
+        Math.abs(starFadeAlpha() - 1 / GAME_CONFIG.STAR_FADE_FRAMES) < 1e-9,
+        'Classic still steps through the original 48-frame fade'
+      );
+      runRunningFrames(GAME_CONFIG.UPDATED_STAR_FADE_FRAMES - 1);
+      assertEquals(game.starFadeFrames, GAME_CONFIG.UPDATED_STAR_FADE_FRAMES,
+        'Classic keeps counting after Updated would have settled');
+      assert(
+        Math.abs(starFadeAlpha() - GAME_CONFIG.UPDATED_STAR_FADE_FRAMES / GAME_CONFIG.STAR_FADE_FRAMES) < 1e-9,
+        'when Updated has settled, Classic is only halfway to full white'
+      );
+      assert(starPaintAlpha() < 1, 'Classic has not reached full white on the shorter clock');
     } finally {
       game.mode = origMode;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -1400,7 +1413,10 @@ describe('Soft night stars', () => {
     assertEquals(GAME_CONFIG.STAR_SIZE, 2, 'the points stay the same size');
     assertEquals(GAME_CONFIG.STAR_COUNT, 12, 'the field stays the usual twelve');
     assertEquals(GAME_CONFIG.STAR_COLOR, '#ffffff', 'the ink stays white; the quiet is opacity');
-    assertEquals(GAME_CONFIG.STAR_FADE_FRAMES, 48, 'the fade length stays the shared beat');
+    assertEquals(GAME_CONFIG.STAR_FADE_FRAMES, 48, 'Classic still fades across the original beat');
+    assertEquals(GAME_CONFIG.UPDATED_STAR_FADE_FRAMES, 24, 'Updated and Daily settle in half that beat');
+    assertEquals(GAME_CONFIG.UPDATED_STAR_FADE_FRAMES * 2, GAME_CONFIG.STAR_FADE_FRAMES,
+      'the quieter fade is half of Classic');
     assert(now < threeFifths, 'a full three-fifths of white still outruns the night cactus');
     assert(sum(starLifts(threeFifths)) > sum(cactusLifts),
       'three-fifths of full white is still brighter than night cacti');
@@ -1488,8 +1504,8 @@ describe('Soft night stars', () => {
         'speed still follows the real score');
       assert(game.starsInitialised, 'the existing night QA flag starts the field');
       assert(
-        Math.abs(starPaintAlpha() - GAME_CONFIG.NIGHT_STAR_ALPHA / GAME_CONFIG.STAR_FADE_FRAMES) < 1e-9,
-        'the first QA frame is the first quiet fade step'
+        Math.abs(starPaintAlpha() - GAME_CONFIG.NIGHT_STAR_ALPHA / GAME_CONFIG.UPDATED_STAR_FADE_FRAMES) < 1e-9,
+        'the first QA frame is the first step of the shorter quiet fade'
       );
       game.starFadeFrames = GAME_CONFIG.STAR_FADE_FRAMES;
       assertEquals(starPaintAlpha(), GAME_CONFIG.NIGHT_STAR_ALPHA,
@@ -1605,6 +1621,47 @@ describe('Soft night stars', () => {
       ctx.globalAlpha = origAlpha;
       setQaNight(false);
       setReducedMotion(false);
+    }
+  });
+
+  it('Daily settles on the shorter fade, and a tune stops the clock there', () => {
+    const origMode = game.mode;
+    try {
+      setReducedMotion(false);
+      setQaNight(false);
+      game.mode = MODES.DAILY;
+      enterNightRun();
+      const total = GAME_CONFIG.UPDATED_STAR_FADE_FRAMES;
+      runRunningFrames(1);
+      assert(
+        Math.abs(starFadeAlpha() - 1 / total) < 1e-9,
+        'Daily starts the shorter fade'
+      );
+      assert(
+        Math.abs(starPaintAlpha() - GAME_CONFIG.NIGHT_STAR_ALPHA / total) < 1e-9,
+        'Daily paint is the quiet peak times the shorter ramp'
+      );
+      runRunningFrames(total - 1);
+      assertEquals(game.starFadeFrames, total, 'Daily stops at the shorter fade');
+      assertEquals(starFadeAlpha(), 1, 'Daily ramp finishes on the shorter clock');
+      assertEquals(starPaintAlpha(), GAME_CONFIG.NIGHT_STAR_ALPHA, 'Daily holds the quiet peak');
+      runRunningFrames(GAME_CONFIG.STAR_FADE_FRAMES);
+      assertEquals(game.starFadeFrames, total, 'Daily does not keep counting toward Classic');
+
+      game.mode = MODES.UPDATED;
+      enterNightRun();
+      withTuning({ UPDATED_STAR_FADE_FRAMES: 4 }, () => {
+        runRunningFrames(10);
+        assertEquals(game.starFadeFrames, 4, 'the clock stops at the tuned Updated length');
+        assertEquals(starFadeAlpha(), 1, 'the tuned length is what the ramp finishes on');
+        assertEquals(starPaintAlpha(), GAME_CONFIG.NIGHT_STAR_ALPHA,
+          'a shorter tune still settles on the quiet peak');
+      });
+    } finally {
+      game.mode = origMode;
+      setQaNight(false);
+      setReducedMotion(false);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
   });
 });
@@ -1999,7 +2056,54 @@ describe('Live-tuning hook (PR-P3)', () => {
     }
   });
 
-  it('STAR_FADE_FRAMES override changes how fast night stars reach full opacity', () => {
+  it('STAR_FADE_FRAMES override changes how fast Classic night stars reach full opacity', () => {
+    const origMode = game.mode;
+    const origInit = game.starsInitialised;
+    const origStars = game.stars.slice();
+    const origFade = game.starFadeFrames;
+    game.starsInitialised = true;
+    game.stars = [{ x: 1, y: 1 }];
+    game.starFadeFrames = 2;
+    game.mode = MODES.CLASSIC;
+    try {
+      withTuning({ STAR_FADE_FRAMES: 4 }, () => {
+        assertEquals(starFadeAlpha(), 0.5, 'halfway through an overridden Classic fade');
+      });
+      assert(
+        Math.abs(starFadeAlpha() - 2 / GAME_CONFIG.STAR_FADE_FRAMES) < 1e-9,
+        'clearing the override returns the Classic fade length'
+      );
+      game.mode = MODES.UPDATED;
+      withTuning({ STAR_FADE_FRAMES: 4 }, () => {
+        assert(
+          Math.abs(starFadeAlpha() - 2 / GAME_CONFIG.UPDATED_STAR_FADE_FRAMES) < 1e-9,
+          'Updated ignores STAR_FADE_FRAMES and keeps its own length'
+        );
+      });
+      game.mode = MODES.DAILY;
+      withTuning({ STAR_FADE_FRAMES: 4 }, () => {
+        assert(
+          Math.abs(starFadeAlpha() - 2 / GAME_CONFIG.UPDATED_STAR_FADE_FRAMES) < 1e-9,
+          'Daily ignores STAR_FADE_FRAMES and keeps the Updated length'
+        );
+      });
+      game.mode = MODES.CLASSIC;
+      withTuning({ STAR_FADE_FRAMES: 0 }, () => {
+        assertEquals(starFadeAlpha(), 1, 'a non-positive Classic tune still shows the field immediately');
+      });
+      withTuning({ STAR_FADE_FRAMES: -2 }, () => {
+        assertEquals(starFadeAlpha(), 1, 'a negative Classic tune still shows the field immediately');
+      });
+    } finally {
+      game.mode = origMode;
+      game.starsInitialised = origInit;
+      game.stars = origStars;
+      game.starFadeFrames = origFade;
+    }
+  });
+
+  it('UPDATED_STAR_FADE_FRAMES override shortens only Updated and Daily', () => {
+    const origMode = game.mode;
     const origInit = game.starsInitialised;
     const origStars = game.stars.slice();
     const origFade = game.starFadeFrames;
@@ -2007,14 +2111,66 @@ describe('Live-tuning hook (PR-P3)', () => {
     game.stars = [{ x: 1, y: 1 }];
     game.starFadeFrames = 2;
     try {
-      withTuning({ STAR_FADE_FRAMES: 4 }, () => {
-        assertEquals(starFadeAlpha(), 0.5, 'halfway through an overridden fade length');
+      game.mode = MODES.UPDATED;
+      withTuning({ UPDATED_STAR_FADE_FRAMES: 4 }, () => {
+        assertEquals(starFadeAlpha(), 0.5, 'halfway through an overridden Updated fade');
+        assertEquals(starPaintAlpha(), 0.5 * GAME_CONFIG.NIGHT_STAR_ALPHA,
+          'the quiet peak still scales the shorter ramp');
       });
       assert(
-        Math.abs(starFadeAlpha() - 2 / GAME_CONFIG.STAR_FADE_FRAMES) < 1e-9,
-        'clearing the override returns the configured fade length'
+        Math.abs(starFadeAlpha() - 2 / GAME_CONFIG.UPDATED_STAR_FADE_FRAMES) < 1e-9,
+        'clearing the override returns the shorter fade'
       );
+      game.mode = MODES.DAILY;
+      withTuning({ UPDATED_STAR_FADE_FRAMES: 8 }, () => {
+        assertEquals(starFadeAlpha(), 0.25, 'Daily reads the same visual length');
+      });
+      game.mode = MODES.CLASSIC;
+      withTuning({ UPDATED_STAR_FADE_FRAMES: 4 }, () => {
+        assert(
+          Math.abs(starFadeAlpha() - 2 / GAME_CONFIG.STAR_FADE_FRAMES) < 1e-9,
+          'Classic ignores the Updated fade length'
+        );
+        assertEquals(starPaintAlpha(), 2 / GAME_CONFIG.STAR_FADE_FRAMES,
+          'Classic stays on the full-white ramp');
+      });
+      game.mode = MODES.UPDATED;
+      withTuning({ UPDATED_STAR_FADE_FRAMES: 90 }, () => {
+        assert(
+          Math.abs(starFadeAlpha() - 2 / GAME_CONFIG.UPDATED_STAR_FADE_FRAMES) < 1e-9,
+          'a length past Classic falls back so a typo cannot linger longer'
+        );
+      });
+      withTuning({ UPDATED_STAR_FADE_FRAMES: -3 }, () => {
+        assert(
+          Math.abs(starFadeAlpha() - 2 / GAME_CONFIG.UPDATED_STAR_FADE_FRAMES) < 1e-9,
+          'a negative length falls back'
+        );
+      });
+      withTuning({ UPDATED_STAR_FADE_FRAMES: 0 }, () => {
+        assert(
+          Math.abs(starFadeAlpha() - 2 / GAME_CONFIG.UPDATED_STAR_FADE_FRAMES) < 1e-9,
+          'zero falls back instead of popping the field on'
+        );
+      });
+      withTuning({ UPDATED_STAR_FADE_FRAMES: 1.5 }, () => {
+        assert(
+          Math.abs(starFadeAlpha() - 2 / GAME_CONFIG.UPDATED_STAR_FADE_FRAMES) < 1e-9,
+          'a fractional length falls back'
+        );
+      });
+      withTuning({ UPDATED_STAR_FADE_FRAMES: 'fast' }, () => {
+        assert(
+          Math.abs(starFadeAlpha() - 2 / GAME_CONFIG.UPDATED_STAR_FADE_FRAMES) < 1e-9,
+          'a non-numeric length falls back'
+        );
+      });
+      withTuning({ UPDATED_STAR_FADE_FRAMES: GAME_CONFIG.STAR_FADE_FRAMES }, () => {
+        assertEquals(starFadeAlpha(), 2 / GAME_CONFIG.STAR_FADE_FRAMES,
+          'a length equal to Classic is still allowed');
+      });
     } finally {
+      game.mode = origMode;
       game.starsInitialised = origInit;
       game.stars = origStars;
       game.starFadeFrames = origFade;

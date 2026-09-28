@@ -186,9 +186,21 @@ const GAME_CONFIG = Object.freeze({
   STAR_SIZE:                2,
   STAR_Y_RANGE:           100,
   STAR_COLOR:              '#ffffff',
-  // Visual only. Running frames stars take to ramp from invisible to full
-  // once night is complete (~0.8 s at 60 fps). Read through cfg().
+  // Visual only. Running frames Classic stars take to ramp from invisible
+  // to full white once night is complete (~0.8 s at 60 fps). Updated and
+  // Daily use UPDATED_STAR_FADE_FRAMES. Read through cfg(). A non-positive
+  // tune means show them immediately.
   STAR_FADE_FRAMES:        48,
+  // Visual only. Running frames Updated and Daily stars take to ramp from
+  // invisible to the night whisper once night is complete. Half of
+  // STAR_FADE_FRAMES (~0.4 s at 60 fps), so the brightening ramp settles
+  // sooner and does not linger over the obstacle lane. Classic keeps
+  // STAR_FADE_FRAMES and full white. A tune that is not a whole number
+  // from 1 through STAR_FADE_FRAMES falls back, so a typo cannot run
+  // longer than Classic or go negative. Day never paints stars. Reduced
+  // motion still skips star init. Playtest with ?qaNight=1. Read through
+  // cfg(). Physics does not read this.
+  UPDATED_STAR_FADE_FRAMES: 24,
   // Visual only. Peak opacity of Updated and Daily stars once that fade
   // finishes and the sky is fully night. The points are #ffffff, 2×2,
   // twelve of them in the top 100px. On the night sky (#1a1a2e) full
@@ -200,7 +212,7 @@ const GAME_CONFIG = Object.freeze({
   // the night cactus and a step above the softer night dino (1.2, about
   // 74, 74, and 54), and above the soft night clouds (0.21 of #e8e8e8).
   // The field still reads as stars and stays peripheral. Classic does not
-  // read this. Classic keeps full white after the same fade. Day never
+  // read this. Classic keeps full white after STAR_FADE_FRAMES. Day never
   // paints stars. Reduced motion still skips star init. Playtest with
   // ?qaNight=1. Read through cfg(). Physics does not read this.
   NIGHT_STAR_ALPHA:         0.35,
@@ -1977,16 +1989,34 @@ function getBackgroundColor(s) {
   return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
 }
 
-// 0 at the moment night begins, 1 once STAR_FADE_FRAMES have elapsed.
-// A non-positive tuned length means "show them immediately".
+// Updated and Daily ramp across the shorter length so the brightening
+// settles sooner. A tune outside 1..STAR_FADE_FRAMES, or not a whole
+// number, falls back — a typo cannot outlast Classic or go negative.
+function updatedStarFadeFrames() {
+  const tuned = cfg('UPDATED_STAR_FADE_FRAMES');
+  const cap = GAME_CONFIG.STAR_FADE_FRAMES;
+  if (typeof tuned === 'number' && tuned >= 1 && tuned <= cap && Math.floor(tuned) === tuned) {
+    return tuned;
+  }
+  return GAME_CONFIG.UPDATED_STAR_FADE_FRAMES;
+}
+
+// Classic keeps STAR_FADE_FRAMES, including a non-positive tune that
+// means "show them immediately".
+function starFadeFrameCount() {
+  if (isUpdatedMode()) return updatedStarFadeFrames();
+  return cfg('STAR_FADE_FRAMES');
+}
+
+// 0 at the moment night begins, 1 once the mode's fade length has elapsed.
 function starFadeAlpha() {
-  const total = cfg('STAR_FADE_FRAMES');
+  const total = starFadeFrameCount();
   if (!(total > 0)) return 1;
   return Math.min(1, game.starFadeFrames / total);
 }
 
-// Updated and Daily multiply that shared ramp by the night whisper.
-// Classic paints the ramp at full white. A tune outside 0..1 falls back,
+// Updated and Daily multiply their shorter ramp by the night whisper.
+// Classic paints its own ramp at full white. A tune outside 0..1 falls back,
 // so a typo cannot restore the sparkle or drop the field.
 function starPaintAlpha() {
   const ramp = starFadeAlpha();
@@ -3615,10 +3645,12 @@ function handleRunning() {
   if (imageReady(groundImage) && game.groundX <= -groundImage.width) game.groundX = 0;
 
   // Lazy-init stars once when night is full. Skipped under reduce-motion
-  // (no init, same as before). Opacity then ramps across STAR_FADE_FRAMES
-  // so the field eases in instead of popping on. Updated and Daily hold
-  // the quieter peak; Classic holds full white. Positions stay Math.random()
-  // — cosmetic, and this block does not touch game.rng().
+  // (no init, same as before). Opacity then ramps across the mode's fade
+  // length so the field eases in instead of popping on. Updated and Daily
+  // use the shorter length, so the brightening ramp settles sooner and
+  // does not linger over the obstacle lane. Classic uses STAR_FADE_FRAMES
+  // and holds full white. Positions stay Math.random() — cosmetic, and
+  // this block does not touch game.rng().
   if (!reducedMotion && scoreForNightSky(game.score) >= GAME_CONFIG.DAY_NIGHT_END && !game.starsInitialised) {
     for (let i = 0; i < GAME_CONFIG.STAR_COUNT; i++) {
       game.stars.push({ x: Math.random() * GAME_CONFIG.CANVAS_W, y: Math.random() * GAME_CONFIG.STAR_Y_RANGE });
@@ -3626,7 +3658,7 @@ function handleRunning() {
     game.starsInitialised = true;
     game.starFadeFrames = 0;
   }
-  if (game.starsInitialised && game.starFadeFrames < cfg('STAR_FADE_FRAMES')) {
+  if (game.starsInitialised && game.starFadeFrames < starFadeFrameCount()) {
     game.starFadeFrames++;
   }
 

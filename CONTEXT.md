@@ -74,7 +74,7 @@ _Avoid_: hit sparks, blood, explosion, land dust
 **Ground strip** — the scrolling road edge under the run, painted from the day sprite. By day it stays that day paint in every mode. In Updated and Daily, once the sky is fully night, the strip dims with the night Atmosphere so it still reads as the road edge and no longer as a bright day-gray ruler. Classic keeps the day paint even when the shared sky is night. It is not **Land dust**.
 _Avoid_: floor, terrain, ground line (as a separate feature name)
 
-**Stars** — the static night points in the upper sky. They appear once the sky is fully night, then fade in. In Updated and Daily the settled field is a quieter whisper, so the points stay peripheral Atmosphere and do not sparkle over the obstacle lane. Classic keeps the full-white field. The day sky has none. They are not **Clouds**, hills, or the **Ground strip**.
+**Stars** — the static night points in the upper sky. They appear once the sky is fully night, then fade in. In Updated and Daily that fade is shorter, so the quieter whisper settles sooner and the brightening ramp does not linger over the obstacle lane. Classic keeps today's fade to the full-white field. The day sky has none. They are not **Clouds**, hills, or the **Ground strip**.
 _Avoid_: sparkle, twinkle (those pull the eye; the field should not)
 
 **Clouds** — the soft sky mounds that drift behind the run. Their positions and speeds are cosmetic, never the run seed. In Updated and Daily the day puff is a quieter whisper on the white sky, and once the sky is fully night the same ink dims further so the large shapes stay peripheral Atmosphere and do not compete with the obstacle lane. Classic keeps the full-opacity puff even when the shared sky is night. They are not hills, **Stars**, or the **Ground strip**.
@@ -136,7 +136,7 @@ _Avoid_: daily record, new daily high, today record
 - The **New-best badge** is drawn during RUNNING only, the first time the run passes the stored high score. Classic keeps the full countdown. Updated and Daily use the quieter, shorter paint. It is a different surface from the Game Over new-best line and from **New today best**
 - The **Ground strip** stays day paint until the sky is fully night. Updated and Daily then dim it. Classic never does. **Land dust** is a separate foot puff on that edge. Updated and Daily soften and shorten that puff once the sky is fully night. Classic never shows it
 - A **Collision burst** is the red death puff on the dino in Updated and Daily. It is not **Land dust**, the heel trail, level confetti, or the plateau cue. Classic never emits it
-- **Stars** appear only once the sky is fully night. Updated and Daily then hold a quieter peak. Classic keeps the full-white field. The day sky has none
+- **Stars** appear only once the sky is fully night. Updated and Daily fade in sooner, then hold a quieter peak. Classic keeps today's fade to the full-white field. The day sky has none
 - **Clouds** in Updated and Daily ease from the day whisper to a quieter night dim once the sky is fully night. Classic keeps full opacity. The day sky does not use the night dim
 - The **Level** gold wash in Updated and Daily eases from the day breath to a quieter peak once the sky is fully night. Classic never draws the wash. Reduced motion suppresses it. The gold puff at the score stays on the number in Updated and Daily. Classic never emits it
 
