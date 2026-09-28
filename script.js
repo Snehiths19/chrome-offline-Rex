@@ -483,18 +483,17 @@ function setQaTrail(enabled) {
   qaTrail = !!enabled;
 }
 
-// QA/debug only — not for players. ?qaConfetti=1 shows an early gold puff
+// QA/debug only — not for players. ?qaConfetti=1 shows an early gold block
 // in Updated/Daily so playtest can see it without a score-100 run.
-// Production confetti stays #ffd700 at 3px, which disappears on the white
-// day sky. The hold repaints those motes larger, in a darker gold, just
-// under the score digits, and keeps them opaque for QA_CONFETTI_HOLD
-// frames. drawQaConfetti() paints that block again after the score, so
-// the HUD cannot cover it. It does not write the score, speed, gaps, or
-// game.rng().
-// Classic never takes it. One burst per run. Re-read in resetGame().
+// The block is its own overlay. It does not emit, restyle, or read the
+// particle pool — a full pool or a missed "born" slot must still paint.
+// Production confetti stays #ffd700 at 3px on a real level-up.
+// It does not write the score, speed, gaps, or game.rng().
+// Classic never takes it. One hold per run. Re-read in resetGame().
 // Tests flip it through setQaConfetti(); a normal visit leaves this false.
 const QA_CONFETTI_HOLD = 180;
-const QA_CONFETTI_SIZE = 12;
+const QA_CONFETTI_BLOCK_W = 88;
+const QA_CONFETTI_BLOCK_H = 36;
 const QA_CONFETTI_COLOR = '#b45309';
 const QA_CONFETTI_RIM = '#3f2a12';
 function readQaConfettiFlag(search) {
@@ -513,67 +512,28 @@ function setQaConfetti(enabled) {
   qaConfetti = !!enabled;
 }
 
-// Lay the motes just emitted in a tight block under the score. Production
-// #ffd700 at 3px is left alone — only slots that were empty before this
-// emit are restyled. Reduced motion has already lowered the count.
-function holdQaConfetti(born) {
-  const gap = QA_CONFETTI_SIZE + 2;
-  const cols = Math.min(5, born.length);
-  const originX = GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30;
-  const originY = GAME_CONFIG.SCORE_Y + 28;
-  for (let i = 0; i < born.length; i++) {
-    const p = born[i];
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const rowCount = Math.min(cols, born.length - row * cols);
-    p.x = originX - ((rowCount - 1) * gap) / 2 + col * gap;
-    p.y = originY + row * gap;
-    p.size = QA_CONFETTI_SIZE;
-    p.color = QA_CONFETTI_COLOR;
-    p.vx = 0;
-    p.vy = 0;
-    p.gravity = 0;
-    p.life = QA_CONFETTI_HOLD;
-    p.maxLife = QA_CONFETTI_HOLD;
-  }
+// Solid block just under the score digits. Game coordinates, not pool slots.
+function qaConfettiRect() {
+  return {
+    x: GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET,
+    y: GAME_CONFIG.SCORE_Y + 10,
+    w: QA_CONFETTI_BLOCK_W,
+    h: QA_CONFETTI_BLOCK_H,
+  };
 }
 
-// Keep the debug puff fully opaque until the hold ends. Particles.update
-// ticks life down once per frame; putting it back leaves alpha near 1,
-// so the amber does not fade into the white sky before the capture window.
-function sustainQaConfetti() {
-  if (game.qaConfettiHold <= 0) return;
-  game.qaConfettiHold--;
-  const alive = game.qaConfettiHold > 0;
-  for (let i = 0; i < Particles.particles.length; i++) {
-    const p = Particles.particles[i];
-    if (p.color !== QA_CONFETTI_COLOR) continue;
-    p.life = alive ? QA_CONFETTI_HOLD : 0;
-    p.maxLife = QA_CONFETTI_HOLD;
-    p.vx = 0;
-    p.vy = 0;
-    p.gravity = 0;
-  }
-}
-
-// Last paint of the running frame. The pooled particle pass runs before
-// the score, so a mote under the digits can be covered, and #ffd700 at
-// 3px never reads on the white sky. This pass is the debug puff only:
-// full strength, dark rim, on top of the HUD, for the hold window.
+// Last paint of a running frame, and again during the death shake so a
+// hit during the hold does not wipe it. Reads the hold counter only.
+// Full strength, dark rim, on top of the HUD. Ignores the particle pool.
 function drawQaConfetti() {
-  if (!qaConfetti || game.qaConfettiHold <= 0) return;
+  if (!qaConfetti || !isUpdatedMode() || game.qaConfettiHold <= 0) return;
   const prevAlpha = ctx.globalAlpha;
   ctx.globalAlpha = 1;
-  for (let i = 0; i < Particles.particles.length; i++) {
-    const p = Particles.particles[i];
-    if (p.life <= 0 || p.color !== QA_CONFETTI_COLOR) continue;
-    const left = p.x - p.size / 2;
-    const top = p.y - p.size / 2;
-    ctx.fillStyle = QA_CONFETTI_RIM;
-    ctx.fillRect(left - 2, top - 2, p.size + 4, p.size + 4);
-    ctx.fillStyle = QA_CONFETTI_COLOR;
-    ctx.fillRect(left, top, p.size, p.size);
-  }
+  const block = qaConfettiRect();
+  ctx.fillStyle = QA_CONFETTI_RIM;
+  ctx.fillRect(block.x - 4, block.y - 4, block.w + 8, block.h + 8);
+  ctx.fillStyle = QA_CONFETTI_COLOR;
+  ctx.fillRect(block.x, block.y, block.w, block.h);
   ctx.globalAlpha = prevAlpha;
 }
 
@@ -2345,6 +2305,7 @@ function handleDead() {
     drawScore();
     ctx.restore();
     drawDeathFlash(); // white flash drawn outside the shake transform so it stays canvas-aligned
+    drawQaConfetti(); // hold block, also outside the shake, on top of the flash
     Particles.update();
     if (Animations.deathFlashFrames > 0) Animations.deathFlashFrames--;
     if (Animations.scorePopFrames > 0) Animations.scorePopFrames--;
@@ -2412,23 +2373,16 @@ function handleRunning() {
     Particles.emit('confetti', GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30, GAME_CONFIG.SCORE_Y);
   }
 
-  // QA/debug only — not for players. One early puff under the score,
-  // held opaque for about three seconds. A normal visit waits for the
-  // real level and keeps the small #ffd700 kind. Classic never enters.
-  // Particles.emit uses Math.random(), not game.rng(). The flag does not
-  // change speed, gaps, or scoring.
+  // QA/debug only — not for players. Latch a hold on the first Updated
+  // or Daily running frame. The paint is drawQaConfetti(), from this
+  // counter, not from a particle emit. A normal visit waits for the real
+  // level and keeps the small #ffd700 kind. Classic never enters.
+  // Does not change speed, gaps, scoring, or game.rng().
   if (qaConfetti && isUpdatedMode() && !game.qaConfettiShown) {
     game.qaConfettiShown = true;
     game.qaConfettiHold = QA_CONFETTI_HOLD;
-    const before = Particles.particles.map((p) => p.life);
-    Particles.emit('confetti', GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30, GAME_CONFIG.SCORE_Y);
-    const born = [];
-    for (let i = 0; i < Particles.particles.length; i++) {
-      if (before[i] <= 0 && Particles.particles[i].life > 0) born.push(Particles.particles[i]);
-    }
-    holdQaConfetti(born);
-  } else {
-    sustainQaConfetti();
+  } else if (game.qaConfettiHold > 0) {
+    game.qaConfettiHold--;
   }
 
   // Scroll ground.
@@ -2681,9 +2635,11 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.setQaConfetti = setQaConfetti;
   global.readQaConfettiFlag = readQaConfettiFlag;
   global.QA_CONFETTI_HOLD = QA_CONFETTI_HOLD;
-  global.QA_CONFETTI_SIZE = QA_CONFETTI_SIZE;
+  global.QA_CONFETTI_BLOCK_W = QA_CONFETTI_BLOCK_W;
+  global.QA_CONFETTI_BLOCK_H = QA_CONFETTI_BLOCK_H;
   global.QA_CONFETTI_COLOR = QA_CONFETTI_COLOR;
   global.QA_CONFETTI_RIM = QA_CONFETTI_RIM;
+  global.qaConfettiRect = qaConfettiRect;
   global.drawQaConfetti = drawQaConfetti;
   global.obstacleNightBrightness = obstacleNightBrightness;
   global.dinoNightBrightness = dinoNightBrightness;
