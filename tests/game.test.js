@@ -6189,6 +6189,265 @@ describe('Night ground cool', () => {
   });
 });
 
+describe('Night milestone tint', () => {
+  function withTuning(overrides, fn) {
+    const orig = window.GAME_TUNING;
+    window.GAME_TUNING = overrides;
+    try { fn(); } finally { window.GAME_TUNING = orig; }
+  }
+
+  // Simple relative luminance. Gold (255, 215, 0) on white is a small drop;
+  // the same gold on the night sky is a lift. Compare the magnitudes.
+  function relLuminance(channels) {
+    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+  }
+
+  function washLift(alpha, sky) {
+    const gold = [255, 215, 0];
+    const painted = sky.map((s, i) => s + (gold[i] - s) * alpha);
+    return Math.abs(relLuminance(painted) - relLuminance(sky));
+  }
+
+  function paintedTint() {
+    const fillStyles = [];
+    const rects = [];
+    let captured = '';
+    Object.defineProperty(ctx, 'fillStyle', {
+      configurable: true,
+      get() { return captured; },
+      set(v) { captured = v; fillStyles.push(v); },
+    });
+    const origFill = ctx.fillRect;
+    ctx.fillRect = function (...args) {
+      rects.push(args.slice());
+      return origFill.apply(this, args);
+    };
+    try {
+      drawSkyTint();
+    } finally {
+      delete ctx.fillStyle;
+      ctx.fillRect = origFill;
+    }
+    return { fillStyles, rects };
+  }
+
+  it('eases Updated and Daily milestone tint down after full night, quieter than the day wash', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const daySky = [255, 255, 255];
+    const nightSky = [0x1a, 0x1a, 0x2e];
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      assert(GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA < GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
+        'night peak is lower than the day peak');
+      assert(GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA > 0, 'the level cue still paints at night');
+      const dayLift = washLift(GAME_CONFIG.SKY_TINT_PEAK_ALPHA, daySky);
+      const nightLift = washLift(GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA, nightSky);
+      const punched = washLift(GAME_CONFIG.SKY_TINT_PEAK_ALPHA, nightSky);
+      assert(nightLift < punched * 0.5,
+        'night wash is much quieter than painting the day peak on the night sky');
+      assert(nightLift > dayLift * 0.5 && nightLift < dayLift * 1.6,
+        'night lift stays near the day cue on white');
+
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
+        'day Updated keeps the day peak');
+      game.score = GAME_CONFIG.DAY_NIGHT_START;
+      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
+        'the ease starts with the sky, still the day peak at the boundary');
+      game.score = 350;
+      const mid = GAME_CONFIG.SKY_TINT_PEAK_ALPHA
+        + (GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA - GAME_CONFIG.SKY_TINT_PEAK_ALPHA) * 0.5;
+      assert(
+        Math.abs(skyTintPeakAlpha() - mid) < 1e-9,
+        'mid-twilight is halfway from the day peak to the night peak'
+      );
+      game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
+      assert(
+        skyTintPeakAlpha() < GAME_CONFIG.SKY_TINT_PEAK_ALPHA
+          && skyTintPeakAlpha() > GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
+        'one point before night is still easing, not snapped'
+      );
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
+        'full night holds the quiet peak');
+      game.score = 1000;
+      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
+        'later night keeps the same static peak');
+
+      game.mode = MODES.DAILY;
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
+        'Daily shares the Updated night peak');
+
+      game.mode = MODES.CLASSIC;
+      game.score = 0;
+      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
+        'Classic day peak stays the day value');
+      game.score = 350;
+      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
+        'Classic twilight peak stays the day value');
+      game.score = 1000;
+      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
+        'Classic night peak stays the day value');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setQaNight(false);
+      setReducedMotion(false);
+    }
+  });
+
+  it('reduced motion snaps to the static night peak instead of easing', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      setQaNight(false);
+      game.mode = MODES.UPDATED;
+      setReducedMotion(true);
+      game.score = 350;
+      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
+        'reduced motion keeps the day peak while the sky is still day');
+      game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
+      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
+        'reduced motion does not run the twilight ease');
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
+        'reduced motion still gets the static night peak');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setReducedMotion(false);
+    }
+  });
+
+  it('?qaNight=1 quiets the Updated milestone tint immediately without moving the score', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      setQaNight(true);
+      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
+        'the existing night QA flag is enough to see the quiet peak');
+      assertEquals(game.score, 0, 'the quiet peak must not write the score');
+
+      game.mode = MODES.CLASSIC;
+      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
+        'QA night still leaves the Classic peak at the day value');
+      assertEquals(game.score, 0, 'Classic QA night must not write the score');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setQaNight(false);
+    }
+  });
+
+  it('NIGHT_SKY_TINT_PEAK_ALPHA override changes only the night peak', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      game.mode = MODES.UPDATED;
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      withTuning({ NIGHT_SKY_TINT_PEAK_ALPHA: 0.02 }, () => {
+        assertEquals(skyTintPeakAlpha(), 0.02,
+          'a visual override should quiet the night flash by the tuned amount');
+      });
+      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
+        'clearing the override returns the configured night peak');
+      game.score = 0;
+      withTuning({ NIGHT_SKY_TINT_PEAK_ALPHA: 0.02, SKY_TINT_PEAK_ALPHA: 0.2 }, () => {
+        assertEquals(skyTintPeakAlpha(), 0.2, 'day flash keeps the day peak override');
+      });
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      withTuning({ SKY_TINT_PEAK_ALPHA: 0.2 }, () => {
+        assertEquals(skyTintPeakAlpha(), GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
+          'a day-peak override does not brighten the night flash');
+      });
+      withTuning({ NIGHT_SKY_TINT_PEAK_ALPHA: 'soft' }, () => {
+        assertEquals(skyTintPeakAlpha(), GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
+          'a non-numeric override falls back to the configured peak');
+      });
+      withTuning({ NIGHT_SKY_TINT_PEAK_ALPHA: 1.5 }, () => {
+        assertEquals(skyTintPeakAlpha(), GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
+          'an out-of-range override falls back to the configured peak');
+      });
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setQaNight(false);
+      setReducedMotion(false);
+    }
+  });
+
+  it('paints the quiet gold only during a night milestone and leaves the run alone', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const origFrames = Animations.milestoneFrames;
+    const origSpeed = game.currentSpeed;
+    const origRng = game.rng;
+    let rngCalls = 0;
+    game.rng = () => { rngCalls++; return origRng(); };
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      Animations.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
+      const day = paintedTint();
+      const dayGold = day.fillStyles.find(s => typeof s === 'string' && s.indexOf('rgba(255, 215, 0') === 0);
+      assert(dayGold, 'day milestone still paints the gold wash');
+      assert(dayGold.indexOf(GAME_CONFIG.SKY_TINT_PEAK_ALPHA.toFixed(3)) !== -1,
+        'day wash uses the day peak');
+      assertEquals(day.rects.length, 1, 'day wash is one full-canvas fill');
+      assertEquals(day.rects[0][2], GAME_CONFIG.CANVAS_W, 'day wash covers the canvas width');
+      assertEquals(day.rects[0][3], GAME_CONFIG.CANVAS_H, 'day wash covers the canvas height');
+      assertEquals(game.score, 0, 'painting the day wash does not move the score');
+      assertEquals(rngCalls, 0, 'painting the day wash does not consume the run seed');
+      assertEquals(Animations.milestoneFrames, GAME_CONFIG.MILESTONE_FRAMES,
+        'the tint does not consume the milestone timer');
+
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      const night = paintedTint();
+      const nightGold = night.fillStyles.find(s => typeof s === 'string' && s.indexOf('rgba(255, 215, 0') === 0);
+      assert(nightGold, 'night milestone still paints the gold wash');
+      assert(nightGold.indexOf(GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA.toFixed(3)) !== -1,
+        'night wash uses the quiet peak');
+      assert(nightGold !== dayGold, 'night wash is quieter than the day wash');
+      assertEquals(night.rects.length, 1, 'night wash is still one full-canvas fill');
+      assertEquals(game.score, GAME_CONFIG.DAY_NIGHT_END, 'painting the night wash does not move the score');
+      assertEquals(game.currentSpeed, origSpeed, 'night paint does not change speed');
+      assertEquals(rngCalls, 0, 'painting the night wash does not consume the run seed');
+
+      game.mode = MODES.CLASSIC;
+      game.score = 1000;
+      Animations.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
+      const classic = paintedTint();
+      assertEquals(classic.fillStyles.length, 0, 'Classic never paints the milestone tint');
+      assertEquals(classic.rects.length, 0, 'Classic never fills the canvas for the tint');
+      assertEquals(rngCalls, 0, 'skipping Classic paint does not consume the run seed');
+
+      game.mode = MODES.UPDATED;
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      setReducedMotion(true);
+      const reduced = paintedTint();
+      assertEquals(reduced.fillStyles.length, 0, 'reduced motion still suppresses the tint');
+      assertEquals(reduced.rects.length, 0, 'reduced motion does not fill the canvas');
+    } finally {
+      game.rng = origRng;
+      game.mode = origMode;
+      game.score = origScore;
+      Animations.milestoneFrames = origFrames;
+      setQaNight(false);
+      setReducedMotion(false);
+    }
+  });
+});
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {

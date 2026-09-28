@@ -94,6 +94,7 @@ export default [
         drawIdleScreen: 'readonly',
         drawNewBestBadge: 'readonly',
         drawSkyTint: 'readonly',
+        skyTintPeakAlpha: 'readonly',
         getHillColor: 'readonly',
         handleAction: 'readonly',
         handleResize: 'readonly',
