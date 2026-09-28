@@ -2115,6 +2115,163 @@ describe('Hill colour interpolation (polish pass)', () => {
   });
 });
 
+describe('Soft day hills', () => {
+  // Levels the day fill sits off the white sky. Neutral grays share one channel.
+  function dayHillInk(hex) {
+    return 0xff - parseInt(hex.slice(1, 3), 16);
+  }
+
+  // Day sky #ffffff showing through the #e8e8e8 cloud at DAY_CLOUD_ALPHA.
+  function dayCloudInk() {
+    const channel = 0xff + (0xe8 - 0xff) * GAME_CONFIG.DAY_CLOUD_ALPHA;
+    return 0xff - channel;
+  }
+
+  function hillFillStyles() {
+    const seen = [];
+    const orig = ctx.ellipse;
+    ctx.ellipse = function (...args) {
+      seen.push(ctx.fillStyle);
+      return orig.apply(this, args);
+    };
+    return {
+      seen,
+      restore() { ctx.ellipse = orig; },
+    };
+  }
+
+  it('day hills lose a real share of the old mid-gray band and stay a distant mound', () => {
+    const day = GAME_CONFIG.HILL_COLOR_DAY;
+    const channels = [
+      parseInt(day.slice(1, 3), 16),
+      parseInt(day.slice(3, 5), 16),
+      parseInt(day.slice(5, 7), 16),
+    ];
+    const ink = dayHillInk(day);
+    const oldInk = 0xff - 0xcd;
+    const laneInk = 0xff - 0x53;
+    assert(/^#[0-9a-f]{6}$/.test(day), 'day hills stay a 6-digit hex colour');
+    assert(channels[0] === channels[1] && channels[1] === channels[2],
+      'day hills stay a neutral gray silhouette');
+    assert(ink < oldInk * 0.75, 'day hills lose a real share of the old #cdcdcd contrast');
+    assert(ink > 20, 'the mounds still sit more than twenty levels off the white sky');
+    assert(ink > dayCloudInk() * 2,
+      'the mounds still read in front of the day cloud whisper');
+    assert(ink < laneInk / 4, 'day hills stay much softer than the dino and the ground');
+    assertEquals(GAME_CONFIG.HILL_COLOR_NIGHT, '#3a3a55', 'night hill colour stays');
+  });
+
+  it('twilight still eases, and reduced motion holds the day colour until night', () => {
+    try {
+      setReducedMotion(false);
+      setQaNight(false);
+      assertEquals(getHillColor(0), GAME_CONFIG.HILL_COLOR_DAY, 'opening run is the day fill');
+      assertEquals(getHillColor(GAME_CONFIG.DAY_NIGHT_START - 1), GAME_CONFIG.HILL_COLOR_DAY,
+        'the ease starts with the sky');
+      const mid = getHillColor(350);
+      assert(mid !== GAME_CONFIG.HILL_COLOR_DAY, 'mid-twilight has left the day fill');
+      assert(mid !== GAME_CONFIG.HILL_COLOR_NIGHT, 'mid-twilight has not snapped to night');
+      assertEquals(getHillColor(GAME_CONFIG.DAY_NIGHT_END), GAME_CONFIG.HILL_COLOR_NIGHT,
+        'full night holds the night hill colour');
+
+      setReducedMotion(true);
+      assertEquals(getHillColor(350), GAME_CONFIG.HILL_COLOR_DAY,
+        'reduced motion skips the twilight ease');
+      assertEquals(getHillColor(GAME_CONFIG.DAY_NIGHT_END - 1), GAME_CONFIG.HILL_COLOR_DAY,
+        'reduced motion stays on the day fill until night is complete');
+      assertEquals(getHillColor(GAME_CONFIG.DAY_NIGHT_END), GAME_CONFIG.HILL_COLOR_NIGHT,
+        'reduced motion still snaps to the night hill colour');
+    } finally {
+      setReducedMotion(false);
+      setQaNight(false);
+    }
+  });
+
+  it('GET READY already paints the quieter day hills, so playtest needs no query flag', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const origState = game.state;
+    const origGrace = game.graceFrames;
+    const origFrame = game.animFrame;
+    const origRng = game.rng;
+    const paint = hillFillStyles();
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      game.rng = mulberry32(1);
+      initHills();
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      game.state = STATE.WAITING;
+      game.graceFrames = GAME_CONFIG.GRACE_FRAMES;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      gameLoop();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      assert(game.state === STATE.WAITING, 'one opening frame stays on GET READY');
+      assertEquals(game.score, 0, 'painting the opening hills must not write the score');
+      assertEquals(paint.seen.length, GAME_CONFIG.HILL_COUNT, 'GET READY draws every mound');
+      assert(paint.seen.every(style => style === GAME_CONFIG.HILL_COLOR_DAY),
+        'the opening screen uses the quieter day fill');
+
+      paint.seen.length = 0;
+      game.mode = MODES.DAILY;
+      drawHills();
+      assertEquals(paint.seen.length, GAME_CONFIG.HILL_COUNT, 'Daily shares the Updated day mounds');
+      assert(paint.seen.every(style => style === GAME_CONFIG.HILL_COLOR_DAY),
+        'Daily opening hills use the same quieter day fill');
+
+      paint.seen.length = 0;
+      game.mode = MODES.CLASSIC;
+      drawHills();
+      assertEquals(paint.seen.length, 0, 'Classic never draws hills');
+    } finally {
+      paint.restore();
+      game.mode = origMode;
+      game.score = origScore;
+      game.state = origState;
+      game.graceFrames = origGrace;
+      game.animFrame = origFrame;
+      game.rng = origRng;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      setQaNight(false);
+      setReducedMotion(false);
+    }
+  });
+
+  it('?qaNight=1 paints the night hill colour immediately without moving the score', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const origRng = game.rng;
+    const paint = hillFillStyles();
+    try {
+      setReducedMotion(false);
+      game.rng = mulberry32(1);
+      initHills();
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      setQaNight(true);
+      drawHills();
+      assertEquals(paint.seen.length, GAME_CONFIG.HILL_COUNT, 'QA night still draws the mounds');
+      assert(paint.seen.every(style => style === GAME_CONFIG.HILL_COLOR_NIGHT),
+        'the existing night flag is enough to see the night hills');
+      assertEquals(game.score, 0, 'the night hill colour must not write the score');
+
+      paint.seen.length = 0;
+      game.mode = MODES.CLASSIC;
+      drawHills();
+      assertEquals(paint.seen.length, 0, 'QA night still leaves Classic without hills');
+      assertEquals(game.score, 0, 'Classic QA night must not write the score');
+    } finally {
+      paint.restore();
+      game.mode = origMode;
+      game.score = origScore;
+      game.rng = origRng;
+      setQaNight(false);
+      setReducedMotion(false);
+    }
+  });
+});
+
 describe('DifficultyProfile', () => {
   it('speedAtScore returns exactly the midpoint speed at RAMP_MIDPOINT', () => {
     const expected = GAME_CONFIG.INITIAL_SPEED +
@@ -5917,7 +6074,8 @@ describe('Night cloud dim', () => {
         'the day whisper stays stronger than the night dim so twilight eases down');
       assert(dayInk < fullInk * 0.75, 'the day puff loses a real share of its ink');
       assert(dayInk > 10, 'the puff still sits more than ten levels off the white sky');
-      assert(dayInk < (0xff - 0xcd), 'day clouds stay quieter than the day hills');
+      const hillDay = parseInt(GAME_CONFIG.HILL_COLOR_DAY.slice(1, 3), 16);
+      assert(dayInk < (0xff - hillDay), 'day clouds stay quieter than the day hills');
       assert(GAME_CONFIG.NIGHT_CLOUD_ALPHA < dayPeak, 'night clouds are dimmer than the day puff');
       assert(GAME_CONFIG.NIGHT_CLOUD_ALPHA > 0,
         'night clouds stay visible against the night sky');

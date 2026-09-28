@@ -99,6 +99,7 @@ export default [
         drawSkyTint: 'readonly',
         skyTintPeakAlpha: 'readonly',
         getHillColor: 'readonly',
+        drawHills: 'readonly',
         handleAction: 'readonly',
         handleResize: 'readonly',
         initCanvasScale: 'readonly',

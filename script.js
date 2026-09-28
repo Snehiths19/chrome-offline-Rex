@@ -149,7 +149,7 @@ const GAME_CONFIG = Object.freeze({
   // jump band, scrolling on the Updated parallax — and that gray pulls the
   // eye up off the lane before the run has settled. 0.6 keeps 14 of those
   // 23 levels (the puff composites near #f1f1f1). It still reads as sky
-  // furniture, stays quieter than the day hills (#cdcdcd, 50 levels off
+  // furniture, stays quieter than the day hills (#e1e1e1, 30 levels off
   // white), and stays stronger than the night dim so twilight eases
   // downward. Classic does not read this. Classic keeps #e8e8e8 at full
   // opacity, its own faint path. Eases toward NIGHT_CLOUD_ALPHA from
@@ -220,7 +220,20 @@ const GAME_CONFIG = Object.freeze({
   HILL_MIN_HEIGHT:         40,
   HILL_HEIGHT_RANGE:       30,
   HILL_RESPAWN_X_RANGE:    50,    // px of jitter past the right edge when a hill respawns
-  HILL_COLOR_DAY:          '#cdcdcd',
+  // Visual only. Fill of Updated/Daily hills while the sky is still day.
+  // Three ellipses, 120–200px wide and 40–70px tall, sit on the ground
+  // line and rise into the jump band behind the dino. #cdcdcd is 50
+  // levels off the white sky — a mid-gray band across that lane. #e1e1e1
+  // keeps 30 of those 50 levels, the same three-fifths the day cloud
+  // whisper keeps of its own ink. The mounds still read (more than
+  // double the day cloud's ~14 levels) and stay softer than the day
+  // dino and ground (#535353, 172 levels off white). Neutral gray.
+  // Night stays HILL_COLOR_NIGHT. Twilight lerps this into that colour
+  // from DAY_NIGHT_START to DAY_NIGHT_END. Reduced motion skips the
+  // ease and holds this colour until DAY_NIGHT_END, then snaps. Classic
+  // does not draw hills. The mounds are already on GET READY, so
+  // playtest does not need a query flag. Physics does not read this.
+  HILL_COLOR_DAY:          '#e1e1e1',
   HILL_COLOR_NIGHT:        '#3a3a55',
   CLOUD_SPEED_FACTOR_UPDATED: 1.5, // multiply cloud speed in updated mode for stronger parallax
   // Visual only. Peak alpha of the gold milestone sky-flash by day, in
