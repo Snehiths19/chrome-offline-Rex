@@ -299,7 +299,19 @@ const GAME_CONFIG = Object.freeze({
   // DAY_NIGHT_END. Reduced motion skips that ease and snaps to this at
   // DAY_NIGHT_END. Playtest with ?qaFlash=1&qaNight=1. Read through cfg().
   NIGHT_DEATH_FLASH_PEAK_ALPHA: 0.2,
-  SCORE_POP_FRAMES:        12,    // PR-C: HUD score scale-up duration during death shake
+  SCORE_POP_FRAMES:        12,    // shares the death-shake window; peak is SCORE_POP_PEAK_SCALE
+  // Visual only. Peak scale of the Updated/Daily score on the first
+  // death-pop frame. It eases from this back to 1 across SCORE_POP_FRAMES,
+  // the same 12 frames as the death shake, so the HUD settles with the
+  // camera instead of starting a second beat. The scale origin sits on the
+  // current score. HI is 140px left of that origin, so a peak of 1.4 slid
+  // HI by 56px — a corner slap while the death nudge is 1.5px. 1.12 grows
+  // the 20px digits by about 2.4px and slides HI by about 17px, so the
+  // death cue still reads without pulling the eye off the lane. Classic
+  // does not start the pop. Reduced motion still skips it. A tune outside
+  // 1..1.4 falls back, so a typo cannot slap harder than the old peak or
+  // shrink the score. Playtest with ?qaScorePop=1. Read through cfg().
+  SCORE_POP_PEAK_SCALE:     1.12,
   MILESTONE_FRAMES:        90,
   NEW_BEST_FRAMES:        120,
   // Soft ceiling for the once-per-run plateau cue. The speed curve approaches
@@ -777,6 +789,95 @@ function drawQaFlash() {
   ctx.restore();
 }
 
+// QA/debug only — not for players. ?qaScorePop=1 holds the Updated/Daily
+// death score pop from the first RUNNING frame so playtest can see the
+// quieter swell without dying. The digits are their own overdraw. They
+// do not read scorePopFrames — reduced motion skips the real pop, and a
+// zero timer or a collision return cannot skip this hold. The cover is
+// the sky, then the score is drawn at the peak, so the resting digits
+// cannot ghost under a slightly larger copy. It does not write the score,
+// speed, gaps, or game.rng(). Classic never takes it. Reduced motion
+// halves the hold and halves the extra scale, and still paints. Re-read
+// in resetGame(). Tests flip it through setQaScorePop(); a normal visit
+// leaves this false.
+const QA_SCORE_POP_HOLD = 180;
+
+function readQaScorePopFlag(search) {
+  const query = search !== undefined
+    ? search
+    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
+      ? location.search
+      : '');
+  if (!query) return false;
+  return new URLSearchParams(query).get('qaScorePop') === '1';
+}
+
+let qaScorePop = readQaScorePopFlag();
+
+function setQaScorePop(enabled) {
+  qaScorePop = !!enabled;
+}
+
+function qaScorePopHoldFrames() {
+  if (!reducedMotion) return QA_SCORE_POP_HOLD;
+  return Math.max(2, Math.round(QA_SCORE_POP_HOLD * 0.5));
+}
+
+// Motion-allowed playtest shows the real peak. Reduced motion keeps half
+// of the extra scale, still above 1, so the hold cannot sit at rest size.
+function qaScorePopScale() {
+  const peak = scorePopPeakScale();
+  if (!reducedMotion) return peak;
+  return 1 + (peak - 1) * 0.5;
+}
+
+// Sky patch large enough for the loudest allowed peak (1.4), so a tune
+// cannot leave a ghost of HI beside the swollen digits.
+function qaScorePopCover() {
+  const originX = GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30;
+  const hiX = GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET - GAME_CONFIG.SCORE_HI_X_OFFSET;
+  const left = Math.floor(originX + (hiX - originX) * 1.4) - 8;
+  return {
+    x: left,
+    y: 0,
+    w: GAME_CONFIG.CANVAS_W - left,
+    h: GAME_CONFIG.SCORE_Y + 28,
+  };
+}
+
+function advanceQaScorePop() {
+  if (!isUpdatedMode()) return;
+  if (qaScorePop && !game.qaScorePopShown && game.state === STATE.RUNNING) {
+    game.qaScorePopShown = true;
+    game.qaScorePopHold = qaScorePopHoldFrames();
+    return;
+  }
+  if (game.state === STATE.RUNNING && game.qaScorePopHold > 0) game.qaScorePopHold--;
+}
+
+// Overdraw after the whole frame, from the hold counter only. handleDead
+// draws the real pop inside the shake, and a collision returns before
+// that draw on the hit frame. This pass runs from gameLoop after the
+// handler, so neither can skip it. Last among the QA holds so a
+// full-canvas blink cannot cover the digits this hold exists to show.
+function drawQaScorePop() {
+  if (!isUpdatedMode() || game.qaScorePopHold <= 0) return;
+  const cover = qaScorePopCover();
+  const scale = qaScorePopScale();
+  const cx = GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30;
+  const cy = GAME_CONFIG.SCORE_Y - 8;
+  ctx.save();
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = getBackgroundColor(game.score);
+  ctx.fillRect(cover.x, cover.y, cover.w, cover.h);
+  ctx.translate(cx, cy);
+  ctx.scale(scale, scale);
+  ctx.translate(-cx, -cy);
+  paintHudScore();
+  ctx.restore();
+}
+
 // Solid block just under the score digits. Game coordinates, not pool slots.
 function qaConfettiRect() {
   return {
@@ -1167,6 +1268,9 @@ const game = {
   // QA/debug only. Latches after ?qaFlash=1 spends its one early death blink.
   qaFlashShown:     false,
   qaFlashHold:      0,
+  // QA/debug only. Latches after ?qaScorePop=1 spends its one early score swell.
+  qaScorePopShown:  false,
+  qaScorePopHold:   0,
   isNewBest:         false,
   previousHighScore: 0,
   // Set on a Daily death before today best is saved. Mirrors isNewBest:
@@ -1770,19 +1874,24 @@ function drawDino() {
   }
 }
 
-function drawScore() {
-  const popping = Animations.scorePopFrames > 0 && isUpdatedMode() && !reducedMotion;
-  if (popping) {
-    // Brief 1.0 → 1.4 ease-out scale around the score's centre on death.
-    const t = Animations.scorePopFrames / GAME_CONFIG.SCORE_POP_FRAMES; // 1 → 0
-    const scale = 1 + t * 0.4;
-    const cx = GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30;
-    const cy = GAME_CONFIG.SCORE_Y - 8;
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.scale(scale, scale);
-    ctx.translate(-cx, -cy);
-  }
+// Peak scale of the death score pop. A tune outside 1..1.4 falls back so
+// the HUD cannot shrink or slap harder than the old 1.4 peak.
+function scorePopPeakScale() {
+  const tuned = cfg('SCORE_POP_PEAK_SCALE');
+  if (typeof tuned === 'number' && tuned >= 1 && tuned <= 1.4) return tuned;
+  return GAME_CONFIG.SCORE_POP_PEAK_SCALE;
+}
+
+// t is 1 on the first pop frame and falls toward 0. The first frame
+// returns the peak exactly so a tune is not lost to float drift.
+function scorePopScale(t) {
+  const peak = scorePopPeakScale();
+  if (t >= 1) return peak;
+  if (t <= 0) return 1;
+  return 1 + t * (peak - 1);
+}
+
+function paintHudScore() {
   const color = scoreForNightSky(game.score) >= GAME_CONFIG.DAY_NIGHT_START ? '#ffffff' : '#000000';
   ctx.fillStyle = color;
   ctx.font = '20px ' + cfg('SCORE_FONT_FAMILY');
@@ -1802,6 +1911,22 @@ function drawScore() {
       GAME_CONFIG.SCORE_Y
     );
   }
+}
+
+function drawScore() {
+  const popping = Animations.scorePopFrames > 0 && isUpdatedMode() && !reducedMotion;
+  if (popping) {
+    // Ease from the quiet peak back to 1 across the death-shake window.
+    const t = Animations.scorePopFrames / GAME_CONFIG.SCORE_POP_FRAMES; // 1 → 0
+    const scale = scorePopScale(t);
+    const cx = GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30;
+    const cy = GAME_CONFIG.SCORE_Y - 8;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(scale, scale);
+    ctx.translate(-cx, -cy);
+  }
+  paintHudScore();
   if (popping) ctx.restore();
   drawDebugHud();
 }
@@ -2550,6 +2675,8 @@ function resetGame() {
   game.qaPlateauHold     = 0;
   game.qaFlashShown      = false;
   game.qaFlashHold       = 0;
+  game.qaScorePopShown   = false;
+  game.qaScorePopHold    = 0;
   // QA/debug only. Re-read so a mode toggle still honors the page query.
   qaPlateau = readQaPlateauFlag();
   qaCluster = readQaClusterFlag();
@@ -2560,6 +2687,7 @@ function resetGame() {
   qaConfetti = readQaConfettiFlag();
   qaDust = readQaDustFlag();
   qaFlash = readQaFlashFlag();
+  qaScorePop = readQaScorePopFlag();
   game.isNewBest         = false;
   game.previousHighScore = 0;
   game.isNewTodayBest    = false;
@@ -2864,14 +2992,17 @@ function gameLoop() {
   game.animationFrameId = requestAnimationFrame(gameLoop);
   advanceQaDust();
   advanceQaFlash();
+  advanceQaScorePop();
   STATE_HANDLERS[game.state]();
   // After the handler so a collision return, the score, and the death
   // card cannot cover the debug block. No-op unless the hold is running.
-  // The flash is last so those other holds cannot cover the wash either.
+  // The flash sits above the other marks. The score pop is last so that
+  // full-canvas blink cannot cover the digits the hold exists to show.
   drawQaConfetti();
   drawQaDust();
   drawQaPlateau();
   drawQaFlash();
+  drawQaScorePop();
 }
 
 // == SECTION 9: INITIALISATION ==
@@ -2995,6 +3126,14 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.qaFlashHoldFrames = qaFlashHoldFrames;
   global.qaFlashPaintAlpha = qaFlashPaintAlpha;
   global.drawQaFlash = drawQaFlash;
+  global.scorePopScale = scorePopScale;
+  global.setQaScorePop = setQaScorePop;
+  global.readQaScorePopFlag = readQaScorePopFlag;
+  global.QA_SCORE_POP_HOLD = QA_SCORE_POP_HOLD;
+  global.qaScorePopHoldFrames = qaScorePopHoldFrames;
+  global.qaScorePopScale = qaScorePopScale;
+  global.qaScorePopCover = qaScorePopCover;
+  global.drawQaScorePop = drawQaScorePop;
   global.obstacleNightBrightness = obstacleNightBrightness;
   global.dinoNightBrightness = dinoNightBrightness;
   global.cloudPaintAlpha = cloudPaintAlpha;
