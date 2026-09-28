@@ -68,6 +68,9 @@ _Avoid_: high score popup, record banner
 **Land dust** — the jump and land foot puffs in Updated and Daily. By day they are a quieter brown whisper at the feet, still the familiar brown, so early-run Atmosphere stays off the obstacle lane. As the sky eases into night they cool to quiet ground dust, in the same family as the soft night clouds, and stay at the feet. Once the sky is fully night the puff is softer and shorter, so it does not sparkle on the road. Classic never shows them. Trail, collision, confetti, and the plateau cue are not land dust.
 _Avoid_: foot dirt, jump smoke, dust particles (too broad — those include the trail and the plateau puff)
 
+**Collision burst** — the red death puff in Updated and Daily, emitted at the dino when a hit ends the run. It is a short, tight cluster on the body so the hit still reads and the eye stays on the lane. Classic never emits it. It is not **Land dust**, the late-run heel trail, level confetti, or the plateau cue.
+_Avoid_: hit sparks, blood, explosion, land dust
+
 **Ground strip** — the scrolling road edge under the run, painted from the day sprite. By day it stays that day paint in every mode. In Updated and Daily, once the sky is fully night, the strip dims with the night Atmosphere so it still reads as the road edge and no longer as a bright day-gray ruler. Classic keeps the day paint even when the shared sky is night. It is not **Land dust**.
 _Avoid_: floor, terrain, ground line (as a separate feature name)
 
@@ -132,6 +135,7 @@ _Avoid_: daily record, new daily high, today record
 - A Daily Challenge death that does not beat **Daily best**, including a tie, keeps the comparison layout
 - The **New-best badge** is drawn during RUNNING only, the first time the run passes the stored high score. Classic keeps the full countdown. Updated and Daily use the quieter, shorter paint. It is a different surface from the Game Over new-best line and from **New today best**
 - The **Ground strip** stays day paint until the sky is fully night. Updated and Daily then dim it. Classic never does. **Land dust** is a separate foot puff on that edge. Updated and Daily soften and shorten that puff once the sky is fully night. Classic never shows it
+- A **Collision burst** is the red death puff on the dino in Updated and Daily. It is not **Land dust**, the heel trail, level confetti, or the plateau cue. Classic never emits it
 - **Stars** appear only once the sky is fully night. Updated and Daily then hold a quieter peak. Classic keeps the full-white field. The day sky has none
 - **Clouds** in Updated and Daily ease from the day whisper to a quieter night dim once the sky is fully night. Classic keeps full opacity. The day sky does not use the night dim
 - The **Level** gold wash in Updated and Daily eases from the day breath to a quieter peak once the sky is fully night. Classic never draws the wash. Reduced motion suppresses it

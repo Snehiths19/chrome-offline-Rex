@@ -4403,7 +4403,7 @@ describe('Quiet plateau cue', () => {
     jump:      { count: 3,  color: '#9c8770', size: 3, life: 8, alpha: 0.5, vyMin: -1.2, vyMax: -0.4, vxSpread: 0.6, gravity: 0.10 },
     land:      { count: 5,  color: '#9c8770', size: 3, life: 8, alpha: 0.4, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.7, gravity: 0.12 },
     trail:     { count: 1,  color: 'rgba(150,150,150,0.28)', size: 2, life: 6, vyMin: -0.1, vyMax: 0.1, vxSpread: 0.2, gravity: 0 },
-    collision: { count: 8,  color: '#d04a2a', size: 3, life: 12, vyMin: -1.2, vyMax: 0.4, vxSpread: 1.0, gravity: 0.10 },
+    collision: { count: 5,  color: '#d04a2a', size: 3, life: 8, vyMin: -1.2, vyMax: 0.4, vxSpread: 0.7, gravity: 0.10 },
     confetti:  { count: 10, color: '#ffd700', size: 3, life: 20, vyMin: -1.6, vyMax: -0.5, vxSpread: 1.2, gravity: 0.10 },
   };
 
@@ -8537,17 +8537,19 @@ describe('Soft death shake', () => {
 });
 
 describe('Soft collision burst', () => {
-  // The shake draws particles for 12 frames. A mote's farthest travel in
-  // that life must stay on the 40×50 dino, or the red leaves the runner
-  // and lands on the cactus.
+  // Round 1 held 8 motes for the whole 12-frame shake at vxSpread 1, so the
+  // farthest red sat near the sprite edge. Round 2 is one step quieter:
+  // fewer motes, a life that dies before the nudge ends, and a tighter
+  // spread. Travel over that shorter life must still stay on the 40×50
+  // dino, or the red leaves the runner and lands on the cactus.
   const PUFF = {
-    count: 8,
+    count: 5,
     color: '#d04a2a',
     size: 3,
-    life: 12,
+    life: 8,
     vyMin: -1.2,
     vyMax: 0.4,
-    vxSpread: 1.0,
+    vxSpread: 0.7,
     gravity: 0.10,
   };
 
@@ -8585,13 +8587,17 @@ describe('Soft collision burst', () => {
     assert(moved.up + kind.size / 2 <= halfH, 'the puff does not fountain above the dino');
     assert(moved.down + kind.size / 2 <= halfH, 'the puff does not rain off the dino');
     assert(kind.count < 11, 'fewer than half the old 22-mote firework');
+    assert(kind.count < 8, 'quieter than the round-1 eight-mote puff');
     assert(kind.count > Particles.KINDS.jump.count, 'still reads louder than a jump puff');
-    assertEquals(kind.life, GAME_CONFIG.DEATH_SHAKE_FRAMES,
-      'the puff fades out as the death nudge ends');
+    assert(kind.life < GAME_CONFIG.DEATH_SHAKE_FRAMES,
+      'the puff dies before the death nudge ends');
+    assert(kind.life * 2 > GAME_CONFIG.DEATH_SHAKE_FRAMES,
+      'the puff still lasts through most of the shake');
+    assert(moved.x < 8, 'tighter than the round-1 12px reach');
     assertEquals(kind.color, PUFF.color, 'death stays the same red');
     assertEquals(kind.size, PUFF.size, 'mote size stays readable');
     assertEquals(kind.gravity, PUFF.gravity, 'the puff keeps its weight');
-    assertEquals(kind.count, PUFF.count, 'the shipped puff is 8 motes');
+    assertEquals(kind.count, PUFF.count, 'the shipped puff is 5 motes');
     assertEquals(kind.vyMin, PUFF.vyMin, 'the shipped rise is a short lift');
     assertEquals(kind.vyMax, PUFF.vyMax, 'the shipped fall is a short drop');
     assertEquals(kind.vxSpread, PUFF.vxSpread, 'the shipped spread stays on the body');
@@ -8715,6 +8721,302 @@ describe('Soft collision burst', () => {
   });
 });
 
+describe('QA collision flag (?qaCollision=1)', () => {
+  function tick() {
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+  }
+
+  function spyPaint() {
+    const calls = [];
+    const origFillRect = ctx.fillRect;
+    const origFillText = ctx.fillText;
+    ctx.fillRect = function (x, y, w, h) {
+      calls.push({
+        op: 'rect',
+        style: ctx.fillStyle,
+        x: x,
+        y: y,
+        w: w,
+        h: h,
+        alpha: ctx.globalAlpha,
+      });
+    };
+    ctx.fillText = function (text) {
+      calls.push({ op: 'text', text: String(text) });
+    };
+    return {
+      calls: calls,
+      restore() {
+        ctx.fillRect = origFillRect;
+        ctx.fillText = origFillText;
+      },
+    };
+  }
+
+  function redFills(calls) {
+    return calls.filter((c) => c.op === 'rect' && c.style === Particles.KINDS.collision.color);
+  }
+
+  function rimFills(calls) {
+    return calls.filter((c) => c.op === 'rect' && c.style === QA_COLLISION_RIM);
+  }
+
+  function onBody(rect) {
+    return rect.x >= dino.x
+      && rect.y >= dino.y
+      && rect.x + rect.w <= dino.x + dino.width
+      && rect.y + rect.h <= dino.y + dino.height;
+  }
+
+  function assertCluster(calls, label, alpha) {
+    const marks = qaCollisionMarks();
+    const reds = redFills(calls);
+    const rims = rimFills(calls);
+    assertEquals(reds.length, marks.length, label + ' paints the quieter cluster');
+    assert(reds.length > 0, label + ' paints at least one mote');
+    assertEquals(rims.length, marks.length, label + ' paints a rim with each mote');
+    reds.forEach((fill, i) => {
+      assertEquals(fill.x, marks[i].x, label + ' mote ' + i + ' stays on the body mark');
+      assertEquals(fill.y, marks[i].y, label + ' mote ' + i + ' stays on the body mark');
+      assertEquals(fill.w, QA_COLLISION_SIZE, label + ' mote stays a small mark');
+      assertEquals(fill.h, QA_COLLISION_SIZE, label + ' mote stays a small mark');
+      assertEquals(fill.alpha, alpha, label + ' mote uses the hold ink');
+      assert(onBody(fill), label + ' mote stays inside the dino');
+    });
+    rims.forEach((rim) => {
+      assertEquals(rim.alpha, alpha, label + ' rim uses the hold ink');
+      assert(onBody(rim), label + ' rim stays inside the dino');
+    });
+    const lastHud = calls.reduce((at, c, i) => (c.op === 'text' ? i : at), -1);
+    const redAt = calls.findIndex((c) => c.op === 'rect' && c.style === Particles.KINDS.collision.color);
+    assert(redAt > lastHud, label + ' cluster is painted after the HUD');
+  }
+
+  function armFreshRun(mode) {
+    game.mode = mode;
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    setQaLevel(false);
+    setQaNight(false);
+    setQaPlateau(false);
+    setQaTrail(false);
+    setQaConfetti(false);
+    setQaDust(false);
+    setQaFlash(false);
+    setQaScorePop(false);
+    setQaNewBest(false);
+    setQaCollision(false);
+    setReducedMotion(false);
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    game.obstacles.length = 0;
+    game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+    game.nextSpawnGap = GAME_CONFIG.MAX_SPAWN_GAP;
+    dino.y = GAME_CONFIG.CANVAS_H - dino.height;
+    dino.isJumping = false;
+    dino.velocityY = 0;
+    Particles.reset();
+  }
+
+  it('recognizes only ?qaCollision=1', () => {
+    assert(readQaCollisionFlag('?qaCollision=1') === true, '?qaCollision=1 should hold the death puff');
+    assert(readQaCollisionFlag('?qaNight=1&qaCollision=1') === true, 'the flag should work beside ?qaNight=1');
+    assert(readQaCollisionFlag('?qaCollision=1&qaDust=1') === true, 'param order should not matter');
+    assert(readQaCollisionFlag('') === false, 'a normal visit should leave the puff for a real death');
+    assert(readQaCollisionFlag('?qaCollision=0') === false, 'only the value 1 enables the flag');
+    assert(readQaCollisionFlag('?qaCollision=12') === false, 'qaCollision=12 must not count as the flag');
+    assert(readQaCollisionFlag('?qaFlash=1') === false, 'the flash flag must not hold the death puff');
+  });
+
+  it('paints the quieter red cluster on the dino from the first running frame', () => {
+    const origMode = game.mode;
+    const spy = spyPaint();
+    try {
+      assert(QA_COLLISION_HOLD >= 120, 'the debug hold must outlast a quick capture after GET READY');
+      assertEquals(QA_COLLISION_OFFSETS.length, Particles.KINDS.collision.count,
+        'the hold shows one mark per quieter mote');
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        armFreshRun(mode);
+        game.rng = mulberry32(11);
+        setQaCollision(false);
+        spy.calls.length = 0;
+        tick();
+        const rngAfterOff = game.rng();
+        const speedOff = game.currentSpeed;
+        const scoreOff = game.score;
+        const gapOff = game.nextSpawnGap;
+        assertEquals(redFills(spy.calls).length, 0, mode + ' without the flag does not paint');
+        assertEquals(game.qaCollisionShown, false, mode + ' without the flag does not spend the latch');
+        assertEquals(game.qaCollisionHold, 0, mode + ' without the flag does not start the hold');
+
+        armFreshRun(mode);
+        game.rng = mulberry32(11);
+        setQaCollision(true);
+        Particles.particles.forEach((p) => {
+          p.life = 8;
+          p.maxLife = 8;
+          p.color = '#112233';
+          p.size = 2;
+        });
+        spy.calls.length = 0;
+        tick();
+        assertCluster(spy.calls, mode, 1);
+        assertEquals(game.qaCollisionHold, QA_COLLISION_HOLD, mode + ' latches the full hold');
+        assertEquals(game.qaCollisionShown, true, mode + ' spends the latch once');
+        assertEquals(
+          Particles.particles.filter((p) => p.color === Particles.KINDS.collision.color).length,
+          0,
+          mode + ' does not emit the production puff'
+        );
+        assertEquals(game.score, scoreOff, mode + ' hold must not write the score');
+        assertEquals(game.currentSpeed, speedOff, mode + ' hold must not change speed');
+        assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
+          mode + ' speed still follows the real score');
+        assertEquals(game.nextSpawnGap, gapOff, mode + ' hold must not change the spawn gap');
+        assertEquals(game.rng(), rngAfterOff, mode + ' hold must not consume the run seed');
+        assertEquals(game.obstacles.length, 0, mode + ' hold must not spawn an obstacle');
+
+        for (let i = 0; i < 30; i++) {
+          spy.calls.length = 0;
+          tick();
+        }
+        assertCluster(spy.calls, mode + ' still', 1);
+        assertEquals(game.qaCollisionHold, QA_COLLISION_HOLD - 30,
+          mode + ' keeps the hold up after the run starts');
+      }
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaCollision(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('still paints the cluster when a hit returns before the death draw', () => {
+    const origMode = game.mode;
+    const spy = spyPaint();
+    try {
+      armFreshRun(MODES.UPDATED);
+      setQaCollision(true);
+      game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
+      spy.calls.length = 0;
+      tick();
+      assertEquals(game.state, STATE.DEAD, 'the cactus still ends the run');
+      const reds = redFills(spy.calls);
+      assertEquals(reds.length, qaCollisionMarks().length,
+        'the hold still paints after the collision return');
+      assert(reds.every(onBody), 'the death-frame hold stays on the dino');
+      assertEquals(game.qaCollisionHold, QA_COLLISION_HOLD,
+        'the latch frame does not tick the hold down');
+      assert(game.score < 1, 'dying on the QA frame does not invent score');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaCollision(false);
+      game.obstacles.length = 0;
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('Classic with ?qaCollision=1 still paints nothing', () => {
+    const origMode = game.mode;
+    const spy = spyPaint();
+    try {
+      armFreshRun(MODES.CLASSIC);
+      setQaCollision(true);
+      tick();
+      tick();
+      assertEquals(redFills(spy.calls).length, 0, 'Classic never paints the debug cluster');
+      assertEquals(
+        Particles.particles.filter((p) => p.life > 0 && p.color === Particles.KINDS.collision.color).length,
+        0,
+        'Classic does not emit the production puff either'
+      );
+      assertEquals(game.qaCollisionShown, false, 'Classic does not spend the Updated latch');
+      assertEquals(game.qaCollisionHold, 0, 'Classic does not start the hold');
+      assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
+        'Classic speed still follows the score');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaCollision(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('reduced motion shortens the hold and paints a quieter cluster', () => {
+    const origMode = game.mode;
+    const spy = spyPaint();
+    try {
+      armFreshRun(MODES.UPDATED);
+      setQaCollision(true);
+      setReducedMotion(false);
+      const fullMarks = qaCollisionMarks().length;
+      assert(fullMarks > 1, 'motion-on capture is a cluster, not one mote');
+      setReducedMotion(true);
+      spy.calls.length = 0;
+      tick();
+      assertEquals(game.qaCollisionHold, qaCollisionHoldFrames(), 'hold uses the shorter window');
+      assert(game.qaCollisionHold < QA_COLLISION_HOLD, 'hold is shorter than the full capture');
+      assert(qaCollisionHoldFrames() >= 2, 'hold still lasts long enough to see');
+      assertEquals(qaCollisionPaintAlpha(), 0.5, 'reduced motion halves the hold ink');
+      assertCluster(spy.calls, 'reduced motion', 0.5);
+      assert(redFills(spy.calls).length < fullMarks, 'reduced motion does not paint the full cluster');
+      assertEquals(
+        Particles.particles.filter((p) => p.life > 0 && p.color === Particles.KINDS.collision.color).length,
+        0,
+        'the damped hold does not go through the particle pool'
+      );
+      assert(game.score < 1, 'the damped hold must not write the score');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaCollision(false);
+      setReducedMotion(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('resetGame re-reads ?qaCollision=1 from the page query', () => {
+    const origMode = game.mode;
+    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
+    const prevLocation = global.location;
+    const spy = spyPaint();
+    global.location = { search: '?qaCollision=1' };
+    try {
+      setQaCollision(false);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      game.state = STATE.RUNNING;
+      game.mode = MODES.UPDATED;
+      game.obstacles.length = 0;
+      game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+      game.nextSpawnGap = GAME_CONFIG.MAX_SPAWN_GAP;
+      Particles.reset();
+      tick();
+      assertCluster(spy.calls, 're-read flag', 1);
+      assertEquals(game.qaCollisionHold, QA_COLLISION_HOLD, 'the re-read flag latches the hold');
+      assert(game.score < 1, 're-reading the flag must not change the score');
+      assertEquals(game.qaCollisionShown, true, 'the re-read flag spends the latch');
+    } finally {
+      spy.restore();
+      if (hadLocation) global.location = prevLocation;
+      else delete global.location;
+      game.mode = origMode;
+      setQaCollision(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+});
+
 describe('Quiet late-run heel trail', () => {
   // The late-run smear was one grey mote per frame, alpha 0.55, living 10
   // frames, drifting ±0.4px. About ten specks stacked on the ground line
@@ -8735,7 +9037,7 @@ describe('Quiet late-run heel trail', () => {
   const UNCHANGED_KINDS = {
     jump:      { count: 3,  color: '#9c8770', size: 3, life: 8, alpha: 0.5, vyMin: -1.2, vyMax: -0.4, vxSpread: 0.6, gravity: 0.10 },
     land:      { count: 5,  color: '#9c8770', size: 3, life: 8, alpha: 0.4, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.7, gravity: 0.12 },
-    collision: { count: 8,  color: '#d04a2a', size: 3, life: 12, vyMin: -1.2, vyMax:  0.4, vxSpread: 1.0, gravity: 0.10 },
+    collision: { count: 5,  color: '#d04a2a', size: 3, life: 8, vyMin: -1.2, vyMax:  0.4, vxSpread: 0.7, gravity: 0.10 },
     confetti:  { count: 10, color: '#ffd700', size: 3, life: 20, vyMin: -1.6, vyMax: -0.5, vxSpread: 1.2, gravity: 0.10 },
     plateau:   { count: 4,  color: '#c5d4e4', size: 2, life: 12, alpha: 0.45, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.3, gravity: 0.06 },
     plateauQa: { count: 4, color: '#3d4f63', size: 2, life: 40, vyMin: -0.2, vyMax: -0.08, vxSpread: 0.08, gravity: 0.002 },
@@ -9071,7 +9373,7 @@ describe('Quiet new-best confetti', () => {
     jump:      { count: 3,  color: '#9c8770', size: 3, life: 8, alpha: 0.5, vyMin: -1.2, vyMax: -0.4, vxSpread: 0.6, gravity: 0.10 },
     land:      { count: 5,  color: '#9c8770', size: 3, life: 8, alpha: 0.4, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.7, gravity: 0.12 },
     trail:     { count: 1,  color: 'rgba(150,150,150,0.28)', size: 2, life:  6, vyMin: -0.1, vyMax:  0.1, vxSpread: 0.2, gravity: 0 },
-    collision: { count: 8,  color: '#d04a2a',                size: 3, life: 12, vyMin: -1.2, vyMax:  0.4, vxSpread: 1.0, gravity: 0.10 },
+    collision: { count: 5,  color: '#d04a2a',                size: 3, life: 8, vyMin: -1.2, vyMax:  0.4, vxSpread: 0.7, gravity: 0.10 },
     plateau:   { count: 4,  color: '#c5d4e4', size: 2, life: 12, alpha: 0.45, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.3, gravity: 0.06 },
     plateauQa: { count: 4, color: '#3d4f63', size: 2, life: 40, vyMin: -0.2, vyMax: -0.08, vxSpread: 0.08, gravity: 0.002 },
   };
@@ -9495,7 +9797,7 @@ describe('Quiet day land dust', () => {
   };
   const UNCHANGED_KINDS = {
     trail:     { count: 1,  color: 'rgba(150,150,150,0.28)', size: 2, life:  6, vyMin: -0.1, vyMax:  0.1, vxSpread: 0.2, gravity: 0 },
-    collision: { count: 8,  color: '#d04a2a',                size: 3, life: 12, vyMin: -1.2, vyMax:  0.4, vxSpread: 1.0, gravity: 0.10 },
+    collision: { count: 5,  color: '#d04a2a',                size: 3, life: 8, vyMin: -1.2, vyMax:  0.4, vxSpread: 0.7, gravity: 0.10 },
     confetti:  { count: 10, color: '#ffd700',                size: 3, life: 20, vyMin: -1.6, vyMax: -0.5, vxSpread: 1.2, gravity: 0.10 },
     plateau:   { count: 4,  color: '#c5d4e4', size: 2, life: 12, alpha: 0.45, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.3, gravity: 0.06 },
     plateauQa: { count: 4, color: '#3d4f63', size: 2, life: 40, vyMin: -0.2, vyMax: -0.08, vxSpread: 0.08, gravity: 0.002 },
