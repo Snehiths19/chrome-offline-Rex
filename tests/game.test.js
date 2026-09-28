@@ -7567,10 +7567,12 @@ describe('Night milestone tint', () => {
     try {
       setQaNight(false);
       setReducedMotion(false);
-      assertEquals(GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA, 0.04,
-        'night peak stays the shipped quiet value');
-      assert(GAME_CONFIG.SKY_TINT_PEAK_ALPHA <= 0.06,
-        'day peak stays at most half the old 0.12 veil');
+      assertEquals(GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA, 0.024,
+        'night peak keeps three-fifths of the old 0.04 veil');
+      assert(Math.abs(GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA - 0.04 * 0.6) < 1e-9,
+        'the quieter peak is exactly three-fifths of the previous night band');
+      assertEquals(GAME_CONFIG.SKY_TINT_PEAK_ALPHA, 0.06,
+        'day peak stays the quieter day wash');
       assert(GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA < GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
         'night peak is lower than the day peak so twilight still eases down');
       assert(GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA > 0, 'the level cue still paints at night');
@@ -7582,12 +7584,22 @@ describe('Night milestone tint', () => {
         'gold on the day cactus stays at most half the old veil');
       const dayLift = washLift(GAME_CONFIG.SKY_TINT_PEAK_ALPHA, daySky);
       const nightLift = washLift(GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA, nightSky);
+      const previousNight = washLift(0.04, nightSky);
       const oldDayOnWhite = washLift(0.12, daySky);
       const oldPunch = washLift(0.12, nightSky);
+      const nightSkyChannels = [0x1a, 0x1a, 0x2e];
+      const gold = [255, 215, 0];
+      const nightOff = gold.map((channel, i) => Math.abs(channel - nightSkyChannels[i]) * 0.024);
+      assertEquals(nightOff.map(n => Math.round(n)).join(','), '5,5,1',
+        'full night gold sits about 5, 5, and 1 levels off the night sky');
+      assert(nightLift < previousNight * 0.75,
+        'night wash loses a real share of the 0.04 veil');
+      assert(Math.abs(nightLift - previousNight * 0.6) < 1e-9,
+        'the luminance step is the same three-fifths, because the blend is linear');
       assert(nightLift < oldPunch * 0.5,
         'night wash stays much quieter than the old day peak on the night sky');
       assert(nightLift > oldDayOnWhite * 0.5 && nightLift < oldDayOnWhite * 1.6,
-        'night lift stays near the old day cue on white');
+        'night lift stays near the old day cue on white, so the gold still reads once');
       assert(dayLift < oldDayOnWhite,
         'the quieter day wash lifts white less than the old veil');
 

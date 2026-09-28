@@ -58,7 +58,7 @@ _Avoid_: slope, sigmoid slope
 
 **Plateau** — the ceiling of the difficulty curve. Chosen to feel "focusable but demanding" — a skilled player can hold this speed indefinitely, but it is not forgiving of lapses in attention. The curve approaches plateau speed and never quite touches it, so the player is told they have arrived the first time speed reaches 98% of plateau speed (about score 641 on the current curve). That cue is a brief cool particle puff at the dino's heel — once per run, never a center message, never repeated. Classic never shows it. Under prefers-reduced-motion the puff is damped like other particles. It reframes a late failure from "this is impossible" to "I've reached the hard part, now I need to hold it."
 
-**Level** — a discrete score milestone (every 100 points) used for milestone flash effects and visual feedback only. Speed no longer steps at level boundaries; it increases continuously. In Updated and Daily the center LEVEL label is a short, quiet read in the jump band, then it leaves while the gold wash finishes; Classic keeps the full-size label for the whole flash. Under prefers-reduced-motion the Updated and Daily word is shorter still, and the wash stays suppressed.
+**Level** — a discrete score milestone (every 100 points) used for milestone flash effects and visual feedback only. Speed no longer steps at level boundaries; it increases continuously. In Updated and Daily the center LEVEL label is a short, quiet read in the jump band, then it leaves while the gold wash finishes. By day that wash is a quiet breath. Once the sky is fully night the same wash peaks softer still, so the celebration stays peripheral Atmosphere and does not spotlight the canvas away from the obstacle lane. Classic keeps the full-size label for the whole flash and never draws the wash. Under prefers-reduced-motion the Updated and Daily word is shorter still, and the wash stays suppressed.
 
 **New-best badge** — the in-run gold "NEW BEST!" under the score, shown the first time this run passes the stored high score. It sits in the corner, not in the jump band. In Updated and Daily it is a short, quiet read, then it leaves so it does not keep pulling the eye off the obstacle lane. Classic keeps today's full-size badge for the full countdown. Under prefers-reduced-motion the Updated and Daily badge is shorter still. It is not the Game Over "★ NEW BEST ★" line, and it is not **New today best**.
 _Avoid_: high score popup, record banner
@@ -134,6 +134,7 @@ _Avoid_: daily record, new daily high, today record
 - The **Ground strip** stays day paint until the sky is fully night. Updated and Daily then dim it. Classic never does. **Land dust** is a separate foot puff on that edge. Updated and Daily soften and shorten that puff once the sky is fully night. Classic never shows it
 - **Stars** appear only once the sky is fully night. Updated and Daily then hold a quieter peak. Classic keeps the full-white field. The day sky has none
 - **Clouds** in Updated and Daily ease from the day whisper to a quieter night dim once the sky is fully night. Classic keeps full opacity. The day sky does not use the night dim
+- The **Level** gold wash in Updated and Daily eases from the day breath to a quieter peak once the sky is fully night. Classic never draws the wash. Reduced motion suppresses it
 
 ## Flagged Ambiguities
 
