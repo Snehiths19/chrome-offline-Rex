@@ -2731,6 +2731,151 @@ describe('Daily best persistence', () => {
   });
 });
 
+// Pins "now" to one UTC instant and makes local Y/M/D disagree with UTC.
+// offsetMinutesEast is the wall-clock shift (UTC-8 → -480). Restores Date after fn.
+function withSplitClock(utcMs, offsetMinutesEast, fn) {
+  const RealDate = global.Date;
+  function utcParts(ms) {
+    const d = new RealDate(ms);
+    return {
+      y: RealDate.prototype.getUTCFullYear.call(d),
+      m: RealDate.prototype.getUTCMonth.call(d),
+      day: RealDate.prototype.getUTCDate.call(d),
+    };
+  }
+  function localParts(ms) {
+    return utcParts(ms + offsetMinutesEast * 60000);
+  }
+  const orig = {
+    getFullYear: RealDate.prototype.getFullYear,
+    getMonth: RealDate.prototype.getMonth,
+    getDate: RealDate.prototype.getDate,
+  };
+  RealDate.prototype.getFullYear = function () {
+    return localParts(this.getTime()).y;
+  };
+  RealDate.prototype.getMonth = function () {
+    return localParts(this.getTime()).m;
+  };
+  RealDate.prototype.getDate = function () {
+    return localParts(this.getTime()).day;
+  };
+  function FakeDate(...args) {
+    return args.length ? new RealDate(...args) : new RealDate(utcMs);
+  }
+  FakeDate.now = () => utcMs;
+  FakeDate.parse = RealDate.parse.bind(RealDate);
+  FakeDate.UTC = RealDate.UTC.bind(RealDate);
+  FakeDate.prototype = RealDate.prototype;
+  global.Date = FakeDate;
+  try {
+    return fn();
+  } finally {
+    global.Date = RealDate;
+    RealDate.prototype.getFullYear = orig.getFullYear;
+    RealDate.prototype.getMonth = orig.getMonth;
+    RealDate.prototype.getDate = orig.getDate;
+  }
+}
+
+function utcCalendarSeed(ms) {
+  const d = new Date(ms);
+  return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
+}
+
+const DAILY_EPOCH_MS_TEST = Date.parse('2026-03-01T00:00:00Z');
+
+function expectedDailyNumber(utcMs) {
+  return Math.floor((utcMs - DAILY_EPOCH_MS_TEST) / 86400000) + 1;
+}
+
+function wallCalendarSeed(date) {
+  return date.getFullYear() * 10000 + (date.getMonth() + 1) * 100 + date.getDate();
+}
+
+function withDailyStorage(fn) {
+  const origDate = localStorage.getItem('dino-daily-date');
+  const origBest = localStorage.getItem('dino-daily-best');
+  localStorage.removeItem('dino-daily-date');
+  localStorage.removeItem('dino-daily-best');
+  try {
+    fn();
+  } finally {
+    if (origDate === null) localStorage.removeItem('dino-daily-date');
+    else localStorage.setItem('dino-daily-date', origDate);
+    if (origBest === null) localStorage.removeItem('dino-daily-best');
+    else localStorage.setItem('dino-daily-best', origBest);
+  }
+}
+
+describe('Daily UTC calendar', () => {
+  it('west of UTC, seed, number, and today-best key share the UTC day after local evening', () => {
+    // 03:30 UTC on the 29th is still 19:30 on the 28th in UTC-8.
+    const utcMs = Date.parse('2026-09-29T03:30:00.000Z');
+    const utcSeed = 20260929;
+    const localSeed = 20260928;
+    withSplitClock(utcMs, -8 * 60, () => {
+      assertEquals(wallCalendarSeed(new Date()), localSeed, 'fixture local day must disagree with UTC');
+      assertEquals(utcCalendarSeed(utcMs), utcSeed, 'fixture UTC day');
+      const seed = dailySeed();
+      assertEquals(seed, utcSeed, 'daily seed follows the UTC calendar day');
+      assertEquals(
+        dailyNumber(),
+        expectedDailyNumber(utcMs),
+        'daily number counts UTC days from the project epoch'
+      );
+      const numberDayMs = DAILY_EPOCH_MS_TEST + (dailyNumber() - 1) * 86400000;
+      assertEquals(utcCalendarSeed(numberDayMs), seed, 'daily number and daily seed name the same UTC day');
+      withDailyStorage(() => {
+        ScoreStore.saveDailyBest(120);
+        assertEquals(
+          localStorage.getItem('dino-daily-date'),
+          String(utcSeed),
+          'today best day key is the UTC daily seed'
+        );
+        assertEquals(ScoreStore.loadDailyBest(), 120, 'best loads on that same UTC day');
+        localStorage.setItem('dino-daily-date', String(localSeed));
+        localStorage.setItem('dino-daily-best', '999');
+        assertEquals(ScoreStore.loadDailyBest(), 0, 'a local-calendar key is stale once the UTC day has flipped');
+      });
+    });
+  });
+
+  it('east of UTC, seed, number, and today-best key stay on the UTC day after local midnight', () => {
+    // 16:30 UTC on the 28th is already 01:30 on the 29th in UTC+9.
+    const utcMs = Date.parse('2026-09-28T16:30:00.000Z');
+    const utcSeed = 20260928;
+    const localSeed = 20260929;
+    withSplitClock(utcMs, 9 * 60, () => {
+      assertEquals(wallCalendarSeed(new Date()), localSeed, 'fixture local day must disagree with UTC');
+      const seed = dailySeed();
+      assertEquals(seed, utcSeed, 'daily seed follows the UTC calendar day');
+      assertEquals(
+        dailyNumber(),
+        expectedDailyNumber(utcMs),
+        'daily number counts UTC days from the project epoch'
+      );
+      const numberDayMs = DAILY_EPOCH_MS_TEST + (dailyNumber() - 1) * 86400000;
+      assertEquals(utcCalendarSeed(numberDayMs), seed, 'daily number and daily seed name the same UTC day');
+      withDailyStorage(() => {
+        ScoreStore.saveDailyBest(80);
+        assertEquals(
+          localStorage.getItem('dino-daily-date'),
+          String(utcSeed),
+          'today best day key is the UTC daily seed'
+        );
+        localStorage.setItem('dino-daily-date', String(localSeed));
+        localStorage.setItem('dino-daily-best', '999');
+        assertEquals(
+          ScoreStore.loadDailyBest(),
+          0,
+          'a local-calendar key is not today while UTC is still the previous day'
+        );
+      });
+    });
+  });
+});
+
 describe('Restart countdown', () => {
   function overlayText() {
     const calls = [];

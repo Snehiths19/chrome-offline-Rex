@@ -624,17 +624,21 @@ function loadMode() {
 }
 
 // --- Daily challenge helpers -------------------------------------------
-// Epoch: project launch 2026-03-01 UTC. Day 1 = that date.
+// One shared calendar: UTC. dailySeed(), dailyNumber(), and the
+// dino-daily-date key all flip together at 00:00 UTC. Local wall-clock
+// time does not choose the course, the #N, or TODAY BEST.
+// Epoch: project launch 2026-03-01 00:00 UTC. Day 1 = that UTC date.
 const DAILY_EPOCH_MS = new Date('2026-03-01T00:00:00Z').getTime();
 
-// Returns today's date as a YYYYMMDD integer — same value for every player
-// on the same calendar day, used as the mulberry32 seed for daily runs.
+// Today's UTC date as a YYYYMMDD integer. Same value for every player
+// on the same UTC day. Seeds daily runs and keys dino-daily-date.
 function dailySeed() {
   const d = new Date();
-  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+  return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
 }
 
-// Ordinal day number shown in the HUD badge and share text (#1, #2, …).
+// Ordinal UTC day shown on the Game Over screen and in share text (#1, #2, …).
+// 86400000 ms steps from the UTC epoch, so this matches dailySeed()'s calendar day.
 function dailyNumber() {
   return Math.floor((Date.now() - DAILY_EPOCH_MS) / 86400000) + 1;
 }
