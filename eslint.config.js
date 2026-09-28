@@ -117,6 +117,7 @@ export default [
         QA_PLATEAU_SIZE: 'readonly',
         QA_PLATEAU_RIM: 'readonly',
         qaPlateauMarks: 'readonly',
+        qaPlateauHoldFrames: 'readonly',
         qaPlateauFill: 'readonly',
         drawQaPlateau: 'readonly',
         setQaCluster: 'readonly',

@@ -356,7 +356,9 @@ function setReducedMotion(enabled) {
 // QA/debug only — not for players. ?qaPlateau=1 fires a once-per-run heel puff
 // at QA_PLATEAU_SCORE so playtest can see it without reaching the plateau.
 // The visible cluster is drawQaPlateau(), from qaPlateauHold, not from a
-// free pool slot. A full pool or the short production life still paints.
+// free pool slot. A full pool or the short production life still paints
+// when motion is allowed. Reduced motion quarters the specks, halves the
+// hold, and softens the ink, the same way Particles.emit damps a burst.
 // Day fill is the dark QA kind. ?qaNight=1 uses the pale production color.
 // Read at boot and again in resetGame() so a mode toggle still honors the
 // query. Does not change speed, gaps, or game.rng(). Tests flip it through
@@ -579,11 +581,26 @@ function qaDustMarks() {
   }));
 }
 
+// Same fractions Particles.emit uses. Kept here so the hold cannot stay a
+// full cluster when the player prefers reduced motion.
+function qaPlateauReducedCount(fullCount) {
+  return Math.max(1, Math.round(fullCount * 0.25));
+}
+
+function qaPlateauHoldFrames() {
+  if (!reducedMotion) return QA_PLATEAU_HOLD;
+  return Math.max(2, Math.round(QA_PLATEAU_HOLD * 0.5));
+}
+
 // Held specks just behind the heel. Game coordinates, not pool slots.
+// Reduced motion keeps one speck of the four.
 function qaPlateauMarks() {
   const fx = dino.x - 8;
   const fy = dino.y + dino.height - 8;
-  return QA_PLATEAU_OFFSETS.map(([dx, dy]) => ({
+  const count = reducedMotion
+    ? qaPlateauReducedCount(QA_PLATEAU_OFFSETS.length)
+    : QA_PLATEAU_OFFSETS.length;
+  return QA_PLATEAU_OFFSETS.slice(0, count).map(([dx, dy]) => ({
     x: fx + dx,
     y: fy + dy,
     w: QA_PLATEAU_SIZE,
@@ -600,12 +617,14 @@ function qaPlateauFill() {
 
 // Overdraw after the whole frame. The production puff lives 12 frames and
 // can sit under the sprite; a full pool can also skip the emit. This pass
-// runs from the hold counter only, so playtest still sees the heel cluster.
+// runs from the hold counter only, so playtest still sees the heel cluster
+// when motion is allowed. Reduced motion uses the production peak alpha
+// instead of solid ink.
 function drawQaPlateau() {
   if (!isUpdatedMode() || game.qaPlateauHold <= 0) return;
   const color = qaPlateauFill();
   ctx.save();
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = reducedMotion ? Particles.KINDS.plateau.alpha : 1;
   ctx.globalCompositeOperation = 'source-over';
   const marks = qaPlateauMarks();
   for (let i = 0; i < marks.length; i++) {
@@ -2596,7 +2615,9 @@ function handleRunning() {
   // night kind. QA/debug only — not for players: ?qaPlateau=1 fires at score 1.
   // Day emits the dark kind just behind the sprite. ?qaNight=1 emits the pale
   // production kind at the heel. Either way the held cluster is what stays
-  // on screen — the pale life is 12 frames and can sit under the sprite.
+  // on screen when motion is allowed — the pale life is 12 frames and can
+  // sit under the sprite. Reduced motion shortens that hold and draws fewer,
+  // softer specks.
   // Classic never enters. Particles.emit uses Math.random(), not game.rng().
   const plateauReached = qaPlateau
     ? game.score >= QA_PLATEAU_SCORE
@@ -2604,7 +2625,7 @@ function handleRunning() {
   if (isUpdatedMode() && !game.plateauCueShown && plateauReached) {
     game.plateauCueShown = true;
     if (qaPlateau) {
-      game.qaPlateauHold = QA_PLATEAU_HOLD;
+      game.qaPlateauHold = qaPlateauHoldFrames();
       if (qaNight) {
         Particles.emit('plateau', dino.x + 4, dino.y + dino.height - 4);
       } else {
@@ -2820,6 +2841,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.QA_PLATEAU_SIZE = QA_PLATEAU_SIZE;
   global.QA_PLATEAU_RIM = QA_PLATEAU_RIM;
   global.qaPlateauMarks = qaPlateauMarks;
+  global.qaPlateauHoldFrames = qaPlateauHoldFrames;
   global.qaPlateauFill = qaPlateauFill;
   global.drawQaPlateau = drawQaPlateau;
   global.setQaCluster = setQaCluster;

@@ -4114,30 +4114,41 @@ describe('Quiet plateau cue', () => {
     }
   });
 
-  it('reduced motion still damps the puff while the capture hold paints', () => {
+  it('reduced motion damps the puff and the capture hold', () => {
     const origMode = game.mode;
     try {
-      setReducedMotion(true);
-      armRun(MODES.UPDATED);
-      setQaPlateau(true);
-      game.score = QA_PLATEAU_SCORE - GAME_CONFIG.SCORE_INCREMENT;
-      tick();
-      const dark = Particles.particles.filter((p) => p.life > 0 && p.color === QA.color);
-      const expectedCount = Math.max(1, Math.round(QA.count * 0.25));
-      const expectedLife = Math.max(2, Math.round(QA.life * 0.5));
-      assertEquals(dark.length, expectedCount, 'reduced motion still quarters the QA puff');
-      assert(expectedCount < QA.count, 'the damped puff is fewer motes');
-      assert(dark.every((p) => p.maxLife === expectedLife), 'reduced motion still halves QA life');
-      const spy = spyRects();
-      drawQaPlateau();
-      assertEquals(
-        spy.calls.filter((c) => c.style === QA.color).length,
-        qaPlateauMarks().length,
-        'the capture hold still paints under reduced motion'
-      );
-      spy.restore();
+      setReducedMotion(false);
+      const fullMarks = qaPlateauMarks().length;
+      assert(fullMarks > 1, 'motion-on capture is a cluster, not one speck');
+      for (const night of [false, true]) {
+        setReducedMotion(true);
+        armRun(night ? MODES.DAILY : MODES.UPDATED);
+        setQaPlateau(true);
+        setQaNight(night);
+        game.score = QA_PLATEAU_SCORE - GAME_CONFIG.SCORE_INCREMENT;
+        tick();
+        const color = night ? PUFF.color : QA.color;
+        const kind = night ? PUFF : QA;
+        const motes = Particles.particles.filter((p) => p.life > 0 && p.color === color);
+        const expectedCount = Math.max(1, Math.round(kind.count * 0.25));
+        const expectedLife = Math.max(2, Math.round(kind.life * 0.5));
+        assertEquals(motes.length, expectedCount, (night ? 'night' : 'day') + ' reduced motion still quarters the puff');
+        assert(expectedCount < kind.count, (night ? 'night' : 'day') + ' damped puff is fewer motes');
+        assert(motes.every((p) => p.maxLife === expectedLife), (night ? 'night' : 'day') + ' reduced motion still halves life');
+        assertEquals(game.qaPlateauHold, qaPlateauHoldFrames(), (night ? 'night' : 'day') + ' hold uses the shorter window');
+        assert(game.qaPlateauHold < QA_PLATEAU_HOLD, (night ? 'night' : 'day') + ' hold is shorter than the full capture');
+        const spy = spyRects();
+        drawQaPlateau();
+        const fills = spy.calls.filter((c) => c.style === color);
+        assertEquals(fills.length, qaPlateauMarks().length, (night ? 'night' : 'day') + ' hold paints the damped speck count');
+        assert(fills.length < fullMarks, (night ? 'night' : 'day') + ' hold is not the full cluster');
+        assert(fills.every((fill) => fill.alpha === PUFF.alpha), (night ? 'night' : 'day') + ' hold ink is softer than solid');
+        assert(fills.every((fill) => fill.alpha < 1), (night ? 'night' : 'day') + ' hold is not full ink');
+        spy.restore();
+      }
     } finally {
       setQaPlateau(false);
+      setQaNight(false);
       setReducedMotion(false);
       game.mode = origMode;
       Particles.reset();
