@@ -2743,19 +2743,22 @@ function idleStartPulseAlpha(frame) {
 }
 
 function drawIdleScreen() {
+  // Game coordinates, same as the countdown. The context is already scaled
+  // from the bitmap to the 600×200 board, so bitmap width would park the
+  // invite on the right edge of a wide window.
   const font = cfg('SCORE_FONT_FAMILY');
   ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, GAME_CONFIG.CANVAS_W, GAME_CONFIG.CANVAS_H);
   ctx.textAlign = 'center';
 
   ctx.fillStyle = 'white';
   ctx.font = '22px ' + font;
-  ctx.fillText('REX RUN', canvas.width / 2, canvas.height / 2 - 16);
+  ctx.fillText('REX RUN', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 16);
 
   const pulseAlpha = idleStartPulseAlpha(game.animFrame);
   ctx.fillStyle = 'rgba(255, 255, 255, ' + pulseAlpha.toFixed(3) + ')';
   ctx.font = '13px ' + font;
-  ctx.fillText('TAP / PRESS SPACE TO START', canvas.width / 2, canvas.height / 2 + 12);
+  ctx.fillText('TAP / PRESS SPACE TO START', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 12);
 }
 
 function drawGetReadyOverlay() {

@@ -13652,6 +13652,40 @@ describe('Soft idle start pulse', () => {
     }
   });
 
+  it('centers the idle card on the game board when the bitmap is wider', () => {
+    const origW = canvas.width;
+    const origH = canvas.height;
+    const origMode = game.mode;
+    const calls = [];
+    const origText = ctx.fillText;
+    const origRect = ctx.fillRect;
+    canvas.width = 1200;
+    canvas.height = 400;
+    game.mode = MODES.UPDATED;
+    ctx.fillText = (text, x, y) => calls.push({ text: String(text), x: x, y: y });
+    ctx.fillRect = (x, y, w, h) => calls.push({ rect: [x, y, w, h] });
+    try {
+      drawIdleScreen();
+      const title = calls.find((c) => c.text === 'REX RUN');
+      const prompt = calls.find((c) => c.text === PROMPT);
+      const scrim = calls.find((c) => c.rect);
+      assert(title, 'title should be drawn');
+      assert(prompt, 'start line should be drawn');
+      assertEquals(title.x, GAME_CONFIG.CANVAS_W / 2, 'title stays centered on the 600-wide board');
+      assertEquals(title.y, GAME_CONFIG.CANVAS_H / 2 - 16, 'title stays on the board vertically');
+      assertEquals(prompt.x, GAME_CONFIG.CANVAS_W / 2, 'start line stays centered on the board');
+      assertEquals(prompt.y, GAME_CONFIG.CANVAS_H / 2 + 12, 'start line stays under the title');
+      assertEquals(scrim.rect[2], GAME_CONFIG.CANVAS_W, 'the dim card covers the board, not the raw bitmap');
+      assertEquals(scrim.rect[3], GAME_CONFIG.CANVAS_H, 'the dim card matches the board height');
+    } finally {
+      ctx.fillText = origText;
+      ctx.fillRect = origRect;
+      canvas.width = origW;
+      canvas.height = origH;
+      game.mode = origMode;
+    }
+  });
+
   it('a bad tune cannot flash harder than Classic 0.3–0.7', () => {
     const origMode = game.mode;
     try {
