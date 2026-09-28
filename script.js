@@ -361,17 +361,21 @@ const GAME_CONFIG = Object.freeze({
   DEATH_SHAKE_FRAMES:      12,
   DEATH_SHAKE_AMPLITUDE:    4,
   DEATH_SHAKE_FREQ:         1.5,  // multiplier on the sin oscillation that drives the shake transform
-  // Visual only. Updated and Daily death nudge. Classic keeps
-  // DEATH_SHAKE_AMPLITUDE (4) and DEATH_SHAKE_FREQ (1.5). Across these 12
-  // frames that sine reverses five times and steps by about 5.5px, past
-  // the ground line, so the camera yanks the lane. 1.5px is under half
-  // that peak and under a twentieth of the 40px dino, so the cue stays a
-  // settle. π/12 runs the 12 frames as one half-turn: no reversal, and
-  // each step stays under half a pixel. Day and night share it. The shift
-  // is the same pixels either way. Reduced motion keeps these values; the
-  // flash and the score pop keep their own shorten. Read through cfg().
-  UPDATED_DEATH_SHAKE_AMPLITUDE: 1.5,
-  UPDATED_DEATH_SHAKE_FREQ: Math.PI / 12,
+  // Visual only. Updated and Daily death nudge, round 2. Classic keeps
+  // DEATH_SHAKE_FRAMES (12), DEATH_SHAKE_AMPLITUDE (4), and
+  // DEATH_SHAKE_FREQ (1.5). Round 1 was still those 12 frames, at 1.5px
+  // and π/12. The lane kept drifting into Game Over. 8 frames is about
+  // two thirds of that window. 1px is a quarter of the Classic yank and
+  // under a fortieth of the 40px dino, so the cue stays a settle. π/8
+  // runs these 8 frames as one half-turn: no reversal, and each step
+  // stays under half a pixel. The score pop eases across this same 8, so
+  // Game Over does not open on a mid-scale HUD. Day and night share it.
+  // Reduced motion keeps these values; the flash and the score pop keep
+  // their own shorten. Read through cfg(). A tune outside 1..12 frames,
+  // or past the Classic amplitude or frequency, falls back.
+  UPDATED_DEATH_SHAKE_FRAMES:    8,
+  UPDATED_DEATH_SHAKE_AMPLITUDE: 1,
+  UPDATED_DEATH_SHAKE_FREQ:      Math.PI / 8,
   DEATH_FLASH_FRAMES:       6,    // PR-C: white-flash overlay length on collision
   DEATH_FLASH_COLOR_RGB:   '255, 255, 255', // death-flash overlay colour (rgb triplet, alpha applied at draw)
   // Visual only. Peak scale of the white death-flash on the day sky, in
@@ -397,13 +401,14 @@ const GAME_CONFIG = Object.freeze({
   // DAY_NIGHT_END. Reduced motion skips that ease and snaps to this at
   // DAY_NIGHT_END. Playtest with ?qaFlash=1&qaNight=1. Read through cfg().
   NIGHT_DEATH_FLASH_PEAK_ALPHA: 0.2,
-  SCORE_POP_FRAMES:        12,    // shares the death-shake window; peak is SCORE_POP_PEAK_SCALE
+  SCORE_POP_FRAMES:        12,    // classic-length count; Updated pop uses the shake frames
   // Visual only. Peak scale of the Updated/Daily score on the first
-  // death-pop frame. It eases from this back to 1 across SCORE_POP_FRAMES,
-  // the same 12 frames as the death shake, so the HUD settles with the
-  // camera instead of starting a second beat. The scale origin sits on the
-  // current score. HI is 140px left of that origin, so a peak of 1.4 slid
-  // HI by 56px — a corner slap while the death nudge is 1.5px. 1.12 grows
+  // death-pop frame. It eases from this back to 1 across the Updated
+  // death-shake frames (UPDATED_DEATH_SHAKE_FRAMES), the same window as
+  // the camera, so the HUD settles with the nudge instead of opening
+  // Game Over mid-scale. The scale origin sits on the current score.
+  // HI is 140px left of that origin, so a peak of 1.4 slid HI by 56px —
+  // a corner slap while the death nudge is 1px. 1.12 grows
   // the 20px digits by about 2.4px and slides HI by about 17px, so the
   // death cue still reads without pulling the eye off the lane. Classic
   // does not start the pop. Reduced motion still skips it. A tune outside
@@ -487,7 +492,7 @@ const GAME_CONFIG = Object.freeze({
 // --- Live-tuning hook (visual-only) -----------------------------------
 // cfg(key) reads window.GAME_TUNING[key] when set, else falls back to
 // GAME_CONFIG[key]. ONLY use cfg() for visual keys (colours, alphas,
-// fade lengths, shake amplitude/freq, particle spread, parallax). Physics, spawning,
+// fade lengths, shake amplitude/freq/frames, particle spread, parallax). Physics, spawning,
 // scoring, and hitboxes MUST continue to read GAME_CONFIG.X directly so
 // determinism is preserved across runs and tuning sessions.
 //
@@ -1157,6 +1162,70 @@ function drawQaScorePop() {
   ctx.restore();
 }
 
+// QA/debug only — not for players. ?qaShake=1 holds the quieter Updated/Daily
+// death nudge from the first RUNNING frame, after GET READY, so playtest
+// can see the settle without dying. The shift is the camera translate at
+// the peak of that half-turn (the quiet amplitude). It does not read
+// deathShakeFrames, and it does not write the score, speed, gaps, or
+// game.rng(). Classic never takes it. Reduced motion halves the hold and
+// halves the shift, and still paints. Re-read in resetGame(). Tests flip
+// it through setQaShake(); a normal visit leaves this false.
+const QA_SHAKE_HOLD = 180;
+
+function readQaShakeFlag(search) {
+  const query = search !== undefined
+    ? search
+    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
+      ? location.search
+      : '');
+  if (!query) return false;
+  return new URLSearchParams(query).get('qaShake') === '1';
+}
+
+let qaShake = readQaShakeFlag();
+
+function setQaShake(enabled) {
+  qaShake = !!enabled;
+}
+
+function qaShakeHoldFrames() {
+  if (!reducedMotion) return QA_SHAKE_HOLD;
+  return Math.max(2, Math.round(QA_SHAKE_HOLD * 0.5));
+}
+
+// Motion-allowed playtest shows the real quiet peak. Reduced motion keeps
+// half of that shift, so a long hold cannot sit at the full nudge.
+function qaShakeOffset() {
+  const peak = deathShakeAmplitude();
+  if (!isUpdatedMode()) return 0;
+  if (!reducedMotion) return peak;
+  return peak * 0.5;
+}
+
+function advanceQaShake() {
+  if (!isUpdatedMode()) return;
+  if (qaShake && !game.qaShakeShown && game.state === STATE.RUNNING) {
+    game.qaShakeShown = true;
+    game.qaShakeHold = qaShakeHoldFrames();
+    return;
+  }
+  if (game.state === STATE.RUNNING && game.qaShakeHold > 0) game.qaShakeHold--;
+}
+
+// The running draw is already on screen. Shift that frame by the quiet
+// peak so a still shows the settle. Restore before the other debug
+// overdraws, which stay canvas-aligned the way the death flash does.
+function beginQaShake() {
+  if (!isUpdatedMode() || game.qaShakeHold <= 0 || game.state !== STATE.RUNNING) return false;
+  ctx.save();
+  ctx.translate(qaShakeOffset(), 0);
+  return true;
+}
+
+function endQaShake(active) {
+  if (active) ctx.restore();
+}
+
 // QA/debug only — not for players. ?qaNewBest=1 holds the quieter Updated/Daily
 // NEW BEST badge from the first RUNNING frame, so playtest can see it after
 // GET READY without beating a stored high score. The badge is its own
@@ -1664,6 +1733,9 @@ const game = {
   // QA/debug only. Latches after ?qaScorePop=1 spends its one early score swell.
   qaScorePopShown:  false,
   qaScorePopHold:   0,
+  // QA/debug only. Latches after ?qaShake=1 spends its one early death nudge.
+  qaShakeShown:     false,
+  qaShakeHold:      0,
   // QA/debug only. Latches after ?qaNewBest=1 spends its one early badge.
   qaNewBestShown:   false,
   // QA/debug only. Frames left on the ?qaNewBest=1 quiet NEW BEST badge.
@@ -2339,7 +2411,7 @@ function drawScore() {
   const popping = Animations.scorePopFrames > 0 && isUpdatedMode() && !reducedMotion;
   if (popping) {
     // Ease from the quiet peak back to 1 across the death-shake window.
-    const t = Animations.scorePopFrames / GAME_CONFIG.SCORE_POP_FRAMES; // 1 → 0
+    const t = Animations.scorePopFrames / scorePopWindow(); // 1 → 0
     const scale = scorePopScale(t);
     const cx = GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30;
     const cy = GAME_CONFIG.SCORE_Y - 8;
@@ -3327,6 +3399,8 @@ function resetGame() {
   game.qaFlashHold       = 0;
   game.qaScorePopShown   = false;
   game.qaScorePopHold    = 0;
+  game.qaShakeShown      = false;
+  game.qaShakeHold       = 0;
   game.qaNewBestShown    = false;
   game.qaNewBestHold     = 0;
   game.qaCopyShown       = false;
@@ -3343,6 +3417,7 @@ function resetGame() {
   qaCollision = readQaCollisionFlag();
   qaFlash = readQaFlashFlag();
   qaScorePop = readQaScorePopFlag();
+  qaShake = readQaShakeFlag();
   qaNewBest = readQaNewBestFlag();
   qaCopy = readQaCopyFlag();
   game.isNewBest         = false;
@@ -3370,8 +3445,31 @@ function resetGame() {
 }
 
 // Classic reads the original shake keys. Updated and Daily read the quieter
-// pair. A tune outside the shipped Classic range falls back, so a typo cannot
-// yank harder than today's Classic shake.
+// trio. A tune outside the shipped Classic range falls back, so a typo cannot
+// yank harder than today's Classic shake. Frames stay whole numbers in
+// 1..DEATH_SHAKE_FRAMES so a fraction cannot add an extra wobble.
+function updatedDeathShakeFrames() {
+  const tuned = cfg('UPDATED_DEATH_SHAKE_FRAMES');
+  const cap = GAME_CONFIG.DEATH_SHAKE_FRAMES;
+  if (typeof tuned === 'number' && tuned >= 1 && tuned <= cap && Math.floor(tuned) === tuned) {
+    return tuned;
+  }
+  return GAME_CONFIG.UPDATED_DEATH_SHAKE_FRAMES;
+}
+
+function deathShakeFrameCount() {
+  if (!isUpdatedMode()) return GAME_CONFIG.DEATH_SHAKE_FRAMES;
+  return updatedDeathShakeFrames();
+}
+
+// Updated and Daily ease the score across the same frames as the death
+// shake. Classic does not start the pop; the 12-frame count stays for that
+// length only.
+function scorePopWindow() {
+  if (isUpdatedMode()) return updatedDeathShakeFrames();
+  return GAME_CONFIG.SCORE_POP_FRAMES;
+}
+
 function deathShakeAmplitude() {
   if (!isUpdatedMode()) return cfg('DEATH_SHAKE_AMPLITUDE');
   const tuned = cfg('UPDATED_DEATH_SHAKE_AMPLITUDE');
@@ -3580,11 +3678,12 @@ function handleRunning() {
   for (let i = 0; i < game.obstacles.length; i++) {
     if (checkCollision(dino, game.obstacles[i])) {
       game.state = STATE.DEAD;
-      Animations.deathShakeFrames = GAME_CONFIG.DEATH_SHAKE_FRAMES;
+      Animations.deathShakeFrames = deathShakeFrameCount();
       // PR-C: white flash + score pop, mode-gated. Reduce-motion caps flash to 1 frame.
+      // The pop window matches the shake so Game Over does not open mid-scale.
       if (isUpdatedMode()) {
         Animations.deathFlashFrames = reducedMotion ? 1 : GAME_CONFIG.DEATH_FLASH_FRAMES;
-        Animations.scorePopFrames = reducedMotion ? 0 : GAME_CONFIG.SCORE_POP_FRAMES;
+        Animations.scorePopFrames = reducedMotion ? 0 : scorePopWindow();
       }
       Particles.emit('collision', dino.x + dino.width / 2, dino.y + dino.height / 2);
       audio.death();
@@ -3662,7 +3761,10 @@ function gameLoop() {
   advanceQaScorePop();
   advanceQaNewBest();
   advanceQaCopy();
+  advanceQaShake();
+  const shakeHeld = beginQaShake();
   STATE_HANDLERS[game.state]();
+  endQaShake(shakeHeld);
   // After the handler so a collision return, the score, and the death
   // card cannot cover the debug block. No-op unless the hold is running.
   // The flash sits above the earlier marks. The LEVEL hold sits above that
@@ -3819,6 +3921,14 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.qaScorePopScale = qaScorePopScale;
   global.qaScorePopCover = qaScorePopCover;
   global.drawQaScorePop = drawQaScorePop;
+  global.setQaShake = setQaShake;
+  global.readQaShakeFlag = readQaShakeFlag;
+  global.QA_SHAKE_HOLD = QA_SHAKE_HOLD;
+  global.qaShakeHoldFrames = qaShakeHoldFrames;
+  global.qaShakeOffset = qaShakeOffset;
+  global.updatedDeathShakeFrames = updatedDeathShakeFrames;
+  global.deathShakeFrameCount = deathShakeFrameCount;
+  global.scorePopWindow = scorePopWindow;
   global.setQaNewBest = setQaNewBest;
   global.readQaNewBestFlag = readQaNewBestFlag;
   global.QA_NEW_BEST_HOLD = QA_NEW_BEST_HOLD;
