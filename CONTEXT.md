@@ -100,7 +100,7 @@ _Avoid_: daily record, new daily high, today record
 
 ## Relationships
 
-- A **Daily Challenge** run uses one **Daily seed** derived from the current date; that value is the run's **run seed**
+- A **Daily Challenge** run uses one **Daily seed** derived from today's UTC date; that value is the run's **run seed**
 - A free-play **run seed** is the clock value captured at reset, not the daily seed
 - A **death log** is written only while debug is on, and it reads the **run seed** without changing spawns
 - The **Daily seed** is the sole input to `game.rng` for a daily challenge run, replacing the `Date.now()` seed used in free play

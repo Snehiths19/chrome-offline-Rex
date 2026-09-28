@@ -143,6 +143,13 @@ const GAME_CONFIG = Object.freeze({
   CLOUD_WIDTH:             60,    // used for offscreen detection
   CLOUD_RESPAWN_OFFSET:    20,    // x-offset past right edge when respawning
   CLOUD_COLOR:             '#e8e8e8',
+  // Visual only. Opacity of Updated/Daily clouds once the sky is fully night.
+  // Day paint is #e8e8e8 at full opacity; on the night sky (#1a1a2e) that
+  // reads brighter than the night dino (1.35) and cactus (1.65). 0.35 keeps
+  // the puff visible and quieter than both. Classic does not read this.
+  // Eases with the sky from DAY_NIGHT_START to DAY_NIGHT_END. Reduced motion
+  // skips that ease and snaps to this at DAY_NIGHT_END. Read through cfg().
+  NIGHT_CLOUD_ALPHA:        0.35,
   CLOUD_CIRCLES: Object.freeze([  // three circles forming a puffy cloud shape
     Object.freeze([  0, 0, 18]),
     Object.freeze([-18, 8, 14]),
@@ -328,8 +335,9 @@ function setQaCluster(enabled) {
 
 // QA/debug only — not for players. ?qaNight=1 paints full night from the
 // first frame so the star fade can be seen without a score-400 run.
-// Sky, hills, HUD ink, star init, and the Updated/Daily night cactus and
-// dino lifts read it through scoreForNightSky. Speed, gaps, scoring, and
+// Sky, hills, HUD ink, star init, the Updated/Daily night cactus and dino
+// lifts, and the Updated/Daily night cloud dim read it through
+// scoreForNightSky. Speed, gaps, scoring, and
 // game.rng() do not. Re-read in resetGame() like the other QA flags.
 // Tests flip it through setQaNight(); a normal visit leaves this false.
 function readQaNightFlag(search) {
@@ -1037,15 +1045,43 @@ function drawSkyTint() {
   ctx.restore();
 }
 
+// Day clouds stay #e8e8e8 at full opacity. In Updated and Daily the puff
+// eases down across twilight so it stays peripheral once the sky is night.
+// Classic keeps the day paint. Reduced motion skips the ease and snaps.
+function cloudPaintAlpha() {
+  if (!isUpdatedMode()) return 1;
+  const s = scoreForNightSky(game.score);
+  if (s < GAME_CONFIG.DAY_NIGHT_START) return 1;
+  const tuned = cfg('NIGHT_CLOUD_ALPHA');
+  const dim = typeof tuned === 'number' && tuned >= 0 && tuned <= 1
+    ? tuned
+    : GAME_CONFIG.NIGHT_CLOUD_ALPHA;
+  if (s >= GAME_CONFIG.DAY_NIGHT_END) return dim;
+  if (reducedMotion) return 1;
+  const t = (s - GAME_CONFIG.DAY_NIGHT_START) /
+            (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
+  return 1 + (dim - 1) * t;
+}
+
 function drawClouds() {
+  const alpha = cloudPaintAlpha();
+  const previousAlpha = ctx.globalAlpha;
+  ctx.globalAlpha = previousAlpha * alpha;
   ctx.fillStyle = GAME_CONFIG.CLOUD_COLOR;
-  game.clouds.forEach(c => {
-    GAME_CONFIG.CLOUD_CIRCLES.forEach(([dx, dy, r]) => {
+  try {
+    game.clouds.forEach(c => {
+      // One fill for the whole puff. Separate fills would stack the night
+      // alpha where the circles overlap and light the center back up.
       ctx.beginPath();
-      ctx.arc(c.x + dx, c.y + dy, r, 0, Math.PI * 2);
+      GAME_CONFIG.CLOUD_CIRCLES.forEach(([dx, dy, r]) => {
+        ctx.moveTo(c.x + dx + r, c.y + dy);
+        ctx.arc(c.x + dx, c.y + dy, r, 0, Math.PI * 2);
+      });
       ctx.fill();
     });
-  });
+  } finally {
+    ctx.globalAlpha = previousAlpha;
+  }
 }
 
 function drawGround() {
@@ -2130,4 +2166,5 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.readQaNightFlag = readQaNightFlag;
   global.obstacleNightBrightness = obstacleNightBrightness;
   global.dinoNightBrightness = dinoNightBrightness;
+  global.cloudPaintAlpha = cloudPaintAlpha;
 }

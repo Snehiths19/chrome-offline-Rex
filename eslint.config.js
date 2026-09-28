@@ -114,6 +114,7 @@ export default [
         readQaNightFlag: 'readonly',
         obstacleNightBrightness: 'readonly',
         dinoNightBrightness: 'readonly',
+        cloudPaintAlpha: 'readonly',
         shareDailyResult: 'readonly',
         STATE_HANDLERS: 'readonly',
         updateHills: 'readonly',
