@@ -4049,7 +4049,6 @@ describe('Daily pre-run framing', () => {
     const btn = document.getElementById('daily-btn');
     const handler = btn && btn._listeners && btn._listeners.click && btn._listeners.click[0];
     assert(typeof handler === 'function', 'daily button must register a click handler');
-    const face = btn.textContent;
     const ariaLabels = [];
     const origSet = btn.setAttribute.bind(btn);
     btn.setAttribute = (name, value) => {
@@ -4075,9 +4074,72 @@ describe('Daily pre-run framing', () => {
     assert(entered.includes(preRunLine()), `entering Daily should mention the shared course and #N, got: ${entered}`);
     assert(!left.includes(STEM), `leaving Daily must drop the shared-course line, got: ${left}`);
     assert(left.includes('Updated mode'), `leaving Daily should announce Updated mode, got: ${left}`);
-    assertEquals(btn.textContent, face, 'the Daily button face must stay the calendar glyph');
-    assertEquals(ariaLabels.join('|'), 'Leave daily challenge|Daily challenge',
-      'the Daily button label must not grow a #N');
+    assertEquals(btn.textContent, '📅 #' + dailyNumber(),
+      'the Daily button keeps the calendar and today #N');
+    assertEquals(
+      ariaLabels.join('|'),
+      'Leave daily challenge #' + dailyNumber() + '|Daily challenge #' + dailyNumber(),
+      'entering and leaving name today #N'
+    );
+  });
+});
+
+describe('Daily button shows today number', () => {
+  function face() {
+    return '📅 #' + dailyNumber();
+  }
+
+  function spyButton(btn) {
+    const seen = [];
+    const origSet = btn.setAttribute.bind(btn);
+    btn.setAttribute = (name, value) => {
+      if (name === 'aria-label' || name === 'aria-pressed') seen.push(name + '=' + value);
+      origSet(name, value);
+    };
+    return {
+      seen,
+      restore() { btn.setAttribute = origSet; },
+    };
+  }
+
+  it('shows today #N on the calendar control before you enter', () => {
+    const btn = document.getElementById('daily-btn');
+    const origMode = game.mode;
+    const spy = spyButton(btn);
+    try {
+      game.mode = MODES.CLASSIC;
+      refreshDailyButton();
+      assertEquals(btn.textContent, face(), 'Classic shows today #N on the Daily button');
+      assert(spy.seen.includes('aria-pressed=false'), 'Classic leaves the Daily button unpressed');
+      assert(spy.seen.includes('aria-label=Daily challenge #' + dailyNumber()),
+        'Classic names the challenge and today #N, got: ' + spy.seen.join('|'));
+
+      spy.seen.length = 0;
+      game.mode = MODES.UPDATED;
+      refreshDailyButton();
+      assertEquals(btn.textContent, face(), 'Updated shows today #N on the Daily button');
+      assert(spy.seen.includes('aria-pressed=false'), 'Updated leaves the Daily button unpressed');
+      assertEquals(
+        spy.seen.filter((entry) => entry.startsWith('aria-label=')).pop(),
+        'aria-label=Daily challenge #' + dailyNumber(),
+        'Updated keeps the inactive Daily label'
+      );
+
+      spy.seen.length = 0;
+      game.mode = MODES.DAILY;
+      refreshDailyButton();
+      assertEquals(btn.textContent, face(), 'an open Daily run keeps #N on the button');
+      assert(spy.seen.includes('aria-pressed=true'), 'Daily presses the calendar control');
+      assertEquals(
+        spy.seen.filter((entry) => entry.startsWith('aria-label=')).pop(),
+        'aria-label=Leave daily challenge #' + dailyNumber(),
+        'the pressed label still names today #N'
+      );
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      if (typeof refreshDailyButton === 'function') refreshDailyButton();
+    }
   });
 });
 

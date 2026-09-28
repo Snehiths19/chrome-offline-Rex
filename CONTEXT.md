@@ -86,7 +86,7 @@ _Avoid_: daily mode, date mode, challenge mode
 **Daily seed** — an integer derived from today's UTC date in YYYYMMDD format (e.g. `20260501`) used as the RNG seed for a daily challenge run. Recomputed when the UTC day changes; the same seed produces the same obstacle sequence for every player on that UTC day. Local wall-clock time does not choose the seed.
 _Avoid_: date seed, daily RNG
 
-**Daily number** — the count of UTC days since the project epoch (2026-03-01 00:00 UTC), shown as `#N` on pre-run framing, the Game Over screen, and in the share text. Day 1 = 2026-03-01 UTC. It flips at the same UTC midnight as the daily seed. It is not drawn on the in-run HUD.
+**Daily number** — the count of UTC days since the project epoch (2026-03-01 00:00 UTC), shown as `#N` on the Daily Challenge button, on pre-run framing, on the Game Over screen, and in the share text. Day 1 = 2026-03-01 UTC. It flips at the same UTC midnight as the daily seed. The button shows it before you enter, in the same UTC day as the seed. It is not drawn on the in-run HUD.
 _Avoid_: day number, challenge number
 
 **Daily best** — the player's highest score on today's daily challenge run, stored separately from all-time best. The stored day key (`dino-daily-date`) is the daily seed. It resets when the UTC day changes, together with the course and the daily number.
