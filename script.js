@@ -291,6 +291,37 @@ function setQaPlateau(enabled) {
   qaPlateau = !!enabled;
 }
 
+// QA/debug only — not for players. ?qaCluster=1 forces the first Updated/Daily
+// obstacle to be a cluster so playtest can see the silhouette without
+// reaching score 250. The type roll is still consumed, so gaps and later
+// picks keep their RNG order. Classic never takes the override. Re-read in
+// resetGame() like ?qaPlateau=1. Tests flip it through setQaCluster().
+function readQaClusterFlag(search) {
+  const query = search !== undefined
+    ? search
+    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
+      ? location.search
+      : '');
+  if (!query) return false;
+  return new URLSearchParams(query).get('qaCluster') === '1';
+}
+
+let qaCluster = readQaClusterFlag();
+
+function setQaCluster(enabled) {
+  qaCluster = !!enabled;
+}
+
+// Returns the rolled type, or the cluster type once per run when the QA flag
+// is on. Updated and Daily only. Does not call game.rng().
+function qaClusterOverride(rolledType) {
+  if (!qaCluster || game.qaClusterShown || !isUpdatedMode()) return rolledType;
+  const cluster = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'cluster');
+  if (!cluster) return rolledType;
+  game.qaClusterShown = true;
+  return cluster;
+}
+
 // --- Web Audio module (PR-B) ---
 // Synthesised SFX — no asset files. Lazy-creates AudioContext on first user
 // gesture (Chrome's autoplay policy) and silently no-ops if AudioContext is
@@ -597,6 +628,8 @@ const game = {
   milestoneText:    '',
   newBestShown:     false,
   plateauCueShown:  false,
+  // QA/debug only. Latches after ?qaCluster=1 spends its one early cluster.
+  qaClusterShown:   false,
   isNewBest:         false,
   previousHighScore: 0,
   // Set on a Daily death before today best is saved. Mirrors isNewBest:
@@ -966,15 +999,21 @@ function drawGround() {
   ctx.drawImage(groundImage, game.groundX + groundImage.width, groundY, groundImage.width, groundImage.height);
 }
 
-// Cluster hitbox stays GAME_CONFIG width. Paint two full small-cactus sprites
-// and leave the leftover width as a gap so the pair reads as two cacti.
+// Cluster hitbox stays GAME_CONFIG width. Paint two full small-cactus sprites.
+// The art's arms run to the cell edge, so the leftover inside the hitbox (~10px)
+// still reads as one bar at the speed a first cluster appears. Open one small
+// cactus of sky between them — narrower than the dino, so it is not a lane —
+// and let the sprites overhang the hitbox equally. The sky stays inside the
+// hitbox, so the gap is not a sneak-through. Collision does not read these slots.
 function clusterSpriteSlots(obstacle) {
   const small = GAME_CONFIG.OBSTACLE_TYPES[0];
-  const gap = obstacle.width - small.width * 2;
+  const gap = small.width;
+  const overhang = (small.width * 2 + gap - obstacle.width) / 2;
   const y = obstacle.y + (obstacle.height - small.height);
+  const left = obstacle.x - overhang;
   return [
-    { x: obstacle.x, y: y, w: small.width, h: small.height },
-    { x: obstacle.x + small.width + gap, y: y, w: small.width, h: small.height },
+    { x: left, y: y, w: small.width, h: small.height },
+    { x: left + small.width + gap, y: y, w: small.width, h: small.height },
   ];
 }
 
@@ -1664,8 +1703,10 @@ function resetGame() {
   Animations.reset();
   game.newBestShown      = false;
   game.plateauCueShown   = false;
-  // QA/debug only. Re-read so a mode toggle still honors ?qaPlateau=1.
+  game.qaClusterShown    = false;
+  // QA/debug only. Re-read so a mode toggle still honors the page query.
   qaPlateau = readQaPlateauFlag();
+  qaCluster = readQaClusterFlag();
   game.isNewBest         = false;
   game.previousHighScore = 0;
   game.isNewTodayBest    = false;
@@ -1809,8 +1850,10 @@ function handleRunning() {
   if (game.lastObstacleX <= GAME_CONFIG.CANVAS_W - game.nextSpawnGap) {
     const consumedGap = game.nextSpawnGap;
     const params = DifficultyProfile.nextObstacle(game.score, game.mode, game.rng);
-    spawnObstacle(params.type);
-    noteSpawnForDeathLog(consumedGap, params.type.id, game.currentSpeed);
+    // ?qaCluster=1 may replace this one type. The roll above already ran.
+    const type = qaClusterOverride(params.type);
+    spawnObstacle(type);
+    noteSpawnForDeathLog(consumedGap, type.id, game.currentSpeed);
     game.lastObstacleX = GAME_CONFIG.CANVAS_W;
     game.nextSpawnGap = params.gap;
   }
@@ -1976,4 +2019,6 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.setQaPlateau = setQaPlateau;
   global.readQaPlateauFlag = readQaPlateauFlag;
   global.QA_PLATEAU_SCORE = QA_PLATEAU_SCORE;
+  global.setQaCluster = setQaCluster;
+  global.readQaClusterFlag = readQaClusterFlag;
 }

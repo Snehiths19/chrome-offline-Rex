@@ -953,12 +953,14 @@ describe('Obstacle Types', () => {
       render: cluster.render, type: cluster.id,
     }];
 
+    const placed = game.obstacles[0];
     const calls = [];
     const origDrawImage = ctx.drawImage;
     ctx.drawImage = (...args) => calls.push(args);
     drawObstacles();
     ctx.drawImage = origDrawImage;
     game.obstacles = [];
+    assertEquals(placed.width, cluster.width, 'Drawing does not resize the hitbox');
 
     assertEquals(calls.length, 2, 'Cluster must paint two sprites, not one stretched cactus');
     const [first, second] = calls;
@@ -966,11 +968,28 @@ describe('Obstacle Types', () => {
     assertEquals(second[3], small.width, 'Second sprite must be the full small-cactus width');
     assertEquals(first[4], small.height, 'First sprite must be the full small-cactus height');
     assertEquals(second[4], small.height, 'Second sprite must be the full small-cactus height');
-    assertEquals(first[1], 100, 'First sprite starts at the obstacle left edge');
+    assertEquals(first[2], 160, 'Sprites stay on the ground line of the cluster hitbox');
+    assertEquals(second[2], 160, 'Both sprites share the same ground line');
+
+    // The cactus art's arms run to the cell edge. The leftover inside a 50px
+    // hitbox is only ~10px, which still reads as one bar at the speed a first
+    // cluster appears (~score 250). One small cactus of sky splits that bar.
     const gap = second[1] - (first[1] + first[3]);
-    assert(gap >= 8, `Gap between the two cacti must be visible at a glance (got ${gap}px)`);
-    assertEquals(second[1] + second[3], 100 + cluster.width,
-      'The pair should span the existing hitbox so the gap sits inside it');
+    assertEquals(gap, small.width,
+      'Sky between the two cacti is one small cactus wide');
+    assert(gap < GAME_CONFIG.DINO_WIDTH,
+      'The gap stays narrower than the dino, so it is not a lane to thread');
+
+    const hitLeft = 100;
+    const hitRight = 100 + cluster.width;
+    const overhangLeft = hitLeft - first[1];
+    const overhangRight = (second[1] + second[3]) - hitRight;
+    assert(overhangLeft > 0 && overhangRight > 0,
+      'The pair is wider than the hitbox so the gap can open without shrinking either sprite');
+    assertEquals(overhangLeft, overhangRight,
+      'The pair overhangs the hitbox equally on both sides');
+    assert(first[1] + first[3] >= hitLeft && second[1] <= hitRight,
+      'The sky between the cacti sits inside the hitbox, so it is not a sneak-through');
   });
 
   it('a single cactus still draws once at its own size', () => {
@@ -4303,6 +4322,150 @@ describe('Daily new today best celebration', () => {
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     assertEquals(game.isNewTodayBest, false, 'resetGame should clear the celebration');
     assertEquals(game.previousDailyBest, 0, 'resetGame should clear the previous today best');
+  });
+});
+
+describe('QA cluster flag (?qaCluster=1)', () => {
+  const cluster = () => GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'cluster');
+
+  function tick() {
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+  }
+
+  // One running frame from a known seed. resetGame re-reads the query, so the
+  // flag is applied after that. The first frame is early enough that production
+  // rules would still only roll a small cactus.
+  function runFirstSpawn(mode, { flag, search } = {}) {
+    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
+    const prevLocation = global.location;
+    if (search !== undefined) global.location = { search };
+    game.mode = mode;
+    game.seedOverride = 99;
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    if (flag !== undefined) setQaCluster(flag);
+    game.state = STATE.RUNNING;
+    game.obstacles.length = 0;
+    dino.y = GAME_CONFIG.CANVAS_H - dino.height;
+    dino.isJumping = false;
+    dino.velocityY = 0;
+    tick();
+    const spawned = game.obstacles.map(o => o.type);
+    const gap = game.nextSpawnGap;
+    const score = game.score;
+    return {
+      spawned,
+      gap,
+      score,
+      restore() {
+        if (search !== undefined) {
+          if (hadLocation) global.location = prevLocation;
+          else delete global.location;
+        }
+      },
+    };
+  }
+
+  it('recognizes only ?qaCluster=1', () => {
+    assert(readQaClusterFlag('?qaCluster=1') === true, '?qaCluster=1 should enable the early cluster');
+    assert(readQaClusterFlag('?foo=1&qaCluster=1') === true, 'the flag should work alongside other params');
+    assert(readQaClusterFlag('?qaPlateau=1') === false, 'the plateau flag must not enable the cluster');
+    assert(readQaClusterFlag('') === false, 'a normal visit should leave the flag off');
+    assert(readQaClusterFlag('?qaCluster=0') === false, 'only the value 1 enables the flag');
+    assert(readQaClusterFlag('?qaCluster=12') === false, 'qaCluster=12 must not count as the flag');
+    assert(readQaClusterFlag('?other=1') === false, 'an unrelated param must not enable the flag');
+  });
+
+  it('with ?qaCluster=1 the first Updated obstacle is a cluster while unlock stays 250', () => {
+    const origMode = game.mode;
+    const run = runFirstSpawn(MODES.UPDATED, { flag: true });
+    try {
+      assertEquals(cluster().unlockScore, 250, 'production unlock stays 250');
+      assertEquals(cluster().weight, 20, 'production weight stays 20');
+      assertEquals(cluster().width, 50, 'production hitbox stays 50');
+      assert(run.score < 50, `the early cluster should appear near the start, score was ${run.score}`);
+      assertEquals(run.spawned[0], 'cluster', 'the first Updated obstacle should be the cluster');
+      assertEquals(game.obstacles[0].width, 50, 'the early cluster keeps the real hitbox');
+      assertEquals(game.obstacles[0].render, 'double', 'the early cluster uses the two-cactus draw');
+      assertEquals(game.qaClusterShown, true, 'the override is spent after one obstacle');
+
+      // Drop the first cluster so the gap check looks at lastObstacleX, then
+      // spawn again while the score is still far below the real unlock.
+      game.obstacles.length = 0;
+      game.lastObstacleX = -300;
+      tick();
+      assertEquals(game.obstacles.length, 1, 'a second obstacle should spawn on the next frame');
+      assertEquals(game.obstacles[0].type, 'small', 'later obstacles follow the normal unlock');
+      assertEquals(game.qaClusterShown, true, 'the second spawn must not re-arm the QA cluster');
+    } finally {
+      run.restore();
+      setQaCluster(false);
+      game.mode = origMode;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('with the flag off the first obstacle stays small and the gap matches a flagged run', () => {
+    const origMode = game.mode;
+    const flagged = runFirstSpawn(MODES.UPDATED, { flag: true });
+    const plain = runFirstSpawn(MODES.UPDATED, { flag: false });
+    try {
+      assertEquals(plain.spawned[0], 'small', 'a normal visit still starts with the small cactus');
+      assertEquals(plain.gap, flagged.gap, 'the flag must not consume an extra RNG call');
+      assertEquals(game.qaClusterShown, false, 'a normal spawn must not latch the QA override');
+      assertEquals(cluster().unlockScore, 250, 'unlock stays 250 when the flag is off');
+    } finally {
+      flagged.restore();
+      plain.restore();
+      setQaCluster(false);
+      game.mode = origMode;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('with ?qaCluster=1 Classic still spawns only the small cactus', () => {
+    const origMode = game.mode;
+    const run = runFirstSpawn(MODES.CLASSIC, { flag: true });
+    try {
+      assertEquals(run.spawned[0], 'small', 'Classic must not gain a cluster from the QA flag');
+      assertEquals(game.qaClusterShown, false, 'Classic must not spend the QA cluster');
+      assert(!run.spawned.includes('cluster'), 'Classic obstacles stay small-only');
+    } finally {
+      run.restore();
+      setQaCluster(false);
+      game.mode = origMode;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('with ?qaCluster=1 Daily also shows the cluster on the first obstacle', () => {
+    const origMode = game.mode;
+    const run = runFirstSpawn(MODES.DAILY, { flag: true });
+    try {
+      assertEquals(run.spawned[0], 'cluster', 'Daily should show the early cluster');
+      assert(run.score < 50, `Daily cluster should be early, score was ${run.score}`);
+    } finally {
+      run.restore();
+      setQaCluster(false);
+      game.mode = origMode;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('resetGame re-reads ?qaCluster=1 from the page query', () => {
+    const origMode = game.mode;
+    const run = runFirstSpawn(MODES.UPDATED, { search: '?qaCluster=1' });
+    try {
+      assertEquals(run.spawned[0], 'cluster', 'resetGame should arm the early cluster from location.search');
+      assertEquals(game.qaClusterShown, true, 'the re-read flag should still latch after one cluster');
+    } finally {
+      run.restore();
+      setQaCluster(false);
+      game.mode = origMode;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
   });
 });
 
