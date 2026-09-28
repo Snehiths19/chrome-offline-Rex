@@ -60,6 +60,9 @@ _Avoid_: slope, sigmoid slope
 
 **Level** — a discrete score milestone (every 100 points) used for milestone flash effects and visual feedback only. Speed no longer steps at level boundaries; it increases continuously. In Updated and Daily the center LEVEL label is a short, quiet read in the jump band, then it leaves while the gold wash finishes; Classic keeps the full-size label for the whole flash. Under prefers-reduced-motion the Updated and Daily word is shorter still, and the wash stays suppressed.
 
+**New-best badge** — the in-run gold "NEW BEST!" under the score, shown the first time this run passes the stored high score. It sits in the corner, not in the jump band. In Updated and Daily it is a short, quiet read, then it leaves so it does not keep pulling the eye off the obstacle lane. Classic keeps today's full-size badge for the full countdown. Under prefers-reduced-motion the Updated and Daily badge is shorter still. It is not the Game Over "★ NEW BEST ★" line, and it is not **New today best**.
+_Avoid_: high score popup, record banner
+
 **Particles** — the module that owns the particle pool, kind definitions, and all emit/update/draw/reset behaviour. Callers invoke `Particles.emit(kind, x, y)` without knowing pool size, reduced-motion rules, or mode gating — all suppression logic lives inside. Visual-only: uses `Math.random()`, never `game.rng()`.
 
 **Land dust** — the jump and land foot puffs in Updated and Daily. By day they are a quieter brown whisper at the feet, still the familiar brown, so early-run Atmosphere stays off the obstacle lane. As the sky eases into night they cool to quiet ground dust, in the same family as the soft night clouds, and stay at the feet. Classic never shows them. Trail, collision, confetti, and the plateau cue are not land dust.
@@ -118,6 +121,7 @@ _Avoid_: daily record, new daily high, today record
 - A **Death-screen hint** is drawn only on a settled Daily Challenge Game Over screen, under both the comparison and a **New today best**. It names the Copy result button, and it is absent in WAITING, RUNNING, Classic, and Updated
 - A **New today best** replaces the THIS RUN / TODAY BEST pair on that Game Over screen only. The **Death-screen hint** and **Share result** still appear once the count-up finishes
 - A Daily Challenge death that does not beat **Daily best**, including a tie, keeps the comparison layout
+- The **New-best badge** is drawn during RUNNING only, the first time the run passes the stored high score. Classic keeps the full countdown. Updated and Daily use the quieter, shorter paint. It is a different surface from the Game Over new-best line and from **New today best**
 
 ## Flagged Ambiguities
 

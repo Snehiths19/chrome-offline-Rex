@@ -334,6 +334,24 @@ const GAME_CONFIG = Object.freeze({
   UPDATED_MILESTONE_TEXT_FRAMES: 45,
   UPDATED_MILESTONE_PEAK_ALPHA:  0.5,
   NEW_BEST_FRAMES:        120,
+  // Visual only. Updated and Daily corner NEW BEST badge. Classic keeps
+  // bold 14px for all NEW_BEST_FRAMES, gold #ffd700, alpha =
+  // frames / NEW_BEST_FRAMES. The badge sits under the score for that
+  // whole two seconds, so full-gold 14px keeps pulling the eye back to
+  // the corner and off the obstacle lane. 11px is about three quarters
+  // of that size. 60 frames is half the countdown: long enough to read
+  // NEW BEST once, then the word is gone. Peak 0.65 keeps the gold
+  // readable. On white it lands near #ffe559, still a gold mark, quieter
+  // than solid #ffd700. On the night sky it stays a dark gold. Reduced
+  // motion halves these frames again and keeps this peak, so the cue
+  // still reads. A tune outside 10..13px, 1..120 frames, or 0..1 alpha
+  // falls back, so a typo cannot restore the 14px badge or drop the
+  // word. Playtest with ?qaNewBest=1, which holds the quiet peak; that
+  // hold is half as long and half as strong under reduced motion. Read
+  // through cfg(). Classic does not read these keys.
+  UPDATED_NEW_BEST_FONT_PX:     11,
+  UPDATED_NEW_BEST_FRAMES:      60,
+  UPDATED_NEW_BEST_PEAK_ALPHA:  0.65,
   // Soft ceiling for the once-per-run plateau cue. The speed curve approaches
   // PLATEAU_SPEED but never reaches it; 0.98 is about score 641. Visual only —
   // speed, gaps, and scoring still read the curve directly, not this ratio.
@@ -889,7 +907,7 @@ function advanceQaScorePop() {
 // Overdraw after the whole frame, from the hold counter only. handleDead
 // draws the real pop inside the shake, and a collision returns before
 // that draw on the hit frame. This pass runs from gameLoop after the
-// handler, so neither can skip it. Last among the QA holds so a
+// handler, so neither can skip it. It sits above the NEW BEST hold so a
 // full-canvas blink cannot cover the digits this hold exists to show.
 function drawQaScorePop() {
   if (!isUpdatedMode() || game.qaScorePopHold <= 0) return;
@@ -907,6 +925,47 @@ function drawQaScorePop() {
   ctx.translate(-cx, -cy);
   paintHudScore();
   ctx.restore();
+}
+
+// QA/debug only — not for players. ?qaNewBest=1 holds the quieter Updated/Daily
+// NEW BEST badge from the first RUNNING frame, so playtest can see it after
+// GET READY without beating a stored high score. The badge is its own
+// overdraw from drawQaNewBest(). It does not set newBestShown, does not
+// start newBestFrames, and does not write the score, speed, gaps, high
+// score, or game.rng(). Classic never takes it. Reduced motion halves the
+// hold and halves its ink, and still paints. Re-read in resetGame().
+// Tests flip it through setQaNewBest(); a normal visit leaves this false.
+const QA_NEW_BEST_HOLD = 180;
+
+function readQaNewBestFlag(search) {
+  const query = search !== undefined
+    ? search
+    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
+      ? location.search
+      : '');
+  if (!query) return false;
+  return new URLSearchParams(query).get('qaNewBest') === '1';
+}
+
+let qaNewBest = readQaNewBestFlag();
+
+function setQaNewBest(enabled) {
+  qaNewBest = !!enabled;
+}
+
+function qaNewBestHoldFrames() {
+  if (!reducedMotion) return QA_NEW_BEST_HOLD;
+  return Math.max(2, Math.round(QA_NEW_BEST_HOLD * 0.5));
+}
+
+function advanceQaNewBest() {
+  if (!isUpdatedMode()) return;
+  if (qaNewBest && !game.qaNewBestShown && game.state === STATE.RUNNING) {
+    game.qaNewBestShown = true;
+    game.qaNewBestHold = qaNewBestHoldFrames();
+    return;
+  }
+  if (game.state === STATE.RUNNING && game.qaNewBestHold > 0) game.qaNewBestHold--;
 }
 
 // Solid block just under the score digits. Game coordinates, not pool slots.
@@ -1304,6 +1363,10 @@ const game = {
   // QA/debug only. Latches after ?qaScorePop=1 spends its one early score swell.
   qaScorePopShown:  false,
   qaScorePopHold:   0,
+  // QA/debug only. Latches after ?qaNewBest=1 spends its one early badge.
+  qaNewBestShown:   false,
+  // QA/debug only. Frames left on the ?qaNewBest=1 quiet NEW BEST badge.
+  qaNewBestHold:    0,
   isNewBest:         false,
   previousHighScore: 0,
   // Set on a Daily death before today best is saved. Mirrors isNewBest:
@@ -2268,19 +2331,95 @@ function drawQaLevelLabel() {
   });
 }
 
+function newBestFontPx() {
+  const tuned = cfg('UPDATED_NEW_BEST_FONT_PX');
+  if (typeof tuned === 'number' && tuned >= 10 && tuned <= 13) return tuned;
+  return GAME_CONFIG.UPDATED_NEW_BEST_FONT_PX;
+}
+
+function newBestTextFrames() {
+  const tuned = cfg('UPDATED_NEW_BEST_FRAMES');
+  const fallback = GAME_CONFIG.UPDATED_NEW_BEST_FRAMES;
+  let frames = typeof tuned === 'number' && tuned >= 1 && tuned <= GAME_CONFIG.NEW_BEST_FRAMES
+    ? Math.round(tuned)
+    : fallback;
+  if (reducedMotion) frames = Math.max(2, Math.round(frames * 0.5));
+  return frames;
+}
+
+function newBestPeakAlpha() {
+  return tunedUnitAlpha('UPDATED_NEW_BEST_PEAK_ALPHA', GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA);
+}
+
+// Classic always uses the stored countdown. Updated and Daily use the
+// quiet length, including the reduced-motion shorten.
+function newBestDuration() {
+  if (!isUpdatedMode()) return GAME_CONFIG.NEW_BEST_FRAMES;
+  return newBestTextFrames();
+}
+
+// Drop below the milestone flash when both fire on the same frame
+// (level-up + new-best at score = highScore + 100).
+function newBestBadgeY() {
+  return Animations.milestoneFrames > 0 ? 100 : 70;
+}
+
+function newBestBadgePaint(framesRemaining) {
+  if (!isUpdatedMode()) {
+    return {
+      font: 'bold 14px ' + cfg('SCORE_FONT_FAMILY'),
+      alpha: framesRemaining / GAME_CONFIG.NEW_BEST_FRAMES,
+      fill: '#ffd700',
+      y: newBestBadgeY(),
+    };
+  }
+  const duration = newBestTextFrames();
+  const peak = newBestPeakAlpha();
+  const t = duration > 0 ? Math.min(1, framesRemaining / duration) : 0;
+  return {
+    font: 'bold ' + newBestFontPx() + 'px ' + cfg('SCORE_FONT_FAMILY'),
+    alpha: t * peak,
+    fill: '#ffd700',
+    y: newBestBadgeY(),
+  };
+}
+
+function paintNewBestBadge(paint) {
+  ctx.save();
+  ctx.globalAlpha = paint.alpha;
+  ctx.fillStyle = paint.fill;
+  ctx.textAlign = 'left';
+  ctx.font = paint.font;
+  ctx.fillText('NEW BEST!', GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET, paint.y);
+  ctx.restore();
+}
+
 function drawNewBestBadge() {
   if (Animations.newBestFrames <= 0) return;
-  ctx.save();
-  ctx.globalAlpha = Animations.newBestFrames / GAME_CONFIG.NEW_BEST_FRAMES;
-  ctx.fillStyle = '#ffd700';
-  ctx.textAlign = 'left';
-  ctx.font = 'bold 14px ' + cfg('SCORE_FONT_FAMILY');
-  // Drop below the milestone flash when both fire on the same frame
-  // (level-up + new-best at score = highScore + 100).
-  const y = Animations.milestoneFrames > 0 ? 100 : 70;
-  ctx.fillText('NEW BEST!', GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET, y);
-  ctx.restore();
+  // The playtest hold paints the quiet peak itself. Skip the live word
+  // on those frames so the two golds do not stack. The countdown still runs.
+  const holdCovers = isUpdatedMode() && game.qaNewBestHold > 0;
+  if (!holdCovers) paintNewBestBadge(newBestBadgePaint(Animations.newBestFrames));
   Animations.newBestFrames--;
+}
+
+// Steady quiet peak while ?qaNewBest=1's hold is running, so the short
+// badge can be captured. Reduced motion keeps half that peak. Classic
+// never enters. Does not touch newBestFrames or the high score.
+function qaNewBestPaintAlpha() {
+  const peak = newBestPeakAlpha();
+  if (!reducedMotion) return peak;
+  return peak * 0.5;
+}
+
+function drawQaNewBest() {
+  if (!isUpdatedMode() || game.qaNewBestHold <= 0) return;
+  paintNewBestBadge({
+    font: 'bold ' + newBestFontPx() + 'px ' + cfg('SCORE_FONT_FAMILY'),
+    alpha: qaNewBestPaintAlpha(),
+    fill: '#ffd700',
+    y: newBestBadgeY(),
+  });
 }
 
 // --- Particle system (PR-A) ---
@@ -2782,6 +2921,8 @@ function resetGame() {
   game.qaFlashHold       = 0;
   game.qaScorePopShown   = false;
   game.qaScorePopHold    = 0;
+  game.qaNewBestShown    = false;
+  game.qaNewBestHold     = 0;
   // QA/debug only. Re-read so a mode toggle still honors the page query.
   qaPlateau = readQaPlateauFlag();
   qaCluster = readQaClusterFlag();
@@ -2793,6 +2934,7 @@ function resetGame() {
   qaDust = readQaDustFlag();
   qaFlash = readQaFlashFlag();
   qaScorePop = readQaScorePopFlag();
+  qaNewBest = readQaNewBestFlag();
   game.isNewBest         = false;
   game.previousHighScore = 0;
   game.isNewTodayBest    = false;
@@ -3078,9 +3220,11 @@ function handleRunning() {
   }
 
   // NEW BEST badge — first time this run's score exceeds the stored high score.
+  // Updated and Daily start the shorter quiet countdown. Classic keeps
+  // NEW_BEST_FRAMES, read here directly, not through cfg().
   if (!game.newBestShown && game.highScore > 0 && Math.floor(game.score) > game.highScore) {
     game.newBestShown = true;
-    Animations.newBestFrames = GAME_CONFIG.NEW_BEST_FRAMES;
+    Animations.newBestFrames = newBestDuration();
     announce('New best score!');
   }
 
@@ -3103,18 +3247,20 @@ function gameLoop() {
   advanceQaDust();
   advanceQaFlash();
   advanceQaScorePop();
+  advanceQaNewBest();
   STATE_HANDLERS[game.state]();
   // After the handler so a collision return, the score, and the death
   // card cannot cover the debug block. No-op unless the hold is running.
   // The flash sits above the other marks. The LEVEL hold sits above that
-  // blink so the word stays readable. The score pop is last so that a
-  // full-canvas blink cannot cover the digits the hold exists to show.
+  // blink so the word stays readable. The score pop sits above the NEW BEST
+  // hold so a swollen score cannot cover the corner badge.
   drawQaConfetti();
   drawQaDust();
   drawQaPlateau();
   drawQaFlash();
   drawQaLevelLabel();
   drawQaScorePop();
+  drawQaNewBest();
 }
 
 // == SECTION 9: INITIALISATION ==
@@ -3246,6 +3392,13 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.qaScorePopScale = qaScorePopScale;
   global.qaScorePopCover = qaScorePopCover;
   global.drawQaScorePop = drawQaScorePop;
+  global.setQaNewBest = setQaNewBest;
+  global.readQaNewBestFlag = readQaNewBestFlag;
+  global.QA_NEW_BEST_HOLD = QA_NEW_BEST_HOLD;
+  global.qaNewBestHoldFrames = qaNewBestHoldFrames;
+  global.qaNewBestPaintAlpha = qaNewBestPaintAlpha;
+  global.drawQaNewBest = drawQaNewBest;
+  global.newBestDuration = newBestDuration;
   global.obstacleNightBrightness = obstacleNightBrightness;
   global.dinoNightBrightness = dinoNightBrightness;
   global.cloudPaintAlpha = cloudPaintAlpha;
