@@ -188,6 +188,16 @@ body {
   transition: background-color 80ms ease-out, transform 80ms ease-out;
 }
 
+/* Quieter Copied confirmation. Still orange, just less loud than the rest state. */
+#share-btn.is-copied {
+  background: rgba(255, 140, 0, 0.62);
+}
+
+/* QA/debug only. ?qaCopy=1 under prefers-reduced-motion. */
+#share-btn.is-copied.is-qa-damped {
+  background: rgba(255, 140, 0, 0.38);
+}
+
 #share-btn:active { transform: scale(0.96); }
 #share-btn:focus-visible { outline: 2px solid #4a90e2; outline-offset: 2px; }
 
