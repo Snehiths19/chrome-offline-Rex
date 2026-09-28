@@ -68,9 +68,11 @@ body {
   transition: background-color 80ms ease-out, transform 80ms ease-out;
 }
 
-/* #N grows by a digit every few years. Keep the pill on the mute side of the mode toggle. */
+/* #N gains a digit every few years. Tuck the pill toward mute so it stays
+   clear of Classic / Updated on a narrow phone. */
 @media (max-width: 420px) {
   #daily-btn {
+    left: 58px;
     padding: 4px 6px;
     font-size: 12px;
     letter-spacing: 0;
