@@ -182,6 +182,21 @@ const GAME_CONFIG = Object.freeze({
   // Visual only. Running frames stars take to ramp from invisible to full
   // once night is complete (~0.8 s at 60 fps). Read through cfg().
   STAR_FADE_FRAMES:        48,
+  // Visual only. Peak opacity of Updated and Daily stars once that fade
+  // finishes and the sky is fully night. The points are #ffffff, 2×2,
+  // twelve of them in the top 100px. On the night sky (#1a1a2e) full
+  // white sits 229, 229, and 209 levels off that sky. A full three-fifths
+  // of that band is alpha 0.6, about 137, 137, and 125 — still brighter
+  // than the night cactus (the #535353 sprite at 1.65, about 111, 111,
+  // and 91 off the same sky). A 2px point at that lift sparkles over the
+  // obstacle lane. 0.35 keeps about 80, 80, and 73. The sum stays just
+  // under the night dino (1.35, about 86, 86, and 66) and a step above
+  // the soft night clouds (0.35 of #e8e8e8). The field still reads as
+  // stars and stays peripheral. Classic does not read this. Classic keeps
+  // full white after the same fade. Day never paints stars. Reduced
+  // motion still skips star init. Playtest with ?qaNight=1. Read through
+  // cfg(). Physics does not read this.
+  NIGHT_STAR_ALPHA:         0.35,
   // Visual only. CSS brightness applied to cactus sprites once the sky is
   // fully night, in Updated and Daily. The day sprite is #535353; night hills
   // are #2d2d46, and a partial lift during the fade lands on the hill. 1.65
@@ -1611,13 +1626,26 @@ function starFadeAlpha() {
   return Math.min(1, game.starFadeFrames / total);
 }
 
+// Updated and Daily multiply that shared ramp by the night whisper.
+// Classic paints the ramp at full white. A tune outside 0..1 falls back,
+// so a typo cannot restore the sparkle or drop the field.
+function starPaintAlpha() {
+  const ramp = starFadeAlpha();
+  if (!isUpdatedMode()) return ramp;
+  const tuned = cfg('NIGHT_STAR_ALPHA');
+  const peak = typeof tuned === 'number' && tuned >= 0 && tuned <= 1
+    ? tuned
+    : GAME_CONFIG.NIGHT_STAR_ALPHA;
+  return ramp * peak;
+}
+
 function drawBackground() {
   ctx.fillStyle = getBackgroundColor(game.score);
   ctx.fillRect(0, 0, GAME_CONFIG.CANVAS_W, GAME_CONFIG.CANVAS_H);
 
   if (game.starsInitialised) {
     const previousAlpha = ctx.globalAlpha;
-    ctx.globalAlpha = previousAlpha * starFadeAlpha();
+    ctx.globalAlpha = previousAlpha * starPaintAlpha();
     ctx.fillStyle = GAME_CONFIG.STAR_COLOR;
     game.stars.forEach(s => ctx.fillRect(s.x, s.y, GAME_CONFIG.STAR_SIZE, GAME_CONFIG.STAR_SIZE));
     ctx.globalAlpha = previousAlpha;
@@ -3110,7 +3138,8 @@ function handleRunning() {
 
   // Lazy-init stars once when night is full. Skipped under reduce-motion
   // (no init, same as before). Opacity then ramps across STAR_FADE_FRAMES
-  // so the field eases in instead of popping on. Positions stay Math.random()
+  // so the field eases in instead of popping on. Updated and Daily hold
+  // the quieter peak; Classic holds full white. Positions stay Math.random()
   // — cosmetic, and this block does not touch game.rng().
   if (!reducedMotion && scoreForNightSky(game.score) >= GAME_CONFIG.DAY_NIGHT_END && !game.starsInitialised) {
     for (let i = 0; i < GAME_CONFIG.STAR_COUNT; i++) {
@@ -3306,6 +3335,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.getHillColor = getHillColor;
   global.drawBackground = drawBackground;
   global.starFadeAlpha = starFadeAlpha;
+  global.starPaintAlpha = starPaintAlpha;
   global.initClouds = initClouds;
   global.updateClouds = updateClouds;
   global.drawClouds = drawClouds;

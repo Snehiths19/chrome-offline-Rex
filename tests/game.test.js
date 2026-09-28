@@ -1213,50 +1213,61 @@ describe('Day/Night Cycle', () => {
     assertEquals(starPaintAlphas().length, 0, 'no star pixels before night');
   });
 
-  it('fades stars in over a short beat once night starts, then holds full opacity', () => {
-    enterNightRun();
-    const total = GAME_CONFIG.STAR_FADE_FRAMES;
-    const half = total / 2;
-    runRunningFrames(1);
-    assertEquals(game.state, STATE.RUNNING, 'the fade window should still be a live run');
-    assert(game.starsInitialised, 'night initialises the star field');
-    assertEquals(game.stars.length, GAME_CONFIG.STAR_COUNT, 'the field is the usual 12 stars');
-    assertEquals(game.starFadeFrames, 1, 'the first night frame is the first fade step');
-    assert(
-      Math.abs(starFadeAlpha() - 1 / total) < 1e-9,
-      `first-frame alpha should be 1/${total}, got ${starFadeAlpha()}`
-    );
-    let alphas = starPaintAlphas();
-    assertEquals(alphas.length, GAME_CONFIG.STAR_COUNT, 'every star paints during the fade');
-    assert(
-      alphas.every((a) => Math.abs(a - 1 / total) < 1e-9),
-      'every star shares the fade alpha'
-    );
-    assertEquals(ctx.globalAlpha, 1, 'the fade must not leave the obstacle lane dimmed');
+  it('fades Updated stars in over a short beat, then holds the quiet peak', () => {
+    const origMode = game.mode;
+    try {
+      game.mode = MODES.UPDATED;
+      enterNightRun();
+      const total = GAME_CONFIG.STAR_FADE_FRAMES;
+      const half = total / 2;
+      const peak = GAME_CONFIG.NIGHT_STAR_ALPHA;
+      runRunningFrames(1);
+      assertEquals(game.state, STATE.RUNNING, 'the fade window should still be a live run');
+      assert(game.starsInitialised, 'night initialises the star field');
+      assertEquals(game.stars.length, GAME_CONFIG.STAR_COUNT, 'the field is the usual 12 stars');
+      assertEquals(game.starFadeFrames, 1, 'the first night frame is the first fade step');
+      assert(
+        Math.abs(starFadeAlpha() - 1 / total) < 1e-9,
+        `first-frame ramp should be 1/${total}, got ${starFadeAlpha()}`
+      );
+      let alphas = starPaintAlphas();
+      assertEquals(alphas.length, GAME_CONFIG.STAR_COUNT, 'every star paints during the fade');
+      assert(
+        alphas.every((a) => Math.abs(a - peak / total) < 1e-9),
+        'every star shares the quiet fade alpha'
+      );
+      assertEquals(ctx.globalAlpha, 1, 'the fade must not leave the obstacle lane dimmed');
 
-    runRunningFrames(half - 1);
-    assertEquals(game.starFadeFrames, half, 'the fade advances one step per running frame');
-    assert(
-      Math.abs(starFadeAlpha() - 0.5) < 1e-9,
-      `halfway through the beat stars should be half bright, got ${starFadeAlpha()}`
-    );
+      runRunningFrames(half - 1);
+      assertEquals(game.starFadeFrames, half, 'the fade advances one step per running frame');
+      assert(
+        Math.abs(starFadeAlpha() - 0.5) < 1e-9,
+        `halfway through the beat the ramp should be half, got ${starFadeAlpha()}`
+      );
 
-    runRunningFrames(total - game.starFadeFrames);
-    assertEquals(game.starFadeFrames, total, 'the fade reaches the configured length');
-    assertEquals(starFadeAlpha(), 1, 'stars are fully in once the beat ends');
-    alphas = starPaintAlphas();
-    assert(alphas.every((a) => a === 1), 'full night paints stars at full opacity');
+      runRunningFrames(total - game.starFadeFrames);
+      assertEquals(game.starFadeFrames, total, 'the fade reaches the configured length');
+      assertEquals(starFadeAlpha(), 1, 'the fade ramp finishes');
+      alphas = starPaintAlphas();
+      assert(
+        alphas.every((a) => Math.abs(a - peak) < 1e-9),
+        'full night holds the quiet Updated peak'
+      );
 
-    const positions = game.stars.map((s) => s.x + ',' + s.y).join('|');
-    runRunningFrames(3);
-    assertEquals(game.starFadeFrames, total, 'the fade holds at full instead of restarting');
-    assertEquals(game.stars.length, GAME_CONFIG.STAR_COUNT, 'stars are not re-seeded after the fade');
-    assertEquals(
-      game.stars.map((s) => s.x + ',' + s.y).join('|'),
-      positions,
-      'star positions stay put while they fade'
-    );
-    assertEquals(game.state, STATE.RUNNING, 'a short night fade must not itself end the run');
+      const positions = game.stars.map((s) => s.x + ',' + s.y).join('|');
+      runRunningFrames(3);
+      assertEquals(game.starFadeFrames, total, 'the fade holds at full instead of restarting');
+      assertEquals(game.stars.length, GAME_CONFIG.STAR_COUNT, 'stars are not re-seeded after the fade');
+      assertEquals(
+        game.stars.map((s) => s.x + ',' + s.y).join('|'),
+        positions,
+        'star positions stay put while they fade'
+      );
+      assertEquals(game.state, STATE.RUNNING, 'a short night fade must not itself end the run');
+    } finally {
+      game.mode = origMode;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
   });
 
   it('still fades stars in Classic — night sky stays, only the pop is softened', () => {
@@ -1310,6 +1321,288 @@ describe('Day/Night Cycle', () => {
     assertEquals(game.stars.length, 0, 'reset clears the star list');
     assertEquals(game.starFadeFrames, 0, 'reset clears the fade clock');
     assertEquals(starFadeAlpha(), 0, 'a fresh run does not inherit night opacity');
+  });
+});
+
+describe('Soft night stars', () => {
+  function withTuning(overrides, fn) {
+    const orig = window.GAME_TUNING;
+    window.GAME_TUNING = overrides;
+    try { fn(); } finally { window.GAME_TUNING = orig; }
+  }
+
+  function runRunningFrames(n) {
+    for (let i = 0; i < n; i++) {
+      gameLoop();
+      cancelAnimationFrame(game.animationFrameId);
+    }
+  }
+
+  function enterNightRun() {
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    game.score = GAME_CONFIG.DAY_NIGHT_END;
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    game.obstacles.length = 0;
+    game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+  }
+
+  function starPaints() {
+    const paints = [];
+    const orig = ctx.fillRect;
+    ctx.fillRect = function (x, y, w, h) {
+      if (w === GAME_CONFIG.STAR_SIZE && h === GAME_CONFIG.STAR_SIZE) {
+        paints.push({ alpha: ctx.globalAlpha, w, h, x, y });
+      }
+      return orig.call(this, x, y, w, h);
+    };
+    try {
+      drawBackground();
+    } finally {
+      ctx.fillRect = orig;
+    }
+    return paints;
+  }
+
+  // Full white on night sky #1a1a2e. Channel lifts at a given peak alpha.
+  function starLifts(alpha) {
+    const sky = [0x1a, 0x1a, 0x2e];
+    const white = [0xff, 0xff, 0xff];
+    return white.map((channel, i) => (channel - sky[i]) * alpha);
+  }
+
+  function spriteLifts(brightness) {
+    const sky = [0x1a, 0x1a, 0x2e];
+    const sprite = 0x53 * brightness;
+    return sky.map((channel) => sprite - channel);
+  }
+
+  function cloudLifts(alpha) {
+    const sky = [0x1a, 0x1a, 0x2e];
+    const puff = [0xe8, 0xe8, 0xe8];
+    return puff.map((channel, i) => (channel - sky[i]) * alpha);
+  }
+
+  function sum(levels) {
+    return levels.reduce((total, n) => total + n, 0);
+  }
+
+  it('keeps a quieter share of full white so the points stay under the lane', () => {
+    const now = GAME_CONFIG.NIGHT_STAR_ALPHA;
+    const threeFifths = 0.6;
+    const nowLifts = starLifts(now);
+    const fullLifts = starLifts(1);
+    const cactusLifts = spriteLifts(GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS);
+    const dinoLifts = spriteLifts(GAME_CONFIG.NIGHT_DINO_BRIGHTNESS);
+    assertEquals(now, 0.35, 'night stars use the quieter peak');
+    assertEquals(GAME_CONFIG.STAR_SIZE, 2, 'the points stay the same size');
+    assertEquals(GAME_CONFIG.STAR_COUNT, 12, 'the field stays the usual twelve');
+    assertEquals(GAME_CONFIG.STAR_COLOR, '#ffffff', 'the ink stays white; the quiet is opacity');
+    assertEquals(GAME_CONFIG.STAR_FADE_FRAMES, 48, 'the fade length stays the shared beat');
+    assert(now < threeFifths, 'a full three-fifths of white still outruns the night cactus');
+    assert(sum(starLifts(threeFifths)) > sum(cactusLifts),
+      'three-fifths of full white is still brighter than night cacti');
+    assert(sum(nowLifts) < sum(dinoLifts),
+      'the whisper stays under the night dino');
+    assert(sum(nowLifts) > sum(cloudLifts(GAME_CONFIG.NIGHT_CLOUD_ALPHA)),
+      'white at this peak stays a step above the soft night clouds');
+    assert(sum(nowLifts) < sum(fullLifts) * 0.5,
+      'the field loses a real share of the full-white sparkle');
+    assert(now > 0, 'the points still read against the night sky');
+  });
+
+  it('Updated and Daily hold the quiet peak; Classic keeps full white; day paints none', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      game.starsInitialised = false;
+      game.stars = [];
+      assertEquals(getBackgroundColor(0), '#ffffff', 'day sky stays white');
+      assertEquals(starPaints().length, 0, 'day sky paints no stars');
+      game.score = 350;
+      assertEquals(starPaints().length, 0, 'twilight still paints no stars');
+
+      enterNightRun();
+      game.mode = MODES.UPDATED;
+      runRunningFrames(GAME_CONFIG.STAR_FADE_FRAMES);
+      assertEquals(starFadeAlpha(), 1, 'the shared fade ramp still finishes');
+      assertEquals(starPaintAlpha(), GAME_CONFIG.NIGHT_STAR_ALPHA,
+        'Updated night holds the quiet peak');
+      let paints = starPaints();
+      assertEquals(paints.length, GAME_CONFIG.STAR_COUNT, 'every Updated star still paints');
+      assert(paints.every((p) => Math.abs(p.alpha - GAME_CONFIG.NIGHT_STAR_ALPHA) < 1e-9),
+        'Updated paint uses the quiet peak');
+      assert(paints.every((p) => p.w === GAME_CONFIG.STAR_SIZE && p.h === GAME_CONFIG.STAR_SIZE),
+        'Updated stars stay the same size');
+
+      game.mode = MODES.DAILY;
+      assertEquals(starPaintAlpha(), GAME_CONFIG.NIGHT_STAR_ALPHA,
+        'Daily shares the Updated whisper');
+
+      game.mode = MODES.CLASSIC;
+      enterNightRun();
+      runRunningFrames(1);
+      assert(
+        Math.abs(starPaintAlpha() - 1 / GAME_CONFIG.STAR_FADE_FRAMES) < 1e-9,
+        'Classic first frame is the full fade step, not the whisper'
+      );
+      runRunningFrames(GAME_CONFIG.STAR_FADE_FRAMES - 1);
+      assertEquals(starPaintAlpha(), 1, 'Classic night still reaches full white');
+      paints = starPaints();
+      assertEquals(paints.length, GAME_CONFIG.STAR_COUNT, 'Classic still paints the field');
+      assert(paints.every((p) => p.alpha === 1), 'Classic paint stays full white');
+      assert(paints.every((p) => p.w === GAME_CONFIG.STAR_SIZE), 'Classic size stays 2');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setQaNight(false);
+      setReducedMotion(false);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('?qaNight=1 shows the quiet Updated peak without moving the score', () => {
+    const origMode = game.mode;
+    try {
+      setReducedMotion(false);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      game.mode = MODES.UPDATED;
+      game.state = STATE.RUNNING;
+      game.graceFrames = 0;
+      game.obstacles.length = 0;
+      game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+      setQaNight(true);
+      runRunningFrames(1);
+      assert(game.score < 1, 'the whisper must not jump the score to night');
+      assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
+        'speed still follows the real score');
+      assert(game.starsInitialised, 'the existing night QA flag starts the field');
+      assert(
+        Math.abs(starPaintAlpha() - GAME_CONFIG.NIGHT_STAR_ALPHA / GAME_CONFIG.STAR_FADE_FRAMES) < 1e-9,
+        'the first QA frame is the first quiet fade step'
+      );
+      game.starFadeFrames = GAME_CONFIG.STAR_FADE_FRAMES;
+      assertEquals(starPaintAlpha(), GAME_CONFIG.NIGHT_STAR_ALPHA,
+        'a settled QA night holds the quiet peak');
+      assert(game.score < 1, 'settling the fade must not write the score');
+      assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
+        'settling the fade must not invent a speed');
+
+      game.mode = MODES.CLASSIC;
+      assertEquals(starPaintAlpha(), 1, 'QA night still leaves Classic stars full white');
+      assert(game.score < 1, 'Classic QA night must not write the score');
+    } finally {
+      game.mode = origMode;
+      setQaNight(false);
+      setReducedMotion(false);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('NIGHT_STAR_ALPHA override changes only the Updated and Daily peak', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const origInit = game.starsInitialised;
+    const origStars = game.stars.slice();
+    const origFade = game.starFadeFrames;
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      game.starsInitialised = true;
+      game.stars = [{ x: 4, y: 6 }];
+      game.starFadeFrames = GAME_CONFIG.STAR_FADE_FRAMES;
+      game.mode = MODES.UPDATED;
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      withTuning({ NIGHT_STAR_ALPHA: 0.2 }, () => {
+        assertEquals(starPaintAlpha(), 0.2,
+          'a visual override should quiet night stars by the tuned amount');
+      });
+      assertEquals(starPaintAlpha(), GAME_CONFIG.NIGHT_STAR_ALPHA,
+        'clearing the override returns the configured whisper');
+      game.mode = MODES.DAILY;
+      withTuning({ NIGHT_STAR_ALPHA: 0.2 }, () => {
+        assertEquals(starPaintAlpha(), 0.2, 'Daily reads the same visual override');
+      });
+      game.mode = MODES.CLASSIC;
+      withTuning({ NIGHT_STAR_ALPHA: 0.2 }, () => {
+        assertEquals(starPaintAlpha(), 1, 'Classic ignores the night-star override');
+      });
+      game.mode = MODES.UPDATED;
+      withTuning({ NIGHT_STAR_ALPHA: 'soft' }, () => {
+        assertEquals(starPaintAlpha(), GAME_CONFIG.NIGHT_STAR_ALPHA,
+          'a non-numeric override falls back to the configured whisper');
+      });
+      withTuning({ NIGHT_STAR_ALPHA: 1.4 }, () => {
+        assertEquals(starPaintAlpha(), GAME_CONFIG.NIGHT_STAR_ALPHA,
+          'a peak above 1 falls back so a typo cannot restore the sparkle');
+      });
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      game.starsInitialised = origInit;
+      game.stars = origStars;
+      game.starFadeFrames = origFade;
+      setQaNight(false);
+      setReducedMotion(false);
+    }
+  });
+
+  it('paints the whisper only around the stars and does not consume the run seed', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const origAlpha = ctx.globalAlpha;
+    const origInit = game.starsInitialised;
+    const origStars = game.stars.slice();
+    const origFade = game.starFadeFrames;
+    const origRng = game.rng;
+    let rngCalls = 0;
+    game.rng = () => { rngCalls++; return origRng(); };
+    const randoms = [];
+    const origRandom = Math.random;
+    Math.random = () => { randoms.push(1); return origRandom(); };
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      game.mode = MODES.UPDATED;
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      game.starsInitialised = true;
+      game.stars = [{ x: 20, y: 30 }, { x: 40, y: 10 }];
+      game.starFadeFrames = GAME_CONFIG.STAR_FADE_FRAMES;
+      ctx.globalAlpha = 0.8;
+      const paints = starPaints();
+      assertEquals(paints.length, 2, 'both stars paint');
+      assert(paints.every((p) => Math.abs(p.alpha - 0.8 * GAME_CONFIG.NIGHT_STAR_ALPHA) < 1e-9),
+        'night paint multiplies the existing alpha by the whisper');
+      assertEquals(ctx.globalAlpha, 0.8, 'the whisper must not leak onto the dino or cacti');
+      assertEquals(rngCalls, 0, 'painting stars does not consume the run seed');
+      assertEquals(randoms.length, 0, 'painting settled stars does not re-roll positions');
+      assertEquals(game.score, GAME_CONFIG.DAY_NIGHT_END, 'painting stars does not change the score');
+
+      game.mode = MODES.CLASSIC;
+      ctx.globalAlpha = 1;
+      const classic = starPaints();
+      assert(classic.every((p) => p.alpha === 1), 'Classic night paint stays full white');
+      assertEquals(ctx.globalAlpha, 1, 'Classic paint leaves the lane alone');
+      assertEquals(rngCalls, 0, 'Classic star paint does not consume the run seed');
+    } finally {
+      Math.random = origRandom;
+      game.rng = origRng;
+      game.mode = origMode;
+      game.score = origScore;
+      game.starsInitialised = origInit;
+      game.stars = origStars;
+      game.starFadeFrames = origFade;
+      ctx.globalAlpha = origAlpha;
+      setQaNight(false);
+      setReducedMotion(false);
+    }
   });
 });
 

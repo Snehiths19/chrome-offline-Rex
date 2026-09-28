@@ -63,6 +63,7 @@ export default [
         getBackgroundColor: 'readonly',
         drawBackground: 'readonly',
         starFadeAlpha: 'readonly',
+        starPaintAlpha: 'readonly',
         initClouds: 'readonly',
         updateClouds: 'readonly',
         drawClouds: 'readonly',
