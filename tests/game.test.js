@@ -13507,6 +13507,427 @@ describe('QA death count-up flag (?qaCountUp=1)', () => {
   });
 });
 
+describe('Soft idle start pulse', () => {
+  const QUIET_BASE = 0.4;
+  const QUIET_AMP = 0.15;
+  const QUIET_RATE = 0.05;
+  const CLASSIC_MIN = 0.3;
+  const CLASSIC_MAX = 0.7;
+  const PROMPT = 'TAP / PRESS SPACE TO START';
+
+  function withTuning(overrides, fn) {
+    const orig = window.GAME_TUNING;
+    window.GAME_TUNING = overrides;
+    try { fn(); } finally { window.GAME_TUNING = orig; }
+  }
+
+  function classicAlpha(frame) {
+    return 0.3 + 0.4 * (0.5 + 0.5 * Math.sin(frame * 0.08));
+  }
+
+  function quietAlpha(frame, base, amp, rate) {
+    return base + amp * (0.5 + 0.5 * Math.sin(frame * rate));
+  }
+
+  function paintIdle(frame) {
+    const origFrame = game.animFrame;
+    game.animFrame = frame;
+    let promptStyle = null;
+    let titleStyle = null;
+    const texts = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => {
+      const s = String(text);
+      texts.push(s);
+      if (s === 'REX RUN') titleStyle = ctx.fillStyle;
+      if (s === PROMPT) promptStyle = ctx.fillStyle;
+    };
+    drawIdleScreen();
+    ctx.fillText = origFill;
+    game.animFrame = origFrame;
+    return { texts, promptStyle, titleStyle };
+  }
+
+  function promptAlpha(frame) {
+    const painted = paintIdle(frame);
+    const match = /rgba\(255,\s*255,\s*255,\s*([0-9.]+)\)/.exec(painted.promptStyle || '');
+    return {
+      alpha: match ? Number(match[1]) : NaN,
+      style: painted.promptStyle,
+      title: painted.titleStyle,
+      texts: painted.texts,
+    };
+  }
+
+  function rounded(n) {
+    return Number(n.toFixed(3));
+  }
+
+  it('Updated and Daily breathe inside 0.4–0.55, slower than Classic', () => {
+    const origMode = game.mode;
+    const origHold = game.qaIdleHold;
+    try {
+      assertEquals(GAME_CONFIG.UPDATED_IDLE_PULSE_BASE, QUIET_BASE,
+        'the quiet floor is 0.4');
+      assertEquals(GAME_CONFIG.UPDATED_IDLE_PULSE_AMPLITUDE, QUIET_AMP,
+        'the quiet swing is 0.15');
+      assertEquals(GAME_CONFIG.UPDATED_IDLE_PULSE_RATE, QUIET_RATE,
+        'the quiet breath is slower than Classic 0.08');
+      assert(QUIET_RATE < 0.08, 'the quiet rate must be slower than Classic');
+      assert(QUIET_BASE >= CLASSIC_MIN && QUIET_BASE + QUIET_AMP <= CLASSIC_MAX,
+        'the quiet band must sit inside Classic 0.3–0.7');
+
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        game.mode = mode;
+        if (game.qaIdleHold) game.qaIdleHold = 0;
+        setReducedMotion(false);
+        let lo = 1;
+        let hi = 0;
+        for (let frame = 0; frame <= 200; frame++) {
+          const alpha = promptAlpha(frame).alpha;
+          const expect = rounded(quietAlpha(frame, QUIET_BASE, QUIET_AMP, QUIET_RATE));
+          assertEquals(alpha, expect, mode + ' frame ' + frame + ' uses the quiet breath');
+          if (alpha < lo) lo = alpha;
+          if (alpha > hi) hi = alpha;
+        }
+        assert(lo >= QUIET_BASE - 0.001, mode + ' does not drop below 0.4, got ' + lo);
+        assert(hi <= QUIET_BASE + QUIET_AMP + 0.001, mode + ' does not rise above 0.55, got ' + hi);
+        assert(hi < rounded(classicAlpha(20)), mode + ' peak stays under Classic peak');
+        assert(lo > CLASSIC_MIN, mode + ' floor stays calmer than Classic trough');
+        const title = promptAlpha(0);
+        assertEquals(title.title, 'white', mode + ' title stays solid white');
+        assert(title.texts.includes('REX RUN'), mode + ' still draws REX RUN');
+        assert(title.texts.includes(PROMPT), mode + ' still draws the start line');
+      }
+    } finally {
+      game.mode = origMode;
+      if (origHold !== undefined) game.qaIdleHold = origHold;
+      setReducedMotion(false);
+    }
+  });
+
+  it('Classic keeps the 0.3–0.7 pulse, including under reduced motion', () => {
+    const origMode = game.mode;
+    const origHold = game.qaIdleHold;
+    try {
+      game.mode = MODES.CLASSIC;
+      if (game.qaIdleHold) game.qaIdleHold = 0;
+      for (const reduced of [false, true]) {
+        setReducedMotion(reduced);
+        for (const frame of [0, 20, 40, 80]) {
+          const painted = promptAlpha(frame);
+          assertEquals(painted.alpha, rounded(classicAlpha(frame)),
+            (reduced ? 'reduced motion' : 'motion') + ' Classic frame ' + frame + ' keeps the old pulse');
+        }
+        assertNotEquals(promptAlpha(0).alpha, promptAlpha(40).alpha,
+          'Classic still breathes under reduced=' + reduced);
+      }
+    } finally {
+      game.mode = origMode;
+      if (origHold !== undefined) game.qaIdleHold = origHold;
+      setReducedMotion(false);
+    }
+  });
+
+  it('Updated and Daily hold a static midpoint when motion is reduced', () => {
+    const origMode = game.mode;
+    const origHold = game.qaIdleHold;
+    const mid = rounded(QUIET_BASE + QUIET_AMP * 0.5);
+    try {
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        game.mode = mode;
+        if (game.qaIdleHold) game.qaIdleHold = 0;
+        setReducedMotion(true);
+        const first = promptAlpha(0).alpha;
+        assertEquals(first, mid, mode + ' reduced motion uses the midpoint');
+        for (const frame of [1, 20, 40, 80, 200]) {
+          assertEquals(promptAlpha(frame).alpha, first,
+            mode + ' reduced motion does not sample sin at frame ' + frame);
+        }
+      }
+    } finally {
+      game.mode = origMode;
+      if (origHold !== undefined) game.qaIdleHold = origHold;
+      setReducedMotion(false);
+    }
+  });
+
+  it('a bad tune cannot flash harder than Classic 0.3–0.7', () => {
+    const origMode = game.mode;
+    try {
+      game.mode = MODES.UPDATED;
+      setReducedMotion(false);
+      if (game.qaIdleHold) game.qaIdleHold = 0;
+
+      const fallbackAt = (frame) => rounded(quietAlpha(frame, QUIET_BASE, QUIET_AMP, QUIET_RATE));
+      const cases = [
+        [{ UPDATED_IDLE_PULSE_AMPLITUDE: 9 }, 'a wide swing'],
+        [{ UPDATED_IDLE_PULSE_BASE: 2 }, 'a base above the Classic band'],
+        [{ UPDATED_IDLE_PULSE_BASE: 0.1 }, 'a base below the Classic band'],
+        [{ UPDATED_IDLE_PULSE_BASE: 0.5, UPDATED_IDLE_PULSE_AMPLITUDE: 0.3 }, 'a pair that peaks past 0.7'],
+        [{ UPDATED_IDLE_PULSE_AMPLITUDE: 'loud' }, 'a non-number swing'],
+        [{ UPDATED_IDLE_PULSE_RATE: 1 }, 'a rate faster than Classic'],
+        [{ UPDATED_IDLE_PULSE_RATE: 0 }, 'a frozen rate'],
+        [{ UPDATED_IDLE_PULSE_RATE: -0.2 }, 'a negative rate'],
+      ];
+      for (const [tune, label] of cases) {
+        withTuning(tune, () => {
+          for (const frame of [0, 2, 20, 31, 40]) {
+            assertEquals(promptAlpha(frame).alpha, fallbackAt(frame),
+              label + ' falls back at frame ' + frame);
+          }
+        });
+      }
+
+      withTuning({
+        UPDATED_IDLE_PULSE_BASE: 0.42,
+        UPDATED_IDLE_PULSE_AMPLITUDE: 0.08,
+        UPDATED_IDLE_PULSE_RATE: 0.04,
+      }, () => {
+        const frame = 10;
+        assertEquals(promptAlpha(frame).alpha, rounded(quietAlpha(frame, 0.42, 0.08, 0.04)),
+          'a tune inside the Classic band is honored');
+        assert(0.42 + 0.08 <= CLASSIC_MAX, 'the honored tune still ends at or under 0.7');
+      });
+    } finally {
+      game.mode = origMode;
+      setReducedMotion(false);
+    }
+  });
+});
+
+describe('QA idle pulse flag (?qaIdle=1)', () => {
+  const PROMPT = 'TAP / PRESS SPACE TO START';
+  const QUIET_PEAK = Number((0.4 + 0.15).toFixed(3));
+  const QUIET_MID = Number((0.4 + 0.15 * 0.5).toFixed(3));
+  // Same product the canvas rounds: (base + amplitude / 2) * 0.5 → 0.238.
+  const HALF_INK = Number(((0.4 + 0.15 * 0.5) * 0.5).toFixed(3));
+
+  function tick() {
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+  }
+
+  function classicAlpha(frame) {
+    return Number((0.3 + 0.4 * (0.5 + 0.5 * Math.sin(frame * 0.08))).toFixed(3));
+  }
+
+  function armIdle(mode) {
+    game.mode = mode;
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    game.mode = mode;
+    setReducedMotion(false);
+    if (typeof setQaIdle === 'function') setQaIdle(false);
+    game.state = STATE.IDLE;
+    game.score = 0;
+    game.animFrame = 0;
+    game.obstacles.length = 0;
+  }
+
+  function spyPrompt() {
+    const calls = [];
+    const orig = ctx.fillText;
+    ctx.fillText = function (text) {
+      const s = String(text);
+      if (s === PROMPT || s === 'REX RUN') {
+        calls.push({ text: s, fill: ctx.fillStyle, alpha: ctx.globalAlpha });
+      }
+    };
+    return {
+      calls,
+      prompt() { return calls.filter((c) => c.text === PROMPT); },
+      title() { return calls.filter((c) => c.text === 'REX RUN'); },
+      restore() { ctx.fillText = orig; },
+    };
+  }
+
+  function promptFillAlpha(spy) {
+    const row = spy.prompt()[spy.prompt().length - 1];
+    if (!row) return NaN;
+    const match = /rgba\(255,\s*255,\s*255,\s*([0-9.]+)\)/.exec(row.fill || '');
+    return match ? Number(match[1]) : NaN;
+  }
+
+  it('recognizes only ?qaIdle=1', () => {
+    assert(typeof readQaIdleFlag === 'function',
+      'readQaIdleFlag should parse the playtest query');
+    assert(typeof setQaIdle === 'function',
+      'setQaIdle should be exposed for tests');
+    assert(readQaIdleFlag('?qaIdle=1') === true, '?qaIdle=1 should hold the idle invite');
+    assert(readQaIdleFlag('?qaNight=1&qaIdle=1') === true,
+      'the flag should work beside ?qaNight=1');
+    assert(readQaIdleFlag('?qaIdle=1&qaCountUp=1') === true, 'param order should not matter');
+    assert(readQaIdleFlag('') === false, 'a normal visit should leave the live breath');
+    assert(readQaIdleFlag('?qaIdle=0') === false, 'only the value 1 enables the flag');
+    assert(readQaIdleFlag('?qaIdle=true') === false, 'qaIdle=true must not count as the flag');
+    assert(readQaIdleFlag('?qaCountUp=1') === false, 'the count-up flag must not hold the invite');
+  });
+
+  it('holds the quieter peak on the idle card without starting a run', () => {
+    const origMode = game.mode;
+    const spy = spyPrompt();
+    try {
+      assert(typeof setQaIdle === 'function', 'setQaIdle should be exposed for tests');
+      assert(QA_IDLE_HOLD >= 120, 'the debug hold must outlast a quick capture');
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        armIdle(mode);
+        const origRng = game.rng;
+        let rngCalls = 0;
+        game.rng = () => { rngCalls++; return origRng(); };
+        const speed = game.currentSpeed;
+        setQaIdle(true);
+        spy.calls.length = 0;
+        tick();
+        const first = promptFillAlpha(spy);
+        const held = game.qaIdleHold;
+        tick();
+        assertEquals(first, QUIET_PEAK, mode + ' freezes the quieter peak');
+        assertEquals(promptFillAlpha(spy), QUIET_PEAK, mode + ' stays on that peak for a second frame');
+        assertEquals(spy.title()[0] && spy.title()[0].fill, 'white', mode + ' title stays solid white');
+        assertEquals(held, QA_IDLE_HOLD, mode + ' latches the full hold');
+        assertEquals(game.qaIdleHold, held, mode + ' idle card does not burn the hold down');
+        assertEquals(game.qaIdleShown, true, mode + ' spends the latch');
+        assertEquals(game.state, STATE.IDLE, mode + ' hold does not start the run');
+        assertEquals(game.score, 0, mode + ' hold must not write the score');
+        assertEquals(game.currentSpeed, speed, mode + ' hold must not change speed');
+        assertEquals(game.obstacles.length, 0, mode + ' hold must not spawn');
+        assertEquals(rngCalls, 0, mode + ' hold must not consume the run seed');
+        game.rng = origRng;
+
+        const before = game.state;
+        handleAction();
+        assertEquals(game.state, STATE.WAITING, mode + ' Space still leaves idle for the countdown');
+        assertEquals(before, STATE.IDLE, mode + ' the hold itself had not already left idle');
+        if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      }
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      if (typeof setQaIdle === 'function') setQaIdle(false);
+      setReducedMotion(false);
+      if (game.qaIdleHold) game.qaIdleHold = 0;
+      if (game.qaIdleShown) game.qaIdleShown = false;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('Classic with the flag keeps the Classic pulse', () => {
+    const origMode = game.mode;
+    const spy = spyPrompt();
+    try {
+      assert(typeof setQaIdle === 'function', 'setQaIdle should be exposed for tests');
+      armIdle(MODES.CLASSIC);
+      setQaIdle(true);
+      spy.calls.length = 0;
+      tick();
+      const frame = game.animFrame;
+      const first = promptFillAlpha(spy);
+      tick();
+      const second = promptFillAlpha(spy);
+      assertEquals(first, classicAlpha(frame), 'Classic flag uses the Classic formula');
+      assertNotEquals(first, QUIET_PEAK, 'Classic flag does not freeze the quieter peak');
+      assertNotEquals(first, second, 'Classic flag still breathes');
+      assertEquals(game.state, STATE.IDLE, 'Classic flag does not start the run');
+      assertEquals(game.score, 0, 'Classic flag must not write the score');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      if (typeof setQaIdle === 'function') setQaIdle(false);
+      setReducedMotion(false);
+      if (game.qaIdleHold) game.qaIdleHold = 0;
+      if (game.qaIdleShown) game.qaIdleShown = false;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('reduced motion damps the hold to a static half-ink invite', () => {
+    const origMode = game.mode;
+    const spy = spyPrompt();
+    try {
+      assert(typeof setQaIdle === 'function', 'setQaIdle should be exposed for tests');
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        armIdle(mode);
+        setReducedMotion(true);
+        setQaIdle(true);
+        spy.calls.length = 0;
+        tick();
+        const first = promptFillAlpha(spy);
+        tick();
+        assertEquals(game.qaIdleHold, qaIdleHoldFrames(), mode + ' uses the shorter window');
+        assert(game.qaIdleHold < QA_IDLE_HOLD, mode + ' hold is shorter than the full capture');
+        assert(qaIdleHoldFrames() >= 2, mode + ' hold still lasts long enough to see');
+        assertEquals(game.qaIdleHold, Math.max(2, Math.round(QA_IDLE_HOLD * 0.5)),
+          mode + ' reduced motion halves the hold');
+        assertEquals(first, HALF_INK, mode + ' paints the static invite at half ink');
+        assertEquals(promptFillAlpha(spy), first, mode + ' damped hold does not breathe');
+        assert(first < QUIET_MID, mode + ' half ink is quieter than the static midpoint');
+        assertEquals(spy.title()[0] && spy.title()[0].fill, 'white', mode + ' title stays solid white');
+        assertEquals(game.state, STATE.IDLE, mode + ' damped hold does not start the run');
+        assertEquals(game.score, 0, mode + ' damped hold must not write the score');
+      }
+
+      armIdle(MODES.CLASSIC);
+      setReducedMotion(true);
+      setQaIdle(true);
+      spy.calls.length = 0;
+      tick();
+      const frame = game.animFrame;
+      assertEquals(promptFillAlpha(spy), classicAlpha(frame),
+        'reduced motion does not switch Classic onto the quiet invite');
+      assertEquals(game.qaIdleHold, Math.max(2, Math.round(QA_IDLE_HOLD * 0.5)),
+        'Classic still damps the hold length');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      if (typeof setQaIdle === 'function') setQaIdle(false);
+      setReducedMotion(false);
+      if (game.qaIdleHold) game.qaIdleHold = 0;
+      if (game.qaIdleShown) game.qaIdleShown = false;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('resetGame re-reads ?qaIdle=1 from the page query', () => {
+    const origMode = game.mode;
+    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
+    const prevLocation = global.location;
+    const spy = spyPrompt();
+    global.location = { search: '?qaIdle=1' };
+    try {
+      assert(typeof setQaIdle === 'function', 'setQaIdle should be exposed for tests');
+      setQaIdle(false);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      game.mode = MODES.UPDATED;
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      assertEquals(game.state, STATE.WAITING, 're-reading the flag does not skip the countdown');
+      game.state = STATE.IDLE;
+      const score = game.score;
+      spy.calls.length = 0;
+      tick();
+      assertEquals(game.state, STATE.IDLE, 'the re-read flag holds the idle card');
+      assertEquals(game.qaIdleHold, QA_IDLE_HOLD, 'the re-read flag latches the hold');
+      assertEquals(game.qaIdleShown, true, 'the re-read flag spends the latch');
+      assertEquals(promptFillAlpha(spy), QUIET_PEAK, 'the re-read flag paints the quieter peak');
+      assertEquals(game.score, score, 're-reading the flag must not change the score');
+    } finally {
+      spy.restore();
+      if (hadLocation) global.location = prevLocation;
+      else delete global.location;
+      game.mode = origMode;
+      if (typeof setQaIdle === 'function') setQaIdle(false);
+      setReducedMotion(false);
+      if (game.qaIdleHold) game.qaIdleHold = 0;
+      if (game.qaIdleShown) game.qaIdleShown = false;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+});
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {

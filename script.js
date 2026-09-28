@@ -507,6 +507,19 @@ const GAME_CONFIG = Object.freeze({
 
   // --- Animation ---
   RUN_FRAME_PERIOD:        10,    // swap run-cycle sprite every N frames (~167 ms @ 60 fps)
+  // Visual only. Updated and Daily idle invite, the line under REX RUN.
+  // Classic keeps 0.3 + 0.4 × (0.5 + 0.5 × sin(frame × 0.08)), a swing
+  // from 0.3 to 0.7. This breath is smaller and a little slower: base
+  // 0.4 plus amplitude 0.15, so the line moves 0.4 → 0.55, at rate 0.05
+  // instead of 0.08. A full breath takes about 2.1s instead of about
+  // 1.3s. Reduced motion holds the midpoint (base + amplitude / 2) and
+  // does not sample sin. A tune that would leave the Classic 0.3–0.7
+  // band, swing wider than 0.4, or pulse faster than 0.08 falls back, so
+  // a typo cannot flash harder than Classic. Read through cfg(). Physics,
+  // scoring, and spawning do not read these. Playtest with ?qaIdle=1.
+  UPDATED_IDLE_PULSE_BASE:       0.4,
+  UPDATED_IDLE_PULSE_AMPLITUDE:  0.15,
+  UPDATED_IDLE_PULSE_RATE:       0.05,
 
   // --- Asset loading ---
   ASSET_LOAD_TIMEOUT_MS: 5000,    // force WAITING state even if assets never finish loading
@@ -1414,6 +1427,54 @@ function qaCountUpPaintFrame() {
   return Math.min(GAME_CONFIG.UPDATED_DEATH_ANIM_FRAMES, length);
 }
 
+// QA/debug only — not for players. ?qaIdle=1 freezes the idle invite so a
+// capture does not land in the trough. Updated and Daily hold the quieter
+// peak (base + amplitude). Classic keeps the 0.3–0.7 pulse and still
+// breathes. The idle card stays up until the player starts, so the hold
+// does not tick down in IDLE and does not start the countdown. Reduced
+// motion halves the hold and, in Updated and Daily, paints the static
+// midpoint at half ink. Re-read in resetGame(). Tests flip it through
+// setQaIdle(); a normal visit leaves this false.
+const QA_IDLE_HOLD = 180;
+
+function readQaIdleFlag(search) {
+  const query = search !== undefined
+    ? search
+    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
+      ? location.search
+      : '');
+  if (!query) return false;
+  return new URLSearchParams(query).get('qaIdle') === '1';
+}
+
+let qaIdle = readQaIdleFlag();
+
+function setQaIdle(enabled) {
+  qaIdle = !!enabled;
+}
+
+function qaIdleHoldFrames() {
+  if (!reducedMotion) return QA_IDLE_HOLD;
+  return Math.max(2, Math.round(QA_IDLE_HOLD * 0.5));
+}
+
+function advanceQaIdle() {
+  const visible = game.state === STATE.IDLE
+    || game.state === STATE.WAITING
+    || game.state === STATE.RUNNING
+    || game.state === STATE.DEAD;
+  if (!visible) return;
+  if (qaIdle && !game.qaIdleShown) {
+    game.qaIdleShown = true;
+    game.qaIdleHold = qaIdleHoldFrames();
+    return;
+  }
+  // Stay on the idle card until the player starts. A short hold from the
+  // first frame would expire before a slow capture.
+  if (game.state === STATE.IDLE) return;
+  if (game.qaIdleHold > 0) game.qaIdleHold--;
+}
+
 function advanceQaCountUp() {
   const visible = game.state === STATE.IDLE
     || game.state === STATE.WAITING
@@ -1898,6 +1959,11 @@ const game = {
   qaCountUpHold:    0,
   // QA/debug only. The share button was put back after that card.
   qaCountUpShareCleared: false,
+  // QA/debug only. Latches after ?qaIdle=1 spends its idle-card hold.
+  qaIdleShown:      false,
+  // QA/debug only. Frames left on the ?qaIdle=1 invite. Idle does not tick
+  // this down, so a capture can wait on the title card.
+  qaIdleHold:       0,
   isNewBest:         false,
   previousHighScore: 0,
   // Set on a Daily death before today best is saved. Mirrors isNewBest:
@@ -2633,6 +2699,49 @@ function drawDeathFlash() {
   ctx.restore();
 }
 
+// Classic invite, unchanged: 0.3 → 0.7 at rate 0.08. Updated and Daily
+// read the quieter base, amplitude, and rate through cfg(). A value that
+// would leave 0.3–0.7, swing wider than 0.4, or pulse faster than 0.08
+// falls back to the quiet defaults. Reduced motion in Updated and Daily
+// holds the midpoint. The QA hold freezes the quieter peak, and under
+// reduced motion paints that midpoint at half ink.
+function updatedIdlePulseTuning() {
+  const classicMin = 0.3;
+  const classicMax = 0.7;
+  const classicAmp = 0.4;
+  const classicRate = 0.08;
+  let base = cfg('UPDATED_IDLE_PULSE_BASE');
+  let amplitude = cfg('UPDATED_IDLE_PULSE_AMPLITUDE');
+  let rate = cfg('UPDATED_IDLE_PULSE_RATE');
+  const baseOk = typeof base === 'number' && Number.isFinite(base)
+    && base >= classicMin && base <= classicMax;
+  const ampOk = typeof amplitude === 'number' && Number.isFinite(amplitude)
+    && amplitude >= 0 && amplitude <= classicAmp;
+  if (!baseOk || !ampOk || base + amplitude > classicMax) {
+    base = GAME_CONFIG.UPDATED_IDLE_PULSE_BASE;
+    amplitude = GAME_CONFIG.UPDATED_IDLE_PULSE_AMPLITUDE;
+  }
+  const rateOk = typeof rate === 'number' && Number.isFinite(rate)
+    && rate > 0 && rate <= classicRate;
+  if (!rateOk) rate = GAME_CONFIG.UPDATED_IDLE_PULSE_RATE;
+  return { base: base, amplitude: amplitude, rate: rate };
+}
+
+function idleStartPulseAlpha(frame) {
+  // Classic parity, including reduced motion and ?qaIdle=1.
+  if (!isUpdatedMode()) {
+    return 0.3 + 0.4 * (0.5 + 0.5 * Math.sin(frame * 0.08));
+  }
+  const tuned = updatedIdlePulseTuning();
+  if (reducedMotion) {
+    const mid = tuned.base + tuned.amplitude * 0.5;
+    if (game.qaIdleHold > 0) return mid * 0.5;
+    return mid;
+  }
+  if (game.qaIdleHold > 0) return tuned.base + tuned.amplitude;
+  return tuned.base + tuned.amplitude * (0.5 + 0.5 * Math.sin(frame * tuned.rate));
+}
+
 function drawIdleScreen() {
   const font = cfg('SCORE_FONT_FAMILY');
   ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
@@ -2643,7 +2752,7 @@ function drawIdleScreen() {
   ctx.font = '22px ' + font;
   ctx.fillText('REX RUN', canvas.width / 2, canvas.height / 2 - 16);
 
-  const pulseAlpha = 0.3 + 0.4 * (0.5 + 0.5 * Math.sin(game.animFrame * 0.08));
+  const pulseAlpha = idleStartPulseAlpha(game.animFrame);
   ctx.fillStyle = 'rgba(255, 255, 255, ' + pulseAlpha.toFixed(3) + ')';
   ctx.font = '13px ' + font;
   ctx.fillText('TAP / PRESS SPACE TO START', canvas.width / 2, canvas.height / 2 + 12);
@@ -3586,6 +3695,8 @@ function resetGame() {
   game.qaCountUpShown    = false;
   game.qaCountUpHold     = 0;
   game.qaCountUpShareCleared = false;
+  game.qaIdleShown       = false;
+  game.qaIdleHold        = 0;
   // QA/debug only. Re-read so a mode toggle still honors the page query.
   qaPlateau = readQaPlateauFlag();
   qaCluster = readQaClusterFlag();
@@ -3602,6 +3713,7 @@ function resetGame() {
   qaNewBest = readQaNewBestFlag();
   qaCopy = readQaCopyFlag();
   qaCountUp = readQaCountUpFlag();
+  qaIdle = readQaIdleFlag();
   game.isNewBest         = false;
   game.previousHighScore = 0;
   game.isNewTodayBest    = false;
@@ -3969,6 +4081,7 @@ function gameLoop() {
   advanceQaCopy();
   advanceQaShake();
   advanceQaCountUp();
+  advanceQaIdle();
   const shakeHeld = beginQaShake();
   STATE_HANDLERS[game.state]();
   endQaShake(shakeHeld);
@@ -4155,6 +4268,11 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.readQaCountUpFlag = readQaCountUpFlag;
   global.QA_COUNT_UP_HOLD = QA_COUNT_UP_HOLD;
   global.qaCountUpHoldFrames = qaCountUpHoldFrames;
+  global.setQaIdle = setQaIdle;
+  global.readQaIdleFlag = readQaIdleFlag;
+  global.QA_IDLE_HOLD = QA_IDLE_HOLD;
+  global.qaIdleHoldFrames = qaIdleHoldFrames;
+  global.idleStartPulseAlpha = idleStartPulseAlpha;
   global.deathAnimFrames = deathAnimFrames;
   global.updatedDeathAnimFrames = updatedDeathAnimFrames;
   global.obstacleNightBrightness = obstacleNightBrightness;
