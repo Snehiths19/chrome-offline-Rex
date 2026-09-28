@@ -6877,6 +6877,37 @@ describe('Night ground cool', () => {
   });
 });
 
+describe('Soft night ground', () => {
+  function groundLifts(alpha) {
+    const sky = [0x1a, 0x1a, 0x2e];
+    const sprite = [0x53, 0x53, 0x53];
+    return sprite.map((channel, i) => (channel - sky[i]) * alpha);
+  }
+
+  it('night ground keeps a quieter share of the old 0.55 band and stays the road edge', () => {
+    const now = GAME_CONFIG.NIGHT_GROUND_ALPHA;
+    const old = 0.55;
+    const fullThreeFifths = old * 0.6;
+    const nowLifts = groundLifts(now);
+    const oldLifts = groundLifts(old);
+    const sum = (levels) => levels.reduce((total, n) => total + n, 0);
+    const groundRed = 0x1a + (0x53 - 0x1a) * now;
+    const hillRed = parseInt(GAME_CONFIG.HILL_COLOR_NIGHT.slice(1, 3), 16);
+    assertEquals(now, 0.42, 'night ground uses the quieter strip');
+    assert(now > GAME_CONFIG.NIGHT_CLOUD_ALPHA,
+      'the running line stays firmer than the soft night clouds');
+    assert(now - GAME_CONFIG.NIGHT_CLOUD_ALPHA >= 0.05,
+      'the strip stays clearly above the night-cloud whisper');
+    assert(sum(nowLifts) < sum(oldLifts) * 0.85,
+      'the strip loses a real share of the old 0.55 lift');
+    assert(fullThreeFifths <= GAME_CONFIG.NIGHT_CLOUD_ALPHA,
+      'a full three-fifths of 0.55 would not stay above the night clouds');
+    assert(groundRed > hillRed,
+      'the road edge stays lighter than the night hills');
+    assertEquals(GAME_CONFIG.HILL_COLOR_DAY, '#e1e1e1', 'day hills stay the quieter day fill');
+  });
+});
+
 describe('Night milestone tint', () => {
   function withTuning(overrides, fn) {
     const orig = window.GAME_TUNING;

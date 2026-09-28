@@ -203,14 +203,19 @@ const GAME_CONFIG = Object.freeze({
   // Read through cfg().
   NIGHT_LAND_DUST_COLOR:    '#6a686e',
   // Visual only. Opacity of the Updated/Daily ground strip once the sky is
-  // fully night. The strip is the day sprite (#535353). On the night sky
-  // (#1a1a2e) that line stays a bright day-gray ruler under the cooled foot
-  // dust (#6a686e). 0.55 lets the sky through so the line cools and dims,
-  // stays firmer than the soft night clouds (0.35), and stays quieter than
-  // the night dust. Classic does not read this. Eases with the sky from
-  // DAY_NIGHT_START to DAY_NIGHT_END. Reduced motion skips that ease and
-  // snaps to this at DAY_NIGHT_END. Read through cfg().
-  NIGHT_GROUND_ALPHA:       0.55,
+  // fully night. The strip is the day sprite (#535353), the road edge under
+  // the run. On the night sky (#1a1a2e) the old 0.55 line sat about 31, 31,
+  // and 20 levels off that sky — a bright day-gray ruler under the cooled
+  // foot dust (#6a686e). A full three-fifths of that band is alpha 0.33.
+  // That step falls under the soft night clouds (0.35) and onto the night
+  // hills (#2d2d46), so the edge would stop reading as ground. 0.42 keeps
+  // about 24, 24, and 16 of those levels. The line cools, stays clearly
+  // firmer than the clouds, stays lighter than the hills, and stays quieter
+  // than the night dust. Classic does not read this. Day ground stays fully
+  // opaque. Eases with the sky from DAY_NIGHT_START to DAY_NIGHT_END.
+  // Reduced motion skips that ease and snaps to this at DAY_NIGHT_END.
+  // Playtest with ?qaNight=1. Read through cfg(). Physics does not read this.
+  NIGHT_GROUND_ALPHA:       0.42,
 
   // --- Ambient depth (PR-D, updated mode only) ---
   HILL_COUNT:               3,    // mid-ground silhouette mounds
@@ -241,7 +246,7 @@ const GAME_CONFIG = Object.freeze({
   // The sum is 62 of 103, the same three-fifths the day mounds keep of
   // their band. Red and green stay matched, and blue stays a step above
   // them, so the shape is still a night silhouette. It stays under the
-  // night ground (the #535353 strip at 0.55) and well under the night dino
+  // night ground (the #535353 strip at 0.42) and well under the night dino
   // (1.35) and cactus (1.65). Twilight lerps HILL_COLOR_DAY into this from
   // DAY_NIGHT_START to DAY_NIGHT_END. Reduced motion skips that ease and
   // snaps to this at DAY_NIGHT_END. Classic does not draw hills. Playtest
