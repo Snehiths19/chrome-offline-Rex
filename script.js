@@ -512,6 +512,87 @@ function setQaConfetti(enabled) {
   qaConfetti = !!enabled;
 }
 
+// QA/debug only — not for players. ?qaDust=1 holds a readable cluster of
+// land-dust motes at the feet from the first frame, in Updated and Daily,
+// so playtest can see the day brown (pair with ?qaNight=1 for the cool
+// night color) without catching a real jump. The marks are their own
+// overlay. They do not emit, restyle, or read the particle pool — a full
+// pool or a missed jump cannot skip them. Production jump and land stay
+// the quieter kinds. It does not write the score, speed, gaps, or
+// game.rng(). Classic never takes it. The hold latches once per run and
+// only counts down while RUNNING, so it stays up on the idle dino and
+// through GET READY. Re-read in resetGame(). Tests flip it through
+// setQaDust(); a normal visit leaves this false.
+const QA_DUST_HOLD = 180;
+const QA_DUST_SIZE = 4;
+const QA_DUST_RIM = '#2a241e';
+const QA_DUST_OFFSETS = Object.freeze([
+  Object.freeze([-8, -4]),
+  Object.freeze([-2, -6]),
+  Object.freeze([4, -4]),
+  Object.freeze([-5, -9]),
+  Object.freeze([1, -8]),
+]);
+function readQaDustFlag(search) {
+  const query = search !== undefined
+    ? search
+    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
+      ? location.search
+      : '');
+  if (!query) return false;
+  return new URLSearchParams(query).get('qaDust') === '1';
+}
+
+let qaDust = readQaDustFlag();
+
+function setQaDust(enabled) {
+  qaDust = !!enabled;
+}
+
+function qaDustMarks() {
+  const fx = dino.x + dino.width / 2;
+  const fy = dino.y + dino.height;
+  return QA_DUST_OFFSETS.map(([dx, dy]) => ({
+    x: fx + dx,
+    y: fy + dy,
+    w: QA_DUST_SIZE,
+    h: QA_DUST_SIZE,
+  }));
+}
+
+// Overdraw after the whole frame. A collision return, the death shake, and
+// a full particle pool all happen before this pass. The hold counter is
+// the only gate, so a missed emit cannot skip the marks.
+function drawQaDust() {
+  if (!isUpdatedMode() || game.qaDustHold <= 0) return;
+  const color = landDustColor(Particles.KINDS.jump.color);
+  ctx.save();
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  const marks = qaDustMarks();
+  for (let i = 0; i < marks.length; i++) {
+    const mark = marks[i];
+    ctx.fillStyle = QA_DUST_RIM;
+    ctx.fillRect(mark.x - 1, mark.y - 1, mark.w + 2, mark.h + 2);
+    ctx.fillStyle = color;
+    ctx.fillRect(mark.x, mark.y, mark.w, mark.h);
+  }
+  ctx.restore();
+}
+
+// Latch on the first Updated/Daily frame of the run, including idle, so
+// the marks are already up before GET READY ends. Count down only while
+// the run is moving.
+function advanceQaDust() {
+  if (!isUpdatedMode()) return;
+  if (qaDust && !game.qaDustShown) {
+    game.qaDustShown = true;
+    game.qaDustHold = QA_DUST_HOLD;
+    return;
+  }
+  if (game.state === STATE.RUNNING && game.qaDustHold > 0) game.qaDustHold--;
+}
+
 // Solid block just under the score digits. Game coordinates, not pool slots.
 function qaConfettiRect() {
   return {
@@ -894,6 +975,9 @@ const game = {
   // QA/debug only. Latches after ?qaConfetti=1 spends its one early gold puff.
   qaConfettiShown:  false,
   qaConfettiHold:   0,
+  // QA/debug only. Latches after ?qaDust=1 spends its one held foot cluster.
+  qaDustShown:      false,
+  qaDustHold:       0,
   isNewBest:         false,
   previousHighScore: 0,
   // Set on a Daily death before today best is saved. Mirrors isNewBest:
@@ -1819,8 +1903,24 @@ function landDustColor(dayColor) {
 const Particles = (() => {
   const POOL_SIZE = 80;
   const KINDS = Object.freeze({
-    jump:      { count:  6, color: '#9c8770',                size: 3, life: 18, vyMin: -2.0, vyMax: -0.5, vxSpread: 1.5, gravity: 0.05 },
-    land:      { count:  9, color: '#9c8770',                size: 3, life: 14, vyMin: -1.5, vyMax: -0.2, vxSpread: 2.5, gravity: 0.08 },
+    // Day foot whisper in Updated and Daily. The old takeoff was 6 motes
+    // living 18 frames and flung ±1.5px, so a mote could travel about 30px
+    // from the feet into the lane. 3 motes, life 8, and vxSpread 0.6 keep a
+    // full life inside 9px of the foot, under the body. The rise is
+    // -1.2..-0.4 with gravity 0.10: about 7px up, and the slow mote does
+    // not fall through the ground. Peak alpha 0.5 is half the old solid
+    // ink. Size stays 3 and the brown stays #9c8770. Night still recolors
+    // through landDustColor. Reduced motion still applies REDUCED_FACTOR
+    // and half life. Classic never emits.
+    jump:      { count:  3, color: '#9c8770', size: 3, life:  8, alpha: 0.5, vyMin: -1.2, vyMax: -0.4, vxSpread: 0.6, gravity: 0.10 },
+    // Landing whisper. The old burst was 9 motes living 14 frames and flung
+    // ±2.5px, about 39px toward the next cactus. 5 motes is still more than
+    // a takeoff, so the contact reads, but life 8 and vxSpread 0.7 hold it
+    // inside 10px of the foot. The rise is -0.9..-0.4 with gravity 0.12,
+    // about 4px up, flatter than the takeoff. Peak alpha 0.4 is softer than
+    // the takeoff so the extra motes do not stack into a cloud. Same brown,
+    // same night recolor, same reduced-motion damping. Classic never emits.
+    land:      { count:  5, color: '#9c8770', size: 3, life:  8, alpha: 0.4, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.7, gravity: 0.12 },
     // Late-run heel whisper in Updated and Daily. One grey mote per frame
     // once speed is near the plateau, at the heel, off the obstacle lane.
     // The old mote was rgba alpha 0.55 for 10 frames and drifted ±0.4px,
@@ -1864,7 +1964,7 @@ const Particles = (() => {
   const REDUCED_FACTOR = 0.25;
   const pool = [];
   for (let i = 0; i < POOL_SIZE; i++) {
-    pool.push({ x: 0, y: 0, vx: 0, vy: 0, life: 0, maxLife: 1, size: 0, color: '', gravity: 0 });
+    pool.push({ x: 0, y: 0, vx: 0, vy: 0, life: 0, maxLife: 1, size: 0, color: '', gravity: 0, alpha: 1 });
   }
   return {
     POOL_SIZE,
@@ -1890,6 +1990,7 @@ const Particles = (() => {
         p.size = config.size;
         p.color = (kind === 'jump' || kind === 'land') ? landDustColor(config.color) : config.color;
         p.gravity = config.gravity;
+        p.alpha = typeof config.alpha === 'number' ? config.alpha : 1;
         emitted++;
       }
       return emitted;
@@ -1909,7 +2010,8 @@ const Particles = (() => {
       for (let i = 0; i < pool.length; i++) {
         const p = pool[i];
         if (p.life <= 0) continue;
-        ctx.globalAlpha = p.life / p.maxLife;
+        const peak = typeof p.alpha === 'number' ? p.alpha : 1;
+        ctx.globalAlpha = (p.life / p.maxLife) * peak;
         ctx.fillStyle = p.color;
         ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
       }
@@ -2239,6 +2341,8 @@ function resetGame() {
   game.qaLevelShown      = false;
   game.qaConfettiShown   = false;
   game.qaConfettiHold    = 0;
+  game.qaDustShown       = false;
+  game.qaDustHold        = 0;
   // QA/debug only. Re-read so a mode toggle still honors the page query.
   qaPlateau = readQaPlateauFlag();
   qaCluster = readQaClusterFlag();
@@ -2247,6 +2351,7 @@ function resetGame() {
   qaLevel = readQaLevelFlag();
   qaTrail = readQaTrailFlag();
   qaConfetti = readQaConfettiFlag();
+  qaDust = readQaDustFlag();
   game.isNewBest         = false;
   game.previousHighScore = 0;
   game.isNewTodayBest    = false;
@@ -2538,10 +2643,12 @@ const STATE_HANDLERS = {
 
 function gameLoop() {
   game.animationFrameId = requestAnimationFrame(gameLoop);
+  advanceQaDust();
   STATE_HANDLERS[game.state]();
   // After the handler so a collision return, the score, and the death
   // card cannot cover the debug block. No-op unless the hold is running.
   drawQaConfetti();
+  drawQaDust();
 }
 
 // == SECTION 9: INITIALISATION ==
@@ -2645,6 +2752,13 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.QA_CONFETTI_RIM = QA_CONFETTI_RIM;
   global.qaConfettiRect = qaConfettiRect;
   global.drawQaConfetti = drawQaConfetti;
+  global.setQaDust = setQaDust;
+  global.readQaDustFlag = readQaDustFlag;
+  global.QA_DUST_HOLD = QA_DUST_HOLD;
+  global.QA_DUST_SIZE = QA_DUST_SIZE;
+  global.QA_DUST_RIM = QA_DUST_RIM;
+  global.qaDustMarks = qaDustMarks;
+  global.drawQaDust = drawQaDust;
   global.obstacleNightBrightness = obstacleNightBrightness;
   global.dinoNightBrightness = dinoNightBrightness;
   global.cloudPaintAlpha = cloudPaintAlpha;
