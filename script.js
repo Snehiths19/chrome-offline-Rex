@@ -483,16 +483,17 @@ function setQaTrail(enabled) {
   qaTrail = !!enabled;
 }
 
-// QA/debug only — not for players. ?qaConfetti=1 shows the level-up gold
-// puff early in an Updated/Daily run, so playtest can see it without a
-// score-100 run or a new record. The production kind stays short (20
-// frames), which is gone before a capture after GET READY. This hold
-// parks that same tight footprint on the score for QA_CONFETTI_HOLD
+// QA/debug only — not for players. ?qaConfetti=1 shows an early gold puff
+// in Updated/Daily so playtest can see it without a score-100 run.
+// Production confetti stays #ffd700 at 3px, which disappears on the white
+// day sky. The hold repaints those motes larger, in a darker gold, just
+// under the score digits, and keeps them opaque for QA_CONFETTI_HOLD
 // frames. It does not write the score, speed, gaps, or game.rng().
-// Classic never takes it. One burst per run. Re-read in resetGame() like
-// the other QA flags. Tests flip it through setQaConfetti(); a normal
-// visit leaves this false.
+// Classic never takes it. One burst per run. Re-read in resetGame().
+// Tests flip it through setQaConfetti(); a normal visit leaves this false.
 const QA_CONFETTI_HOLD = 180;
+const QA_CONFETTI_SIZE = 12;
+const QA_CONFETTI_COLOR = '#b45309';
 function readQaConfettiFlag(search) {
   const query = search !== undefined
     ? search
@@ -509,27 +510,46 @@ function setQaConfetti(enabled) {
   qaConfetti = !!enabled;
 }
 
-// Park the motes just emitted at the quiet puff's full-life footprint, then
-// keep them still. A real level-up is not parked: those motes keep the
-// short KINDS life and their drift. Reduced motion has already lowered
-// the count inside emit.
-function holdQaConfetti() {
-  const kind = Particles.KINDS.confetti;
-  for (let i = 0; i < Particles.particles.length; i++) {
-    const p = Particles.particles[i];
-    if (p.life <= 0 || p.color !== kind.color || p.life > kind.life) continue;
-    const vx = p.vx;
-    let vy = p.vy;
-    for (let s = 0; s < kind.life; s++) {
-      p.x += vx;
-      p.y += vy;
-      vy += p.gravity;
-    }
+// Lay the motes just emitted in a tight block under the score. Production
+// #ffd700 at 3px is left alone — only slots that were empty before this
+// emit are restyled. Reduced motion has already lowered the count.
+function holdQaConfetti(born) {
+  const gap = QA_CONFETTI_SIZE + 2;
+  const cols = Math.min(5, born.length);
+  const originX = GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30;
+  const originY = GAME_CONFIG.SCORE_Y + 28;
+  for (let i = 0; i < born.length; i++) {
+    const p = born[i];
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const rowCount = Math.min(cols, born.length - row * cols);
+    p.x = originX - ((rowCount - 1) * gap) / 2 + col * gap;
+    p.y = originY + row * gap;
+    p.size = QA_CONFETTI_SIZE;
+    p.color = QA_CONFETTI_COLOR;
     p.vx = 0;
     p.vy = 0;
     p.gravity = 0;
     p.life = QA_CONFETTI_HOLD;
     p.maxLife = QA_CONFETTI_HOLD;
+  }
+}
+
+// Keep the debug puff fully opaque until the hold ends. Particles.update
+// ticks life down once per frame; putting it back leaves alpha near 1,
+// so the amber does not fade into the white sky before the capture window.
+function sustainQaConfetti() {
+  if (game.qaConfettiHold <= 0) return;
+  game.qaConfettiHold--;
+  const alive = game.qaConfettiHold > 0;
+  for (let i = 0; i < Particles.particles.length; i++) {
+    const p = Particles.particles[i];
+    if (p.color !== QA_CONFETTI_COLOR) continue;
+    p.life = alive ? QA_CONFETTI_HOLD : 0;
+    p.maxLife = QA_CONFETTI_HOLD;
+    p.vx = 0;
+    p.vy = 0;
+    p.gravity = 0;
   }
 }
 
@@ -886,6 +906,7 @@ const game = {
   qaLevelShown:     false,
   // QA/debug only. Latches after ?qaConfetti=1 spends its one early gold puff.
   qaConfettiShown:  false,
+  qaConfettiHold:   0,
   isNewBest:         false,
   previousHighScore: 0,
   // Set on a Daily death before today best is saved. Mirrors isNewBest:
@@ -2230,6 +2251,7 @@ function resetGame() {
   game.qaBigShown        = false;
   game.qaLevelShown      = false;
   game.qaConfettiShown   = false;
+  game.qaConfettiHold    = 0;
   // QA/debug only. Re-read so a mode toggle still honors the page query.
   qaPlateau = readQaPlateauFlag();
   qaCluster = readQaClusterFlag();
@@ -2366,16 +2388,23 @@ function handleRunning() {
     Particles.emit('confetti', GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30, GAME_CONFIG.SCORE_Y);
   }
 
-  // QA/debug only — not for players. Same gold kind as a level-up, once,
-  // on the first Updated/Daily frame, then parked at that tight footprint
-  // so it is still there a couple of seconds after GET READY. A normal
-  // visit waits for the real level and keeps the short life. Classic never
-  // enters. Particles.emit uses Math.random(), not game.rng(). The flag
-  // does not change speed, gaps, or scoring.
+  // QA/debug only — not for players. One early puff under the score,
+  // held opaque for about three seconds. A normal visit waits for the
+  // real level and keeps the small #ffd700 kind. Classic never enters.
+  // Particles.emit uses Math.random(), not game.rng(). The flag does not
+  // change speed, gaps, or scoring.
   if (qaConfetti && isUpdatedMode() && !game.qaConfettiShown) {
     game.qaConfettiShown = true;
+    game.qaConfettiHold = QA_CONFETTI_HOLD;
+    const before = Particles.particles.map((p) => p.life);
     Particles.emit('confetti', GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30, GAME_CONFIG.SCORE_Y);
-    holdQaConfetti();
+    const born = [];
+    for (let i = 0; i < Particles.particles.length; i++) {
+      if (before[i] <= 0 && Particles.particles[i].life > 0) born.push(Particles.particles[i]);
+    }
+    holdQaConfetti(born);
+  } else {
+    sustainQaConfetti();
   }
 
   // Scroll ground.
@@ -2627,6 +2656,8 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.setQaConfetti = setQaConfetti;
   global.readQaConfettiFlag = readQaConfettiFlag;
   global.QA_CONFETTI_HOLD = QA_CONFETTI_HOLD;
+  global.QA_CONFETTI_SIZE = QA_CONFETTI_SIZE;
+  global.QA_CONFETTI_COLOR = QA_CONFETTI_COLOR;
   global.obstacleNightBrightness = obstacleNightBrightness;
   global.dinoNightBrightness = dinoNightBrightness;
   global.cloudPaintAlpha = cloudPaintAlpha;

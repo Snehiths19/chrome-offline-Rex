@@ -126,6 +126,8 @@ export default [
         setQaConfetti: 'readonly',
         readQaConfettiFlag: 'readonly',
         QA_CONFETTI_HOLD: 'readonly',
+        QA_CONFETTI_SIZE: 'readonly',
+        QA_CONFETTI_COLOR: 'readonly',
         obstacleNightBrightness: 'readonly',
         dinoNightBrightness: 'readonly',
         cloudPaintAlpha: 'readonly',

@@ -7878,10 +7878,8 @@ describe('Quiet new-best confetti', () => {
 });
 
 describe('QA confetti flag (?qaConfetti=1)', () => {
-  const GOLD = '#ffd700';
-
-  function goldMotes() {
-    return Particles.particles.filter((p) => p.life > 0 && p.color === GOLD);
+  function qaMotes() {
+    return Particles.particles.filter((p) => p.life > 0 && p.color === QA_CONFETTI_COLOR);
   }
 
   function tick() {
@@ -7921,24 +7919,16 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
     assert(readQaConfettiFlag('?qaLevel=1') === false, 'the level flag must not force this latch');
   });
 
-  function tightBox() {
-    const kind = Particles.KINDS.confetti;
-    const edge = cfg('PARTICLE_EMIT_SPREAD') / 2;
-    return {
-      x: edge + kind.vxSpread * kind.life,
-      // Gravity-aware vertical envelope of the quiet life, plus mote size.
-      y: kind.life * Math.max(Math.abs(kind.vyMin), Math.abs(kind.vyMax)) + kind.size,
-    };
-  }
-
-  it('parks a tight puff on the first Updated and Daily frame and keeps it readable', () => {
+  it('parks a readable puff under the score and keeps it opaque', () => {
     const origMode = game.mode;
-    const originX = GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30;
-    const originY = GAME_CONFIG.SCORE_Y;
-    const box = tightBox();
+    const scoreLeft = GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET;
     try {
       assert(QA_CONFETTI_HOLD >= 120, 'the debug hold must outlast a quick capture after GET READY');
+      assert(QA_CONFETTI_SIZE >= 8, 'debug motes must be large enough to see on the day sky');
       assertEquals(Particles.KINDS.confetti.life, 20, 'production life stays the short puff');
+      assertEquals(Particles.KINDS.confetti.color, '#ffd700', 'production gold stays the light kind');
+      assertEquals(Particles.KINDS.confetti.size, 3, 'production mote size stays 3');
+      assertEquals(Particles.KINDS.confetti.count, 10, 'production count stays 10');
       for (const mode of [MODES.UPDATED, MODES.DAILY]) {
         armFreshRun(mode);
         game.rng = mulberry32(11);
@@ -7946,25 +7936,31 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
         tick();
         const rngAfterOff = game.rng();
         const speedOff = game.currentSpeed;
-        assertEquals(goldMotes().length, 0, mode + ' without the flag does not puff at the start');
+        assertEquals(qaMotes().length, 0, mode + ' without the flag does not puff at the start');
         assertEquals(game.qaConfettiShown, false, mode + ' without the flag does not spend the latch');
 
         armFreshRun(mode);
         game.rng = mulberry32(11);
         setQaConfetti(true);
         tick();
-        const motes = goldMotes();
+        const motes = qaMotes();
         assertEquals(motes.length, Particles.KINDS.confetti.count, mode + ' emits the puff immediately');
+        let minX = Infinity;
+        let maxX = -Infinity;
         motes.forEach((p) => {
           assertEquals(p.life, QA_CONFETTI_HOLD - 1, mode + ' holds the puff for capture');
-          assertEquals(p.maxLife, QA_CONFETTI_HOLD, mode + ' fades across the hold, not the short life');
-          assertEquals(p.color, GOLD, mode + ' uses the gold');
+          assertEquals(p.maxLife, QA_CONFETTI_HOLD, mode + ' stays opaque across the hold');
+          assertEquals(p.color, QA_CONFETTI_COLOR, mode + ' uses the dark gold that reads on white');
+          assertEquals(p.size, QA_CONFETTI_SIZE, mode + ' uses the large debug mote');
           assertEquals(p.vx, 0, mode + ' parked puff does not keep drifting');
           assertEquals(p.vy, 0, mode + ' parked puff does not keep rising');
           assertEquals(p.gravity, 0, mode + ' parked puff does not fall away');
-          assert(Math.abs(p.x - originX) <= box.x, mode + ' QA mote stays in the tight footprint');
-          assert(Math.abs(p.y - originY) <= box.y, mode + ' QA mote stays near the score');
+          assert(p.y - p.size / 2 >= GAME_CONFIG.SCORE_Y + 2, mode + ' sits under the score digits');
+          assert(p.x > scoreLeft - 40, mode + ' stays with the score, not the lane');
+          if (p.x < minX) minX = p.x;
+          if (p.x > maxX) maxX = p.x;
         });
+        assert(maxX - minX < 80, mode + ' the block stays tighter than the old firework');
         const parked = motes.map((p) => ({ x: p.x, y: p.y }));
         assertEquals(game.score, GAME_CONFIG.SCORE_INCREMENT, mode + ' must not jump the score');
         assertEquals(game.currentSpeed, speedOff, mode + ' must not change speed');
@@ -7976,15 +7972,15 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
         assertEquals(Animations.milestoneFrames, 0, mode + ' does not start the level wash');
         assertEquals(game.qaConfettiShown, true, mode + ' spends the puff once');
 
-        // A second and a half into the run — past the old 20-frame blink.
         for (let i = 0; i < 90; i++) tick();
-        const later = goldMotes();
+        const later = qaMotes();
         assertEquals(later.length, Particles.KINDS.confetti.count,
           mode + ' is still on screen well after GET READY');
         later.forEach((p, i) => {
-          assertEquals(p.life, QA_CONFETTI_HOLD - 1 - 90, mode + ' hold counts down once per frame');
+          assertEquals(p.life, QA_CONFETTI_HOLD - 1, mode + ' stays opaque instead of fading out');
           assertEquals(p.x, parked[i].x, mode + ' does not spread while it is held');
           assertEquals(p.y, parked[i].y, mode + ' does not rise while it is held');
+          assertEquals(p.size, QA_CONFETTI_SIZE, mode + ' stays large while it is held');
         });
         assert(Math.abs(game.score - GAME_CONFIG.SCORE_INCREMENT * 91) < 1e-6,
           mode + ' scoring keeps its normal step');
@@ -8004,7 +8000,12 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
       setQaConfetti(true);
       tick();
       tick();
-      assertEquals(goldMotes().length, 0, 'Classic never throws confetti, even with the flag');
+      assertEquals(qaMotes().length, 0, 'Classic never throws confetti, even with the flag');
+      assertEquals(
+        Particles.particles.filter((p) => p.life > 0 && p.color === '#ffd700').length,
+        0,
+        'Classic does not emit the production gold either'
+      );
       assertEquals(game.qaConfettiShown, false, 'Classic does not spend the Updated latch');
       assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
         'Classic speed still follows the score');
@@ -8025,9 +8026,13 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
       tick();
       const expectedCount = Math.max(1, Math.round(Particles.KINDS.confetti.count * 0.25));
       assert(expectedCount < Particles.KINDS.confetti.count, 'reduced motion still emits fewer motes');
-      assertEquals(goldMotes().length, expectedCount, 'a running frame still damps the puff count');
-      goldMotes().forEach((p) => {
+      assertEquals(qaMotes().length, expectedCount, 'a running frame still damps the puff count');
+      assert(expectedCount >= 1, 'reduced motion still leaves a mote to see');
+      qaMotes().forEach((p) => {
         assertEquals(p.life, QA_CONFETTI_HOLD - 1, 'the debug hold still keeps the damped puff visible');
+        assertEquals(p.size, QA_CONFETTI_SIZE, 'reduced motion keeps the large debug mote');
+        assertEquals(p.color, QA_CONFETTI_COLOR, 'reduced motion keeps the dark gold');
+        assert(p.y - p.size / 2 >= GAME_CONFIG.SCORE_Y + 2, 'reduced motion still sits under the score');
         assertEquals(p.vx, 0, 'reduced motion does not let the debug puff drift');
       });
       assert(game.score < 1, 'the damped puff does not move the score');
@@ -8057,8 +8062,12 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
       game.nextSpawnGap = GAME_CONFIG.MAX_SPAWN_GAP;
       Particles.reset();
       tick();
-      assertEquals(goldMotes().length, Particles.KINDS.confetti.count,
+      assertEquals(qaMotes().length, Particles.KINDS.confetti.count,
         'resetGame should arm the early puff from location.search');
+      qaMotes().forEach((p) => {
+        assertEquals(p.size, QA_CONFETTI_SIZE, 'the re-read flag uses the large debug mote');
+        assert(p.y > GAME_CONFIG.SCORE_Y, 'the re-read flag parks the puff under the score');
+      });
       assert(game.score < 1, 're-reading the flag must not change the score');
       assertEquals(game.qaConfettiShown, true, 'the re-read flag spends the latch');
     } finally {
