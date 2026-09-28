@@ -727,7 +727,9 @@ function setQaTrail(enabled) {
 // Production confetti stays #ffd700 at 3px on a real level-up.
 // It does not write the score, speed, gaps, or game.rng().
 // Classic never takes it. One hold per run. Re-read in resetGame().
-// Tests flip it through setQaConfetti(); a normal visit leaves this false.
+// Reduced motion halves the hold and halves the ink, so the debug block
+// is shorter and softer too. Tests flip it through setQaConfetti(); a
+// normal visit leaves this false.
 const QA_CONFETTI_HOLD = 180;
 const QA_CONFETTI_BLOCK_W = 88;
 const QA_CONFETTI_BLOCK_H = 36;
@@ -747,6 +749,18 @@ let qaConfetti = readQaConfettiFlag();
 
 function setQaConfetti(enabled) {
   qaConfetti = !!enabled;
+}
+
+function qaConfettiHoldFrames() {
+  if (!reducedMotion) return QA_CONFETTI_HOLD;
+  return Math.max(2, Math.round(QA_CONFETTI_HOLD * 0.5));
+}
+
+// Motion-allowed playtest is full ink so a capture cannot miss the block.
+// Reduced motion paints at half ink, matching the shorter hold.
+function qaConfettiPaintAlpha() {
+  if (!reducedMotion) return 1;
+  return 0.5;
 }
 
 // QA/debug only — not for players. ?qaDust=1 holds a readable cluster of
@@ -1349,11 +1363,12 @@ function qaConfettiRect() {
 // own draw when a cactus hits, and the death shake then redraws the score
 // on top of whatever was there. This pass runs from gameLoop after that,
 // from the hold counter only — a missed particle emit cannot skip it.
-// Full strength, dark rim, source-over, on top of the HUD.
+// Dark rim, source-over, on top of the HUD. Motion-allowed playtest is
+// full ink. Reduced motion paints at half ink.
 function drawQaConfetti() {
   if (!isUpdatedMode() || game.qaConfettiHold <= 0) return;
   ctx.save();
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = qaConfettiPaintAlpha();
   ctx.globalCompositeOperation = 'source-over';
   const block = qaConfettiRect();
   ctx.fillStyle = QA_CONFETTI_RIM;
@@ -2960,16 +2975,21 @@ const Particles = (() => {
     // restyle this kind.
     collision: { count:  5, color: '#d04a2a',                size: 3, life:  8, vyMin: -1.2, vyMax:  0.4, vxSpread: 0.7, gravity: 0.10 },
     // Level gold at the score in Updated and Daily. Classic never emits.
-    // The old burst was 20 motes living 40 frames and flung ±3px/frame.
-    // From the score that is a 120px spray toward the lane and a fountain
-    // off the top of the canvas, so the celebration yanks the eye. Half
-    // the motes (10) and half the life (20) keep a gold puff. vxSpread
-    // 1.2 holds a full life inside 24px of the number. The rise is
-    // -1.6..-0.5 with gravity 0.10: about 14px up and under 10px down,
-    // on the score and on the canvas. Size stays 3 and the gold stays
-    // #ffd700 so the level still reads as a celebration. Reduced motion
-    // still applies REDUCED_FACTOR and half life.
-    confetti:  { count: 10, color: '#ffd700',                size: 3, life: 20, vyMin: -1.6, vyMax: -0.5, vxSpread: 1.2, gravity: 0.10 },
+    // The old burst was 20 motes living 40 frames and flung ±3px/frame,
+    // a 120px spray toward the lane. Round 1 cut that to 10 motes, life
+    // 20, and vxSpread 1.2: about 24px off the number, so the celebration
+    // still sparkled toward the lane. Round 2 is one step quieter. 6
+    // motes is still more than a jump puff, so the level reads. Life 12
+    // and vxSpread 0.7 keep a full life inside about 12px of the number,
+    // including emit jitter. The rise stays -1.6..-0.5 with gravity 0.10:
+    // about 13px up, and the slow mote barely settles, so it stays on the
+    // score and does not fountain off the top or fall through the HUD.
+    // Peak alpha 0.7 is under solid gold so the puff does not sparkle.
+    // Size stays 3 and the gold stays #ffd700. Reduced motion still
+    // applies REDUCED_FACTOR and half life. The ?qaConfetti=1 hold paints
+    // a dark block and does not restyle this kind. Reduced motion halves
+    // that hold and its ink.
+    confetti:  { count:  6, color: '#ffd700', size: 3, life: 12, alpha: 0.7, vyMin: -1.6, vyMax: -0.5, vxSpread: 0.7, gravity: 0.10 },
     // Once-per-run plateau cue in Updated and Daily. The old puff was 8
     // motes living 24 frames and flung ±0.6px. Gravity 0.02 never caught
     // the -1 rise, so a mote was still climbing at the end: about 18px up
@@ -3581,10 +3601,11 @@ function handleRunning() {
   // or Daily running frame. The paint is drawQaConfetti(), from this
   // counter, not from a particle emit. A normal visit waits for the real
   // level and keeps the small #ffd700 kind. Classic never enters.
-  // Does not change speed, gaps, scoring, or game.rng().
+  // Does not change speed, gaps, scoring, or game.rng(). Reduced motion
+  // latches the shorter hold.
   if (qaConfetti && isUpdatedMode() && !game.qaConfettiShown) {
     game.qaConfettiShown = true;
-    game.qaConfettiHold = QA_CONFETTI_HOLD;
+    game.qaConfettiHold = qaConfettiHoldFrames();
   } else if (game.qaConfettiHold > 0) {
     game.qaConfettiHold--;
   }
@@ -3889,6 +3910,8 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.QA_CONFETTI_COLOR = QA_CONFETTI_COLOR;
   global.QA_CONFETTI_RIM = QA_CONFETTI_RIM;
   global.qaConfettiRect = qaConfettiRect;
+  global.qaConfettiHoldFrames = qaConfettiHoldFrames;
+  global.qaConfettiPaintAlpha = qaConfettiPaintAlpha;
   global.drawQaConfetti = drawQaConfetti;
   global.setQaDust = setQaDust;
   global.readQaDustFlag = readQaDustFlag;

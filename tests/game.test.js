@@ -4405,7 +4405,7 @@ describe('Quiet plateau cue', () => {
     land:      { count: 5,  color: '#9c8770', size: 3, life: 8, alpha: 0.4, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.7, gravity: 0.12 },
     trail:     { count: 1,  color: 'rgba(150,150,150,0.28)', size: 2, life: 6, vyMin: -0.1, vyMax: 0.1, vxSpread: 0.2, gravity: 0 },
     collision: { count: 5,  color: '#d04a2a', size: 3, life: 8, vyMin: -1.2, vyMax: 0.4, vxSpread: 0.7, gravity: 0.10 },
-    confetti:  { count: 10, color: '#ffd700', size: 3, life: 20, vyMin: -1.6, vyMax: -0.5, vxSpread: 1.2, gravity: 0.10 },
+    confetti:  { count: 6, color: '#ffd700', size: 3, life: 12, alpha: 0.7, vyMin: -1.6, vyMax: -0.5, vxSpread: 0.7, gravity: 0.10 },
   };
 
   function stepPath(vy0, kind) {
@@ -8904,7 +8904,7 @@ describe('Soft collision burst', () => {
     jump:      { count: 3,  color: '#9c8770', size: 3, life: 8, alpha: 0.5, vyMin: -1.2, vyMax: -0.4, vxSpread: 0.6, gravity: 0.10 },
     land:      { count: 5,  color: '#9c8770', size: 3, life: 8, alpha: 0.4, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.7, gravity: 0.12 },
     trail:     { count: 1,  color: 'rgba(150,150,150,0.28)', size: 2, life:  6, vyMin: -0.1, vyMax:  0.1, vxSpread: 0.2, gravity: 0 },
-    confetti:  { count: 10, color: '#ffd700',                size: 3, life: 20, vyMin: -1.6, vyMax: -0.5, vxSpread: 1.2, gravity: 0.10 },
+    confetti:  { count: 6, color: '#ffd700',                size: 3, life: 12, alpha: 0.7, vyMin: -1.6, vyMax: -0.5, vxSpread: 0.7, gravity: 0.10 },
     plateau:   { count: 4,  color: '#c5d4e4', size: 2, life: 12, alpha: 0.45, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.3, gravity: 0.06 },
     plateauQa: { count: 4, color: '#3d4f63', size: 2, life: 40, vyMin: -0.2, vyMax: -0.08, vxSpread: 0.08, gravity: 0.002 },
   };
@@ -9385,7 +9385,7 @@ describe('Quiet late-run heel trail', () => {
     jump:      { count: 3,  color: '#9c8770', size: 3, life: 8, alpha: 0.5, vyMin: -1.2, vyMax: -0.4, vxSpread: 0.6, gravity: 0.10 },
     land:      { count: 5,  color: '#9c8770', size: 3, life: 8, alpha: 0.4, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.7, gravity: 0.12 },
     collision: { count: 5,  color: '#d04a2a', size: 3, life: 8, vyMin: -1.2, vyMax:  0.4, vxSpread: 0.7, gravity: 0.10 },
-    confetti:  { count: 10, color: '#ffd700', size: 3, life: 20, vyMin: -1.6, vyMax: -0.5, vxSpread: 1.2, gravity: 0.10 },
+    confetti:  { count: 6, color: '#ffd700', size: 3, life: 12, alpha: 0.7, vyMin: -1.6, vyMax: -0.5, vxSpread: 0.7, gravity: 0.10 },
     plateau:   { count: 4,  color: '#c5d4e4', size: 2, life: 12, alpha: 0.45, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.3, gravity: 0.06 },
     plateauQa: { count: 4, color: '#3d4f63', size: 2, life: 40, vyMin: -0.2, vyMax: -0.08, vxSpread: 0.08, gravity: 0.002 },
   };
@@ -9701,18 +9701,22 @@ describe('QA trail flag (?qaTrail=1)', () => {
 });
 
 describe('Quiet new-best confetti', () => {
-  // The level gold at the score was 20 motes living 40 frames and flung
-  // ±3px/frame. From the score that is a 120px spray toward the lane and
-  // a fountain off the top of the canvas. Half the motes and half the life
-  // stay gold. The spread stays on the number.
+  // Round 1 held 10 gold motes for 20 frames at vxSpread 1.2. From the
+  // score that is about 24px toward the lane, so the celebration still
+  // sparkled off the number. Round 2 is one step quieter: fewer motes, a
+  // shorter life, a tighter spread, and soft peak ink. The gold and the
+  // 3px size stay so the level still reads. The rise and gravity stay in
+  // the same family, so the puff does not fountain off the top or fall
+  // through the HUD.
   const PUFF = {
-    count: 10,
+    count: 6,
     color: '#ffd700',
     size: 3,
-    life: 20,
+    life: 12,
+    alpha: 0.7,
     vyMin: -1.6,
     vyMax: -0.5,
-    vxSpread: 1.2,
+    vxSpread: 0.7,
     gravity: 0.10,
   };
 
@@ -9745,11 +9749,12 @@ describe('Quiet new-best confetti', () => {
 
   it('is a shorter gold puff that stays on the score', () => {
     const kind = Particles.KINDS.confetti;
-    assertEquals(kind.count, PUFF.count, 'half the old 20-mote firework');
+    assertEquals(kind.count, PUFF.count, 'quieter than the round-1 ten-mote puff');
     assertEquals(kind.color, PUFF.color, 'celebration stays gold');
     assertEquals(kind.size, PUFF.size, 'mote size stays readable');
-    assertEquals(kind.life, PUFF.life, 'half the old 40-frame life');
-    assertEquals(kind.vyMin, PUFF.vyMin, 'the rise is a short lift');
+    assertEquals(kind.life, PUFF.life, 'shorter than the round-1 twenty-frame life');
+    assertEquals(kind.alpha, PUFF.alpha, 'peak ink is under solid gold');
+    assertEquals(kind.vyMin, PUFF.vyMin, 'the rise stays a short lift');
     assertEquals(kind.vyMax, PUFF.vyMax, 'the slowest mote still lifts');
     assertEquals(kind.vxSpread, PUFF.vxSpread, 'the spread stays on the score');
     assertEquals(kind.gravity, PUFF.gravity, 'the puff keeps a light settle');
@@ -9758,9 +9763,15 @@ describe('Quiet new-best confetti', () => {
     const down = stepPath(kind.vyMax, kind);
     const edge = cfg('PARTICLE_EMIT_SPREAD') / 2 + kind.size / 2;
     const reach = kind.vxSpread * kind.life + edge;
-    assert(reach <= 32, 'horizontal travel stays on the score number, including emit jitter');
+    assert(kind.count < 10, 'fewer motes than the round-1 puff');
+    assert(kind.life < 20, 'shorter than the round-1 puff');
+    assert(kind.vxSpread < 1.2, 'tighter than the round-1 spread');
+    assert(kind.alpha < 1 && kind.alpha >= 0.6, 'soft gold, still a celebration');
+    assert(reach <= 16, 'a full life stays on the score, including emit jitter');
+    assert(reach < 1.2 * 20, 'tighter than the round-1 spray toward the lane');
     assert(-up.min + kind.size / 2 < GAME_CONFIG.SCORE_Y,
       'the puff does not leave the top of the canvas');
+    assert(-up.min >= 8, 'the puff still lifts enough to read at the score');
     assert(down.max + kind.size / 2 < 24, 'the puff does not fall toward the lane');
     assert(kind.count > Particles.KINDS.jump.count, 'still reads louder than a jump puff');
     assert(kind.count < 20, 'fewer motes than the old firework');
@@ -9800,6 +9811,7 @@ describe('Quiet new-best confetti', () => {
           assertEquals(motes.length, PUFF.count, mode + ' level-up emits the quiet puff');
           assert(motes.every((p) => p.life === PUFF.life - 1), mode + ' puff uses the short life');
           assert(motes.every((p) => p.color === PUFF.color), mode + ' puff stays gold');
+          assert(motes.every((p) => p.alpha === PUFF.alpha), mode + ' puff uses the soft peak');
         }
         assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
           mode + ' level-up leaves speed on the curve');
@@ -9827,6 +9839,7 @@ describe('Quiet new-best confetti', () => {
       goldMotes().forEach((p) => {
         assertEquals(p.life, expectedLife, 'reduced motion still halves the puff');
         assertEquals(p.color, PUFF.color, 'reduced motion keeps the gold');
+        assertEquals(p.alpha, PUFF.alpha, 'reduced motion keeps the soft peak');
       });
     } finally {
       game.mode = origMode;
@@ -9867,7 +9880,8 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
     return calls.slice(scoreAt + 1).filter((c) => c.op === 'rect' && c.style === QA_CONFETTI_COLOR);
   }
 
-  function assertBlock(calls, label) {
+  function assertBlock(calls, label, alpha) {
+    const ink = alpha === undefined ? 1 : alpha;
     const block = qaConfettiRect();
     const gold = goldAfterScore(calls);
     assertEquals(gold.length, 1, label + ' paints one dark-gold block after the score');
@@ -9875,12 +9889,13 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
     assertEquals(gold[0].y, block.y, label + ' block sits under the score line');
     assertEquals(gold[0].w, QA_CONFETTI_BLOCK_W, label + ' block is wide enough to see');
     assertEquals(gold[0].h, QA_CONFETTI_BLOCK_H, label + ' block is tall enough to see');
-    assertEquals(gold[0].alpha, 1, label + ' block is fully opaque');
+    assertEquals(gold[0].alpha, ink, label + ' block uses the hold ink');
     assert(gold[0].y >= GAME_CONFIG.SCORE_Y, label + ' block is below the score baseline');
     const scoreAt = calls.findIndex((c) => c.op === 'text' && /^\d{5}$/.test(c.text));
     const after = calls.slice(scoreAt + 1);
     const rim = after.filter((c) => c.op === 'rect' && c.style === QA_CONFETTI_RIM);
     assertEquals(rim.length, 1, label + ' paints a dark rim with the block');
+    assertEquals(rim[0].alpha, ink, label + ' rim uses the hold ink');
     const lastHud = after.reduce((at, c, i) => (c.op === 'text' ? i : at), -1);
     const goldAt = after.findIndex((c) => c.op === 'rect' && c.style === QA_CONFETTI_COLOR);
     assert(goldAt > lastHud, label + ' gold is the last paint, after every HUD string');
@@ -9925,11 +9940,12 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
       assert(QA_CONFETTI_HOLD >= 120, 'the debug hold must outlast a quick capture after GET READY');
       assert(QA_CONFETTI_BLOCK_W >= 60, 'the debug block must be wide enough to see under the score');
       assert(QA_CONFETTI_BLOCK_H >= 24, 'the debug block must be tall enough to see under the score');
-      assertEquals(Particles.KINDS.confetti.life, 20, 'production life stays the short puff');
+      assertEquals(Particles.KINDS.confetti.life, 12, 'production life stays the shorter puff');
       assertEquals(Particles.KINDS.confetti.color, '#ffd700', 'production gold stays the light kind');
       assertEquals(Particles.KINDS.confetti.size, 3, 'production mote size stays 3');
-      assertEquals(Particles.KINDS.confetti.count, 10, 'production count stays 10');
-      assertEquals(Particles.KINDS.confetti.vxSpread, 1.2, 'production spread stays tight');
+      assertEquals(Particles.KINDS.confetti.count, 6, 'production count stays the quieter puff');
+      assertEquals(Particles.KINDS.confetti.vxSpread, 0.7, 'production spread stays on the score');
+      assertEquals(Particles.KINDS.confetti.alpha, 0.7, 'production peak stays under solid gold');
       for (const mode of [MODES.UPDATED, MODES.DAILY]) {
         armFreshRun(mode);
         game.rng = mulberry32(11);
@@ -10055,21 +10071,28 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
     }
   });
 
-  it('reduced motion still paints the debug block and does not emit', () => {
+  it('reduced motion shortens the hold, paints quieter, and does not emit', () => {
     const origMode = game.mode;
     const spy = spyPaint();
     try {
-      armFreshRun(MODES.UPDATED);
-      setReducedMotion(true);
-      setQaConfetti(true);
-      tick();
-      assertBlock(spy.calls, 'reduced motion');
-      assertEquals(
-        Particles.particles.filter((p) => p.color === QA_CONFETTI_COLOR || p.color === '#ffd700').length,
-        0,
-        'the debug block does not go through the particle pool'
-      );
-      assert(game.score < 1, 'the debug block does not move the score');
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        armFreshRun(mode);
+        setReducedMotion(true);
+        setQaConfetti(true);
+        spy.calls.length = 0;
+        tick();
+        assertEquals(game.qaConfettiHold, qaConfettiHoldFrames(), mode + ' hold uses the shorter window');
+        assert(game.qaConfettiHold < QA_CONFETTI_HOLD, mode + ' hold is shorter than the full capture');
+        assert(qaConfettiHoldFrames() >= 2, mode + ' hold still lasts long enough to see');
+        assertEquals(qaConfettiPaintAlpha(), 0.5, mode + ' reduced motion halves the hold ink');
+        assertBlock(spy.calls, mode + ' reduced motion', 0.5);
+        assertEquals(
+          Particles.particles.filter((p) => p.color === QA_CONFETTI_COLOR || p.color === '#ffd700').length,
+          0,
+          mode + ' debug block does not go through the particle pool'
+        );
+        assert(game.score < 1, mode + ' debug block does not move the score');
+      }
     } finally {
       spy.restore();
       game.mode = origMode;
@@ -10145,7 +10168,7 @@ describe('Quiet day land dust', () => {
   const UNCHANGED_KINDS = {
     trail:     { count: 1,  color: 'rgba(150,150,150,0.28)', size: 2, life:  6, vyMin: -0.1, vyMax:  0.1, vxSpread: 0.2, gravity: 0 },
     collision: { count: 5,  color: '#d04a2a',                size: 3, life: 8, vyMin: -1.2, vyMax:  0.4, vxSpread: 0.7, gravity: 0.10 },
-    confetti:  { count: 10, color: '#ffd700',                size: 3, life: 20, vyMin: -1.6, vyMax: -0.5, vxSpread: 1.2, gravity: 0.10 },
+    confetti:  { count: 6, color: '#ffd700',                size: 3, life: 12, alpha: 0.7, vyMin: -1.6, vyMax: -0.5, vxSpread: 0.7, gravity: 0.10 },
     plateau:   { count: 4,  color: '#c5d4e4', size: 2, life: 12, alpha: 0.45, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.3, gravity: 0.06 },
     plateauQa: { count: 4, color: '#3d4f63', size: 2, life: 40, vyMin: -0.2, vyMax: -0.08, vxSpread: 0.08, gravity: 0.002 },
   };

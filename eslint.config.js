@@ -141,6 +141,8 @@ export default [
         QA_CONFETTI_COLOR: 'readonly',
         QA_CONFETTI_RIM: 'readonly',
         qaConfettiRect: 'readonly',
+        qaConfettiHoldFrames: 'readonly',
+        qaConfettiPaintAlpha: 'readonly',
         drawQaConfetti: 'readonly',
         setQaDust: 'readonly',
         readQaDustFlag: 'readonly',
