@@ -355,10 +355,24 @@ function setReducedMotion(enabled) {
 
 // QA/debug only — not for players. ?qaPlateau=1 fires a once-per-run heel puff
 // at QA_PLATEAU_SCORE so playtest can see it without reaching the plateau.
+// The visible cluster is drawQaPlateau(), from qaPlateauHold, not from a
+// free pool slot. A full pool or the short production life still paints
+// when motion is allowed. Reduced motion quarters the specks, halves the
+// hold, and softens the ink, the same way Particles.emit damps a burst.
+// Day fill is the dark QA kind. ?qaNight=1 uses the pale production color.
 // Read at boot and again in resetGame() so a mode toggle still honors the
 // query. Does not change speed, gaps, or game.rng(). Tests flip it through
 // setQaPlateau(); a normal visit leaves this false.
 const QA_PLATEAU_SCORE = 1;
+const QA_PLATEAU_HOLD = 180;
+const QA_PLATEAU_SIZE = 2;
+const QA_PLATEAU_RIM = '#1e2a36';
+const QA_PLATEAU_OFFSETS = Object.freeze([
+  Object.freeze([0, 0]),
+  Object.freeze([-3, -2]),
+  Object.freeze([2, -3]),
+  Object.freeze([-1, -5]),
+]);
 
 function readQaPlateauFlag(search) {
   const query = search !== undefined
@@ -565,6 +579,62 @@ function qaDustMarks() {
     w: QA_DUST_SIZE,
     h: QA_DUST_SIZE,
   }));
+}
+
+// Same fractions Particles.emit uses. Kept here so the hold cannot stay a
+// full cluster when the player prefers reduced motion.
+function qaPlateauReducedCount(fullCount) {
+  return Math.max(1, Math.round(fullCount * 0.25));
+}
+
+function qaPlateauHoldFrames() {
+  if (!reducedMotion) return QA_PLATEAU_HOLD;
+  return Math.max(2, Math.round(QA_PLATEAU_HOLD * 0.5));
+}
+
+// Held specks just behind the heel. Game coordinates, not pool slots.
+// Reduced motion keeps one speck of the four.
+function qaPlateauMarks() {
+  const fx = dino.x - 8;
+  const fy = dino.y + dino.height - 8;
+  const count = reducedMotion
+    ? qaPlateauReducedCount(QA_PLATEAU_OFFSETS.length)
+    : QA_PLATEAU_OFFSETS.length;
+  return QA_PLATEAU_OFFSETS.slice(0, count).map(([dx, dy]) => ({
+    x: fx + dx,
+    y: fy + dy,
+    w: QA_PLATEAU_SIZE,
+    h: QA_PLATEAU_SIZE,
+  }));
+}
+
+// Day capture stays the dark QA ink so it reads on the white sky. Night
+// capture uses the pale production color, the one the player sees at the
+// real plateau. The rim keeps either fill from disappearing into the sky.
+function qaPlateauFill() {
+  return qaNight ? Particles.KINDS.plateau.color : Particles.KINDS.plateauQa.color;
+}
+
+// Overdraw after the whole frame. The production puff lives 12 frames and
+// can sit under the sprite; a full pool can also skip the emit. This pass
+// runs from the hold counter only, so playtest still sees the heel cluster
+// when motion is allowed. Reduced motion uses the production peak alpha
+// instead of solid ink.
+function drawQaPlateau() {
+  if (!isUpdatedMode() || game.qaPlateauHold <= 0) return;
+  const color = qaPlateauFill();
+  ctx.save();
+  ctx.globalAlpha = reducedMotion ? Particles.KINDS.plateau.alpha : 1;
+  ctx.globalCompositeOperation = 'source-over';
+  const marks = qaPlateauMarks();
+  for (let i = 0; i < marks.length; i++) {
+    const mark = marks[i];
+    ctx.fillStyle = QA_PLATEAU_RIM;
+    ctx.fillRect(mark.x - 1, mark.y - 1, mark.w + 2, mark.h + 2);
+    ctx.fillStyle = color;
+    ctx.fillRect(mark.x, mark.y, mark.w, mark.h);
+  }
+  ctx.restore();
 }
 
 // Overdraw after the whole frame. A collision return, the death shake, and
@@ -985,6 +1055,8 @@ const game = {
   // QA/debug only. Latches after ?qaDust=1 spends its one held foot cluster.
   qaDustShown:      false,
   qaDustHold:       0,
+  // QA/debug only. Frames left on the ?qaPlateau=1 heel cluster.
+  qaPlateauHold:    0,
   isNewBest:         false,
   previousHighScore: 0,
   // Set on a Daily death before today best is saved. Mirrors isNewBest:
@@ -1961,12 +2033,24 @@ const Particles = (() => {
     // #ffd700 so the level still reads as a celebration. Reduced motion
     // still applies REDUCED_FACTOR and half life.
     confetti:  { count: 10, color: '#ffd700',                size: 3, life: 20, vyMin: -1.6, vyMax: -0.5, vxSpread: 1.2, gravity: 0.10 },
-    // Once-per-run plateau cue. Cool and small so it stays at the heel on the
-    // night sky (~score 641). Distinct from gold confetti and brown foot dust.
-    plateau:   { count:  8, color: '#c5d4e4',                size: 2, life: 24, vyMin: -1.0, vyMax: -0.3, vxSpread: 0.6, gravity: 0.02 },
-    // QA/debug only — not for players. Same cue, but dark and larger so it
-    // reads on the white day sky. Production keeps `plateau`.
-    plateauQa: { count: 12, color: '#3d4f63',                size: 4, life: 40, vyMin: -1.4, vyMax: -0.4, vxSpread: 1.0, gravity: 0.03 },
+    // Once-per-run plateau cue in Updated and Daily. The old puff was 8
+    // motes living 24 frames and flung ±0.6px. Gravity 0.02 never caught
+    // the -1 rise, so a mote was still climbing at the end: about 18px up
+    // and 17px toward the lane, into the band where cactus feet arrive.
+    // 4 motes, life 12, and vxSpread 0.3 keep a full life inside 7px of
+    // the heel. The rise is -0.9..-0.4 with gravity 0.06: about 7px up,
+    // and the slow mote does not fall through the ground. Peak alpha 0.45
+    // is under half the old solid ink. On the night sky that is still a
+    // cool pale speck, louder than the grey trail, and it stays at the
+    // feet. Size stays 2. Color stays #c5d4e4. Reduced motion still
+    // applies REDUCED_FACTOR and half life. Classic never emits.
+    plateau:   { count:  4, color: '#c5d4e4', size: 2, life: 12, alpha: 0.45, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.3, gravity: 0.06 },
+    // QA/debug only — not for players. Dark so it reads on the white day
+    // sky, and slow so a 40-frame life stays at the heel instead of walking
+    // the old ±1.4 spread up the lane. Production keeps `plateau`. The
+    // ?qaPlateau=1 paint is the hold, not this emit: a full pool or the
+    // short night life cannot hide the cluster.
+    plateauQa: { count:  4, color: '#3d4f63', size: 2, life: 40, vyMin: -0.2, vyMax: -0.08, vxSpread: 0.08, gravity: 0.002 },
   });
   const REDUCED_FACTOR = 0.25;
   const pool = [];
@@ -2350,6 +2434,7 @@ function resetGame() {
   game.qaConfettiHold    = 0;
   game.qaDustShown       = false;
   game.qaDustHold        = 0;
+  game.qaPlateauHold     = 0;
   // QA/debug only. Re-read so a mode toggle still honors the page query.
   qaPlateau = readQaPlateauFlag();
   qaCluster = readQaClusterFlag();
@@ -2527,8 +2612,12 @@ function handleRunning() {
 
   // Plateau cue: one puff at the dino's heel, off the obstacle lane.
   // Production waits for 98% of plateau speed (~score 641) and uses the pale
-  // night kind. QA/debug only — not for players: ?qaPlateau=1 fires at score 1
-  // with a darker kind, just behind the sprite, so it shows on the day sky.
+  // night kind. QA/debug only — not for players: ?qaPlateau=1 fires at score 1.
+  // Day emits the dark kind just behind the sprite. ?qaNight=1 emits the pale
+  // production kind at the heel. Either way the held cluster is what stays
+  // on screen when motion is allowed — the pale life is 12 frames and can
+  // sit under the sprite. Reduced motion shortens that hold and draws fewer,
+  // softer specks.
   // Classic never enters. Particles.emit uses Math.random(), not game.rng().
   const plateauReached = qaPlateau
     ? game.score >= QA_PLATEAU_SCORE
@@ -2536,10 +2625,17 @@ function handleRunning() {
   if (isUpdatedMode() && !game.plateauCueShown && plateauReached) {
     game.plateauCueShown = true;
     if (qaPlateau) {
-      Particles.emit('plateauQa', dino.x - 8, dino.y + dino.height - 8);
+      game.qaPlateauHold = qaPlateauHoldFrames();
+      if (qaNight) {
+        Particles.emit('plateau', dino.x + 4, dino.y + dino.height - 4);
+      } else {
+        Particles.emit('plateauQa', dino.x - 8, dino.y + dino.height - 8);
+      }
     } else {
       Particles.emit('plateau', dino.x + 4, dino.y + dino.height - 4);
     }
+  } else if (game.qaPlateauHold > 0) {
+    game.qaPlateauHold--;
   }
 
   // Heel trail: one quiet grey mote per frame once speed is near the
@@ -2656,6 +2752,7 @@ function gameLoop() {
   // card cannot cover the debug block. No-op unless the hold is running.
   drawQaConfetti();
   drawQaDust();
+  drawQaPlateau();
 }
 
 // == SECTION 9: INITIALISATION ==
@@ -2740,6 +2837,13 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.setQaPlateau = setQaPlateau;
   global.readQaPlateauFlag = readQaPlateauFlag;
   global.QA_PLATEAU_SCORE = QA_PLATEAU_SCORE;
+  global.QA_PLATEAU_HOLD = QA_PLATEAU_HOLD;
+  global.QA_PLATEAU_SIZE = QA_PLATEAU_SIZE;
+  global.QA_PLATEAU_RIM = QA_PLATEAU_RIM;
+  global.qaPlateauMarks = qaPlateauMarks;
+  global.qaPlateauHoldFrames = qaPlateauHoldFrames;
+  global.qaPlateauFill = qaPlateauFill;
+  global.drawQaPlateau = drawQaPlateau;
   global.setQaCluster = setQaCluster;
   global.readQaClusterFlag = readQaClusterFlag;
   global.setQaBig = setQaBig;
