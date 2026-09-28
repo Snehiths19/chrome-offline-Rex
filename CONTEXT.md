@@ -11,7 +11,7 @@ _Avoid_: visuals, juice, polish (too generic)
 **Classic mode** — the "pure flow" experience: no atmosphere, one obstacle type, nothing between the player and the obstacle. Its minimalism is intentional, not a deficiency. Classic should never receive atmospheric features — doing so would betray its identity. It is not an inferior Updated mode; it is a different answer to the same Flow pillar.
 _Avoid_: stripped-down mode, legacy mode, basic mode
 
-**One shared run** — the third pillar: once per day, every player faces the same obstacle sequence. Gives scores meaning and creates a social moment via the Share Result. The "shared" context belongs at the edges of the run (pre-run framing, post-run result screen) — not during the run, where it induces anxiety and breaks Flow. The in-run Daily badge and the in-run TODAY label are off the HUD during WAITING and RUNNING. Pre-run framing is the quiet shared-course line on the GET READY overlay, and only then. TODAY BEST stays on the Game Over screen, the share result stays available after the run, and a single death-screen hint points at both once the score count-up finishes.
+**One shared run** — the third pillar: once per day, every player faces the same obstacle sequence. Gives scores meaning and creates a social moment via the Share Result. The "shared" context belongs at the edges of the run (pre-run framing, post-run result screen) — not during the run, where it induces anxiety and breaks Flow. The in-run Daily badge and the in-run TODAY label are off the HUD during WAITING and RUNNING. Pre-run framing is the quiet shared-course line on the GET READY overlay, and only then. A miss keeps TODAY BEST on the Game Over screen beside this run. A death that beats today takes over with the new today best celebration. The share result stays available after the run, and a single death-screen hint points at sharing once the score count-up finishes.
 _Avoid_: daily mode, social feature, leaderboard
 
 **Restart countdown** — the GET READY countdown shown in the WAITING state before each run. On first run: shown in full (builds anticipation for a new player). On restart after death: skippable by pressing space, so a player already in flow-mindset can return to RUNNING immediately without waiting 4 seconds.
@@ -92,8 +92,11 @@ _Avoid_: share score, copy result, clipboard share
 **Pre-run framing** — the quiet line on the GET READY overlay during a Daily Challenge, shown only while state is WAITING. Copy: "Same course as everyone today". Static text, no motion. Classic and Updated never show it. It is not drawn during RUNNING, and it does not replace TODAY BEST or the share result on Game Over.
 _Avoid_: daily banner, in-run badge, today label
 
-**Death-screen hint** — one static line on the Daily Challenge Game Over screen, drawn only after the score count-up finishes, in the same moment the Copy result button appears. Copy: "Share TODAY BEST with Copy result". It points at the existing TODAY BEST label and the existing share button. It does not replace either. Classic and Updated never show it. It is not drawn during WAITING or RUNNING. No motion.
+**Death-screen hint** — one static line on the Daily Challenge Game Over screen, drawn only after the score count-up finishes, in the same moment the Copy result button appears. Copy: "Share TODAY BEST with Copy result". It points at the existing share button. It does not replace the share button, the comparison on a miss, or the new today best celebration. Classic and Updated never show it. It is not drawn during WAITING or RUNNING. No motion.
 _Avoid_: share modal, in-run share prompt, copy banner
+
+**New today best** — the Game Over celebration when a Daily Challenge death beats **Daily best**, including the first run of the day. On-screen copy: "★  NEW TODAY BEST  ★" and the run score, in the same takeover as free-play new best. A miss, including a tie, keeps the THIS RUN / TODAY BEST comparison. The death-screen hint and Copy result still appear after the score count-up. Static text, no extra motion. Classic and Updated never show it. Not drawn during WAITING or RUNNING.
+_Avoid_: daily record, new daily high, today record
 
 ## Relationships
 
@@ -105,7 +108,9 @@ _Avoid_: share modal, in-run share prompt, copy banner
 - **Daily best** is independent of all-time best; both are shown on the Game Over screen when in Daily Challenge
 - A **Share result** references both the **Daily number** and the **Daily best**
 - **Pre-run framing** is drawn only on the Daily Challenge GET READY overlay (WAITING). It is absent in RUNNING and in Classic and Updated free play
-- A **Death-screen hint** is drawn only on a settled Daily Challenge Game Over screen. It names TODAY BEST and the Copy result button, and it is absent in WAITING, RUNNING, Classic, and Updated
+- A **Death-screen hint** is drawn only on a settled Daily Challenge Game Over screen, under both the comparison and a **New today best**. It names the Copy result button, and it is absent in WAITING, RUNNING, Classic, and Updated
+- A **New today best** replaces the THIS RUN / TODAY BEST pair on that Game Over screen only. The **Death-screen hint** and **Share result** still appear once the count-up finishes
+- A Daily Challenge death that does not beat **Daily best**, including a tie, keeps the comparison layout
 
 ## Flagged Ambiguities
 

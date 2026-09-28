@@ -2257,6 +2257,50 @@ describe('Share result', () => {
     assert(!threw, 'shareDailyResult() should not throw even with no clipboard');
     game.dailyBest = origDailyBest;
   });
+
+  function withClipboard(writeText, run) {
+    const shareBtn = document.getElementById('share-btn');
+    const handler = shareBtn._listeners && shareBtn._listeners.click && shareBtn._listeners.click[0];
+    assert(typeof handler === 'function', 'share button must register a click handler');
+    const origDesc = Object.getOwnPropertyDescriptor(global, 'navigator');
+    const origFlash = Animations.copyFlashFrames;
+    const origText = shareBtn.textContent;
+    Animations.copyFlashFrames = 0;
+    shareBtn.textContent = '📋 Copy result';
+    Object.defineProperty(global, 'navigator', {
+      configurable: true,
+      writable: true,
+      value: { clipboard: { writeText } },
+    });
+    let threw = false;
+    try {
+      handler({ stopPropagation() {} });
+    } catch {
+      threw = true;
+    }
+    const flash = Animations.copyFlashFrames;
+    const label = shareBtn.textContent;
+    if (origDesc) Object.defineProperty(global, 'navigator', origDesc);
+    Animations.copyFlashFrames = origFlash;
+    shareBtn.textContent = origText;
+    run({ threw, flash, label });
+  }
+
+  it('Copy result still flashes when clipboard writeText throws', () => {
+    withClipboard(() => { throw new Error('clipboard blocked'); }, ({ threw, flash, label }) => {
+      assert(!threw, 'a blocked clipboard must not abort the share tap');
+      assert(flash > 0, 'copy flash should start even when writeText throws');
+      assertEquals(label, '✓ Copied!', 'the button should say Copied before the next frame');
+    });
+  });
+
+  it('Copy result still flashes when clipboard writeText rejects', () => {
+    withClipboard(() => Promise.reject(new Error('clipboard denied')), ({ threw, flash, label }) => {
+      assert(!threw, 'a rejected clipboard write must not abort the share tap');
+      assert(flash > 0, 'copy flash should start even when writeText rejects');
+      assertEquals(label, '✓ Copied!', 'the button should say Copied before the next frame');
+    });
+  });
 });
 
 describe('Daily obstacle sequence vs reduced motion', () => {
@@ -3623,6 +3667,8 @@ describe('Daily death-screen hint', () => {
       hs: game.highScore,
       newBest: game.isNewBest,
       prev: game.previousHighScore,
+      newToday: game.isNewTodayBest,
+      prevDaily: game.previousDailyBest,
       anim: Animations.deathAnimFrame,
       flash: Animations.copyFlashFrames,
       frame: game.animFrame,
@@ -3636,6 +3682,8 @@ describe('Daily death-screen hint', () => {
     game.highScore = 900;
     game.isNewBest = false;
     game.previousHighScore = 800;
+    game.isNewTodayBest = false;
+    game.previousDailyBest = 0;
     Animations.copyFlashFrames = 0;
     game.animFrame = 0;
     shareBtn.style = { display: 'none' };
@@ -3650,6 +3698,8 @@ describe('Daily death-screen hint', () => {
     game.highScore = orig.hs;
     game.isNewBest = orig.newBest;
     game.previousHighScore = orig.prev;
+    game.isNewTodayBest = orig.newToday;
+    game.previousDailyBest = orig.prevDaily;
     Animations.deathAnimFrame = orig.anim;
     Animations.copyFlashFrames = orig.flash;
     game.animFrame = orig.frame;
@@ -3838,9 +3888,421 @@ describe('Daily death-screen hint', () => {
     const classic = dieIn(MODES.CLASSIC);
 
     assert(daily.includes(HINT), `Daily death should mention the share hint, got: ${daily}`);
-    assert(daily.includes('Today best'), `Daily death should name today best, got: ${daily}`);
+    assert(daily.includes('New today best'),
+      `A Daily death that beats today best should announce the celebration, got: ${daily}`);
     assert(!classic.includes(HINT), `Classic death must not mention the Daily hint, got: ${classic}`);
     assert(classic.includes('High score'), `Classic death should keep the high-score line, got: ${classic}`);
+  });
+});
+
+describe('Daily new today best celebration', () => {
+  const HINT = 'Share TODAY BEST with Copy result';
+  const CELEBRATION = '★  NEW TODAY BEST  ★';
+
+  function captureFillText(draw) {
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text, x, y) => calls.push({
+      text: String(text),
+      x,
+      y,
+      font: ctx.font,
+      fillStyle: ctx.fillStyle,
+    });
+    draw();
+    ctx.fillText = origFill;
+    return calls;
+  }
+
+  function snapshotStorage() {
+    return {
+      hs: localStorage.getItem('dino-high-score'),
+      best: localStorage.getItem('dino-daily-best'),
+      date: localStorage.getItem('dino-daily-date'),
+    };
+  }
+
+  function restoreStorage(stored) {
+    if (stored.hs === null) localStorage.removeItem('dino-high-score');
+    else localStorage.setItem('dino-high-score', stored.hs);
+    if (stored.best === null) localStorage.removeItem('dino-daily-best');
+    else localStorage.setItem('dino-daily-best', stored.best);
+    if (stored.date === null) localStorage.removeItem('dino-daily-date');
+    else localStorage.setItem('dino-daily-date', stored.date);
+  }
+
+  // Collide once and draw the settled Game Over screen. Score ticks by
+  // SCORE_INCREMENT inside the running frame before the hit is resolved.
+  function dieAndDraw(mode, { score, dailyBest, highScore }) {
+    const shareBtn = document.getElementById('share-btn');
+    const orig = {
+      mode: game.mode,
+      state: game.state,
+      score: game.score,
+      best: game.dailyBest,
+      hs: game.highScore,
+      newBest: game.isNewBest,
+      prev: game.previousHighScore,
+      newToday: game.isNewTodayBest,
+      prevDaily: game.previousDailyBest,
+      speed: game.currentSpeed,
+      lastX: game.lastObstacleX,
+      gap: game.nextSpawnGap,
+      obstacles: game.obstacles.slice(),
+      text: a11yLive.textContent,
+      anim: Animations.deathAnimFrame,
+      shake: Animations.deathShakeFrames,
+      flash: Animations.deathFlashFrames,
+      pop: Animations.scorePopFrames,
+      copy: Animations.copyFlashFrames,
+      btnStyle: shareBtn.style,
+      btnText: shareBtn.textContent,
+    };
+    const stored = snapshotStorage();
+    if (dailyBest > 0) {
+      localStorage.setItem('dino-daily-date', String(dailySeed()));
+      localStorage.setItem('dino-daily-best', String(dailyBest));
+    } else {
+      localStorage.removeItem('dino-daily-date');
+      localStorage.removeItem('dino-daily-best');
+    }
+    game.mode = mode;
+    game.state = STATE.RUNNING;
+    game.score = score;
+    game.dailyBest = dailyBest;
+    game.highScore = highScore;
+    game.currentSpeed = 0;
+    game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+    game.nextSpawnGap = GAME_CONFIG.MAX_SPAWN_GAP;
+    game.obstacles.length = 0;
+    game.obstacles.push({
+      x: dino.x,
+      y: dino.y,
+      width: dino.width,
+      height: dino.height,
+    });
+    dino.isJumping = false;
+    a11yLive.textContent = '';
+    shareBtn.style = { display: 'none' };
+    shareBtn.textContent = '📋 Copy result';
+
+    STATE_HANDLERS[STATE.RUNNING]();
+    const heard = a11yLive.textContent;
+    const flags = {
+      isNewTodayBest: game.isNewTodayBest,
+      previousDailyBest: game.previousDailyBest,
+      dailyBest: game.dailyBest,
+      isNewBest: game.isNewBest,
+      highScore: game.highScore,
+      score: game.score,
+    };
+
+    Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    const calls = captureFillText(drawGameOverScreen);
+    const button = { display: shareBtn.style.display, text: shareBtn.textContent };
+
+    game.mode = orig.mode;
+    game.state = orig.state;
+    game.score = orig.score;
+    game.dailyBest = orig.best;
+    game.highScore = orig.hs;
+    game.isNewBest = orig.newBest;
+    game.previousHighScore = orig.prev;
+    game.isNewTodayBest = orig.newToday;
+    game.previousDailyBest = orig.prevDaily;
+    game.currentSpeed = orig.speed;
+    game.lastObstacleX = orig.lastX;
+    game.nextSpawnGap = orig.gap;
+    game.obstacles.length = 0;
+    orig.obstacles.forEach((o) => game.obstacles.push(o));
+    a11yLive.textContent = orig.text;
+    Animations.deathAnimFrame = orig.anim;
+    Animations.deathShakeFrames = orig.shake;
+    Animations.deathFlashFrames = orig.flash;
+    Animations.scorePopFrames = orig.pop;
+    Animations.copyFlashFrames = orig.copy;
+    if (orig.btnStyle === undefined) delete shareBtn.style;
+    else shareBtn.style = orig.btnStyle;
+    shareBtn.textContent = orig.btnText;
+    restoreStorage(stored);
+    Particles.reset();
+    return { heard, flags, calls, button };
+  }
+
+  it('a Daily death that beats today best takes over with the celebration', () => {
+    const { heard, flags, calls, button } = dieAndDraw(MODES.DAILY, {
+      score: 80,
+      dailyBest: 25,
+      highScore: 9999,
+    });
+    const title = calls.find((c) => c.text === CELEBRATION);
+    const score = calls.find((c) => c.text === '00080');
+    const hint = calls.find((c) => c.text === HINT);
+
+    assertEquals(flags.isNewTodayBest, true, 'beating today best should flag the celebration');
+    assertEquals(flags.previousDailyBest, 25, 'previous today best is the value before this death saved');
+    assertEquals(flags.dailyBest, 80, 'today best should update to this run');
+    assertEquals(flags.isNewBest, false, 'an all-time miss should not flip the free-play new-best flag');
+    assert(title, `celebration title missing, got: ${JSON.stringify(calls.map((c) => c.text))}`);
+    assertEquals(title.y, GAME_CONFIG.CANVAS_H / 2 - 36, 'celebration title should sit where NEW BEST sits');
+    assert(score, 'the run score should be the big number on the celebration');
+    assert(String(score.font).includes('42px'), `celebration score should use the big NEW BEST size, got: ${score.font}`);
+    assertEquals(score.x, GAME_CONFIG.CANVAS_W / 2, 'celebration score should be centered');
+    assert(calls.some((c) => c.text === '+55 over your previous best'),
+      `improvement over the prior today best should show, got: ${JSON.stringify(calls.map((c) => c.text))}`);
+    assert(!calls.some((c) => c.text === 'THIS RUN'), 'celebration should replace the comparison pair');
+    assert(!calls.some((c) => c.text === 'TODAY BEST'), 'celebration should replace the TODAY BEST column');
+    assert(calls.some((c) => c.text.indexOf('DAILY #') !== -1), 'the daily number should stay on the death screen');
+    assert(hint, 'the share hint should still appear once the count-up finishes');
+    assertEquals(hint.y, GAME_CONFIG.CANVAS_H - 16, 'the hint should keep its bottom-edge spot');
+    assertEquals(button.display, 'block', 'Copy result should appear once the count-up finishes');
+    assertEquals(button.text, '📋 Copy result', 'Copy result should keep its label');
+    assertEquals(
+      heard,
+      'Game over. Score 80. New today best 80. ' + HINT + '. Press space to restart.',
+      `screen reader should hear the new today best, got: ${heard}`
+    );
+  });
+
+  it('the first Daily run of the day celebrates, with no previous-best line', () => {
+    const { flags, calls, button } = dieAndDraw(MODES.DAILY, {
+      score: 80,
+      dailyBest: 0,
+      highScore: 9999,
+    });
+    assertEquals(flags.isNewTodayBest, true, 'a first today best should celebrate');
+    assertEquals(flags.previousDailyBest, 0, 'there is no prior today best');
+    assertEquals(flags.dailyBest, 80, 'the run should become today best');
+    assert(calls.some((c) => c.text === CELEBRATION), 'first today best should use the celebration');
+    assert(!calls.some((c) => c.text.includes('over your previous best')),
+      'no prior today best means no improvement line');
+    assert(!calls.some((c) => c.text === 'THIS RUN'), 'first today best should not fall back to the comparison');
+    assert(calls.some((c) => c.text === HINT), 'the hint still arrives with the settled screen');
+    assertEquals(button.display, 'block', 'Copy result still arrives with the settled screen');
+  });
+
+  it('a Daily death that misses today best keeps the comparison', () => {
+    game.isNewTodayBest = true;
+    game.previousDailyBest = 999;
+    const { heard, flags, calls, button } = dieAndDraw(MODES.DAILY, {
+      score: 40,
+      dailyBest: 500,
+      highScore: 9999,
+    });
+    assertEquals(flags.isNewTodayBest, false, 'missing today best should clear the celebration');
+    assertEquals(flags.previousDailyBest, 500, 'previous today best stays the stored best');
+    assertEquals(flags.dailyBest, 500, 'a lower score should not replace today best');
+    assert(calls.some((c) => c.text === 'THIS RUN'), 'a miss should keep THIS RUN');
+    assert(calls.some((c) => c.text === 'TODAY BEST'), 'a miss should keep TODAY BEST');
+    assert(calls.some((c) => c.text === '00040'), 'a miss should show this run');
+    assert(calls.some((c) => c.text === '00500'), 'a miss should show the stored today best');
+    assert(calls.some((c) => c.text === '← +460 →'), 'a miss should keep the gap to today best');
+    assert(!calls.some((c) => c.text === CELEBRATION), 'a miss should not celebrate');
+    assert(calls.some((c) => c.text === HINT), 'the hint should still follow a miss');
+    assertEquals(button.display, 'block', 'Copy result should still follow a miss');
+    assertEquals(
+      heard,
+      'Game over. Score 40. Today best 500. ' + HINT + '. Press space to restart.',
+      `a miss should keep the today-best announcement, got: ${heard}`
+    );
+  });
+
+  it('tying today best keeps the comparison', () => {
+    const { flags, calls } = dieAndDraw(MODES.DAILY, {
+      score: 40,
+      dailyBest: 40,
+      highScore: 9999,
+    });
+    assertEquals(flags.isNewTodayBest, false, 'a tie is not a new today best');
+    assertEquals(flags.dailyBest, 40, 'a tie should not rewrite today best');
+    assert(calls.some((c) => c.text === 'THIS RUN'), 'a tie should keep the comparison');
+    assert(calls.some((c) => c.text === '← best →'), 'a tie should keep the even-best marker');
+    assert(!calls.some((c) => c.text === CELEBRATION), 'a tie should not celebrate');
+  });
+
+  it('a Daily all-time record that misses today best stays on the comparison', () => {
+    const { flags, calls } = dieAndDraw(MODES.DAILY, {
+      score: 80,
+      dailyBest: 500,
+      highScore: 10,
+    });
+    assertEquals(flags.isNewBest, true, 'the all-time record should still be recorded');
+    assertEquals(flags.isNewTodayBest, false, 'missing today best should not celebrate');
+    assert(calls.some((c) => c.text === 'TODAY BEST'), 'Daily Game Over should stay on the comparison');
+    assert(!calls.some((c) => c.text === '★  NEW BEST  ★'), 'Daily Game Over should not use the free-play celebration');
+    assert(!calls.some((c) => c.text === CELEBRATION), 'missing today best should not celebrate');
+  });
+
+  it('the celebration holds the hint and Copy result until the count-up finishes', () => {
+    const shareBtn = document.getElementById('share-btn');
+    const orig = {
+      mode: game.mode,
+      score: game.score,
+      best: game.dailyBest,
+      newToday: game.isNewTodayBest,
+      prevDaily: game.previousDailyBest,
+      anim: Animations.deathAnimFrame,
+      btnStyle: shareBtn.style,
+      btnText: shareBtn.textContent,
+    };
+    game.mode = MODES.DAILY;
+    game.score = 80;
+    game.dailyBest = 80;
+    game.isNewTodayBest = true;
+    game.previousDailyBest = 25;
+    shareBtn.style = { display: 'block' };
+    shareBtn.textContent = '📋 Copy result';
+    Animations.deathAnimFrame = 0;
+    const early = captureFillText(drawGameOverScreen);
+    const earlyButton = shareBtn.style.display;
+    Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    const settled = captureFillText(drawGameOverScreen);
+    const settledButton = shareBtn.style.display;
+
+    game.mode = orig.mode;
+    game.score = orig.score;
+    game.dailyBest = orig.best;
+    game.isNewTodayBest = orig.newToday;
+    game.previousDailyBest = orig.prevDaily;
+    Animations.deathAnimFrame = orig.anim;
+    if (orig.btnStyle === undefined) delete shareBtn.style;
+    else shareBtn.style = orig.btnStyle;
+    shareBtn.textContent = orig.btnText;
+
+    assert(early.some((c) => c.text === CELEBRATION), 'the title is up while the score counts');
+    assert(early.some((c) => c.text === '00000'), 'the score should start at zero during the count-up');
+    assert(!early.some((c) => c.text === HINT), 'the hint should wait for the count-up');
+    assertEquals(earlyButton, 'none', 'Copy result should wait for the count-up');
+    assert(settled.some((c) => c.text === '00080'), 'the settled celebration should show the full score');
+    assert(settled.some((c) => c.text === HINT), 'the hint should appear with the full score');
+    assertEquals(settledButton, 'block', 'Copy result should appear with the full score');
+  });
+
+  it('the celebration text stays static when motion is reduced', () => {
+    const orig = {
+      mode: game.mode,
+      score: game.score,
+      best: game.dailyBest,
+      newToday: game.isNewTodayBest,
+      prevDaily: game.previousDailyBest,
+      anim: Animations.deathAnimFrame,
+    };
+    game.mode = MODES.DAILY;
+    game.score = 80;
+    game.dailyBest = 80;
+    game.isNewTodayBest = true;
+    game.previousDailyBest = 25;
+    Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    setReducedMotion(false);
+    const moving = captureFillText(drawGameOverScreen);
+    setReducedMotion(true);
+    const reduced = captureFillText(drawGameOverScreen);
+    setReducedMotion(false);
+    game.mode = orig.mode;
+    game.score = orig.score;
+    game.dailyBest = orig.best;
+    game.isNewTodayBest = orig.newToday;
+    game.previousDailyBest = orig.prevDaily;
+    Animations.deathAnimFrame = orig.anim;
+
+    const a = moving.find((c) => c.text === CELEBRATION);
+    const b = reduced.find((c) => c.text === CELEBRATION);
+    assert(a && b, 'the celebration title should stay up with or without motion');
+    assertEquals(b.fillStyle, a.fillStyle, 'the celebration should not pulse');
+    assertEquals(b.font, a.font, 'the celebration should not scale');
+    assertEquals(b.y, a.y, 'the celebration should not move');
+  });
+
+  it('Classic and Updated Game Over ignore the today-best celebration', () => {
+    const shareBtn = document.getElementById('share-btn');
+    const orig = {
+      mode: game.mode,
+      state: game.state,
+      score: game.score,
+      hs: game.highScore,
+      best: game.dailyBest,
+      newBest: game.isNewBest,
+      prev: game.previousHighScore,
+      newToday: game.isNewTodayBest,
+      prevDaily: game.previousDailyBest,
+      anim: Animations.deathAnimFrame,
+      btnStyle: shareBtn.style,
+    };
+    function drawMode(mode, isNewBest) {
+      game.mode = mode;
+      game.state = STATE.DEAD;
+      game.score = 80;
+      game.highScore = 200;
+      game.dailyBest = 10;
+      game.isNewBest = isNewBest;
+      game.previousHighScore = isNewBest ? 50 : 200;
+      game.isNewTodayBest = true;
+      game.previousDailyBest = 10;
+      Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+      shareBtn.style = { display: 'none' };
+      return captureFillText(drawGameOverScreen);
+    }
+    const classic = drawMode(MODES.CLASSIC, false);
+    const classicButton = shareBtn.style.display;
+    const updated = drawMode(MODES.UPDATED, true);
+    const updatedButton = shareBtn.style.display;
+
+    game.isNewTodayBest = true;
+    const classicDeath = dieAndDraw(MODES.CLASSIC, {
+      score: 80,
+      dailyBest: 10,
+      highScore: 9999,
+    });
+
+    game.mode = orig.mode;
+    game.state = orig.state;
+    game.score = orig.score;
+    game.highScore = orig.hs;
+    game.dailyBest = orig.best;
+    game.isNewBest = orig.newBest;
+    game.previousHighScore = orig.prev;
+    game.isNewTodayBest = orig.newToday;
+    game.previousDailyBest = orig.prevDaily;
+    Animations.deathAnimFrame = orig.anim;
+    if (orig.btnStyle === undefined) delete shareBtn.style;
+    else shareBtn.style = orig.btnStyle;
+
+    assert(classic.some((c) => c.text === 'YOUR BEST'), 'Classic should keep the free-play comparison');
+    assert(classic.some((c) => c.text === 'Tap / Press Space to Restart'), 'Classic should keep its restart line');
+    assert(!classic.some((c) => c.text === CELEBRATION), 'Classic should not show the today-best celebration');
+    assert(!classic.some((c) => c.text === HINT), 'Classic should not show the Daily hint');
+    assertEquals(classicButton, 'none', 'Classic should not reveal Copy result');
+    assert(updated.some((c) => c.text === '★  NEW BEST  ★'), 'Updated should keep the free-play celebration');
+    assert(!updated.some((c) => c.text === CELEBRATION), 'Updated should not show the today-best celebration');
+    assert(!updated.some((c) => c.text === HINT), 'Updated should not show the Daily hint');
+    assertEquals(updatedButton, 'none', 'Updated should not reveal Copy result');
+    assertEquals(classicDeath.flags.isNewTodayBest, false, 'a Classic death should not flag a today-best celebration');
+    assert(classicDeath.heard.includes('High score'), `Classic death should keep the high-score line, got: ${classicDeath.heard}`);
+    assert(!classicDeath.heard.includes('New today best'), 'Classic death should not announce a today best');
+    assert(!classicDeath.heard.includes(HINT), 'Classic death should not announce the Daily hint');
+  });
+
+  it('Copy result still shares the new today best', () => {
+    const stored = snapshotStorage();
+    const origBest = game.dailyBest;
+    const origScore = game.score;
+    game.score = 80;
+    game.dailyBest = 80;
+    const text = shareDailyResult();
+    game.dailyBest = origBest;
+    game.score = origScore;
+    restoreStorage(stored);
+    assert(text.includes('80'), `Copy result should include the new today best, got: ${text}`);
+    assert(text.includes('Rex Daily #'), `Copy result should keep its daily header, got: ${text}`);
+  });
+
+  it('resetGame clears the today-best celebration', () => {
+    game.isNewTodayBest = true;
+    game.previousDailyBest = 80;
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.isNewTodayBest, false, 'resetGame should clear the celebration');
+    assertEquals(game.previousDailyBest, 0, 'resetGame should clear the previous today best');
   });
 });
 
