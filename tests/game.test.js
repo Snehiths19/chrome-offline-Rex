@@ -7242,8 +7242,8 @@ describe('Soft collision burst', () => {
   };
 
   const UNCHANGED_KINDS = {
-    jump:      { count: 6,  color: '#9c8770',                size: 3, life: 18, vyMin: -2.0, vyMax: -0.5, vxSpread: 1.5, gravity: 0.05 },
-    land:      { count: 9,  color: '#9c8770',                size: 3, life: 14, vyMin: -1.5, vyMax: -0.2, vxSpread: 2.5, gravity: 0.08 },
+    jump:      { count: 3,  color: '#9c8770', size: 3, life: 8, alpha: 0.5, vyMin: -1.2, vyMax: -0.4, vxSpread: 0.6, gravity: 0.10 },
+    land:      { count: 5,  color: '#9c8770', size: 3, life: 8, alpha: 0.4, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.7, gravity: 0.12 },
     trail:     { count: 1,  color: 'rgba(150,150,150,0.28)', size: 2, life:  6, vyMin: -0.1, vyMax:  0.1, vxSpread: 0.2, gravity: 0 },
     confetti:  { count: 10, color: '#ffd700',                size: 3, life: 20, vyMin: -1.6, vyMax: -0.5, vxSpread: 1.2, gravity: 0.10 },
     plateau:   { count: 8,  color: '#c5d4e4',                size: 2, life: 24, vyMin: -1.0, vyMax: -0.3, vxSpread: 0.6, gravity: 0.02 },
@@ -7423,8 +7423,8 @@ describe('Quiet late-run heel trail', () => {
   };
 
   const UNCHANGED_KINDS = {
-    jump:      { count: 6,  color: '#9c8770', size: 3, life: 18, vyMin: -2.0, vyMax: -0.5, vxSpread: 1.5, gravity: 0.05 },
-    land:      { count: 9,  color: '#9c8770', size: 3, life: 14, vyMin: -1.5, vyMax: -0.2, vxSpread: 2.5, gravity: 0.08 },
+    jump:      { count: 3,  color: '#9c8770', size: 3, life: 8, alpha: 0.5, vyMin: -1.2, vyMax: -0.4, vxSpread: 0.6, gravity: 0.10 },
+    land:      { count: 5,  color: '#9c8770', size: 3, life: 8, alpha: 0.4, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.7, gravity: 0.12 },
     collision: { count: 8,  color: '#d04a2a', size: 3, life: 12, vyMin: -1.2, vyMax:  0.4, vxSpread: 1.0, gravity: 0.10 },
     confetti:  { count: 10, color: '#ffd700', size: 3, life: 20, vyMin: -1.6, vyMax: -0.5, vxSpread: 1.2, gravity: 0.10 },
     plateau:   { count: 8,  color: '#c5d4e4', size: 2, life: 24, vyMin: -1.0, vyMax: -0.3, vxSpread: 0.6, gravity: 0.02 },
@@ -7758,8 +7758,8 @@ describe('Quiet new-best confetti', () => {
   };
 
   const UNCHANGED_KINDS = {
-    jump:      { count: 6,  color: '#9c8770',                size: 3, life: 18, vyMin: -2.0, vyMax: -0.5, vxSpread: 1.5, gravity: 0.05 },
-    land:      { count: 9,  color: '#9c8770',                size: 3, life: 14, vyMin: -1.5, vyMax: -0.2, vxSpread: 2.5, gravity: 0.08 },
+    jump:      { count: 3,  color: '#9c8770', size: 3, life: 8, alpha: 0.5, vyMin: -1.2, vyMax: -0.4, vxSpread: 0.6, gravity: 0.10 },
+    land:      { count: 5,  color: '#9c8770', size: 3, life: 8, alpha: 0.4, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.7, gravity: 0.12 },
     trail:     { count: 1,  color: 'rgba(150,150,150,0.28)', size: 2, life:  6, vyMin: -0.1, vyMax:  0.1, vxSpread: 0.2, gravity: 0 },
     collision: { count: 8,  color: '#d04a2a',                size: 3, life: 12, vyMin: -1.2, vyMax:  0.4, vxSpread: 1.0, gravity: 0.10 },
     plateau:   { count: 8,  color: '#c5d4e4',                size: 2, life: 24, vyMin: -1.0, vyMax: -0.3, vxSpread: 0.6, gravity: 0.02 },
@@ -8149,6 +8149,557 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
       else delete global.location;
       game.mode = origMode;
       setQaConfetti(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+});
+
+describe('Quiet day land dust', () => {
+  // The day jump was 6 motes living 18 frames and flung ±1.5px. The landing
+  // was 9 motes living 14 frames and flung ±2.5px. From the feet that spray
+  // cleared the dino and sat in the obstacle lane. The whisper keeps the
+  // brown, with fewer motes, a shorter life, a tighter spread, and soft
+  // peak ink, so the puff dies at the ankle.
+  const JUMP = {
+    count: 3,
+    color: '#9c8770',
+    size: 3,
+    life: 8,
+    alpha: 0.5,
+    vyMin: -1.2,
+    vyMax: -0.4,
+    vxSpread: 0.6,
+    gravity: 0.1,
+  };
+  const LAND = {
+    count: 5,
+    color: '#9c8770',
+    size: 3,
+    life: 8,
+    alpha: 0.4,
+    vyMin: -0.9,
+    vyMax: -0.4,
+    vxSpread: 0.7,
+    gravity: 0.12,
+  };
+  const UNCHANGED_KINDS = {
+    trail:     { count: 1,  color: 'rgba(150,150,150,0.28)', size: 2, life:  6, vyMin: -0.1, vyMax:  0.1, vxSpread: 0.2, gravity: 0 },
+    collision: { count: 8,  color: '#d04a2a',                size: 3, life: 12, vyMin: -1.2, vyMax:  0.4, vxSpread: 1.0, gravity: 0.10 },
+    confetti:  { count: 10, color: '#ffd700',                size: 3, life: 20, vyMin: -1.6, vyMax: -0.5, vxSpread: 1.2, gravity: 0.10 },
+    plateau:   { count: 8,  color: '#c5d4e4',                size: 2, life: 24, vyMin: -1.0, vyMax: -0.3, vxSpread: 0.6, gravity: 0.02 },
+    plateauQa: { count: 12, color: '#3d4f63',                size: 4, life: 40, vyMin: -1.4, vyMax: -0.4, vxSpread: 1.0, gravity: 0.03 },
+  };
+
+  function stepPath(vy0, kind) {
+    let y = 0;
+    let vy = vy0;
+    let min = 0;
+    let max = 0;
+    for (let i = 0; i < kind.life; i++) {
+      y += vy;
+      if (y < min) min = y;
+      if (y > max) max = y;
+      vy += kind.gravity;
+    }
+    return { min: min, max: max };
+  }
+
+  function footReach(kind) {
+    return kind.vxSpread * kind.life + cfg('PARTICLE_EMIT_SPREAD') / 2 + kind.size / 2;
+  }
+
+  function dustMotes(color) {
+    return Particles.particles.filter((p) => p.life > 0 && p.color === color);
+  }
+
+  it('keeps day jump and land dust a short brown whisper at the feet', () => {
+    const jump = Particles.KINDS.jump;
+    const land = Particles.KINDS.land;
+    for (const key of Object.keys(JUMP)) {
+      assertEquals(jump[key], JUMP[key], 'jump ' + key + ' is the quieter day puff');
+    }
+    for (const key of Object.keys(LAND)) {
+      assertEquals(land[key], LAND[key], 'land ' + key + ' is the quieter day puff');
+    }
+    assert(jump.count < 6, 'fewer motes than the old 6-mote takeoff');
+    assert(land.count < 9, 'fewer motes than the old 9-mote landing');
+    assert(land.count > jump.count, 'a landing still reads heavier than a takeoff');
+    assert(jump.life < 18, 'shorter than the old 18-frame takeoff');
+    assert(land.life < 14, 'shorter than the old 14-frame landing');
+    assert(jump.vxSpread < 1.5, 'tighter than the old takeoff spread');
+    assert(land.vxSpread < 2.5, 'tighter than the old landing spread');
+    assert(jump.alpha < 1 && jump.alpha >= 0.35, 'takeoff ink is soft but still readable');
+    assert(land.alpha < jump.alpha, 'the wider landing is the softer of the two');
+    assert(land.alpha >= 0.35, 'landing ink still reads as brown');
+    assertEquals(jump.color, '#9c8770', 'day takeoff stays in the land-dust brown');
+    assertEquals(land.color, '#9c8770', 'day landing stays in the land-dust brown');
+    assertEquals(jump.size, 3, 'takeoff mote stays a readable 3px');
+    assertEquals(land.size, 3, 'landing mote stays a readable 3px');
+
+    const jumpUp = stepPath(jump.vyMin, jump);
+    const landUp = stepPath(land.vyMin, land);
+    const jumpSlow = stepPath(jump.vyMax, jump);
+    const landSlow = stepPath(land.vyMax, land);
+    assert(footReach(jump) <= 12, 'a takeoff stays inside the feet, off the obstacle lane');
+    assert(footReach(land) <= 12, 'a landing stays inside the feet, off the obstacle lane');
+    assert(-jumpUp.min <= 10, 'a takeoff does not climb the dino');
+    assert(-jumpUp.min >= 5, 'a takeoff still lifts enough to see at the ankle');
+    assert(-landUp.min <= 8, 'a landing stays flatter than a takeoff');
+    assert(-landUp.min >= 3, 'a landing still kicks a visible mote');
+    assert(jumpSlow.max <= 1, 'the slowest takeoff mote does not fall through the ground');
+    assert(landSlow.max <= 1, 'the slowest landing mote does not fall through the ground');
+    assert(footReach(jump) < GAME_CONFIG.DINO_WIDTH / 2, 'takeoff dust stays on the dino');
+    assert(footReach(land) < GAME_CONFIG.DINO_WIDTH / 2, 'landing dust stays on the dino');
+
+    for (const name of Object.keys(UNCHANGED_KINDS)) {
+      const got = Particles.KINDS[name];
+      const want = UNCHANGED_KINDS[name];
+      for (const key of Object.keys(want)) {
+        assertEquals(got[key], want[key], name + ' ' + key + ' stays unchanged');
+      }
+      assertEquals(got.alpha, undefined, name + ' does not take the land-dust alpha');
+    }
+  });
+
+  it('emits the whisper in Updated and Daily, and none in Classic', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const origRng = game.rng;
+    try {
+      setReducedMotion(false);
+      setQaNight(false);
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        for (const spec of [
+          ['jump', JUMP],
+          ['land', LAND],
+        ]) {
+          const kind = spec[0];
+          const want = spec[1];
+          game.mode = mode;
+          game.score = 0;
+          let rngCalls = 0;
+          game.rng = () => { rngCalls++; return 0.5; };
+          Particles.reset();
+          const n = Particles.emit(kind, 80, 140);
+          const motes = dustMotes(want.color);
+          assertEquals(n, want.count, mode + ' ' + kind + ' emits the whisper count');
+          assertEquals(motes.length, want.count, mode + ' ' + kind + ' pool holds the whisper');
+          assertEquals(rngCalls, 0, mode + ' ' + kind + ' does not consume the run seed');
+          motes.forEach((p) => {
+            assertEquals(p.life, want.life, mode + ' ' + kind + ' mote uses the short life');
+            assertEquals(p.maxLife, want.life, mode + ' ' + kind + ' mote fades across that life');
+            assertEquals(p.size, want.size, mode + ' ' + kind + ' mote stays readable');
+            assertEquals(p.color, want.color, mode + ' ' + kind + ' mote stays the day brown');
+            assertEquals(p.alpha, want.alpha, mode + ' ' + kind + ' mote keeps the soft peak ink');
+            assertEquals(p.gravity, want.gravity, mode + ' ' + kind + ' mote keeps its settle');
+            assert(Math.abs(p.vx) <= want.vxSpread, mode + ' ' + kind + ' stays inside the tight spread');
+            assert(p.vy >= want.vyMin && p.vy <= want.vyMax, mode + ' ' + kind + ' stays in the short lift');
+          });
+        }
+      }
+
+      game.mode = MODES.CLASSIC;
+      game.score = 0;
+      Particles.reset();
+      assertEquals(Particles.emit('jump', 80, 140), 0, 'Classic emits no jump dust');
+      assertEquals(Particles.emit('land', 80, 140), 0, 'Classic emits no land dust');
+      assertEquals(dustMotes('#9c8770').length, 0, 'Classic leaves the pool empty of brown dust');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      game.rng = origRng;
+      setReducedMotion(false);
+      setQaNight(false);
+      Particles.reset();
+    }
+  });
+
+  it('draws the whisper at its soft peak and leaves other kinds at full ink', () => {
+    const origMode = game.mode;
+    const calls = [];
+    const origFill = ctx.fillRect;
+    ctx.fillRect = function () {
+      calls.push({ style: ctx.fillStyle, alpha: ctx.globalAlpha });
+    };
+    try {
+      setReducedMotion(false);
+      setQaNight(false);
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      Particles.reset();
+      Particles.emit('jump', 80, 140);
+      Particles.draw();
+      const brown = calls.filter((c) => c.style === JUMP.color);
+      assertEquals(brown.length, JUMP.count, 'the takeoff draws one rect per mote');
+      brown.forEach((c) => {
+        assertEquals(c.alpha, JUMP.alpha, 'a fresh takeoff mote draws at the soft peak');
+      });
+      assertEquals(ctx.globalAlpha, 1, 'drawing dust restores the lane alpha');
+
+      calls.length = 0;
+      Particles.reset();
+      Particles.emit('land', 80, 140);
+      Particles.draw();
+      const landed = calls.filter((c) => c.style === LAND.color);
+      assertEquals(landed.length, LAND.count, 'the landing draws one rect per mote');
+      landed.forEach((c) => {
+        assertEquals(c.alpha, LAND.alpha, 'a fresh landing mote draws at its softer peak');
+      });
+
+      calls.length = 0;
+      Particles.reset();
+      Particles.emit('collision', 80, 140);
+      Particles.draw();
+      const red = calls.filter((c) => c.style === '#d04a2a');
+      assert(red.length > 0, 'the collision puff still draws');
+      red.forEach((c) => {
+        assertEquals(c.alpha, 1, 'collision still starts at full ink');
+      });
+    } finally {
+      ctx.fillRect = origFill;
+      ctx.globalAlpha = 1;
+      game.mode = origMode;
+      Particles.reset();
+    }
+  });
+
+  it('still damps jump and land under reduced motion', () => {
+    const origMode = game.mode;
+    try {
+      game.mode = MODES.UPDATED;
+      setReducedMotion(true);
+      for (const spec of [
+        ['jump', JUMP],
+        ['land', LAND],
+      ]) {
+        const kind = spec[0];
+        const want = spec[1];
+        Particles.reset();
+        const n = Particles.emit(kind, 80, 140);
+        const expectedCount = Math.max(1, Math.round(want.count * 0.25));
+        const expectedLife = Math.max(2, Math.round(want.life * 0.5));
+        assertEquals(n, expectedCount, 'reduced motion keeps the quarter-count damping on ' + kind);
+        assert(expectedCount < want.count, kind + ' damping still removes motes');
+        assert(expectedLife < want.life, kind + ' damping still shortens life');
+        dustMotes(want.color).forEach((p) => {
+          assertEquals(p.life, expectedLife, 'reduced motion still halves ' + kind + ' life');
+          assertEquals(p.alpha, want.alpha, 'reduced motion keeps the soft ' + kind + ' ink');
+          assertEquals(p.color, want.color, 'reduced motion keeps the day brown on ' + kind);
+        });
+      }
+    } finally {
+      game.mode = origMode;
+      setReducedMotion(false);
+      Particles.reset();
+    }
+  });
+});
+
+describe('QA dust flag (?qaDust=1)', () => {
+  function tick() {
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+  }
+
+  function spyPaint() {
+    const calls = [];
+    const origFillRect = ctx.fillRect;
+    const origFillText = ctx.fillText;
+    ctx.fillRect = function (x, y, w, h) {
+      calls.push({ op: 'rect', style: ctx.fillStyle, x: x, y: y, w: w, h: h, alpha: ctx.globalAlpha });
+    };
+    ctx.fillText = function (text) {
+      calls.push({ op: 'text', text: String(text) });
+    };
+    return {
+      calls: calls,
+      restore() {
+        ctx.fillRect = origFillRect;
+        ctx.fillText = origFillText;
+      },
+    };
+  }
+
+  function dustFills(calls, color) {
+    return calls.filter((c) => c.op === 'rect' && c.style === color && c.w === QA_DUST_SIZE && c.h === QA_DUST_SIZE);
+  }
+
+  function assertMarks(calls, color, label) {
+    const marks = qaDustMarks();
+    const fills = dustFills(calls, color);
+    assertEquals(fills.length, marks.length, label + ' paints every held mote');
+    marks.forEach((mark, i) => {
+      assertEquals(fills[i].x, mark.x, label + ' mote ' + i + ' stays on the foot x');
+      assertEquals(fills[i].y, mark.y, label + ' mote ' + i + ' stays on the foot y');
+      assertEquals(fills[i].alpha, 1, label + ' mote ' + i + ' is opaque so a capture cannot miss it');
+    });
+    const rims = calls.filter((c) => c.op === 'rect' && c.style === QA_DUST_RIM);
+    assertEquals(rims.length, marks.length, label + ' paints a rim with every mote');
+    const lastHud = calls.reduce((at, c, i) => (c.op === 'text' ? i : at), -1);
+    const firstFill = calls.findIndex((c) => c.op === 'rect' && c.style === color && c.w === QA_DUST_SIZE);
+    assert(firstFill > lastHud, label + ' dust is painted after the frame, including the HUD');
+  }
+
+  function armFreshRun(mode) {
+    game.mode = mode;
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    setQaLevel(false);
+    setQaNight(false);
+    setQaPlateau(false);
+    setQaTrail(false);
+    setQaConfetti(false);
+    setQaDust(false);
+    setReducedMotion(false);
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    game.obstacles.length = 0;
+    game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+    game.nextSpawnGap = GAME_CONFIG.MAX_SPAWN_GAP;
+    dino.y = GAME_CONFIG.CANVAS_H - dino.height;
+    dino.isJumping = false;
+    dino.velocityY = 0;
+    Particles.reset();
+  }
+
+  it('recognizes only ?qaDust=1', () => {
+    assert(readQaDustFlag('?qaDust=1') === true, '?qaDust=1 should enable the held foot dust');
+    assert(readQaDustFlag('?qaNight=1&qaDust=1') === true, 'the flag should work beside ?qaNight=1');
+    assert(readQaDustFlag('?qaDust=1&qaConfetti=1') === true, 'param order should not matter');
+    assert(readQaDustFlag('') === false, 'a normal visit should leave dust on a real jump and land');
+    assert(readQaDustFlag('?qaDust=0') === false, 'only the value 1 enables the flag');
+    assert(readQaDustFlag('?qaDust=12') === false, 'qaDust=12 must not count as the flag');
+    assert(readQaDustFlag('?qaNight=1') === false, 'night alone must not force the held dust');
+  });
+
+  it('paints held foot motes from the first frame, even when the pool cannot emit', () => {
+    const origMode = game.mode;
+    const spy = spyPaint();
+    try {
+      assert(QA_DUST_HOLD >= 120, 'the debug hold must outlast a quick capture');
+      assert(QA_DUST_SIZE >= 4, 'each held mote must be large enough to see at the feet');
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        armFreshRun(mode);
+        game.rng = mulberry32(11);
+        setQaDust(false);
+        spy.calls.length = 0;
+        tick();
+        const rngAfterOff = game.rng();
+        const speedOff = game.currentSpeed;
+        assertEquals(dustFills(spy.calls, '#9c8770').length, 0, mode + ' without the flag does not paint');
+        assertEquals(game.qaDustShown, false, mode + ' without the flag does not spend the latch');
+        assertEquals(game.qaDustHold, 0, mode + ' without the flag does not start the hold');
+
+        armFreshRun(mode);
+        game.rng = mulberry32(11);
+        setQaDust(true);
+        Particles.particles.forEach((p) => {
+          p.life = 8;
+          p.maxLife = 8;
+          p.color = '#112233';
+          p.size = 2;
+          p.alpha = 1;
+        });
+        spy.calls.length = 0;
+        tick();
+        assertMarks(spy.calls, '#9c8770', mode);
+        assertEquals(game.qaDustHold, QA_DUST_HOLD, mode + ' latches the full hold');
+        assertEquals(game.qaDustShown, true, mode + ' spends the latch once');
+        Particles.particles.forEach((p) => {
+          assertEquals(p.color, '#112233', mode + ' does not restyle pool slots');
+          assert(p.life > 0, mode + ' does not emit into the pool');
+        });
+        assertEquals(game.score, GAME_CONFIG.SCORE_INCREMENT, mode + ' must not jump the score');
+        assertEquals(game.currentSpeed, speedOff, mode + ' must not change speed');
+        assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
+          mode + ' speed still follows the real score');
+        assertEquals(game.rng(), rngAfterOff, mode + ' does not consume the run seed');
+        assertEquals(game.plateauCueShown, false, mode + ' does not spend the plateau cue');
+
+        for (let i = 0; i < 90; i++) {
+          spy.calls.length = 0;
+          tick();
+        }
+        assertMarks(spy.calls, '#9c8770', mode + ' still');
+        assertEquals(game.qaDustHold, QA_DUST_HOLD - 90,
+          mode + ' keeps the hold up well into the run');
+        assert(Math.abs(game.score - GAME_CONFIG.SCORE_INCREMENT * 91) < 1e-6,
+          mode + ' scoring keeps its normal step');
+      }
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaDust(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('still paints the held motes when a hit skips the rest of the frame', () => {
+    const origMode = game.mode;
+    const spy = spyPaint();
+    try {
+      armFreshRun(MODES.UPDATED);
+      setQaDust(true);
+      tick();
+      assertEquals(game.qaDustHold, QA_DUST_HOLD, 'the hold is up before the hit');
+      game.obstacles.push({
+        x: dino.x,
+        y: dino.y,
+        width: dino.width,
+        height: dino.height,
+        type: 'small',
+        render: 'single',
+      });
+      spy.calls.length = 0;
+      tick();
+      assertEquals(game.state, STATE.DEAD, 'the cactus ends the run');
+      assertMarks(spy.calls, '#9c8770', 'death');
+      assert(game.qaDustHold > 0, 'dying during the hold does not clear it');
+      spy.calls.length = 0;
+      tick();
+      assertMarks(spy.calls, '#9c8770', 'death shake');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaDust(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('holds the motes on the idle dino before the run starts', () => {
+    const origMode = game.mode;
+    const origState = game.state;
+    const spy = spyPaint();
+    try {
+      armFreshRun(MODES.UPDATED);
+      game.state = STATE.IDLE;
+      setQaDust(true);
+      spy.calls.length = 0;
+      tick();
+      assertMarks(spy.calls, '#9c8770', 'idle');
+      assertEquals(game.qaDustHold, QA_DUST_HOLD, 'idle latches the full hold');
+      spy.calls.length = 0;
+      tick();
+      assertMarks(spy.calls, '#9c8770', 'still idle');
+      assertEquals(game.qaDustHold, QA_DUST_HOLD, 'the hold does not tick away before the run');
+      assertEquals(game.score, 0, 'idle dust must not write the score');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      game.state = origState;
+      setQaDust(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('?qaNight=1 cools the held motes without moving the score', () => {
+    const origMode = game.mode;
+    const spy = spyPaint();
+    try {
+      armFreshRun(MODES.UPDATED);
+      setQaDust(true);
+      setQaNight(true);
+      spy.calls.length = 0;
+      tick();
+      assertMarks(spy.calls, GAME_CONFIG.NIGHT_LAND_DUST_COLOR, 'night');
+      assertEquals(GAME_CONFIG.NIGHT_LAND_DUST_COLOR, '#6a686e', 'night dust stays the cool gray');
+      assertEquals(dustFills(spy.calls, '#9c8770').length, 0, 'night hold does not paint the day brown');
+      assert(game.score < 1, 'the night hold must not write the score');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaDust(false);
+      setQaNight(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('Classic with ?qaDust=1 still paints nothing', () => {
+    const origMode = game.mode;
+    const spy = spyPaint();
+    try {
+      armFreshRun(MODES.CLASSIC);
+      setQaDust(true);
+      tick();
+      tick();
+      assertEquals(dustFills(spy.calls, '#9c8770').length, 0, 'Classic never paints the held dust');
+      assertEquals(dustFills(spy.calls, '#6a686e').length, 0, 'Classic never paints the night dust either');
+      assertEquals(game.qaDustShown, false, 'Classic does not spend the Updated latch');
+      assertEquals(game.qaDustHold, 0, 'Classic does not start the hold');
+      assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
+        'Classic speed still follows the score');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaDust(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('reduced motion still paints the held motes and does not emit them', () => {
+    const origMode = game.mode;
+    const spy = spyPaint();
+    try {
+      armFreshRun(MODES.UPDATED);
+      setReducedMotion(true);
+      setQaDust(true);
+      tick();
+      assertMarks(spy.calls, '#9c8770', 'reduced motion');
+      assertEquals(
+        Particles.particles.filter((p) => p.life > 0).length,
+        0,
+        'the held motes do not go through the particle pool'
+      );
+      assert(game.score < 1, 'the held motes do not move the score');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaDust(false);
+      setReducedMotion(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('resetGame re-reads ?qaDust=1 from the page query', () => {
+    const origMode = game.mode;
+    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
+    const prevLocation = global.location;
+    const spy = spyPaint();
+    global.location = { search: '?qaNight=1&qaDust=1' };
+    try {
+      setQaDust(false);
+      setQaNight(false);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      game.state = STATE.RUNNING;
+      game.mode = MODES.UPDATED;
+      game.obstacles.length = 0;
+      game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+      game.nextSpawnGap = GAME_CONFIG.MAX_SPAWN_GAP;
+      Particles.reset();
+      tick();
+      assertMarks(spy.calls, '#6a686e', 're-read flag');
+      assertEquals(game.qaDustHold, QA_DUST_HOLD, 'the re-read flag latches the hold');
+      assert(game.score < 1, 're-reading the flag must not change the score');
+      assertEquals(game.qaDustShown, true, 'the re-read flag spends the latch');
+      assertEquals(getBackgroundColor(game.score), '#1a1a2e',
+        'qaNight on the same query still paints night');
+    } finally {
+      spy.restore();
+      if (hadLocation) global.location = prevLocation;
+      else delete global.location;
+      game.mode = origMode;
+      setQaDust(false);
+      setQaNight(false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
