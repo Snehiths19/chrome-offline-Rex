@@ -570,6 +570,10 @@ function dailyNumber() {
 // GET READY overlay while WAITING in a Daily Challenge.
 const DAILY_PRE_RUN_LINE = 'Same course as everyone today';
 
+// Death-screen hint. One quiet line after the score count-up, pointing at
+// TODAY BEST and the existing Copy result button. Static — no pulse.
+const DAILY_DEATH_HINT = 'Share TODAY BEST with Copy result';
+
 // All mutable game state lives on this object. Keeping it in one place prevents
 // stray top-level globals and makes resets + test inspection simpler.
 // One clock read so the stored run seed is the same integer the RNG was built from.
@@ -1140,7 +1144,9 @@ function drawGameOverScreen() {
       ctx.fillText(String(todayBest).padStart(5, '0'), GAME_CONFIG.CANVAS_W * 0.8, GAME_CONFIG.CANVAS_H / 2 + 14);
     }
 
-    // Show or hide the DOM share button based on animation completion
+    // Show or hide the DOM share button based on animation completion.
+    // The hint lands with the button, after the count-up, so the social
+    // nudge doesn't compete with the score.
     const shareBtnEl = document.getElementById('share-btn');
     if (shareBtnEl && shareBtnEl.style) {
       shareBtnEl.style.display = t >= 1 ? 'block' : 'none';
@@ -1148,6 +1154,7 @@ function drawGameOverScreen() {
         shareBtnEl.textContent = Animations.copyFlashFrames > 0 ? '✓ Copied!' : '📋 Copy result';
       }
     }
+    if (t >= 1) drawDailyDeathHint();
   } else {
     if (game.isNewBest) {
       // New record — celebration takeover
@@ -1197,6 +1204,18 @@ function drawGameOverScreen() {
     ctx.fillText('Tap / Press Space to Restart', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H - 16);
   }
   drawDebugHud();
+}
+
+// One shared run, on the death screen only. Self-gated so a WAITING or
+// RUNNING frame cannot paint it, and Classic/Updated never reach this call.
+// No frame-driven alpha — prefers-reduced-motion has nothing to suppress.
+function drawDailyDeathHint() {
+  if (!isDailyMode()) return;
+  if (Animations.deathAnimFrame < GAME_CONFIG.DEATH_ANIM_FRAMES) return;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+  ctx.font = '12px ' + cfg('SCORE_FONT_FAMILY');
+  ctx.fillText(DAILY_DEATH_HINT, GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H - 16);
 }
 
 function drawMilestoneFlash() {
@@ -1787,7 +1806,9 @@ function handleRunning() {
         ScoreStore.saveDailyBest(finalScore);
         game.dailyBest = ScoreStore.loadDailyBest();
       }
-      announce('Game over. Score ' + finalScore + '. High score ' + game.highScore + '. Press space to restart.');
+      announce(isDailyMode()
+        ? 'Game over. Score ' + finalScore + '. Today best ' + game.dailyBest + '. ' + DAILY_DEATH_HINT + '. Press space to restart.'
+        : 'Game over. Score ' + finalScore + '. High score ' + game.highScore + '. Press space to restart.');
       if (runDebug) publishRunSnapshot(buildRunSnapshot('death'));
       return;
     }
