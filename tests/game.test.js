@@ -6673,6 +6673,256 @@ describe('QA level flag (?qaLevel=1)', () => {
   });
 });
 
+describe('Night death flash', () => {
+  function withTuning(overrides, fn) {
+    const orig = window.GAME_TUNING;
+    window.GAME_TUNING = overrides;
+    try { fn(); } finally { window.GAME_TUNING = orig; }
+  }
+
+  // White on the day sky (#ffffff) does not move the sky. The same overlay
+  // on #1a1a2e is a luminance jump across the whole canvas.
+  function relLuminance(channels) {
+    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+  }
+
+  function whiteWash(alpha, sky) {
+    const white = [255, 255, 255];
+    return sky.map((s, i) => s + (white[i] - s) * alpha);
+  }
+
+  function paintedFlash() {
+    const fillStyles = [];
+    const rects = [];
+    let captured = '';
+    Object.defineProperty(ctx, 'fillStyle', {
+      configurable: true,
+      get() { return captured; },
+      set(v) { captured = v; fillStyles.push(v); },
+    });
+    const origFill = ctx.fillRect;
+    ctx.fillRect = function (...args) {
+      rects.push(args.slice());
+      return origFill.apply(this, args);
+    };
+    try {
+      drawDeathFlash();
+    } finally {
+      delete ctx.fillStyle;
+      ctx.fillRect = origFill;
+    }
+    return { fillStyles, rects };
+  }
+
+  it('eases Updated and Daily death flash down after full night, quieter than the day blink', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const nightSky = [0x1a, 0x1a, 0x2e];
+    const dayDino = [0x53, 0x53, 0x53];
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      assert(GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA < 1,
+        'night peak is lower than the full day blink');
+      assert(GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA > 0,
+        'the death cue still paints at night');
+      const painted = whiteWash(GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA, nightSky);
+      const nightLum = relLuminance(painted);
+      const skyLum = relLuminance(nightSky);
+      const slapped = relLuminance(whiteWash(1, nightSky)) - skyLum;
+      assert(nightLum < relLuminance(dayDino),
+        'the night blink stays darker than the day dino so the sky does not slap white');
+      assert(nightLum > skyLum * 2,
+        'the night blink is still bright enough to read as the death cue');
+      assert(nightLum - skyLum < slapped * 0.35,
+        'night blink is much quieter than a full white overlay on the night sky');
+
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      assertEquals(deathFlashPeakAlpha(), 1, 'day Updated keeps the full day blink');
+      game.score = GAME_CONFIG.DAY_NIGHT_START;
+      assertEquals(deathFlashPeakAlpha(), 1,
+        'the ease starts with the sky, still the day blink at the boundary');
+      game.score = 350;
+      const mid = 1 + (GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA - 1) * 0.5;
+      assert(
+        Math.abs(deathFlashPeakAlpha() - mid) < 1e-9,
+        'mid-twilight is halfway from the day blink to the night peak'
+      );
+      game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
+      assert(
+        deathFlashPeakAlpha() < 1
+          && deathFlashPeakAlpha() > GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
+        'one point before night is still easing, not snapped'
+      );
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
+        'full night holds the quiet peak');
+      game.score = 1000;
+      assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
+        'later night keeps the same static peak');
+
+      game.mode = MODES.DAILY;
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
+        'Daily shares the Updated night peak');
+
+      game.mode = MODES.CLASSIC;
+      game.score = 0;
+      assertEquals(deathFlashPeakAlpha(), 1, 'Classic day blink stays the day value');
+      game.score = 350;
+      assertEquals(deathFlashPeakAlpha(), 1, 'Classic twilight blink stays the day value');
+      game.score = 1000;
+      assertEquals(deathFlashPeakAlpha(), 1, 'Classic night blink stays the day value');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setQaNight(false);
+      setReducedMotion(false);
+    }
+  });
+
+  it('reduced motion snaps to the static night peak instead of easing', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      setQaNight(false);
+      game.mode = MODES.UPDATED;
+      setReducedMotion(true);
+      game.score = 350;
+      assertEquals(deathFlashPeakAlpha(), 1,
+        'reduced motion keeps the day blink while the sky is still day');
+      game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
+      assertEquals(deathFlashPeakAlpha(), 1,
+        'reduced motion does not run the twilight ease');
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
+        'reduced motion still gets the static night peak');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setReducedMotion(false);
+    }
+  });
+
+  it('?qaNight=1 quiets the Updated death flash immediately without moving the score', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      setQaNight(true);
+      assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
+        'the existing night QA flag is enough to see the quiet blink');
+      assertEquals(game.score, 0, 'the quiet blink must not write the score');
+
+      game.mode = MODES.CLASSIC;
+      assertEquals(deathFlashPeakAlpha(), 1,
+        'QA night still leaves the Classic blink at the day value');
+      assertEquals(game.score, 0, 'Classic QA night must not write the score');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setQaNight(false);
+    }
+  });
+
+  it('NIGHT_DEATH_FLASH_PEAK_ALPHA override changes only the night peak', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      game.mode = MODES.UPDATED;
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      withTuning({ NIGHT_DEATH_FLASH_PEAK_ALPHA: 0.05 }, () => {
+        assertEquals(deathFlashPeakAlpha(), 0.05,
+          'a visual override should quiet the night blink by the tuned amount');
+      });
+      assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
+        'clearing the override returns the configured night peak');
+      game.score = 0;
+      withTuning({ NIGHT_DEATH_FLASH_PEAK_ALPHA: 0.05 }, () => {
+        assertEquals(deathFlashPeakAlpha(), 1, 'day blink ignores the night peak override');
+      });
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      withTuning({ DEATH_FLASH_FRAMES: 3 }, () => {
+        assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
+          'a frame-length override does not brighten the night peak');
+      });
+      withTuning({ NIGHT_DEATH_FLASH_PEAK_ALPHA: 'soft' }, () => {
+        assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
+          'a non-numeric override falls back to the configured peak');
+      });
+      withTuning({ NIGHT_DEATH_FLASH_PEAK_ALPHA: 1.5 }, () => {
+        assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
+          'an out-of-range override falls back to the configured peak');
+      });
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setQaNight(false);
+      setReducedMotion(false);
+    }
+  });
+
+  it('paints the quiet white only while the night flash is up and leaves the run alone', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const origFrames = Animations.deathFlashFrames;
+    const origSpeed = game.currentSpeed;
+    const origRng = game.rng;
+    let rngCalls = 0;
+    game.rng = () => { rngCalls++; return origRng(); };
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      Animations.deathFlashFrames = GAME_CONFIG.DEATH_FLASH_FRAMES;
+      const day = paintedFlash();
+      const dayWhite = day.fillStyles.find(s => typeof s === 'string' && s.indexOf('rgba(255, 255, 255') === 0);
+      assert(dayWhite, 'day death still paints the white blink');
+      assert(dayWhite.indexOf('1.000') !== -1, 'day blink uses the full day peak');
+      assertEquals(day.rects.length, 1, 'day blink is one full-canvas fill');
+      assertEquals(day.rects[0][2], GAME_CONFIG.CANVAS_W, 'day blink covers the canvas width');
+      assertEquals(day.rects[0][3], GAME_CONFIG.CANVAS_H, 'day blink covers the canvas height');
+      assertEquals(game.score, 0, 'painting the day blink does not move the score');
+      assertEquals(rngCalls, 0, 'painting the day blink does not consume the run seed');
+      assertEquals(Animations.deathFlashFrames, GAME_CONFIG.DEATH_FLASH_FRAMES,
+        'the paint does not consume the flash timer');
+
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      const night = paintedFlash();
+      const nightWhite = night.fillStyles.find(s => typeof s === 'string' && s.indexOf('rgba(255, 255, 255') === 0);
+      assert(nightWhite, 'night death still paints the white blink');
+      assert(nightWhite.indexOf(GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA.toFixed(3)) !== -1,
+        'night blink uses the quiet peak');
+      assert(nightWhite !== dayWhite, 'night blink is quieter than the day blink');
+      assertEquals(night.rects.length, 1, 'night blink is still one full-canvas fill');
+      assertEquals(game.score, GAME_CONFIG.DAY_NIGHT_END, 'painting the night blink does not move the score');
+      assertEquals(game.currentSpeed, origSpeed, 'night paint does not change speed');
+      assertEquals(rngCalls, 0, 'painting the night blink does not consume the run seed');
+      assertEquals(Animations.deathFlashFrames, GAME_CONFIG.DEATH_FLASH_FRAMES,
+        'night paint does not consume the flash timer');
+
+      game.mode = MODES.CLASSIC;
+      game.score = 1000;
+      Animations.deathFlashFrames = 0;
+      const classic = paintedFlash();
+      assertEquals(classic.rects.length, 0, 'Classic still does not paint a death flash');
+      assertEquals(game.score, 1000, 'skipping the Classic flash does not move the score');
+    } finally {
+      game.rng = origRng;
+      game.mode = origMode;
+      game.score = origScore;
+      Animations.deathFlashFrames = origFrames;
+      setQaNight(false);
+      setReducedMotion(false);
+    }
+  });
+});
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {

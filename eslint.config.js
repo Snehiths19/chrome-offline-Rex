@@ -93,6 +93,8 @@ export default [
         drawGetReadyOverlay: 'readonly',
         drawIdleScreen: 'readonly',
         drawNewBestBadge: 'readonly',
+        drawDeathFlash: 'readonly',
+        deathFlashPeakAlpha: 'readonly',
         drawSkyTint: 'readonly',
         skyTintPeakAlpha: 'readonly',
         getHillColor: 'readonly',

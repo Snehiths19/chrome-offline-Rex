@@ -229,6 +229,18 @@ const GAME_CONFIG = Object.freeze({
   DEATH_SHAKE_FREQ:         1.5,  // multiplier on the sin oscillation that drives the shake transform
   DEATH_FLASH_FRAMES:       6,    // PR-C: white-flash overlay length on collision
   DEATH_FLASH_COLOR_RGB:   '255, 255, 255', // death-flash overlay colour (rgb triplet, alpha applied at draw)
+  // Visual only. Peak scale of the white death-flash once the sky is fully
+  // night, in Updated and Daily. Day blink stays a full overlay: alpha is
+  // deathFlashFrames / DEATH_FLASH_FRAMES, which starts at 1. On the day sky
+  // (#ffffff) that only washes the dark shapes. The same 1 on the night sky
+  // (#1a1a2e) whites out the whole canvas. 0.2 is a fifth of that blink: the
+  // sky stays darker than the day dino gray (#535353), and the luminance
+  // still more than doubles, so the death cue reads without slapping Flow.
+  // Classic does not read this — the flash is not started. Eases with the
+  // sky from DAY_NIGHT_START to DAY_NIGHT_END. Reduced motion skips that
+  // ease and snaps to this at DAY_NIGHT_END. Playtest with ?qaNight=1 and
+  // collide once. Read through cfg().
+  NIGHT_DEATH_FLASH_PEAK_ALPHA: 0.2,
   SCORE_POP_FRAMES:        12,    // PR-C: HUD score scale-up duration during death shake
   MILESTONE_FRAMES:        90,
   NEW_BEST_FRAMES:        120,
@@ -387,10 +399,12 @@ function setQaBig(enabled) {
 // first frame so the star fade can be seen without a score-400 run.
 // Sky, hills, HUD ink, star init, the Updated/Daily night cactus and dino
 // lifts, the Updated/Daily night cloud dim, Updated/Daily jump/land
-// dust, the Updated/Daily night ground cool, and the Updated/Daily night
-// milestone tint read it through scoreForNightSky. Speed, gaps, scoring, and
-// game.rng() do not. Re-read in resetGame() like the other QA flags.
-// Tests flip it through setQaNight(); a normal visit leaves this false.
+// dust, the Updated/Daily night ground cool, the Updated/Daily night
+// milestone tint, and the Updated/Daily night death flash read it through
+// scoreForNightSky. Speed, gaps, scoring, and game.rng() do not. Collide
+// once under this flag to see the quieter blink. Re-read in resetGame()
+// like the other QA flags. Tests flip it through setQaNight(); a normal
+// visit leaves this false.
 function readQaNightFlag(search) {
   const query = search !== undefined
     ? search
@@ -1414,11 +1428,32 @@ function drawScore() {
   drawDebugHud();
 }
 
+// Day death blink stays a full white overlay. In Updated and Daily the peak
+// eases down across twilight so the flash stays a quiet blink once the sky
+// is night. Classic keeps the day peak; the flash itself is not started.
+// Reduced motion skips the ease and snaps.
+function deathFlashPeakAlpha() {
+  const day = 1;
+  if (!isUpdatedMode()) return day;
+  const s = scoreForNightSky(game.score);
+  if (s < GAME_CONFIG.DAY_NIGHT_START) return day;
+  const tuned = cfg('NIGHT_DEATH_FLASH_PEAK_ALPHA');
+  const night = typeof tuned === 'number' && tuned >= 0 && tuned <= 1
+    ? tuned
+    : GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA;
+  if (s >= GAME_CONFIG.DAY_NIGHT_END) return night;
+  if (reducedMotion) return day;
+  const t = (s - GAME_CONFIG.DAY_NIGHT_START) /
+            (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
+  return day + (night - day) * t;
+}
+
 // PR-C: white-flash overlay drawn on top of the world during the first few
-// post-death frames. Mode-gated; reduce-motion caps it at 1 frame.
+// post-death frames. Mode-gated; reduce-motion caps it at 1 frame. Night
+// multiplies the same decay by a lower peak so the dark sky does not slap.
 function drawDeathFlash() {
   if (Animations.deathFlashFrames <= 0) return;
-  const alpha = Animations.deathFlashFrames / cfg('DEATH_FLASH_FRAMES');
+  const alpha = (Animations.deathFlashFrames / cfg('DEATH_FLASH_FRAMES')) * deathFlashPeakAlpha();
   ctx.save();
   ctx.fillStyle = 'rgba(' + cfg('DEATH_FLASH_COLOR_RGB') + ', ' + alpha.toFixed(3) + ')';
   ctx.fillRect(0, 0, GAME_CONFIG.CANVAS_W, GAME_CONFIG.CANVAS_H);
@@ -2362,6 +2397,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.Particles = Particles;
   global.audio = audio;
   global.drawDeathFlash = drawDeathFlash;
+  global.deathFlashPeakAlpha = deathFlashPeakAlpha;
   global.drawMilestoneFlash = drawMilestoneFlash;
   global.drawNewBestBadge = drawNewBestBadge;
   global.initHills = initHills;
