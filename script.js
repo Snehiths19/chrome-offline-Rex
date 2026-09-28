@@ -165,6 +165,11 @@ const GAME_CONFIG = Object.freeze({
   // holds the silhouette and clears the hill. Classic does not read this.
   // Read through cfg().
   NIGHT_OBSTACLE_BRIGHTNESS: 1.65,
+  // Visual only. CSS brightness applied to the dino once the sky is fully
+  // night, in Updated and Daily. Quieter than the cactus lift (1.65) so
+  // obstacles still win the eye. The day sprite is #535353; a lift during
+  // twilight lands on the hill. Classic does not read this. Read through cfg().
+  NIGHT_DINO_BRIGHTNESS: 1.35,
 
   // --- Ambient depth (PR-D, updated mode only) ---
   HILL_COUNT:               3,    // mid-ground silhouette mounds
@@ -323,7 +328,8 @@ function setQaCluster(enabled) {
 
 // QA/debug only — not for players. ?qaNight=1 paints full night from the
 // first frame so the star fade can be seen without a score-400 run.
-// Sky, hills, HUD ink, and star init read it. Speed, gaps, scoring, and
+// Sky, hills, HUD ink, star init, and the Updated/Daily night cactus and
+// dino lifts read it through scoreForNightSky. Speed, gaps, scoring, and
 // game.rng() do not. Re-read in resetGame() like the other QA flags.
 // Tests flip it through setQaNight(); a normal visit leaves this false.
 function readQaNightFlag(search) {
@@ -1107,6 +1113,16 @@ function drawObstacles() {
   }
 }
 
+// Day sprite stays put until night has arrived. A lift partway through the
+// fade crosses the hill colour. Quieter than the cactus lift so obstacles
+// still win the eye. Classic has no hills, so its dark silhouette stays.
+function dinoNightBrightness() {
+  if (!isUpdatedMode()) return 1;
+  if (scoreForNightSky(game.score) < GAME_CONFIG.DAY_NIGHT_END) return 1;
+  const peak = cfg('NIGHT_DINO_BRIGHTNESS');
+  return typeof peak === 'number' && peak > 1 ? peak : 1;
+}
+
 function drawDino() {
   let img;
   if (game.state === STATE.DEAD) {
@@ -1116,11 +1132,18 @@ function drawDino() {
   } else {
     img = dinoRunImages[Math.floor(game.animFrame / GAME_CONFIG.RUN_FRAME_PERIOD) % 2];
   }
-  if (imageReady(img)) {
-    ctx.drawImage(img, dino.x, dino.y, dino.width, dino.height);
-  } else {
-    ctx.fillStyle = '#535353';
-    ctx.fillRect(dino.x, dino.y, dino.width, dino.height);
+  const brightness = dinoNightBrightness();
+  const previousFilter = ctx.filter;
+  if (brightness > 1) ctx.filter = 'brightness(' + brightness.toFixed(2) + ')';
+  try {
+    if (imageReady(img)) {
+      ctx.drawImage(img, dino.x, dino.y, dino.width, dino.height);
+    } else {
+      ctx.fillStyle = '#535353';
+      ctx.fillRect(dino.x, dino.y, dino.width, dino.height);
+    }
+  } finally {
+    if (brightness > 1) ctx.filter = previousFilter || 'none';
   }
 }
 
@@ -2102,4 +2125,5 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.setQaNight = setQaNight;
   global.readQaNightFlag = readQaNightFlag;
   global.obstacleNightBrightness = obstacleNightBrightness;
+  global.dinoNightBrightness = dinoNightBrightness;
 }

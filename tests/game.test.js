@@ -1625,6 +1625,24 @@ describe('Live-tuning hook (PR-P3)', () => {
     }
   });
 
+  it('NIGHT_DINO_BRIGHTNESS override changes the night dino lift', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    game.mode = MODES.UPDATED;
+    game.score = GAME_CONFIG.DAY_NIGHT_END;
+    try {
+      withTuning({ NIGHT_DINO_BRIGHTNESS: 1.2 }, () => {
+        assertEquals(dinoNightBrightness(), 1.2,
+          'a visual override should brighten the night dino by the tuned amount');
+      });
+      assertEquals(dinoNightBrightness(), GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
+        'clearing the override returns the configured dino lift');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+    }
+  });
+
   it('STAR_FADE_FRAMES override changes how fast night stars reach full opacity', () => {
     const origInit = game.starsInitialised;
     const origStars = game.stars.slice();
@@ -4817,6 +4835,202 @@ describe('Night obstacle contrast', () => {
       game.mode = origMode;
       game.score = origScore;
       game.obstacles = [];
+    }
+  });
+});
+
+describe('Night dino contrast', () => {
+  function filtersDuringSpriteDraw() {
+    const seen = [];
+    const orig = ctx.drawImage;
+    ctx.drawImage = (...args) => { seen.push(ctx.filter); return orig.apply(ctx, args); };
+    try {
+      drawDino();
+    } finally {
+      ctx.drawImage = orig;
+    }
+    return seen;
+  }
+
+  it('lifts Updated and Daily dino ink only once the sky is night, quieter than cacti', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const origFrame = game.animFrame;
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      assertEquals(GAME_CONFIG.NIGHT_DINO_BRIGHTNESS, 1.35,
+        'the night dino lift is a quiet brightness step');
+      assert(GAME_CONFIG.NIGHT_DINO_BRIGHTNESS < GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
+        'the dino stays quieter than night cacti so obstacles still win the eye');
+
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      assertEquals(dinoNightBrightness(), 1, 'day Updated keeps the dark sprite');
+      game.score = GAME_CONFIG.DAY_NIGHT_START;
+      assertEquals(dinoNightBrightness(), 1, 'twilight start keeps the day sprite');
+      game.score = 350;
+      assertEquals(dinoNightBrightness(), 1, 'mid-twilight keeps the day sprite');
+      game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
+      assertEquals(dinoNightBrightness(), 1, 'the lift waits until night has fully arrived');
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      assertEquals(dinoNightBrightness(), GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
+        'full night brightens the dino enough to separate it from the sky and hills');
+      game.animFrame = 0;
+      const atRest = dinoNightBrightness();
+      game.animFrame = 17;
+      assertEquals(dinoNightBrightness(), atRest, 'the night lift does not pulse with the run cycle');
+      game.score = 1000;
+      assertEquals(dinoNightBrightness(), GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
+        'later night keeps the same static lift');
+      assert(dinoNightBrightness() < obstacleNightBrightness(),
+        'at the same night score the cactus lift stays stronger');
+
+      game.mode = MODES.DAILY;
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      assertEquals(dinoNightBrightness(), GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
+        'Daily shares the Updated night dino lift');
+
+      game.mode = MODES.CLASSIC;
+      game.score = 1000;
+      assertEquals(dinoNightBrightness(), 1,
+        'Classic keeps the dark silhouette on the shared night sky');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      game.animFrame = origFrame;
+      setQaNight(false);
+      setReducedMotion(false);
+    }
+  });
+
+  it('stays static under reduced motion and still lifts at full night', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const origFrame = game.animFrame;
+    try {
+      setQaNight(false);
+      game.mode = MODES.UPDATED;
+      setReducedMotion(true);
+      game.score = 350;
+      assertEquals(dinoNightBrightness(), 1,
+        'reduced motion keeps the day sprite while the sky is still fading');
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      game.animFrame = 0;
+      assertEquals(dinoNightBrightness(), GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
+        'reduced motion still gets the static night lift');
+      game.animFrame = 30;
+      assertEquals(dinoNightBrightness(), GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
+        'reduced motion does not add a pulse');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      game.animFrame = origFrame;
+      setReducedMotion(false);
+    }
+  });
+
+  it('?qaNight=1 lifts the Updated dino immediately without moving the score', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      setQaNight(true);
+      assertEquals(dinoNightBrightness(), GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
+        'the existing night QA flag is enough to see the dino lift');
+      assertEquals(game.score, 0, 'the lift must not write the score');
+
+      game.mode = MODES.CLASSIC;
+      assertEquals(dinoNightBrightness(), 1,
+        'QA night still leaves the Classic silhouette alone');
+      assertEquals(game.score, 0, 'Classic QA night must not write the score');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setQaNight(false);
+    }
+  });
+
+  it('paints the lift only around the Updated night dino and then clears it', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const origFilter = ctx.filter;
+    const origX = dino.x;
+    const origY = dino.y;
+    const origW = dino.width;
+    const origH = dino.height;
+    try {
+      setQaNight(false);
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      ctx.filter = 'none';
+      assertEquals(filtersDuringSpriteDraw()[0], 'none', 'day sprites are not brightened');
+      assertEquals(ctx.filter, 'none', 'a day draw leaves the filter alone');
+
+      game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
+      ctx.filter = 'none';
+      assertEquals(filtersDuringSpriteDraw()[0], 'none', 'twilight paint keeps the day sprite');
+
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      ctx.filter = 'contrast(2)';
+      const seen = filtersDuringSpriteDraw();
+      assertEquals(seen.length, 1, 'the dino is still one sprite');
+      assertEquals(seen[0], 'brightness(1.35)', 'night paint uses the quieter dino lift');
+      assertEquals(ctx.filter, 'contrast(2)', 'the lift must not leak onto obstacles or the HUD');
+      assertEquals(dino.x, origX, 'the lift does not move the dino');
+      assertEquals(dino.y, origY, 'the lift does not move the dino');
+      assertEquals(dino.width, origW, 'the lift does not resize the hitbox');
+      assertEquals(dino.height, origH, 'the lift does not resize the hitbox');
+
+      game.mode = MODES.CLASSIC;
+      game.score = 1000;
+      ctx.filter = 'none';
+      assertEquals(filtersDuringSpriteDraw()[0], 'none', 'Classic night paint stays the dark sprite');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      ctx.filter = origFilter;
+      setQaNight(false);
+    }
+  });
+
+  it('the fillRect fallback uses the same static night lift', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const origJumping = dino.isJumping;
+    const origFilter = ctx.filter;
+    const hadWidth = Object.prototype.hasOwnProperty.call(dino.image, 'naturalWidth');
+    const origWidth = dino.image.naturalWidth;
+    const seen = [];
+    const origFill = ctx.fillRect;
+    ctx.fillRect = (...args) => {
+      seen.push({ filter: ctx.filter, style: ctx.fillStyle, args: args });
+      return origFill.apply(ctx, args);
+    };
+    try {
+      setQaNight(false);
+      game.mode = MODES.UPDATED;
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      dino.isJumping = true;
+      dino.image.naturalWidth = 0;
+      ctx.filter = 'contrast(2)';
+      drawDino();
+      assertEquals(seen.length, 1, 'a missing sprite still paints one fallback rect');
+      assertEquals(seen[0].filter, 'brightness(1.35)', 'the fallback shares the night dino lift');
+      assertEquals(seen[0].style, '#535353', 'the fallback ink stays the day sprite colour');
+      assertEquals(seen[0].args[2], dino.width, 'the fallback keeps the dino width');
+      assertEquals(seen[0].args[3], dino.height, 'the fallback keeps the dino height');
+      assertEquals(ctx.filter, 'contrast(2)', 'the fallback lift must not leak');
+    } finally {
+      ctx.fillRect = origFill;
+      ctx.filter = origFilter;
+      dino.isJumping = origJumping;
+      if (hadWidth) dino.image.naturalWidth = origWidth;
+      else delete dino.image.naturalWidth;
+      game.mode = origMode;
+      game.score = origScore;
+      setQaNight(false);
     }
   });
 });
