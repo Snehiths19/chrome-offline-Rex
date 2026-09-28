@@ -143,12 +143,28 @@ const GAME_CONFIG = Object.freeze({
   CLOUD_WIDTH:             60,    // used for offscreen detection
   CLOUD_RESPAWN_OFFSET:    20,    // x-offset past right edge when respawning
   CLOUD_COLOR:             '#e8e8e8',
+  // Visual only. Peak opacity of Updated/Daily clouds while the sky is
+  // still day. The puff is #e8e8e8. On the day sky (#ffffff) full opacity
+  // is 23 levels darker than the sky — three shapes about 60px wide in the
+  // jump band, scrolling on the Updated parallax — and that gray pulls the
+  // eye up off the lane before the run has settled. 0.6 keeps 14 of those
+  // 23 levels (the puff composites near #f1f1f1). It still reads as sky
+  // furniture, stays quieter than the day hills (#cdcdcd, 50 levels off
+  // white), and stays stronger than the night dim so twilight eases
+  // downward. Classic does not read this. Classic keeps #e8e8e8 at full
+  // opacity, its own faint path. Eases toward NIGHT_CLOUD_ALPHA from
+  // DAY_NIGHT_START to DAY_NIGHT_END. Reduced motion skips that ease and
+  // holds this peak until DAY_NIGHT_END, then snaps to the night dim. The
+  // puffs are already painted on GET READY and the opening run, so playtest
+  // does not need a query flag. Read through cfg().
+  DAY_CLOUD_ALPHA:          0.6,
   // Visual only. Opacity of Updated/Daily clouds once the sky is fully night.
-  // Day paint is #e8e8e8 at full opacity; on the night sky (#1a1a2e) that
-  // reads brighter than the night dino (1.35) and cactus (1.65). 0.35 keeps
+  // The puff is still #e8e8e8. On the night sky (#1a1a2e) the day peak would
+  // read brighter than the night dino (1.35) and cactus (1.65). 0.35 keeps
   // the puff visible and quieter than both. Classic does not read this.
-  // Eases with the sky from DAY_NIGHT_START to DAY_NIGHT_END. Reduced motion
-  // skips that ease and snaps to this at DAY_NIGHT_END. Read through cfg().
+  // The day peak eases to this from DAY_NIGHT_START to DAY_NIGHT_END.
+  // Reduced motion skips that ease and snaps to this at DAY_NIGHT_END.
+  // Read through cfg().
   NIGHT_CLOUD_ALPHA:        0.35,
   CLOUD_CIRCLES: Object.freeze([  // three circles forming a puffy cloud shape
     Object.freeze([  0, 0, 18]),
@@ -1519,22 +1535,21 @@ function drawSkyTint() {
   ctx.restore();
 }
 
-// Day clouds stay #e8e8e8 at full opacity. In Updated and Daily the puff
-// eases down across twilight so it stays peripheral once the sky is night.
-// Classic keeps the day paint. Reduced motion skips the ease and snaps.
+// Updated and Daily day clouds use DAY_CLOUD_ALPHA so the early-run puff
+// stays a peripheral whisper on the white sky. The same #e8e8e8 ink eases
+// down across twilight to the night dim. Classic keeps full opacity — its
+// own faint path. Reduced motion skips the ease and snaps.
 function cloudPaintAlpha() {
   if (!isUpdatedMode()) return 1;
+  const day = tunedUnitAlpha('DAY_CLOUD_ALPHA', GAME_CONFIG.DAY_CLOUD_ALPHA);
   const s = scoreForNightSky(game.score);
-  if (s < GAME_CONFIG.DAY_NIGHT_START) return 1;
-  const tuned = cfg('NIGHT_CLOUD_ALPHA');
-  const dim = typeof tuned === 'number' && tuned >= 0 && tuned <= 1
-    ? tuned
-    : GAME_CONFIG.NIGHT_CLOUD_ALPHA;
+  if (s < GAME_CONFIG.DAY_NIGHT_START) return day;
+  const dim = tunedUnitAlpha('NIGHT_CLOUD_ALPHA', GAME_CONFIG.NIGHT_CLOUD_ALPHA);
   if (s >= GAME_CONFIG.DAY_NIGHT_END) return dim;
-  if (reducedMotion) return 1;
+  if (reducedMotion) return day;
   const t = (s - GAME_CONFIG.DAY_NIGHT_START) /
             (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
-  return 1 + (dim - 1) * t;
+  return day + (dim - day) * t;
 }
 
 function drawClouds() {
