@@ -1009,6 +1009,66 @@ describe('Obstacle Types', () => {
     assertEquals(calls[0][3], small.width, 'Small cactus keeps its own width');
     assertEquals(calls[0][4], small.height, 'Small cactus keeps its own height');
   });
+
+  it('big cactus paints a crisp tall sprite and leaves the hitbox alone', () => {
+    const big = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'big');
+    const small = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'small');
+    // Draw-only change: hitbox, unlock, and weight stay on GAME_CONFIG.
+    assertEquals(big.width, 30, 'big hitbox width stays 30');
+    assertEquals(big.height, 55, 'big hitbox height stays 55');
+    assertEquals(big.unlockScore, 100, 'big cactus still unlocks at 100');
+    assertEquals(big.weight, 30, 'big cactus weight stays 30');
+    assertEquals(big.render, 'single', 'big cactus stays a single sprite');
+
+    // cactus.png is 34×70. Height stays on the hitbox so the jump line
+    // matches. Width follows that cell, so the first tall cactus is not a
+    // wide stretch of the small sprite into the 30×55 box.
+    const paintH = big.height;
+    const paintW = Math.round(paintH * 34 / 70);
+    const paintX = 80 + Math.floor((big.width - paintW) / 2);
+
+    game.obstacles = [
+      {
+        x: 80, y: 120, width: big.width, height: big.height,
+        render: big.render, type: big.id,
+      },
+      {
+        x: 200, y: 140, width: small.width, height: small.height,
+        render: small.render, type: small.id,
+      },
+    ];
+    const calls = [];
+    const smoothing = [];
+    const origDrawImage = ctx.drawImage;
+    const origSmoothing = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage = (...args) => {
+      calls.push(args.slice());
+      smoothing.push(ctx.imageSmoothingEnabled);
+    };
+    drawObstacles();
+    const smoothingAfter = ctx.imageSmoothingEnabled;
+    ctx.drawImage = origDrawImage;
+    if (origSmoothing === undefined) delete ctx.imageSmoothingEnabled;
+    else ctx.imageSmoothingEnabled = origSmoothing;
+    const placed = game.obstacles[0];
+    game.obstacles = [];
+
+    assertEquals(placed.width, 30, 'Drawing does not resize the hitbox width');
+    assertEquals(placed.height, 55, 'Drawing does not resize the hitbox height');
+    assertEquals(calls.length, 2, 'Big and small each paint once');
+    assertEquals(smoothing[0], false, 'The tall cactus uses nearest-neighbor so the arms stay sharp');
+    assertEquals(calls[0][1], paintX, 'The tall cactus is centered on its hitbox');
+    assertEquals(calls[0][2], 120, 'The tall cactus top stays on the hitbox top');
+    assertEquals(calls[0][3], paintW, 'Paint width follows the cactus sprite, not the wider hitbox');
+    assertEquals(calls[0][4], paintH, 'Paint height matches the hitbox so the jump line stays honest');
+    assert(paintW < big.width, 'The tall cactus is not stretched out to the hitbox width');
+    assert(paintH > small.height, 'The tall cactus is visibly taller than the small one');
+    assertEquals(smoothing[1], true, 'A nearby small cactus keeps the normal smooth scale');
+    assertEquals(calls[1][3], small.width, 'Small cactus width is unchanged');
+    assertEquals(calls[1][4], small.height, 'Small cactus height is unchanged');
+    assertEquals(smoothingAfter, true, 'Nearest-neighbor must not leak onto the next sprite');
+  });
 });
 
 describe('Difficulty Curve', () => {
@@ -4811,6 +4871,151 @@ describe('QA cluster flag (?qaCluster=1)', () => {
     } finally {
       run.restore();
       setQaCluster(false);
+      game.mode = origMode;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+});
+
+describe('QA big cactus flag (?qaBig=1)', () => {
+  const big = () => GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'big');
+
+  function tick() {
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+  }
+
+  // One running frame from a known seed. resetGame re-reads the query, so the
+  // flag is applied after that. The first frame is early enough that production
+  // rules would still only roll a small cactus.
+  function runFirstSpawn(mode, { flag, search } = {}) {
+    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
+    const prevLocation = global.location;
+    if (search !== undefined) global.location = { search };
+    game.mode = mode;
+    game.seedOverride = 99;
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    if (flag !== undefined) setQaBig(flag);
+    game.state = STATE.RUNNING;
+    game.obstacles.length = 0;
+    dino.y = GAME_CONFIG.CANVAS_H - dino.height;
+    dino.isJumping = false;
+    dino.velocityY = 0;
+    tick();
+    const spawned = game.obstacles.map(o => o.type);
+    const gap = game.nextSpawnGap;
+    const score = game.score;
+    return {
+      spawned,
+      gap,
+      score,
+      restore() {
+        if (search !== undefined) {
+          if (hadLocation) global.location = prevLocation;
+          else delete global.location;
+        }
+      },
+    };
+  }
+
+  it('recognizes only ?qaBig=1', () => {
+    assert(readQaBigFlag('?qaBig=1') === true, '?qaBig=1 should enable the early big cactus');
+    assert(readQaBigFlag('?foo=1&qaBig=1') === true, 'the flag should work alongside other params');
+    assert(readQaBigFlag('?qaCluster=1') === false, 'the cluster flag must not enable the big cactus');
+    assert(readQaBigFlag('?qaPlateau=1') === false, 'the plateau flag must not enable the big cactus');
+    assert(readQaBigFlag('') === false, 'a normal visit should leave the flag off');
+    assert(readQaBigFlag('?qaBig=0') === false, 'only the value 1 enables the flag');
+    assert(readQaBigFlag('?qaBig=12') === false, 'qaBig=12 must not count as the flag');
+    assert(readQaBigFlag('?other=1') === false, 'an unrelated param must not enable the flag');
+  });
+
+  it('with ?qaBig=1 the first Updated obstacle is a big cactus while unlock stays 100', () => {
+    const origMode = game.mode;
+    const run = runFirstSpawn(MODES.UPDATED, { flag: true });
+    try {
+      assertEquals(big().unlockScore, 100, 'production unlock stays 100');
+      assertEquals(big().weight, 30, 'production weight stays 30');
+      assertEquals(big().width, 30, 'production hitbox width stays 30');
+      assertEquals(big().height, 55, 'production hitbox height stays 55');
+      assert(run.score < 50, `the early big cactus should appear near the start, score was ${run.score}`);
+      assertEquals(run.spawned[0], 'big', 'the first Updated obstacle should be the big cactus');
+      assertEquals(game.obstacles[0].width, 30, 'the early big cactus keeps the real hitbox width');
+      assertEquals(game.obstacles[0].height, 55, 'the early big cactus keeps the real hitbox height');
+      assertEquals(game.obstacles[0].render, 'single', 'the early big cactus stays a single sprite');
+      assertEquals(game.qaBigShown, true, 'the override is spent after one obstacle');
+
+      game.obstacles.length = 0;
+      game.lastObstacleX = -300;
+      tick();
+      assertEquals(game.obstacles.length, 1, 'a second obstacle should spawn on the next frame');
+      assertEquals(game.obstacles[0].type, 'small', 'later obstacles follow the normal unlock');
+      assertEquals(game.qaBigShown, true, 'the second spawn must not re-arm the QA big cactus');
+    } finally {
+      run.restore();
+      setQaBig(false);
+      game.mode = origMode;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('with the flag off the first obstacle stays small and the gap matches a flagged run', () => {
+    const origMode = game.mode;
+    const flagged = runFirstSpawn(MODES.UPDATED, { flag: true });
+    const plain = runFirstSpawn(MODES.UPDATED, { flag: false });
+    try {
+      assertEquals(plain.spawned[0], 'small', 'a normal visit still starts with the small cactus');
+      assertEquals(plain.gap, flagged.gap, 'the flag must not consume an extra RNG call');
+      assertEquals(game.qaBigShown, false, 'a normal spawn must not latch the QA override');
+      assertEquals(big().unlockScore, 100, 'unlock stays 100 when the flag is off');
+    } finally {
+      flagged.restore();
+      plain.restore();
+      setQaBig(false);
+      game.mode = origMode;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('with ?qaBig=1 Classic still spawns only the small cactus', () => {
+    const origMode = game.mode;
+    const run = runFirstSpawn(MODES.CLASSIC, { flag: true });
+    try {
+      assertEquals(run.spawned[0], 'small', 'Classic must not gain a big cactus from the QA flag');
+      assertEquals(game.qaBigShown, false, 'Classic must not spend the QA big cactus');
+      assert(!run.spawned.includes('big'), 'Classic obstacles stay small-only');
+    } finally {
+      run.restore();
+      setQaBig(false);
+      game.mode = origMode;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('with ?qaBig=1 Daily also shows the big cactus on the first obstacle', () => {
+    const origMode = game.mode;
+    const run = runFirstSpawn(MODES.DAILY, { flag: true });
+    try {
+      assertEquals(run.spawned[0], 'big', 'Daily should show the early big cactus');
+      assert(run.score < 50, `Daily big cactus should be early, score was ${run.score}`);
+    } finally {
+      run.restore();
+      setQaBig(false);
+      game.mode = origMode;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('resetGame re-reads ?qaBig=1 from the page query', () => {
+    const origMode = game.mode;
+    const run = runFirstSpawn(MODES.UPDATED, { search: '?qaBig=1' });
+    try {
+      assertEquals(run.spawned[0], 'big', 'resetGame should arm the early big cactus from location.search');
+      assertEquals(game.qaBigShown, true, 'the re-read flag should still latch after one big cactus');
+    } finally {
+      run.restore();
+      setQaBig(false);
       game.mode = origMode;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
