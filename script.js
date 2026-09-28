@@ -450,6 +450,17 @@ const GAME_CONFIG = Object.freeze({
   UPDATED_NEW_BEST_FONT_PX:     11,
   UPDATED_NEW_BEST_FRAMES:      60,
   UPDATED_NEW_BEST_PEAK_ALPHA:  0.65,
+  // Visual only. Daily Share result confirmation on the Copy result
+  // button. The old flash held ✓ Copied! for 90 frames (~1.5 s), long
+  // enough to nag after the clipboard tap. 45 frames (~0.75 s) is half
+  // of that: still long enough to read Copied, then the label returns to
+  // Copy result. Classic and free-play Updated never show the button.
+  // A tune outside 1..90 frames falls back, so a typo cannot linger
+  // longer than the old flash or drop the word. The confirmation stays
+  // this long under reduced motion so it does not flicker. Playtest with
+  // ?qaCopy=1, which holds the Copied label; that hold is half as long
+  // and quieter under reduced motion. Read through cfg().
+  COPY_FLASH_FRAMES:        45,
   // Soft ceiling for the once-per-run plateau cue. The speed curve approaches
   // PLATEAU_SPEED but never reaches it; 0.98 is about score 641. Visual only —
   // speed, gaps, and scoring still read the curve directly, not this ratio.
@@ -1187,6 +1198,74 @@ function advanceQaNewBest() {
   if (game.state === STATE.RUNNING && game.qaNewBestHold > 0) game.qaNewBestHold--;
 }
 
+// QA/debug only — not for players. ?qaCopy=1 holds the Daily Copy result
+// button on ✓ Copied! from the first WAITING, RUNNING, or DEAD frame, so
+// playtest can see the quieter confirmation without a clipboard write or a
+// finished score count-up. The button is the flash UI. This does not start
+// copyFlashFrames, does not call shareDailyResult(), and does not write the
+// score, speed, gaps, particles, or game.rng(). Classic and free-play
+// Updated never take it. Reduced motion halves the hold and adds the
+// quieter is-qa-damped paint. Re-read in resetGame(). Tests flip it through
+// setQaCopy(); a normal visit leaves this false.
+const QA_COPY_HOLD = 180;
+
+function readQaCopyFlag(search) {
+  const query = search !== undefined
+    ? search
+    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
+      ? location.search
+      : '');
+  if (!query) return false;
+  return new URLSearchParams(query).get('qaCopy') === '1';
+}
+
+let qaCopy = readQaCopyFlag();
+
+function setQaCopy(enabled) {
+  qaCopy = !!enabled;
+}
+
+function qaCopyHoldFrames() {
+  if (!reducedMotion) return QA_COPY_HOLD;
+  return Math.max(2, Math.round(QA_COPY_HOLD * 0.5));
+}
+
+function advanceQaCopy() {
+  if (!isDailyMode()) return;
+  const visible = game.state === STATE.WAITING
+    || game.state === STATE.RUNNING
+    || game.state === STATE.DEAD;
+  if (!visible) return;
+  if (qaCopy && !game.qaCopyShown) {
+    game.qaCopyShown = true;
+    game.qaCopyHold = qaCopyHoldFrames();
+    return;
+  }
+  if (game.qaCopyHold > 0) game.qaCopyHold--;
+}
+
+function applyQaCopyButton() {
+  const btn = document.getElementById('share-btn');
+  if (!btn) return;
+  if (isDailyMode() && game.qaCopyHold > 0) {
+    if (btn.style) btn.style.display = 'block';
+    btn.textContent = '✓ Copied!';
+    markShareCopied(btn, true, reducedMotion);
+    return;
+  }
+  if (!game.qaCopyShown) return;
+  const settledDailyDeath = isDailyMode()
+    && game.state === STATE.DEAD
+    && Animations.deathShakeFrames <= 0
+    && Animations.deathAnimFrame >= GAME_CONFIG.DEATH_ANIM_FRAMES;
+  if (settledDailyDeath) return;
+  if (btn.style) btn.style.display = 'none';
+  if (Animations.copyFlashFrames <= 0) {
+    btn.textContent = '📋 Copy result';
+    markShareCopied(btn, false, false);
+  }
+}
+
 // Solid block just under the score digits. Game coordinates, not pool slots.
 function qaConfettiRect() {
   return {
@@ -1589,6 +1668,10 @@ const game = {
   qaNewBestShown:   false,
   // QA/debug only. Frames left on the ?qaNewBest=1 quiet NEW BEST badge.
   qaNewBestHold:    0,
+  // QA/debug only. Latches after ?qaCopy=1 spends its one Copied hold.
+  qaCopyShown:      false,
+  // QA/debug only. Frames left on the ?qaCopy=1 Copied label.
+  qaCopyHold:       0,
   isNewBest:         false,
   previousHighScore: 0,
   // Set on a Daily death before today best is saved. Mirrors isNewBest:
@@ -2424,7 +2507,9 @@ function drawGameOverScreen() {
     if (shareBtnEl && shareBtnEl.style) {
       shareBtnEl.style.display = t >= 1 ? 'block' : 'none';
       if (t >= 1) {
-        shareBtnEl.textContent = Animations.copyFlashFrames > 0 ? '✓ Copied!' : '📋 Copy result';
+        const flashing = Animations.copyFlashFrames > 0;
+        shareBtnEl.textContent = flashing ? '✓ Copied!' : '📋 Copy result';
+        markShareCopied(shareBtnEl, flashing, false);
       }
     }
     if (t >= 1) drawDailyDeathHint();
@@ -3102,6 +3187,23 @@ if (muteBtn && muteBtn.addEventListener) {
   refreshMuteButton();
 }
 
+// Daily Share result confirmation. Half of the old 90-frame flash.
+// Read through cfg(); a tune outside 1..90 frames falls back.
+function copyFlashDuration() {
+  const tuned = cfg('COPY_FLASH_FRAMES');
+  const fallback = GAME_CONFIG.COPY_FLASH_FRAMES;
+  if (typeof tuned === 'number' && tuned >= 1 && tuned <= 90) return Math.round(tuned);
+  return fallback;
+}
+
+function markShareCopied(btn, copied, damped) {
+  if (!btn || !btn.classList) return;
+  if (copied) btn.classList.add('is-copied');
+  else btn.classList.remove('is-copied');
+  if (copied && damped) btn.classList.add('is-qa-damped');
+  else btn.classList.remove('is-qa-damped');
+}
+
 // Share button — shown on death screen during daily challenge only.
 const shareBtn = document.getElementById('share-btn');
 if (shareBtn && shareBtn.addEventListener) {
@@ -3109,8 +3211,9 @@ if (shareBtn && shareBtn.addEventListener) {
     if (event) event.stopPropagation();
     // Start the flash before the clipboard call. A sync throw from
     // writeText used to abort this handler, so the label never changed.
-    Animations.copyFlashFrames = 90; // ~1.5 s at 60 fps
+    Animations.copyFlashFrames = copyFlashDuration();
     shareBtn.textContent = '✓ Copied!';
+    markShareCopied(shareBtn, true, false);
     shareDailyResult();
   };
   shareBtn.addEventListener('click', onShareTap);
@@ -3226,6 +3329,8 @@ function resetGame() {
   game.qaScorePopHold    = 0;
   game.qaNewBestShown    = false;
   game.qaNewBestHold     = 0;
+  game.qaCopyShown       = false;
+  game.qaCopyHold        = 0;
   // QA/debug only. Re-read so a mode toggle still honors the page query.
   qaPlateau = readQaPlateauFlag();
   qaCluster = readQaClusterFlag();
@@ -3239,6 +3344,7 @@ function resetGame() {
   qaFlash = readQaFlashFlag();
   qaScorePop = readQaScorePopFlag();
   qaNewBest = readQaNewBestFlag();
+  qaCopy = readQaCopyFlag();
   game.isNewBest         = false;
   game.previousHighScore = 0;
   game.isNewTodayBest    = false;
@@ -3252,6 +3358,7 @@ function resetGame() {
   game.dailyBest = ScoreStore.loadDailyBest();
   const shareBtnEl = document.getElementById('share-btn');
   if (shareBtnEl && shareBtnEl.style) shareBtnEl.style.display = 'none';
+  markShareCopied(shareBtnEl, false, false);
   game.nextSpawnGap = computeNextSpawnGap(game.rng, DifficultyProfile.speedAtScore(game.score), game.mode);
   initClouds();
   initHills();
@@ -3554,6 +3661,7 @@ function gameLoop() {
   advanceQaFlash();
   advanceQaScorePop();
   advanceQaNewBest();
+  advanceQaCopy();
   STATE_HANDLERS[game.state]();
   // After the handler so a collision return, the score, and the death
   // card cannot cover the debug block. No-op unless the hold is running.
@@ -3568,6 +3676,7 @@ function gameLoop() {
   drawQaLevelLabel();
   drawQaScorePop();
   drawQaNewBest();
+  applyQaCopyButton();
 }
 
 // == SECTION 9: INITIALISATION ==
@@ -3717,6 +3826,11 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.qaNewBestPaintAlpha = qaNewBestPaintAlpha;
   global.drawQaNewBest = drawQaNewBest;
   global.newBestDuration = newBestDuration;
+  global.copyFlashDuration = copyFlashDuration;
+  global.setQaCopy = setQaCopy;
+  global.readQaCopyFlag = readQaCopyFlag;
+  global.QA_COPY_HOLD = QA_COPY_HOLD;
+  global.qaCopyHoldFrames = qaCopyHoldFrames;
   global.obstacleNightBrightness = obstacleNightBrightness;
   global.dinoNightBrightness = dinoNightBrightness;
   global.cloudPaintAlpha = cloudPaintAlpha;

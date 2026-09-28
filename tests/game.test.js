@@ -12045,6 +12045,369 @@ describe('Quieter NEW BEST badge', () => {
   });
 });
 
+describe('Quieter copy flash', () => {
+  function withTuning(overrides, fn) {
+    const orig = window.GAME_TUNING;
+    window.GAME_TUNING = overrides;
+    try {
+      fn();
+    } finally {
+      window.GAME_TUNING = orig;
+    }
+  }
+
+  function installClassList(el) {
+    const names = new Set();
+    el.classList = {
+      add(name) { names.add(name); },
+      remove(name) { names.delete(name); },
+      contains(name) { return names.has(name); },
+    };
+    return el.classList;
+  }
+
+  it('the Copied confirmation is about half the old 90-frame flash', () => {
+    assertEquals(GAME_CONFIG.COPY_FLASH_FRAMES, 45,
+      'copy flash should be 45 frames, about 0.75s');
+    assert(GAME_CONFIG.COPY_FLASH_FRAMES < 90,
+      'the confirmation should be shorter than the old 1.5s flash');
+    assertEquals(copyFlashDuration(), GAME_CONFIG.COPY_FLASH_FRAMES,
+      'the handler duration should read the named config');
+  });
+
+  it('a tune outside 1..90 frames falls back to the quiet length', () => {
+    withTuning({ COPY_FLASH_FRAMES: 30 }, () => {
+      assertEquals(copyFlashDuration(), 30, 'a readable tune should apply');
+    });
+    withTuning({ COPY_FLASH_FRAMES: 0 }, () => {
+      assertEquals(copyFlashDuration(), GAME_CONFIG.COPY_FLASH_FRAMES,
+        'zero would flicker, so it falls back');
+    });
+    withTuning({ COPY_FLASH_FRAMES: 200 }, () => {
+      assertEquals(copyFlashDuration(), GAME_CONFIG.COPY_FLASH_FRAMES,
+        'a longer tune would nag past the old flash');
+    });
+    withTuning({}, () => {
+      assertEquals(copyFlashDuration(), GAME_CONFIG.COPY_FLASH_FRAMES,
+        'no tune keeps the quiet default');
+    });
+  });
+
+  it('starts the shorter Copied flash before the clipboard write', () => {
+    const shareBtn = document.getElementById('share-btn');
+    const handler = shareBtn._listeners && shareBtn._listeners.click && shareBtn._listeners.click[0];
+    assert(typeof handler === 'function', 'share button must register a click handler');
+    const origDesc = Object.getOwnPropertyDescriptor(global, 'navigator');
+    const origFlash = Animations.copyFlashFrames;
+    const origText = shareBtn.textContent;
+    const origClass = shareBtn.classList;
+    const classes = installClassList(shareBtn);
+    Animations.copyFlashFrames = 0;
+    shareBtn.textContent = '📋 Copy result';
+    let wrote = false;
+    let flashAtWrite = -1;
+    let labelAtWrite = '';
+    Object.defineProperty(global, 'navigator', {
+      configurable: true,
+      writable: true,
+      value: {
+        clipboard: {
+          writeText() {
+            wrote = true;
+            flashAtWrite = Animations.copyFlashFrames;
+            labelAtWrite = shareBtn.textContent;
+            return Promise.resolve();
+          },
+        },
+      },
+    });
+    try {
+      handler({ stopPropagation() {} });
+      assert(wrote, 'the clipboard write should still run');
+      assertEquals(flashAtWrite, GAME_CONFIG.COPY_FLASH_FRAMES,
+        'the flash counter is set before writeText');
+      assertEquals(labelAtWrite, '✓ Copied!', 'the Copied label is set before writeText');
+      assertEquals(Animations.copyFlashFrames, GAME_CONFIG.COPY_FLASH_FRAMES,
+        'the live counter stays on the quiet length');
+      assert(classes.contains('is-copied'), 'the Copied state uses the calmer button class');
+      assert(!classes.contains('is-qa-damped'), 'a real tap is not the reduced-motion QA hold');
+    } finally {
+      if (origDesc) Object.defineProperty(global, 'navigator', origDesc);
+      Animations.copyFlashFrames = origFlash;
+      shareBtn.textContent = origText;
+      if (origClass === undefined) delete shareBtn.classList;
+      else shareBtn.classList = origClass;
+    }
+  });
+});
+
+describe('QA copy flag (?qaCopy=1)', () => {
+  function tick() {
+    gameLoop();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+  }
+
+  function installClassList(el) {
+    const names = new Set();
+    el.classList = {
+      add(name) { names.add(name); },
+      remove(name) { names.delete(name); },
+      contains(name) { return names.has(name); },
+    };
+    return el.classList;
+  }
+
+  function buttonSnapshot() {
+    const shareBtn = document.getElementById('share-btn');
+    return {
+      style: shareBtn.style,
+      text: shareBtn.textContent,
+      classList: shareBtn.classList,
+    };
+  }
+
+  function prepareButton() {
+    const shareBtn = document.getElementById('share-btn');
+    shareBtn.style = { display: 'none' };
+    shareBtn.textContent = '📋 Copy result';
+    installClassList(shareBtn);
+    return shareBtn;
+  }
+
+  function restoreButton(orig) {
+    const shareBtn = document.getElementById('share-btn');
+    if (orig.style === undefined) delete shareBtn.style;
+    else shareBtn.style = orig.style;
+    shareBtn.textContent = orig.text;
+    if (orig.classList === undefined) delete shareBtn.classList;
+    else shareBtn.classList = orig.classList;
+  }
+
+  function aliveLives() {
+    return Particles.particles.filter((p) => p.life > 0).length;
+  }
+
+  function armDailyWaiting() {
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    game.mode = MODES.DAILY;
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    if (typeof setQaCopy === 'function') setQaCopy(true);
+    return prepareButton();
+  }
+
+  it('?qaCopy=1 is Daily-only and off for any other value', () => {
+    assert(readQaCopyFlag('?qaCopy=1') === true, '?qaCopy=1 should hold Copied');
+    assert(readQaCopyFlag('?qaNight=1&qaCopy=1') === true, 'the flag should work beside other params');
+    assert(readQaCopyFlag('?qaCopy=1&qaNewBest=1') === true, 'param order should not matter');
+    assert(readQaCopyFlag('?qaCopy=0') === false, 'only the value 1 enables the flag');
+    assert(readQaCopyFlag('?qaCopy=12') === false, 'qaCopy=12 must not count as the flag');
+    assert(readQaCopyFlag('') === false, 'an empty query leaves the flag off');
+    assert(readQaCopyFlag('?qaNewBest=1') === false, 'the badge flag must not hold Copied');
+    assert(readQaNewBestFlag('?qaCopy=1') === false, 'this flag must not hold the badge');
+    assert(readQaFlashFlag('?qaCopy=1') === false, 'this flag must not flash the death blink');
+    assert(readQaCollisionFlag('?qaCopy=1') === false, 'this flag must not hold the death puff');
+  });
+
+  it('holds Copied on a Daily waiting screen without a death or a clipboard write', () => {
+    const origMode = game.mode;
+    const origBtn = buttonSnapshot();
+    const origRng = game.rng;
+    try {
+      setReducedMotion(false);
+      const shareBtn = armDailyWaiting();
+      const seed = game.runSeed;
+      const gap = game.nextSpawnGap;
+      const score = game.score;
+      const speed = game.currentSpeed;
+      const best = game.dailyBest;
+      const lives = aliveLives();
+      const obstacles = game.obstacles.length;
+      let rngCalls = 0;
+      game.rng = () => {
+        rngCalls++;
+        return origRng();
+      };
+      tick();
+      assertEquals(game.state, STATE.WAITING, 'the hold starts before the run');
+      assertEquals(game.qaCopyHold, QA_COPY_HOLD, 'Daily latches the full capture window');
+      assertEquals(qaCopyHoldFrames(), QA_COPY_HOLD, 'the helper matches the full window');
+      assertEquals(game.qaCopyShown, true, 'Daily spends the latch once');
+      assertEquals(Animations.copyFlashFrames, 0, 'the hold does not start the live flash');
+      assertEquals(shareBtn.style.display, 'block', 'Copied stays visible before Game Over');
+      assertEquals(shareBtn.textContent, '✓ Copied!', 'the button reads Copied');
+      assert(shareBtn.classList.contains('is-copied'), 'the hold uses the calmer Copied paint');
+      assert(!shareBtn.classList.contains('is-qa-damped'), 'full motion does not damp the paint');
+      assertEquals(game.score, score, 'the hold does not change the score');
+      assertEquals(game.currentSpeed, speed, 'the hold does not change the speed');
+      assertEquals(game.dailyBest, best, 'the hold does not change today best');
+      assertEquals(game.nextSpawnGap, gap, 'the hold does not change the spawn gap');
+      assertEquals(game.runSeed, seed, 'the hold does not change the run seed');
+      assertEquals(game.obstacles.length, obstacles, 'the hold does not spawn obstacles');
+      assertEquals(rngCalls, 0, 'the hold does not draw gameplay rng');
+      assertEquals(aliveLives(), lives, 'the hold does not emit particles');
+      tick();
+      assertEquals(game.qaCopyHold, QA_COPY_HOLD - 1, 'the hold counts down while waiting');
+      assertEquals(shareBtn.textContent, '✓ Copied!', 'the label stays Copied while the hold runs');
+      assertEquals(rngCalls, 0, 'later waiting frames still skip gameplay rng');
+      assertEquals(aliveLives(), lives, 'later waiting frames still skip particles');
+    } finally {
+      game.mode = origMode;
+      game.rng = origRng;
+      if (typeof setQaCopy === 'function') setQaCopy(false);
+      setReducedMotion(false);
+      game.qaCopyHold = 0;
+      game.qaCopyShown = false;
+      Animations.copyFlashFrames = 0;
+      restoreButton(origBtn);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('Classic and Updated leave the share button hidden', () => {
+    const origMode = game.mode;
+    const origBtn = buttonSnapshot();
+    try {
+      setReducedMotion(false);
+      for (const mode of [MODES.CLASSIC, MODES.UPDATED]) {
+        if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+        game.mode = mode;
+        resetGame();
+        if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+        if (typeof setQaCopy === 'function') setQaCopy(true);
+        const shareBtn = prepareButton();
+        tick();
+        assertEquals(game.qaCopyHold, 0, mode + ' does not start the hold');
+        assertEquals(game.qaCopyShown, false, mode + ' does not spend the latch');
+        assertEquals(Animations.copyFlashFrames, 0, mode + ' does not start the live flash');
+        assertEquals(shareBtn.style.display, 'none', mode + ' does not show Copied');
+        assertEquals(shareBtn.textContent, '📋 Copy result', mode + ' keeps the resting label');
+        assert(!shareBtn.classList.contains('is-copied'), mode + ' does not paint Copied');
+      }
+    } finally {
+      game.mode = origMode;
+      if (typeof setQaCopy === 'function') setQaCopy(false);
+      setReducedMotion(false);
+      game.qaCopyHold = 0;
+      game.qaCopyShown = false;
+      restoreButton(origBtn);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('reduced motion halves the hold and damps the Copied paint', () => {
+    const origMode = game.mode;
+    const origBtn = buttonSnapshot();
+    try {
+      setReducedMotion(true);
+      const shareBtn = armDailyWaiting();
+      tick();
+      const half = Math.max(2, Math.round(QA_COPY_HOLD * 0.5));
+      assertEquals(game.qaCopyHold, half, 'reduced motion halves the 180-frame hold');
+      assertEquals(game.qaCopyHold, qaCopyHoldFrames(), 'the helper matches the damped hold');
+      assert(game.qaCopyHold < QA_COPY_HOLD, 'the damped hold is shorter');
+      assert(qaCopyHoldFrames() >= 2, 'the hold still lasts long enough to see');
+      assertEquals(shareBtn.style.display, 'block', 'the damped hold stays visible');
+      assertEquals(shareBtn.textContent, '✓ Copied!', 'the label still says Copied');
+      assert(shareBtn.classList.contains('is-copied'), 'Copied is still readable');
+      assert(shareBtn.classList.contains('is-qa-damped'), 'reduced motion quiets the paint');
+      assertEquals(Animations.copyFlashFrames, 0, 'the damped hold does not start the live flash');
+    } finally {
+      game.mode = origMode;
+      if (typeof setQaCopy === 'function') setQaCopy(false);
+      setReducedMotion(false);
+      game.qaCopyHold = 0;
+      game.qaCopyShown = false;
+      restoreButton(origBtn);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('keeps Copied visible during the Game Over count-up', () => {
+    const origMode = game.mode;
+    const origState = game.state;
+    const origBtn = buttonSnapshot();
+    const origAnim = Animations.deathAnimFrame;
+    const origShake = Animations.deathShakeFrames;
+    try {
+      setReducedMotion(false);
+      const shareBtn = armDailyWaiting();
+      game.state = STATE.DEAD;
+      Animations.deathShakeFrames = 0;
+      Animations.deathAnimFrame = 0;
+      shareBtn.style.display = 'none';
+      shareBtn.textContent = '📋 Copy result';
+      tick();
+      assert(Animations.deathAnimFrame > 0, 'the count-up still advances');
+      assert(Animations.deathAnimFrame < GAME_CONFIG.DEATH_ANIM_FRAMES,
+        'the count-up has not finished');
+      assertEquals(shareBtn.style.display, 'block',
+        'QA keeps the button up before the count-up ends');
+      assertEquals(shareBtn.textContent, '✓ Copied!', 'the early button still says Copied');
+      assertEquals(game.score, 0, 'showing the button does not invent a score');
+    } finally {
+      game.mode = origMode;
+      game.state = origState;
+      Animations.deathAnimFrame = origAnim;
+      Animations.deathShakeFrames = origShake;
+      if (typeof setQaCopy === 'function') setQaCopy(false);
+      setReducedMotion(false);
+      game.qaCopyHold = 0;
+      game.qaCopyShown = false;
+      restoreButton(origBtn);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('resetGame re-reads ?qaCopy=1 from the page query', () => {
+    const origMode = game.mode;
+    const origBtn = buttonSnapshot();
+    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
+    const prevLocation = global.location;
+    try {
+      setReducedMotion(false);
+      global.location = { search: '' };
+      if (typeof setQaCopy === 'function') setQaCopy(true);
+      game.qaCopyShown = true;
+      game.qaCopyHold = 40;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      game.mode = MODES.DAILY;
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      assertEquals(game.qaCopyHold, 0, 'a visit without the flag clears the hold');
+      assertEquals(game.qaCopyShown, false, 'a visit without the flag clears the latch');
+
+      global.location = { search: '?qaCopy=1' };
+      if (typeof setQaCopy === 'function') setQaCopy(false);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      const shareBtn = prepareButton();
+      const score = game.score;
+      tick();
+      assertEquals(game.state, STATE.WAITING, 'the re-read flag holds Copied before the run');
+      assertEquals(game.qaCopyHold, QA_COPY_HOLD, 'the re-read flag latches the hold');
+      assertEquals(game.qaCopyShown, true, 'the re-read flag spends the latch');
+      assertEquals(shareBtn.style.display, 'block', 'the re-read flag shows Copied');
+      assertEquals(shareBtn.textContent, '✓ Copied!', 'the re-read flag labels Copied');
+      assertEquals(game.score, score, 're-reading the flag must not change the score');
+      assertEquals(Animations.copyFlashFrames, 0, 're-reading the flag does not start the live flash');
+    } finally {
+      if (hadLocation) global.location = prevLocation;
+      else delete global.location;
+      game.mode = origMode;
+      if (typeof setQaCopy === 'function') setQaCopy(false);
+      setReducedMotion(false);
+      game.qaCopyHold = 0;
+      game.qaCopyShown = false;
+      restoreButton(origBtn);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+});
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {
