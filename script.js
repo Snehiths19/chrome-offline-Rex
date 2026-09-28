@@ -483,13 +483,16 @@ function setQaTrail(enabled) {
   qaTrail = !!enabled;
 }
 
-// QA/debug only — not for players. ?qaConfetti=1 emits the level-up gold
-// puff from the first Updated/Daily RUNNING frame, so playtest can see it
-// without a score-100 run or a new record. It does not write the score,
-// speed, gaps, or game.rng(). Classic never takes it. One burst per run,
-// at the same score corner as a real level. Re-read in resetGame() like
+// QA/debug only — not for players. ?qaConfetti=1 shows the level-up gold
+// puff early in an Updated/Daily run, so playtest can see it without a
+// score-100 run or a new record. The production kind stays short (20
+// frames), which is gone before a capture after GET READY. This hold
+// parks that same tight footprint on the score for QA_CONFETTI_HOLD
+// frames. It does not write the score, speed, gaps, or game.rng().
+// Classic never takes it. One burst per run. Re-read in resetGame() like
 // the other QA flags. Tests flip it through setQaConfetti(); a normal
 // visit leaves this false.
+const QA_CONFETTI_HOLD = 180;
 function readQaConfettiFlag(search) {
   const query = search !== undefined
     ? search
@@ -504,6 +507,30 @@ let qaConfetti = readQaConfettiFlag();
 
 function setQaConfetti(enabled) {
   qaConfetti = !!enabled;
+}
+
+// Park the motes just emitted at the quiet puff's full-life footprint, then
+// keep them still. A real level-up is not parked: those motes keep the
+// short KINDS life and their drift. Reduced motion has already lowered
+// the count inside emit.
+function holdQaConfetti() {
+  const kind = Particles.KINDS.confetti;
+  for (let i = 0; i < Particles.particles.length; i++) {
+    const p = Particles.particles[i];
+    if (p.life <= 0 || p.color !== kind.color || p.life > kind.life) continue;
+    const vx = p.vx;
+    let vy = p.vy;
+    for (let s = 0; s < kind.life; s++) {
+      p.x += vx;
+      p.y += vy;
+      vy += p.gravity;
+    }
+    p.vx = 0;
+    p.vy = 0;
+    p.gravity = 0;
+    p.life = QA_CONFETTI_HOLD;
+    p.maxLife = QA_CONFETTI_HOLD;
+  }
 }
 
 // Score the night sky consults. The QA flag pretends night has fully arrived.
@@ -2339,14 +2366,16 @@ function handleRunning() {
     Particles.emit('confetti', GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30, GAME_CONFIG.SCORE_Y);
   }
 
-  // QA/debug only — not for players. Same gold puff as a level-up, once,
-  // from the first Updated/Daily frame, at the score. A normal visit waits
-  // for the real level. Classic never enters. Particles.emit uses
-  // Math.random(), not game.rng(). The flag does not change speed, gaps,
-  // or scoring.
+  // QA/debug only — not for players. Same gold kind as a level-up, once,
+  // on the first Updated/Daily frame, then parked at that tight footprint
+  // so it is still there a couple of seconds after GET READY. A normal
+  // visit waits for the real level and keeps the short life. Classic never
+  // enters. Particles.emit uses Math.random(), not game.rng(). The flag
+  // does not change speed, gaps, or scoring.
   if (qaConfetti && isUpdatedMode() && !game.qaConfettiShown) {
     game.qaConfettiShown = true;
     Particles.emit('confetti', GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30, GAME_CONFIG.SCORE_Y);
+    holdQaConfetti();
   }
 
   // Scroll ground.
@@ -2597,6 +2626,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.readQaTrailFlag = readQaTrailFlag;
   global.setQaConfetti = setQaConfetti;
   global.readQaConfettiFlag = readQaConfettiFlag;
+  global.QA_CONFETTI_HOLD = QA_CONFETTI_HOLD;
   global.obstacleNightBrightness = obstacleNightBrightness;
   global.dinoNightBrightness = dinoNightBrightness;
   global.cloudPaintAlpha = cloudPaintAlpha;
