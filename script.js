@@ -207,14 +207,21 @@ const GAME_CONFIG = Object.freeze({
   HILL_COLOR_DAY:          '#cdcdcd',
   HILL_COLOR_NIGHT:        '#3a3a55',
   CLOUD_SPEED_FACTOR_UPDATED: 1.5, // multiply cloud speed in updated mode for stronger parallax
-  SKY_TINT_PEAK_ALPHA:      0.12, // gold sky-flash peak alpha during milestone
+  // Visual only. Peak alpha of the gold milestone sky-flash by day, in
+  // Updated and Daily. One full-canvas fill, painted after the cacti, so
+  // it sits on the obstacle lane for the whole milestone. 0.12 lifted the
+  // day cactus (#535353) by about 15 luminance — a gold veil over the lane.
+  // 0.06 is half that peak: a gold breath. The LEVEL text and the confetti
+  // still carry the level. Classic does not draw the tint. Night uses its
+  // own peak and the twilight ease still steps down to it. Read through cfg().
+  SKY_TINT_PEAK_ALPHA:      0.06,
   SKY_TINT_COLOR_RGB:      '255, 215, 0',   // gold sky-flash colour (rgb triplet, alpha applied at draw)
   // Visual only. Peak alpha of the gold milestone sky-flash once the sky is
-  // fully night, in Updated and Daily. Day flash stays SKY_TINT_PEAK_ALPHA
-  // (0.12), a whisper on white. The same 0.12 on the night sky (#1a1a2e) is
-  // a gold veil over the whole canvas, and the tint paints after the cacti,
-  // so it punches the obstacle lane. 0.04 is a third of that peak: the level
-  // cue stays gold, and the luminance lift stays near the day wash on white.
+  // fully night, in Updated and Daily. A strong gold on the night sky
+  // (#1a1a2e) is a veil over the whole canvas, and the tint paints after
+  // the cacti, so it punches the obstacle lane. 0.04 keeps the level cue
+  // gold. Its luminance lift on the night sky stays near what the old 0.12
+  // day wash did on white, so quieting the day wash does not brighten night.
   // Classic does not read this. Eases with the sky from DAY_NIGHT_START to
   // DAY_NIGHT_END. Reduced motion skips that ease and snaps to this at
   // DAY_NIGHT_END; the tint itself stays suppressed under reduced motion.
@@ -1346,9 +1353,9 @@ function skyTintPeakAlpha() {
   return day + (night - day) * t;
 }
 
-// PR-D: gentle gold sky-tint pulse during a milestone flash. Subtle on top of
-// the existing day/night background. Night uses a lower peak so the wash
-// does not punch the obstacle lane.
+// Gentle gold sky-tint during a milestone flash, on top of the day/night
+// background. The day peak is a half-strength breath so the wash does not
+// veil the obstacle lane. Night eases to a lower peak for the same reason.
 function drawSkyTint() {
   if (!isUpdatedMode() || reducedMotion) return;
   if (Animations.milestoneFrames <= 0) return;

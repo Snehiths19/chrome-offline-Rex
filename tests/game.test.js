@@ -6317,16 +6317,29 @@ describe('Night milestone tint', () => {
     try {
       setQaNight(false);
       setReducedMotion(false);
+      assertEquals(GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA, 0.04,
+        'night peak stays the shipped quiet value');
+      assert(GAME_CONFIG.SKY_TINT_PEAK_ALPHA <= 0.06,
+        'day peak stays at most half the old 0.12 veil');
       assert(GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA < GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
-        'night peak is lower than the day peak');
+        'night peak is lower than the day peak so twilight still eases down');
       assert(GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA > 0, 'the level cue still paints at night');
+      const cactus = [0x53, 0x53, 0x53];
+      const laneNow = washLift(GAME_CONFIG.SKY_TINT_PEAK_ALPHA, cactus);
+      const laneVeil = washLift(0.12, cactus);
+      assert(laneNow > 0, 'the day wash still warms the lane');
+      assert(laneNow <= laneVeil * 0.5,
+        'gold on the day cactus stays at most half the old veil');
       const dayLift = washLift(GAME_CONFIG.SKY_TINT_PEAK_ALPHA, daySky);
       const nightLift = washLift(GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA, nightSky);
-      const punched = washLift(GAME_CONFIG.SKY_TINT_PEAK_ALPHA, nightSky);
-      assert(nightLift < punched * 0.5,
-        'night wash is much quieter than painting the day peak on the night sky');
-      assert(nightLift > dayLift * 0.5 && nightLift < dayLift * 1.6,
-        'night lift stays near the day cue on white');
+      const oldDayOnWhite = washLift(0.12, daySky);
+      const oldPunch = washLift(0.12, nightSky);
+      assert(nightLift < oldPunch * 0.5,
+        'night wash stays much quieter than the old day peak on the night sky');
+      assert(nightLift > oldDayOnWhite * 0.5 && nightLift < oldDayOnWhite * 1.6,
+        'night lift stays near the old day cue on white');
+      assert(dayLift < oldDayOnWhite,
+        'the quieter day wash lifts white less than the old veil');
 
       game.mode = MODES.UPDATED;
       game.score = 0;
