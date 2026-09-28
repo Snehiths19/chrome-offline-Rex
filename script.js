@@ -488,12 +488,15 @@ function setQaTrail(enabled) {
 // Production confetti stays #ffd700 at 3px, which disappears on the white
 // day sky. The hold repaints those motes larger, in a darker gold, just
 // under the score digits, and keeps them opaque for QA_CONFETTI_HOLD
-// frames. It does not write the score, speed, gaps, or game.rng().
+// frames. drawQaConfetti() paints that block again after the score, so
+// the HUD cannot cover it. It does not write the score, speed, gaps, or
+// game.rng().
 // Classic never takes it. One burst per run. Re-read in resetGame().
 // Tests flip it through setQaConfetti(); a normal visit leaves this false.
 const QA_CONFETTI_HOLD = 180;
 const QA_CONFETTI_SIZE = 12;
 const QA_CONFETTI_COLOR = '#b45309';
+const QA_CONFETTI_RIM = '#3f2a12';
 function readQaConfettiFlag(search) {
   const query = search !== undefined
     ? search
@@ -551,6 +554,27 @@ function sustainQaConfetti() {
     p.vy = 0;
     p.gravity = 0;
   }
+}
+
+// Last paint of the running frame. The pooled particle pass runs before
+// the score, so a mote under the digits can be covered, and #ffd700 at
+// 3px never reads on the white sky. This pass is the debug puff only:
+// full strength, dark rim, on top of the HUD, for the hold window.
+function drawQaConfetti() {
+  if (!qaConfetti || game.qaConfettiHold <= 0) return;
+  const prevAlpha = ctx.globalAlpha;
+  ctx.globalAlpha = 1;
+  for (let i = 0; i < Particles.particles.length; i++) {
+    const p = Particles.particles[i];
+    if (p.life <= 0 || p.color !== QA_CONFETTI_COLOR) continue;
+    const left = p.x - p.size / 2;
+    const top = p.y - p.size / 2;
+    ctx.fillStyle = QA_CONFETTI_RIM;
+    ctx.fillRect(left - 2, top - 2, p.size + 4, p.size + 4);
+    ctx.fillStyle = QA_CONFETTI_COLOR;
+    ctx.fillRect(left, top, p.size, p.size);
+  }
+  ctx.globalAlpha = prevAlpha;
 }
 
 // Score the night sky consults. The QA flag pretends night has fully arrived.
@@ -2547,6 +2571,7 @@ function handleRunning() {
   runFeatureDraws('overlay');       // drawSkyTint
   drawMilestoneFlash();
   drawNewBestBadge();
+  drawQaConfetti();
 }
 
 const STATE_HANDLERS = {
@@ -2658,6 +2683,8 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.QA_CONFETTI_HOLD = QA_CONFETTI_HOLD;
   global.QA_CONFETTI_SIZE = QA_CONFETTI_SIZE;
   global.QA_CONFETTI_COLOR = QA_CONFETTI_COLOR;
+  global.QA_CONFETTI_RIM = QA_CONFETTI_RIM;
+  global.drawQaConfetti = drawQaConfetti;
   global.obstacleNightBrightness = obstacleNightBrightness;
   global.dinoNightBrightness = dinoNightBrightness;
   global.cloudPaintAlpha = cloudPaintAlpha;

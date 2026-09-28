@@ -7993,6 +7993,51 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
     }
   });
 
+  it('paints the debug gold after the score so the HUD cannot cover it', () => {
+    const origMode = game.mode;
+    const origFillRect = ctx.fillRect;
+    const origFillText = ctx.fillText;
+    const calls = [];
+    try {
+      armFreshRun(MODES.UPDATED);
+      setQaConfetti(true);
+      ctx.fillRect = function (x, y, w, h) {
+        calls.push({ op: 'rect', style: ctx.fillStyle, x: x, y: y, w: w, h: h });
+      };
+      ctx.fillText = function (text) {
+        calls.push({ op: 'text', text: String(text) });
+      };
+      tick();
+      const scoreAt = calls.findIndex((c) => c.op === 'text' && c.text === '00000');
+      assert(scoreAt >= 0, 'the score is drawn on the first running frame');
+      const afterScore = calls.slice(scoreAt + 1);
+      const gold = afterScore.filter((c) => c.op === 'rect' && c.style === QA_CONFETTI_COLOR);
+      const rim = afterScore.filter((c) => c.op === 'rect' && c.style === QA_CONFETTI_RIM);
+      assertEquals(gold.length, Particles.KINDS.confetti.count,
+        'dark gold is painted after the score digits');
+      assertEquals(rim.length, Particles.KINDS.confetti.count,
+        'a dark rim is painted with each mote, after the score');
+      gold.forEach((c) => {
+        assertEquals(c.w, QA_CONFETTI_SIZE, 'the late paint uses the large mote');
+        assertEquals(c.h, QA_CONFETTI_SIZE, 'the late paint uses the large mote');
+        assert(c.y >= GAME_CONFIG.SCORE_Y, 'the late paint sits under the score line');
+      });
+      rim.forEach((c) => {
+        assertEquals(c.w, QA_CONFETTI_SIZE + 4, 'the rim frames the mote');
+      });
+      const lastHud = afterScore.reduce((at, c, i) => (c.op === 'text' ? i : at), -1);
+      const firstGold = afterScore.findIndex((c) => c.op === 'rect' && c.style === QA_CONFETTI_COLOR);
+      assert(firstGold > lastHud, 'the gold is the last paint, after every HUD string');
+    } finally {
+      ctx.fillRect = origFillRect;
+      ctx.fillText = origFillText;
+      game.mode = origMode;
+      setQaConfetti(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
   it('Classic with ?qaConfetti=1 still emits nothing', () => {
     const origMode = game.mode;
     try {
