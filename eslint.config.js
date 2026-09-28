@@ -110,6 +110,8 @@ export default [
         QA_PLATEAU_SCORE: 'readonly',
         setQaCluster: 'readonly',
         readQaClusterFlag: 'readonly',
+        setQaBig: 'readonly',
+        readQaBigFlag: 'readonly',
         setQaNight: 'readonly',
         readQaNightFlag: 'readonly',
         obstacleNightBrightness: 'readonly',

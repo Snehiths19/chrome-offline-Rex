@@ -19,13 +19,16 @@ _Avoid_: grace period, warmup, delay
 
 ## Core Concepts
 
+**Big cactus** — the obstacle type that unlocks at score 100, the first obstacle that is not the small cactus. It uses the same cactus art, painted at that art's own proportions and at the hitbox height, with nearest-neighbor so a first encounter reads as a crisp tall cactus rather than a soft, wide stretch of the small sprite. The paint may sit inside the hitbox; the hitbox width, height, unlock score, and weight stay on `GAME_CONFIG` and are not part of the draw. An unrecognisable first encounter around score 100 is a fairness break — the same kind of problem as the cluster later in the run, only earlier.
+_Avoid_: large cactus, tall cactus (as a type name), stretched cactus
+
 **Cluster obstacle** — the obstacle type that unlocks at score 250, drawn as two full small-cactus sprites with one small cactus of sky between them so a first encounter reads as two cacti at a glance. The cactus art's arms run to the edge of the sprite, so the leftover space inside the hitbox still reads as one mass. The sprites may overhang the hitbox equally; the sky between them stays inside the hitbox, and the gap is narrower than the dino, so it is not a lane. The hitbox width, unlock score, and weight stay on `GAME_CONFIG` and are not part of the draw. An unrecognisable first encounter at score 250+ is a fairness break, not an earned surprise — the player has invested a long run before losing to something confusing.
 _Avoid_: double cactus, pair obstacle, twin obstacle
 
 **Obstacle** — any on-screen hazard the dino must jump over.
 _Avoid_: enemy, object
 
-**Obstacle type** — the category of a spawned obstacle (e.g. small cactus, cluster cactus).
+**Obstacle type** — the category of a spawned obstacle (e.g. small cactus, big cactus, cluster cactus).
 _Avoid_: obstacle kind, obstacle variant
 
 **Spawn gap** — the pixel distance between the right edge of the canvas and the trigger point for the next obstacle spawn. In Updated and Daily, once the shrinking curve would leave less than one focused jump between obstacles, the gap scales with speed so the time between them holds. Classic keeps the shrinking pixel gap.

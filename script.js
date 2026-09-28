@@ -333,6 +333,27 @@ function setQaCluster(enabled) {
   qaCluster = !!enabled;
 }
 
+// QA/debug only — not for players. ?qaBig=1 forces the first Updated/Daily
+// obstacle to be a big cactus so playtest can see the tall silhouette
+// without reaching score 100. The type roll is still consumed, so gaps and
+// later picks keep their RNG order. Classic never takes the override.
+// Re-read in resetGame() like ?qaCluster=1. Tests flip it through setQaBig().
+function readQaBigFlag(search) {
+  const query = search !== undefined
+    ? search
+    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
+      ? location.search
+      : '');
+  if (!query) return false;
+  return new URLSearchParams(query).get('qaBig') === '1';
+}
+
+let qaBig = readQaBigFlag();
+
+function setQaBig(enabled) {
+  qaBig = !!enabled;
+}
+
 // QA/debug only — not for players. ?qaNight=1 paints full night from the
 // first frame so the star fade can be seen without a score-400 run.
 // Sky, hills, HUD ink, star init, the Updated/Daily night cactus and dino
@@ -370,6 +391,16 @@ function qaClusterOverride(rolledType) {
   if (!cluster) return rolledType;
   game.qaClusterShown = true;
   return cluster;
+}
+
+// Returns the rolled type, or the big cactus once per run when the QA flag
+// is on. Updated and Daily only. Does not call game.rng().
+function qaBigOverride(rolledType) {
+  if (!qaBig || game.qaBigShown || !isUpdatedMode()) return rolledType;
+  const big = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'big');
+  if (!big) return rolledType;
+  game.qaBigShown = true;
+  return big;
 }
 
 // --- Web Audio module (PR-B) ---
@@ -686,6 +717,8 @@ const game = {
   plateauCueShown:  false,
   // QA/debug only. Latches after ?qaCluster=1 spends its one early cluster.
   qaClusterShown:   false,
+  // QA/debug only. Latches after ?qaBig=1 spends its one early big cactus.
+  qaBigShown:       false,
   isNewBest:         false,
   previousHighScore: 0,
   // Set on a Daily death before today best is saved. Mirrors isNewBest:
@@ -1124,6 +1157,67 @@ function obstacleNightBrightness() {
   return typeof peak === 'number' && peak > 1 ? peak : 1;
 }
 
+// assets/cactus.png is 34×70. The Node Image stub has no natural size, so
+// the tall-cactus paint falls back to that cell. Visual only.
+const CACTUS_SPRITE_W = 34;
+const CACTUS_SPRITE_H = 70;
+
+function cactusSpritePixels() {
+  const w = obstacleImage && obstacleImage.naturalWidth;
+  const h = obstacleImage && obstacleImage.naturalHeight;
+  if (w > 0 && h > 0) return { w: w, h: h };
+  return { w: CACTUS_SPRITE_W, h: CACTUS_SPRITE_H };
+}
+
+// Big-cactus hitbox stays GAME_CONFIG 30×55. Stretching the 34×70 cell into
+// that wider box reads as a soft, squat copy of the small cactus. Paint the
+// cell's own proportions at the hitbox height — the jump line stays honest —
+// centered on the hitbox, with nearest-neighbor so the arms stay sharp.
+// Collision does not read this rect.
+function bigCactusPaint(obstacle) {
+  const sprite = cactusSpritePixels();
+  const h = obstacle.height;
+  const w = Math.max(1, Math.round(h * sprite.w / sprite.h));
+  const x = obstacle.x + Math.floor((obstacle.width - w) / 2);
+  return { x: x, y: obstacle.y, w: w, h: h };
+}
+
+function drawSingleObstacle(obstacle) {
+  const crisp = obstacle.type === 'big';
+  const slot = crisp
+    ? bigCactusPaint(obstacle)
+    : { x: obstacle.x, y: obstacle.y, w: obstacle.width, h: obstacle.height };
+  if (!imageReady(obstacleImage)) {
+    ctx.fillStyle = '#2d7a2d';
+    ctx.fillRect(slot.x, slot.y, slot.w, slot.h);
+    return;
+  }
+  if (!crisp) {
+    ctx.drawImage(obstacleImage, slot.x, slot.y, slot.w, slot.h);
+    return;
+  }
+  // Nearest-neighbor in game space still blends into the hill when the
+  // canvas scale and the sprite's x are fractional. Snap the paint to whole
+  // device pixels so the arms stay hard #535353. The hitbox is untouched.
+  const sx = canvas.width / GAME_CONFIG.CANVAS_W;
+  const sy = canvas.height / GAME_CONFIG.CANVAS_H;
+  const dx = Math.round(slot.x * sx);
+  const dy = Math.round(slot.y * sy);
+  const dw = Math.max(1, Math.round(slot.w * sx));
+  const dh = Math.max(1, Math.round(slot.h * sy));
+  const previousSmoothing = ctx.imageSmoothingEnabled;
+  const previousTransform = typeof ctx.getTransform === 'function' ? ctx.getTransform() : null;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  try {
+    ctx.drawImage(obstacleImage, dx, dy, dw, dh);
+  } finally {
+    if (previousTransform) ctx.setTransform(previousTransform);
+    else ctx.setTransform(sx, 0, 0, sy, 0, 0);
+    ctx.imageSmoothingEnabled = previousSmoothing;
+  }
+}
+
 function drawObstacles() {
   const brightness = obstacleNightBrightness();
   const previousFilter = ctx.filter;
@@ -1140,13 +1234,7 @@ function drawObstacles() {
         slots.forEach(slot => ctx.drawImage(obstacleImage, slot.x, slot.y, slot.w, slot.h));
         return;
       }
-      if (!imageReady(obstacleImage)) {
-        ctx.fillStyle = '#2d7a2d';
-        ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
-        return;
-      }
-      // Single (small, big): scale the sprite to the type's width/height.
-      ctx.drawImage(obstacleImage, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+      drawSingleObstacle(obstacle);
     });
   } finally {
     if (brightness > 1) ctx.filter = previousFilter || 'none';
@@ -1836,9 +1924,11 @@ function resetGame() {
   game.newBestShown      = false;
   game.plateauCueShown   = false;
   game.qaClusterShown    = false;
+  game.qaBigShown        = false;
   // QA/debug only. Re-read so a mode toggle still honors the page query.
   qaPlateau = readQaPlateauFlag();
   qaCluster = readQaClusterFlag();
+  qaBig = readQaBigFlag();
   qaNight = readQaNightFlag();
   game.isNewBest         = false;
   game.previousHighScore = 0;
@@ -1990,8 +2080,8 @@ function handleRunning() {
   if (game.lastObstacleX <= GAME_CONFIG.CANVAS_W - game.nextSpawnGap) {
     const consumedGap = game.nextSpawnGap;
     const params = DifficultyProfile.nextObstacle(game.score, game.mode, game.rng);
-    // ?qaCluster=1 may replace this one type. The roll above already ran.
-    const type = qaClusterOverride(params.type);
+    // ?qaCluster=1 / ?qaBig=1 may replace this one type. The roll above already ran.
+    const type = qaBigOverride(qaClusterOverride(params.type));
     spawnObstacle(type);
     noteSpawnForDeathLog(consumedGap, type.id, game.currentSpeed);
     game.lastObstacleX = GAME_CONFIG.CANVAS_W;
@@ -2162,6 +2252,8 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.QA_PLATEAU_SCORE = QA_PLATEAU_SCORE;
   global.setQaCluster = setQaCluster;
   global.readQaClusterFlag = readQaClusterFlag;
+  global.setQaBig = setQaBig;
+  global.readQaBigFlag = readQaBigFlag;
   global.setQaNight = setQaNight;
   global.readQaNightFlag = readQaNightFlag;
   global.obstacleNightBrightness = obstacleNightBrightness;
