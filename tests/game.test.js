@@ -3746,10 +3746,11 @@ describe('Plateau cue', () => {
       const night = Particles.KINDS.plateau;
       assertEquals(night.color, '#c5d4e4', 'production night puff color stays pale');
       assertEquals(night.size, 2, 'production night puff stays small');
-      assertEquals(night.count, 8, 'production night puff count stays the same');
+      assertEquals(night.count, 4, 'production night puff is the quieter 4-mote heel puff');
+      assertEquals(night.alpha, 0.45, 'production night puff keeps the soft pale ink');
       assertEquals(kind.color, '#3d4f63', 'QA puff should be dark enough to read on the day sky');
-      assert(kind.size >= 3 && kind.size <= 4, `QA puff size should be 3–4, was ${kind.size}`);
-      assert(kind.count >= 10 && kind.count <= 12, `QA puff count should be 10–12, was ${kind.count}`);
+      assertEquals(kind.size, 2, 'QA speck stays as small as the production puff');
+      assertEquals(kind.count, 4, 'QA puff uses the same quieter mote count');
 
       const burst = qaPlateauParticles();
       assertEquals(burst.length, kind.count, 'QA flag should emit the visible day puff');
@@ -3859,6 +3860,288 @@ describe('Plateau cue', () => {
       game.mode = origMode;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       Particles.reset();
+    }
+  });
+});
+
+describe('Quiet plateau cue', () => {
+  // The old puff was 8 motes living 24 frames and flung ±0.6px. Gravity
+  // never caught the rise, so it climbed about 18px and drifted 17px toward
+  // the lane. The quieter cue keeps the cool pale color and a 2px speck,
+  // with fewer motes, a shorter life, a tighter spread, and soft ink, so
+  // it dies at the heel.
+  const PUFF = {
+    count: 4,
+    color: '#c5d4e4',
+    size: 2,
+    life: 12,
+    alpha: 0.45,
+    vyMin: -0.9,
+    vyMax: -0.4,
+    vxSpread: 0.3,
+    gravity: 0.06,
+  };
+  const QA = {
+    count: 4,
+    color: '#3d4f63',
+    size: 2,
+    life: 40,
+    vyMin: -0.2,
+    vyMax: -0.08,
+    vxSpread: 0.08,
+    gravity: 0.002,
+  };
+  const UNCHANGED_KINDS = {
+    jump:      { count: 3,  color: '#9c8770', size: 3, life: 8, alpha: 0.5, vyMin: -1.2, vyMax: -0.4, vxSpread: 0.6, gravity: 0.10 },
+    land:      { count: 5,  color: '#9c8770', size: 3, life: 8, alpha: 0.4, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.7, gravity: 0.12 },
+    trail:     { count: 1,  color: 'rgba(150,150,150,0.28)', size: 2, life: 6, vyMin: -0.1, vyMax: 0.1, vxSpread: 0.2, gravity: 0 },
+    collision: { count: 8,  color: '#d04a2a', size: 3, life: 12, vyMin: -1.2, vyMax: 0.4, vxSpread: 1.0, gravity: 0.10 },
+    confetti:  { count: 10, color: '#ffd700', size: 3, life: 20, vyMin: -1.6, vyMax: -0.5, vxSpread: 1.2, gravity: 0.10 },
+  };
+
+  function stepPath(vy0, kind) {
+    let y = 0;
+    let vy = vy0;
+    let min = 0;
+    let max = 0;
+    for (let i = 0; i < kind.life; i++) {
+      y += vy;
+      if (y < min) min = y;
+      if (y > max) max = y;
+      vy += kind.gravity;
+    }
+    return { min: min, max: max };
+  }
+
+  function footReach(kind) {
+    return kind.vxSpread * kind.life + cfg('PARTICLE_EMIT_SPREAD') / 2 + kind.size / 2;
+  }
+
+  function tick() {
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+  }
+
+  function armRun(mode) {
+    game.mode = mode;
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    setQaPlateau(false);
+    setQaNight(false);
+    game.state = STATE.RUNNING;
+    Particles.reset();
+    game.obstacles.length = 0;
+    game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+    game.nextSpawnGap = GAME_CONFIG.MAX_SPAWN_GAP;
+    dino.y = GAME_CONFIG.CANVAS_H - dino.height;
+    dino.isJumping = false;
+  }
+
+  function spyRects() {
+    const calls = [];
+    const orig = ctx.fillRect;
+    ctx.fillRect = function (x, y, w, h) {
+      calls.push({ style: ctx.fillStyle, x: x, y: y, w: w, h: h, alpha: ctx.globalAlpha });
+    };
+    return {
+      calls: calls,
+      restore() { ctx.fillRect = orig; },
+    };
+  }
+
+  it('keeps the pale puff a short cool breath at the heel', () => {
+    const kind = Particles.KINDS.plateau;
+    for (const key of Object.keys(PUFF)) {
+      assertEquals(kind[key], PUFF[key], 'plateau ' + key + ' is the quieter heel puff');
+    }
+    assert(kind.count < 8, 'fewer motes than the old 8-mote puff');
+    assert(kind.life < 24, 'shorter than the old 24-frame climb');
+    assert(kind.vxSpread < 0.6, 'tighter than the old ±0.6 spread');
+    assert(kind.alpha < 0.5 && kind.alpha >= 0.4, 'soft ink, still readable on the night sky');
+    assertEquals(kind.color, '#c5d4e4', 'night puff stays cool and pale');
+    assertEquals(kind.size, 2, 'the speck stays a readable 2px');
+
+    const fast = stepPath(kind.vyMin, kind);
+    const slow = stepPath(kind.vyMax, kind);
+    assert(footReach(kind) <= 8, 'a full life stays at the heel, off the obstacle lane');
+    assert(-fast.min <= 8, 'the puff does not climb into the cactus band');
+    assert(-fast.min >= 5, 'the puff still lifts enough to read at the ankle');
+    assert(slow.max <= 1, 'the slow mote does not fall through the ground');
+    assert(footReach(kind) < GAME_CONFIG.DINO_WIDTH / 2, 'the puff stays on the rear of the dino');
+
+    const qa = Particles.KINDS.plateauQa;
+    for (const key of Object.keys(QA)) {
+      assertEquals(qa[key], QA[key], 'plateauQa ' + key + ' stays the dark day capture');
+    }
+    assertEquals(qa.alpha, undefined, 'the day capture stays full ink so it reads on white');
+    assert(footReach(qa) <= 10, 'the long QA life still stays at the heel');
+    assert(stepPath(qa.vyMin, qa).max <= 1, 'the QA puff does not fall off the heel');
+
+    for (const name of Object.keys(UNCHANGED_KINDS)) {
+      const got = Particles.KINDS[name];
+      const want = UNCHANGED_KINDS[name];
+      for (const key of Object.keys(want)) {
+        assertEquals(got[key], want[key], name + ' ' + key + ' stays unchanged');
+      }
+    }
+  });
+
+  it('paints the soft alpha onto the pale motes', () => {
+    const origMode = game.mode;
+    try {
+      setReducedMotion(false);
+      game.mode = MODES.UPDATED;
+      Particles.reset();
+      const n = Particles.emit('plateau', 20, 180);
+      assertEquals(n, PUFF.count, 'an open pool emits the full quieter puff');
+      const motes = Particles.particles.filter((p) => p.life > 0 && p.color === PUFF.color);
+      assertEquals(motes.length, PUFF.count, 'the pool holds the quieter puff');
+      motes.forEach((p) => {
+        assertEquals(p.alpha, PUFF.alpha, 'each mote keeps the soft peak ink');
+        assertEquals(p.maxLife, PUFF.life, 'each mote fades across the short life');
+      });
+      const alphas = [];
+      const orig = ctx.fillRect;
+      ctx.fillRect = () => { alphas.push(ctx.globalAlpha); };
+      Particles.draw();
+      ctx.fillRect = orig;
+      assertEquals(alphas.length, PUFF.count, 'every mote paints');
+      assert(alphas.every((a) => a === PUFF.alpha), 'the first frame paints the soft peak, not solid ink');
+    } finally {
+      game.mode = origMode;
+      setReducedMotion(false);
+      Particles.reset();
+    }
+  });
+
+  it('?qaPlateau=1 still paints the heel cluster when the pool is full', () => {
+    const origMode = game.mode;
+    try {
+      setReducedMotion(false);
+      armRun(MODES.UPDATED);
+      setQaPlateau(true);
+      Particles.particles.forEach((p) => {
+        p.life = 5;
+        p.color = '#111111';
+      });
+      game.score = QA_PLATEAU_SCORE - GAME_CONFIG.SCORE_INCREMENT;
+      tick();
+      assertEquals(
+        Particles.particles.filter((p) => p.color === QA.color).length,
+        0,
+        'a full pool emits no dark motes'
+      );
+      assertEquals(game.qaPlateauHold, QA_PLATEAU_HOLD, 'the hold latches for the capture window');
+      const spy = spyRects();
+      drawQaPlateau();
+      const marks = qaPlateauMarks();
+      const fills = spy.calls.filter((c) => c.style === QA.color);
+      assertEquals(fills.length, marks.length, 'the hold paints every heel speck');
+      fills.forEach((fill, i) => {
+        assertEquals(fill.x, marks[i].x, 'held speck ' + i + ' stays at the heel');
+        assertEquals(fill.y, marks[i].y, 'held speck ' + i + ' stays low');
+        assertEquals(fill.w, QA_PLATEAU_SIZE, 'held speck stays a small mark');
+        assertEquals(fill.alpha, 1, 'the capture mark is opaque');
+        assert(fill.x < dino.x, 'the capture sits behind the sprite, off the lane');
+      });
+      const rims = spy.calls.filter((c) => c.style === QA_PLATEAU_RIM);
+      assertEquals(rims.length, marks.length, 'each speck has a rim so it reads on the day sky');
+      spy.restore();
+    } finally {
+      setQaPlateau(false);
+      setReducedMotion(false);
+      game.mode = origMode;
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('?qaPlateau=1 with night paints the pale production color', () => {
+    const origMode = game.mode;
+    try {
+      setReducedMotion(false);
+      armRun(MODES.UPDATED);
+      setQaPlateau(true);
+      setQaNight(true);
+      game.score = QA_PLATEAU_SCORE - GAME_CONFIG.SCORE_INCREMENT;
+      tick();
+      const pale = Particles.particles.filter((p) => p.life > 0 && p.color === PUFF.color);
+      assertEquals(pale.length, PUFF.count, 'night QA emits the quieter pale puff');
+      assertEquals(
+        Particles.particles.filter((p) => p.life > 0 && p.color === QA.color).length,
+        0,
+        'night QA does not also emit the dark day puff'
+      );
+      assertEquals(qaPlateauFill(), PUFF.color, 'the hold uses the cool pale production color');
+      const spy = spyRects();
+      drawQaPlateau();
+      const fills = spy.calls.filter((c) => c.style === PUFF.color);
+      assertEquals(fills.length, qaPlateauMarks().length, 'night capture paints the pale heel cluster');
+      assert(fills.every((fill) => fill.x < dino.x), 'the pale cluster stays behind the sprite');
+      spy.restore();
+    } finally {
+      setQaPlateau(false);
+      setQaNight(false);
+      setReducedMotion(false);
+      game.mode = origMode;
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('Classic with ?qaPlateau=1 paints no heel cluster', () => {
+    const origMode = game.mode;
+    try {
+      setReducedMotion(false);
+      armRun(MODES.CLASSIC);
+      setQaPlateau(true);
+      game.score = QA_PLATEAU_SCORE - GAME_CONFIG.SCORE_INCREMENT;
+      tick();
+      tick();
+      const spy = spyRects();
+      drawQaPlateau();
+      assertEquals(spy.calls.length, 0, 'Classic never paints the plateau capture');
+      spy.restore();
+      assertEquals(game.qaPlateauHold, 0, 'Classic does not start the hold');
+      assert(!game.plateauCueShown, 'Classic does not latch the cue');
+    } finally {
+      setQaPlateau(false);
+      setReducedMotion(false);
+      game.mode = origMode;
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('reduced motion still damps the puff while the capture hold paints', () => {
+    const origMode = game.mode;
+    try {
+      setReducedMotion(true);
+      armRun(MODES.UPDATED);
+      setQaPlateau(true);
+      game.score = QA_PLATEAU_SCORE - GAME_CONFIG.SCORE_INCREMENT;
+      tick();
+      const dark = Particles.particles.filter((p) => p.life > 0 && p.color === QA.color);
+      const expectedCount = Math.max(1, Math.round(QA.count * 0.25));
+      const expectedLife = Math.max(2, Math.round(QA.life * 0.5));
+      assertEquals(dark.length, expectedCount, 'reduced motion still quarters the QA puff');
+      assert(expectedCount < QA.count, 'the damped puff is fewer motes');
+      assert(dark.every((p) => p.maxLife === expectedLife), 'reduced motion still halves QA life');
+      const spy = spyRects();
+      drawQaPlateau();
+      assertEquals(
+        spy.calls.filter((c) => c.style === QA.color).length,
+        qaPlateauMarks().length,
+        'the capture hold still paints under reduced motion'
+      );
+      spy.restore();
+    } finally {
+      setQaPlateau(false);
+      setReducedMotion(false);
+      game.mode = origMode;
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
   });
 });
@@ -7259,8 +7542,8 @@ describe('Soft collision burst', () => {
     land:      { count: 5,  color: '#9c8770', size: 3, life: 8, alpha: 0.4, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.7, gravity: 0.12 },
     trail:     { count: 1,  color: 'rgba(150,150,150,0.28)', size: 2, life:  6, vyMin: -0.1, vyMax:  0.1, vxSpread: 0.2, gravity: 0 },
     confetti:  { count: 10, color: '#ffd700',                size: 3, life: 20, vyMin: -1.6, vyMax: -0.5, vxSpread: 1.2, gravity: 0.10 },
-    plateau:   { count: 8,  color: '#c5d4e4',                size: 2, life: 24, vyMin: -1.0, vyMax: -0.3, vxSpread: 0.6, gravity: 0.02 },
-    plateauQa: { count: 12, color: '#3d4f63',                size: 4, life: 40, vyMin: -1.4, vyMax: -0.4, vxSpread: 1.0, gravity: 0.03 },
+    plateau:   { count: 4,  color: '#c5d4e4', size: 2, life: 12, alpha: 0.45, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.3, gravity: 0.06 },
+    plateauQa: { count: 4, color: '#3d4f63', size: 2, life: 40, vyMin: -0.2, vyMax: -0.08, vxSpread: 0.08, gravity: 0.002 },
   };
 
   function travel(kind) {
@@ -7440,8 +7723,8 @@ describe('Quiet late-run heel trail', () => {
     land:      { count: 5,  color: '#9c8770', size: 3, life: 8, alpha: 0.4, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.7, gravity: 0.12 },
     collision: { count: 8,  color: '#d04a2a', size: 3, life: 12, vyMin: -1.2, vyMax:  0.4, vxSpread: 1.0, gravity: 0.10 },
     confetti:  { count: 10, color: '#ffd700', size: 3, life: 20, vyMin: -1.6, vyMax: -0.5, vxSpread: 1.2, gravity: 0.10 },
-    plateau:   { count: 8,  color: '#c5d4e4', size: 2, life: 24, vyMin: -1.0, vyMax: -0.3, vxSpread: 0.6, gravity: 0.02 },
-    plateauQa: { count: 12, color: '#3d4f63', size: 4, life: 40, vyMin: -1.4, vyMax: -0.4, vxSpread: 1.0, gravity: 0.03 },
+    plateau:   { count: 4,  color: '#c5d4e4', size: 2, life: 12, alpha: 0.45, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.3, gravity: 0.06 },
+    plateauQa: { count: 4, color: '#3d4f63', size: 2, life: 40, vyMin: -0.2, vyMax: -0.08, vxSpread: 0.08, gravity: 0.002 },
   };
 
   function trailCrossScore() {
@@ -7775,8 +8058,8 @@ describe('Quiet new-best confetti', () => {
     land:      { count: 5,  color: '#9c8770', size: 3, life: 8, alpha: 0.4, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.7, gravity: 0.12 },
     trail:     { count: 1,  color: 'rgba(150,150,150,0.28)', size: 2, life:  6, vyMin: -0.1, vyMax:  0.1, vxSpread: 0.2, gravity: 0 },
     collision: { count: 8,  color: '#d04a2a',                size: 3, life: 12, vyMin: -1.2, vyMax:  0.4, vxSpread: 1.0, gravity: 0.10 },
-    plateau:   { count: 8,  color: '#c5d4e4',                size: 2, life: 24, vyMin: -1.0, vyMax: -0.3, vxSpread: 0.6, gravity: 0.02 },
-    plateauQa: { count: 12, color: '#3d4f63',                size: 4, life: 40, vyMin: -1.4, vyMax: -0.4, vxSpread: 1.0, gravity: 0.03 },
+    plateau:   { count: 4,  color: '#c5d4e4', size: 2, life: 12, alpha: 0.45, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.3, gravity: 0.06 },
+    plateauQa: { count: 4, color: '#3d4f63', size: 2, life: 40, vyMin: -0.2, vyMax: -0.08, vxSpread: 0.08, gravity: 0.002 },
   };
 
   function stepPath(vy0, kind) {
@@ -8200,8 +8483,8 @@ describe('Quiet day land dust', () => {
     trail:     { count: 1,  color: 'rgba(150,150,150,0.28)', size: 2, life:  6, vyMin: -0.1, vyMax:  0.1, vxSpread: 0.2, gravity: 0 },
     collision: { count: 8,  color: '#d04a2a',                size: 3, life: 12, vyMin: -1.2, vyMax:  0.4, vxSpread: 1.0, gravity: 0.10 },
     confetti:  { count: 10, color: '#ffd700',                size: 3, life: 20, vyMin: -1.6, vyMax: -0.5, vxSpread: 1.2, gravity: 0.10 },
-    plateau:   { count: 8,  color: '#c5d4e4',                size: 2, life: 24, vyMin: -1.0, vyMax: -0.3, vxSpread: 0.6, gravity: 0.02 },
-    plateauQa: { count: 12, color: '#3d4f63',                size: 4, life: 40, vyMin: -1.4, vyMax: -0.4, vxSpread: 1.0, gravity: 0.03 },
+    plateau:   { count: 4,  color: '#c5d4e4', size: 2, life: 12, alpha: 0.45, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.3, gravity: 0.06 },
+    plateauQa: { count: 4, color: '#3d4f63', size: 2, life: 40, vyMin: -0.2, vyMax: -0.08, vxSpread: 0.08, gravity: 0.002 },
   };
 
   function stepPath(vy0, kind) {
@@ -8271,7 +8554,9 @@ describe('Quiet day land dust', () => {
       for (const key of Object.keys(want)) {
         assertEquals(got[key], want[key], name + ' ' + key + ' stays unchanged');
       }
-      assertEquals(got.alpha, undefined, name + ' does not take the land-dust alpha');
+      if (!Object.prototype.hasOwnProperty.call(want, 'alpha')) {
+        assertEquals(got.alpha, undefined, name + ' does not take the land-dust alpha');
+      }
     }
   });
 
