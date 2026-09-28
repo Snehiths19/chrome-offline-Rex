@@ -159,13 +159,20 @@ const GAME_CONFIG = Object.freeze({
   // does not need a query flag. Read through cfg().
   DAY_CLOUD_ALPHA:          0.6,
   // Visual only. Opacity of Updated/Daily clouds once the sky is fully night.
-  // The puff is still #e8e8e8. On the night sky (#1a1a2e) the day peak would
-  // read brighter than the night dino (1.35) and cactus (1.65). 0.35 keeps
-  // the puff visible and quieter than both. Classic does not read this.
-  // The day peak eases to this from DAY_NIGHT_START to DAY_NIGHT_END.
-  // Reduced motion skips that ease and snaps to this at DAY_NIGHT_END.
-  // Read through cfg().
-  NIGHT_CLOUD_ALPHA:        0.35,
+  // The puff is still #e8e8e8. Three circles, about 60px wide, sit in the
+  // upper sky. On the night sky (#1a1a2e) the old 0.35 dim sat about 72, 72,
+  // and 65 levels off that sky — large mounds in the same band as the night
+  // stars (0.35 of white, about 80, 80, and 73). A 60px shape at that lift
+  // competes with the obstacle lane. Three-fifths of that band is alpha
+  // 0.21, about 43, 43, and 39. The sum stays under the night stars, under
+  // the night dino (1.35, about 86, 86, and 66), and under the night cactus
+  // (1.65, about 111, 111, and 91). It stays lighter than the night hills
+  // (#2d2d46, about 19, 19, and 24), so the mound still reads. Classic does
+  // not read this. The day peak eases to this from DAY_NIGHT_START to
+  // DAY_NIGHT_END. Reduced motion skips that ease and snaps to this at
+  // DAY_NIGHT_END. Playtest with ?qaNight=1. Read through cfg(). Physics
+  // does not read this.
+  NIGHT_CLOUD_ALPHA:        0.21,
   CLOUD_CIRCLES: Object.freeze([  // three circles forming a puffy cloud shape
     Object.freeze([  0, 0, 18]),
     Object.freeze([-18, 8, 14]),
@@ -190,8 +197,8 @@ const GAME_CONFIG = Object.freeze({
   // than the night cactus (the #535353 sprite at 1.65, about 111, 111,
   // and 91 off the same sky). A 2px point at that lift sparkles over the
   // obstacle lane. 0.35 keeps about 80, 80, and 73. The sum stays just
-  // under the night dino (1.35, about 86, 86, and 66) and a step above
-  // the soft night clouds (0.35 of #e8e8e8). The field still reads as
+  // under the night dino (1.35, about 86, 86, and 66) and above
+  // the soft night clouds (0.21 of #e8e8e8). The field still reads as
   // stars and stays peripheral. Classic does not read this. Classic keeps
   // full white after the same fade. Day never paints stars. Reduced
   // motion still skips star init. Playtest with ?qaNight=1. Read through
@@ -222,8 +229,8 @@ const GAME_CONFIG = Object.freeze({
   // the run. On the night sky (#1a1a2e) the old 0.55 line sat about 31, 31,
   // and 20 levels off that sky — a bright day-gray ruler under the cooled
   // foot dust (#6a686e). A full three-fifths of that band is alpha 0.33.
-  // That step falls under the soft night clouds (0.35) and onto the night
-  // hills (#2d2d46), so the edge would stop reading as ground. 0.42 keeps
+  // That step lands on the night hills (#2d2d46), so the edge would stop
+  // reading as ground. The night clouds are quieter still. 0.42 keeps
   // about 24, 24, and 16 of those levels. The line cools, stays clearly
   // firmer than the clouds, stays lighter than the hills, and stays quieter
   // than the night dust. Classic does not read this. Day ground stays fully

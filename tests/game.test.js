@@ -6725,6 +6725,41 @@ describe('Night cloud dim', () => {
   });
 });
 
+describe('Soft night clouds', () => {
+  function cloudLifts(alpha) {
+    const sky = [0x1a, 0x1a, 0x2e];
+    const puff = [0xe8, 0xe8, 0xe8];
+    return puff.map((channel, i) => (channel - sky[i]) * alpha);
+  }
+
+  function sum(levels) {
+    return levels.reduce((total, n) => total + n, 0);
+  }
+
+  it('night clouds keep three-fifths of the old 0.35 band and stay a soft mound', () => {
+    const now = GAME_CONFIG.NIGHT_CLOUD_ALPHA;
+    const old = 0.35;
+    const nowLifts = cloudLifts(now);
+    const oldLifts = cloudLifts(old);
+    const hill = [0x2d - 0x1a, 0x2d - 0x1a, 0x46 - 0x2e];
+    const star = [
+      (0xff - 0x1a) * GAME_CONFIG.NIGHT_STAR_ALPHA,
+      (0xff - 0x1a) * GAME_CONFIG.NIGHT_STAR_ALPHA,
+      (0xff - 0x2e) * GAME_CONFIG.NIGHT_STAR_ALPHA,
+    ];
+    assertEquals(now, 0.21, 'night clouds use the quieter dim');
+    assertEquals(GAME_CONFIG.DAY_CLOUD_ALPHA, 0.6, 'day clouds stay the quieter day peak');
+    assertEquals(GAME_CONFIG.CLOUD_COLOR, '#e8e8e8', 'the ink stays the day puff; the quiet is opacity');
+    assert(Math.abs(now - old * 0.6) < 1e-9, 'the quieter dim keeps three-fifths of the old 0.35 band');
+    assert(sum(nowLifts) < sum(oldLifts) * 0.75, 'night clouds lose a real share of the old lift');
+    assert(nowLifts.every((n, i) => n > hill[i]), 'the mounds still sit lighter than the night hills');
+    assert(sum(star) > sum(nowLifts), 'large mounds stay under the night-star whisper');
+    assert(now > 0.15, 'the puff still reads against the night sky');
+    assert(now < GAME_CONFIG.DAY_CLOUD_ALPHA, 'twilight still eases downward');
+    assert(GAME_CONFIG.NIGHT_GROUND_ALPHA - now >= 0.05, 'the road edge stays clearly firmer');
+  });
+});
+
 describe('Night land dust', () => {
   const DAY_DUST = '#9c8770';
 
@@ -7193,8 +7228,11 @@ describe('Soft night ground', () => {
       'the strip stays clearly above the night-cloud whisper');
     assert(sum(nowLifts) < sum(oldLifts) * 0.85,
       'the strip loses a real share of the old 0.55 lift');
-    assert(fullThreeFifths <= GAME_CONFIG.NIGHT_CLOUD_ALPHA,
-      'a full three-fifths of 0.55 would not stay above the night clouds');
+    const threeFifthsRed = 0x1a + (0x53 - 0x1a) * fullThreeFifths;
+    assert(fullThreeFifths > GAME_CONFIG.NIGHT_CLOUD_ALPHA,
+      'a full three-fifths of 0.55 now sits above the quieter night clouds');
+    assert(Math.abs(threeFifthsRed - hillRed) < 1,
+      'that step still lands on the night hills, so the strip stays at 0.42');
     assert(groundRed > hillRed,
       'the road edge stays lighter than the night hills');
     assertEquals(GAME_CONFIG.HILL_COLOR_DAY, '#e1e1e1', 'day hills stay the quieter day fill');
