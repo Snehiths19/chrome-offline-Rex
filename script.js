@@ -1196,11 +1196,24 @@ function drawSingleObstacle(obstacle) {
     ctx.drawImage(obstacleImage, slot.x, slot.y, slot.w, slot.h);
     return;
   }
+  // Nearest-neighbor in game space still blends into the hill when the
+  // canvas scale and the sprite's x are fractional. Snap the paint to whole
+  // device pixels so the arms stay hard #535353. The hitbox is untouched.
+  const sx = canvas.width / GAME_CONFIG.CANVAS_W;
+  const sy = canvas.height / GAME_CONFIG.CANVAS_H;
+  const dx = Math.round(slot.x * sx);
+  const dy = Math.round(slot.y * sy);
+  const dw = Math.max(1, Math.round(slot.w * sx));
+  const dh = Math.max(1, Math.round(slot.h * sy));
   const previousSmoothing = ctx.imageSmoothingEnabled;
+  const previousTransform = typeof ctx.getTransform === 'function' ? ctx.getTransform() : null;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.imageSmoothingEnabled = false;
   try {
-    ctx.drawImage(obstacleImage, slot.x, slot.y, slot.w, slot.h);
+    ctx.drawImage(obstacleImage, dx, dy, dw, dh);
   } finally {
+    if (previousTransform) ctx.setTransform(previousTransform);
+    else ctx.setTransform(sx, 0, 0, sy, 0, 0);
     ctx.imageSmoothingEnabled = previousSmoothing;
   }
 }
