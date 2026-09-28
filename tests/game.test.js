@@ -1607,6 +1607,24 @@ describe('Live-tuning hook (PR-P3)', () => {
     Animations.milestoneFrames = 0;
   });
 
+  it('NIGHT_OBSTACLE_BRIGHTNESS override changes the night cactus lift', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    game.mode = MODES.UPDATED;
+    game.score = GAME_CONFIG.DAY_NIGHT_END;
+    try {
+      withTuning({ NIGHT_OBSTACLE_BRIGHTNESS: 1.4 }, () => {
+        assertEquals(obstacleNightBrightness(), 1.4,
+          'a visual override should brighten night cacti by the tuned amount');
+      });
+      assertEquals(obstacleNightBrightness(), GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
+        'clearing the override returns the configured night lift');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+    }
+  });
+
   it('STAR_FADE_FRAMES override changes how fast night stars reach full opacity', () => {
     const origInit = game.starsInitialised;
     const origStars = game.stars.slice();
@@ -4632,6 +4650,173 @@ describe('QA cluster flag (?qaCluster=1)', () => {
       setQaCluster(false);
       game.mode = origMode;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+});
+
+describe('Night obstacle contrast', () => {
+  function placeSmall() {
+    const small = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'small');
+    game.obstacles = [{
+      x: 40, y: 160, width: small.width, height: small.height,
+      render: small.render, type: small.id,
+    }];
+    return small;
+  }
+
+  function filtersDuringDraw() {
+    const seen = [];
+    const orig = ctx.drawImage;
+    ctx.drawImage = (...args) => { seen.push(ctx.filter); return orig.apply(ctx, args); };
+    try {
+      drawObstacles();
+    } finally {
+      ctx.drawImage = orig;
+    }
+    return seen;
+  }
+
+  it('lifts Updated and Daily cactus ink only once the sky is night', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      assertEquals(GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS, 1.65,
+        'the night lift stays a quiet brightness step, not a white invert');
+
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      assertEquals(obstacleNightBrightness(), 1, 'day Updated keeps the dark sprite');
+      game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
+      assertEquals(obstacleNightBrightness(), 1, 'the lift waits until night has fully arrived');
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      assertEquals(obstacleNightBrightness(), GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
+        'full night brightens the cactus enough to separate it from the hills');
+      game.score = 1000;
+      assertEquals(obstacleNightBrightness(), GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
+        'later night keeps the same static lift');
+
+      game.mode = MODES.DAILY;
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      assertEquals(obstacleNightBrightness(), GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
+        'Daily shares the Updated night lift');
+
+      game.mode = MODES.CLASSIC;
+      game.score = 1000;
+      assertEquals(obstacleNightBrightness(), 1,
+        'Classic keeps the dark silhouette on the shared night sky');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setQaNight(false);
+      setReducedMotion(false);
+    }
+  });
+
+  it('stays static under reduced motion and still lifts at full night', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      setQaNight(false);
+      game.mode = MODES.UPDATED;
+      setReducedMotion(true);
+      game.score = 350;
+      assertEquals(obstacleNightBrightness(), 1,
+        'reduced motion keeps the day sprite while the sky is still day');
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      assertEquals(obstacleNightBrightness(), GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
+        'reduced motion still gets the static night lift');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setReducedMotion(false);
+    }
+  });
+
+  it('?qaNight=1 lifts Updated cacti immediately without moving the score', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      setQaNight(true);
+      assertEquals(obstacleNightBrightness(), GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
+        'the existing night QA flag is enough to see the lift');
+      assertEquals(game.score, 0, 'the lift must not write the score');
+
+      game.mode = MODES.CLASSIC;
+      assertEquals(obstacleNightBrightness(), 1,
+        'QA night still leaves the Classic silhouette alone');
+      assertEquals(game.score, 0, 'Classic QA night must not write the score');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setQaNight(false);
+    }
+  });
+
+  it('paints the lift only around Updated night sprites and then clears it', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const origFilter = ctx.filter;
+    try {
+      setQaNight(false);
+      placeSmall();
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      ctx.filter = 'none';
+      assertEquals(filtersDuringDraw()[0], 'none', 'day sprites are not brightened');
+      assertEquals(ctx.filter, 'none', 'a day draw leaves the filter alone');
+
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      ctx.filter = 'contrast(2)';
+      const seen = filtersDuringDraw();
+      assertEquals(seen.length, 1, 'a small cactus is still one sprite');
+      assertEquals(seen[0], 'brightness(1.65)', 'night paint uses the quiet brightness lift');
+      assertEquals(ctx.filter, 'contrast(2)', 'the lift must not leak onto the dino or HUD');
+      assertEquals(game.obstacles[0].width, 20, 'the lift does not resize the hitbox');
+
+      game.mode = MODES.CLASSIC;
+      game.score = 1000;
+      ctx.filter = 'none';
+      assertEquals(filtersDuringDraw()[0], 'none', 'Classic night paint stays the dark sprite');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      ctx.filter = origFilter;
+      game.obstacles = [];
+      setQaNight(false);
+    }
+  });
+
+  it('a night cluster still draws two full sprites, only brighter', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const cluster = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'cluster');
+    const small = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'small');
+    game.obstacles = [{
+      x: 100, y: 160, width: cluster.width, height: cluster.height,
+      render: cluster.render, type: cluster.id,
+    }];
+    const calls = [];
+    const origDrawImage = ctx.drawImage;
+    ctx.drawImage = (...args) => calls.push(args);
+    try {
+      game.mode = MODES.UPDATED;
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      drawObstacles();
+      assertEquals(calls.length, 2, 'Night cluster is still two sprites');
+      assertEquals(calls[0][3], small.width, 'First sprite keeps the small-cactus width');
+      assertEquals(calls[1][3], small.width, 'Second sprite keeps the small-cactus width');
+      assertEquals(calls[1][1] - (calls[0][1] + calls[0][3]), small.width,
+        'The sky gap between the cacti stays one small cactus wide');
+      assertEquals(game.obstacles[0].width, cluster.width, 'Cluster hitbox width stays 50');
+    } finally {
+      ctx.drawImage = origDrawImage;
+      game.mode = origMode;
+      game.score = origScore;
+      game.obstacles = [];
     }
   });
 });

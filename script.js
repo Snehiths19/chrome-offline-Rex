@@ -159,6 +159,12 @@ const GAME_CONFIG = Object.freeze({
   // Visual only. Running frames stars take to ramp from invisible to full
   // once night is complete (~0.8 s at 60 fps). Read through cfg().
   STAR_FADE_FRAMES:        48,
+  // Visual only. CSS brightness applied to cactus sprites once the sky is
+  // fully night, in Updated and Daily. The day sprite is #535353; night hills
+  // are #3a3a55, and a partial lift during the fade lands on the hill. 1.65
+  // holds the silhouette and clears the hill. Classic does not read this.
+  // Read through cfg().
+  NIGHT_OBSTACLE_BRIGHTNESS: 1.65,
 
   // --- Ambient depth (PR-D, updated mode only) ---
   HILL_COUNT:               3,    // mid-ground silhouette mounds
@@ -1062,26 +1068,43 @@ function clusterSpriteSlots(obstacle) {
   ];
 }
 
+// Day sprite stays put until night has arrived. A lift partway through the
+// fade crosses the hill colour and the cactus disappears into it. Classic
+// has no hills, so its dark silhouette on the shared night sky stays as-is.
+function obstacleNightBrightness() {
+  if (!isUpdatedMode()) return 1;
+  if (scoreForNightSky(game.score) < GAME_CONFIG.DAY_NIGHT_END) return 1;
+  const peak = cfg('NIGHT_OBSTACLE_BRIGHTNESS');
+  return typeof peak === 'number' && peak > 1 ? peak : 1;
+}
+
 function drawObstacles() {
-  game.obstacles.forEach(obstacle => {
-    if (obstacle.render === 'double') {
-      const slots = clusterSpriteSlots(obstacle);
-      if (!imageReady(obstacleImage)) {
-        ctx.fillStyle = '#2d7a2d';
-        slots.forEach(slot => ctx.fillRect(slot.x, slot.y, slot.w, slot.h));
+  const brightness = obstacleNightBrightness();
+  const previousFilter = ctx.filter;
+  if (brightness > 1) ctx.filter = 'brightness(' + brightness.toFixed(2) + ')';
+  try {
+    game.obstacles.forEach(obstacle => {
+      if (obstacle.render === 'double') {
+        const slots = clusterSpriteSlots(obstacle);
+        if (!imageReady(obstacleImage)) {
+          ctx.fillStyle = '#2d7a2d';
+          slots.forEach(slot => ctx.fillRect(slot.x, slot.y, slot.w, slot.h));
+          return;
+        }
+        slots.forEach(slot => ctx.drawImage(obstacleImage, slot.x, slot.y, slot.w, slot.h));
         return;
       }
-      slots.forEach(slot => ctx.drawImage(obstacleImage, slot.x, slot.y, slot.w, slot.h));
-      return;
-    }
-    if (!imageReady(obstacleImage)) {
-      ctx.fillStyle = '#2d7a2d';
-      ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
-      return;
-    }
-    // Single (small, big): scale the sprite to the type's width/height.
-    ctx.drawImage(obstacleImage, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
-  });
+      if (!imageReady(obstacleImage)) {
+        ctx.fillStyle = '#2d7a2d';
+        ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+        return;
+      }
+      // Single (small, big): scale the sprite to the type's width/height.
+      ctx.drawImage(obstacleImage, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+    });
+  } finally {
+    if (brightness > 1) ctx.filter = previousFilter || 'none';
+  }
 }
 
 function drawDino() {
@@ -2078,4 +2101,5 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.readQaClusterFlag = readQaClusterFlag;
   global.setQaNight = setQaNight;
   global.readQaNightFlag = readQaNightFlag;
+  global.obstacleNightBrightness = obstacleNightBrightness;
 }
