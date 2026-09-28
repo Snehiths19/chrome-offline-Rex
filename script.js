@@ -892,6 +892,104 @@ function advanceQaDust() {
   if (game.state === STATE.RUNNING && game.qaDustHold > 0) game.qaDustHold--;
 }
 
+// QA/debug only — not for players. ?qaCollision=1 holds the quieter
+// Updated/Daily death puff on the dino from the first RUNNING frame, so
+// playtest can see it after GET READY without dying. The marks are their
+// own overlay. They do not emit, restyle, or read the particle pool — a
+// full pool or the short production life cannot skip them. Production
+// collision stays the quieter kind. It does not write the score, speed,
+// gaps, or game.rng(). Classic never takes it. Reduced motion halves the
+// hold and paints fewer motes at half ink. Re-read in resetGame().
+// Tests flip it through setQaCollision(); a normal visit leaves this false.
+const QA_COLLISION_HOLD = 180;
+const QA_COLLISION_SIZE = 4;
+const QA_COLLISION_RIM = '#3d1610';
+// Tight cluster on the chest. Every offset, plus the mote and its rim,
+// stays inside the 40×50 dino so the hold cannot spray toward a cactus.
+const QA_COLLISION_OFFSETS = Object.freeze([
+  Object.freeze([-6, -8]),
+  Object.freeze([5, -5]),
+  Object.freeze([0, 0]),
+  Object.freeze([-5, 6]),
+  Object.freeze([6, 4]),
+]);
+
+function readQaCollisionFlag(search) {
+  const query = search !== undefined
+    ? search
+    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
+      ? location.search
+      : '');
+  if (!query) return false;
+  return new URLSearchParams(query).get('qaCollision') === '1';
+}
+
+let qaCollision = readQaCollisionFlag();
+
+function setQaCollision(enabled) {
+  qaCollision = !!enabled;
+}
+
+function qaCollisionHoldFrames() {
+  if (!reducedMotion) return QA_COLLISION_HOLD;
+  return Math.max(2, Math.round(QA_COLLISION_HOLD * 0.5));
+}
+
+function qaCollisionPaintAlpha() {
+  if (!reducedMotion) return 1;
+  return 0.5;
+}
+
+// Same quarter Particles.emit uses. One mote remains so the hold is still
+// visible when the player prefers reduced motion.
+function qaCollisionMarkCount() {
+  const full = QA_COLLISION_OFFSETS.length;
+  if (!reducedMotion) return full;
+  return Math.max(1, Math.round(full * 0.25));
+}
+
+function qaCollisionMarks() {
+  const fx = dino.x + dino.width / 2;
+  const fy = dino.y + dino.height / 2;
+  const count = qaCollisionMarkCount();
+  return QA_COLLISION_OFFSETS.slice(0, count).map(([dx, dy]) => ({
+    x: fx + dx - QA_COLLISION_SIZE / 2,
+    y: fy + dy - QA_COLLISION_SIZE / 2,
+    w: QA_COLLISION_SIZE,
+    h: QA_COLLISION_SIZE,
+  }));
+}
+
+function advanceQaCollision() {
+  if (!isUpdatedMode()) return;
+  if (qaCollision && !game.qaCollisionShown && game.state === STATE.RUNNING) {
+    game.qaCollisionShown = true;
+    game.qaCollisionHold = qaCollisionHoldFrames();
+    return;
+  }
+  if (game.state === STATE.RUNNING && game.qaCollisionHold > 0) game.qaCollisionHold--;
+}
+
+// Overdraw after the whole frame, from the hold counter only. A collision
+// return skips the running draw, and the real puff only lives a few frames.
+// This pass still paints, on the body, in the production red.
+function drawQaCollision() {
+  if (!isUpdatedMode() || game.qaCollisionHold <= 0) return;
+  const color = Particles.KINDS.collision.color;
+  ctx.save();
+  ctx.globalAlpha = qaCollisionPaintAlpha();
+  ctx.globalCompositeOperation = 'source-over';
+  const marks = qaCollisionMarks();
+  for (let i = 0; i < marks.length; i++) {
+    const mark = marks[i];
+    ctx.fillStyle = QA_COLLISION_RIM;
+    ctx.fillRect(mark.x - 1, mark.y - 1, mark.w + 2, mark.h + 2);
+    ctx.fillStyle = color;
+    ctx.fillRect(mark.x, mark.y, mark.w, mark.h);
+  }
+  ctx.restore();
+}
+
 // QA/debug only — not for players. ?qaFlash=1 holds the Updated/Daily death
 // blink from the first RUNNING frame so playtest can see it without dying
 // late. The wash is its own full-canvas fill. It does not read
@@ -1476,6 +1574,9 @@ const game = {
   // QA/debug only. Latches after ?qaDust=1 spends its one held foot cluster.
   qaDustShown:      false,
   qaDustHold:       0,
+  // QA/debug only. Latches after ?qaCollision=1 spends its one held death puff.
+  qaCollisionShown: false,
+  qaCollisionHold:  0,
   // QA/debug only. Frames left on the ?qaPlateau=1 heel cluster.
   qaPlateauHold:    0,
   // QA/debug only. Latches after ?qaFlash=1 spends its one early death blink.
@@ -2687,17 +2788,20 @@ const Particles = (() => {
     // and half life. Classic never emits.
     trail:     { count:  1, color: 'rgba(150,150,150,0.28)', size: 2, life:  6, vyMin: -0.1, vyMax:  0.1, vxSpread: 0.2, gravity: 0    },
     // Death puff in Updated and Daily. Classic never emits. The old burst
-    // was 22 motes living 24 frames and flung ±4px/frame. The shake only
-    // draws particles for 12 frames, and in that window a mote could travel
-    // 48px — past the 40px dino and onto the cactus — so the eye left the
-    // lane. 8 motes is under half, in the same neighborhood as the shake
-    // going from 4px to 1.5px. Life 12 fades the puff out as that nudge
-    // ends. vxSpread 1 keeps the farthest mote at 12px, on the body even
-    // with the emit jitter. Vertical is -1.2..0.4; gravity 0.10 then lifts
-    // under 8px and drops under 12px, inside the 50px dino. Size stays 3
-    // and the red stays #d04a2a so the hit still reads. Reduced motion
-    // still applies REDUCED_FACTOR and half life.
-    collision: { count:  8, color: '#d04a2a',                size: 3, life: 12, vyMin: -1.2, vyMax:  0.4, vxSpread: 1.0, gravity: 0.10 },
+    // was 22 motes living 24 frames and flung ±4px/frame, so a mote could
+    // leave the 40px dino and land on the cactus. Round 1 cut that to 8
+    // motes, life 12, and vxSpread 1: the farthest mote sat 12px from the
+    // chest, still on the body, but it lived the whole shake and crowded
+    // the sprite edge. Round 2 is one step quieter. 5 motes is still more
+    // than a jump puff, so the hit reads. Life 8 dies before the 12-frame
+    // nudge ends. vxSpread 0.7 keeps a full life inside about 6px of the
+    // chest; with the emit jitter that is still on the body, not on the
+    // cactus. Vertical stays -1.2..0.4 with gravity 0.10: about 7px up and
+    // 6px down, inside the 50px dino. Size stays 3 and the red stays
+    // #d04a2a. Reduced motion still applies REDUCED_FACTOR and half life.
+    // The ?qaCollision=1 hold paints this quieter cluster; it does not
+    // restyle this kind.
+    collision: { count:  5, color: '#d04a2a',                size: 3, life:  8, vyMin: -1.2, vyMax:  0.4, vxSpread: 0.7, gravity: 0.10 },
     // Level gold at the score in Updated and Daily. Classic never emits.
     // The old burst was 20 motes living 40 frames and flung ±3px/frame.
     // From the score that is a 120px spray toward the lane and a fountain
@@ -3113,6 +3217,8 @@ function resetGame() {
   game.qaConfettiHold    = 0;
   game.qaDustShown       = false;
   game.qaDustHold        = 0;
+  game.qaCollisionShown  = false;
+  game.qaCollisionHold   = 0;
   game.qaPlateauHold     = 0;
   game.qaFlashShown      = false;
   game.qaFlashHold       = 0;
@@ -3129,6 +3235,7 @@ function resetGame() {
   qaTrail = readQaTrailFlag();
   qaConfetti = readQaConfettiFlag();
   qaDust = readQaDustFlag();
+  qaCollision = readQaCollisionFlag();
   qaFlash = readQaFlashFlag();
   qaScorePop = readQaScorePopFlag();
   qaNewBest = readQaNewBestFlag();
@@ -3443,6 +3550,7 @@ const STATE_HANDLERS = {
 function gameLoop() {
   game.animationFrameId = requestAnimationFrame(gameLoop);
   advanceQaDust();
+  advanceQaCollision();
   advanceQaFlash();
   advanceQaScorePop();
   advanceQaNewBest();
@@ -3454,6 +3562,7 @@ function gameLoop() {
   // above the score pop, so a swollen score cannot cover the corner badge.
   drawQaConfetti();
   drawQaDust();
+  drawQaCollision();
   drawQaPlateau();
   drawQaFlash();
   drawQaLevelLabel();
@@ -3577,6 +3686,16 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.QA_DUST_RIM = QA_DUST_RIM;
   global.qaDustMarks = qaDustMarks;
   global.drawQaDust = drawQaDust;
+  global.setQaCollision = setQaCollision;
+  global.readQaCollisionFlag = readQaCollisionFlag;
+  global.QA_COLLISION_HOLD = QA_COLLISION_HOLD;
+  global.QA_COLLISION_SIZE = QA_COLLISION_SIZE;
+  global.QA_COLLISION_RIM = QA_COLLISION_RIM;
+  global.QA_COLLISION_OFFSETS = QA_COLLISION_OFFSETS;
+  global.qaCollisionMarks = qaCollisionMarks;
+  global.qaCollisionHoldFrames = qaCollisionHoldFrames;
+  global.qaCollisionPaintAlpha = qaCollisionPaintAlpha;
+  global.drawQaCollision = drawQaCollision;
   global.setQaFlash = setQaFlash;
   global.readQaFlashFlag = readQaFlashFlag;
   global.QA_FLASH_HOLD = QA_FLASH_HOLD;
