@@ -186,6 +186,15 @@ const GAME_CONFIG = Object.freeze({
   // Reduced motion skips that ease and snaps to this at DAY_NIGHT_END.
   // Read through cfg().
   NIGHT_LAND_DUST_COLOR:    '#6a686e',
+  // Visual only. Opacity of the Updated/Daily ground strip once the sky is
+  // fully night. The strip is the day sprite (#535353). On the night sky
+  // (#1a1a2e) that line stays a bright day-gray ruler under the cooled foot
+  // dust (#6a686e). 0.55 lets the sky through so the line cools and dims,
+  // stays firmer than the soft night clouds (0.35), and stays quieter than
+  // the night dust. Classic does not read this. Eases with the sky from
+  // DAY_NIGHT_START to DAY_NIGHT_END. Reduced motion skips that ease and
+  // snaps to this at DAY_NIGHT_END. Read through cfg().
+  NIGHT_GROUND_ALPHA:       0.55,
 
   // --- Ambient depth (PR-D, updated mode only) ---
   HILL_COUNT:               3,    // mid-ground silhouette mounds
@@ -366,8 +375,9 @@ function setQaBig(enabled) {
 // QA/debug only — not for players. ?qaNight=1 paints full night from the
 // first frame so the star fade can be seen without a score-400 run.
 // Sky, hills, HUD ink, star init, the Updated/Daily night cactus and dino
-// lifts, the Updated/Daily night cloud dim, and Updated/Daily jump/land
-// dust read it through scoreForNightSky. Speed, gaps, scoring, and
+// lifts, the Updated/Daily night cloud dim, Updated/Daily jump/land
+// dust, and the Updated/Daily night ground cool read it through
+// scoreForNightSky. Speed, gaps, scoring, and
 // game.rng() do not. Re-read in resetGame() like the other QA flags.
 // Tests flip it through setQaNight(); a normal visit leaves this false.
 function readQaNightFlag(search) {
@@ -1126,16 +1136,42 @@ function drawClouds() {
   }
 }
 
+// Day ground stays the #535353 strip at full opacity. In Updated and Daily
+// the line eases down across twilight so the night sky shows through and
+// the strip cools under the foot dust. Classic keeps the day paint.
+// Reduced motion skips the ease and snaps. Scroll stays in the game loop.
+function groundPaintAlpha() {
+  if (!isUpdatedMode()) return 1;
+  const s = scoreForNightSky(game.score);
+  if (s < GAME_CONFIG.DAY_NIGHT_START) return 1;
+  const tuned = cfg('NIGHT_GROUND_ALPHA');
+  const dim = typeof tuned === 'number' && tuned >= 0 && tuned <= 1
+    ? tuned
+    : GAME_CONFIG.NIGHT_GROUND_ALPHA;
+  if (s >= GAME_CONFIG.DAY_NIGHT_END) return dim;
+  if (reducedMotion) return 1;
+  const t = (s - GAME_CONFIG.DAY_NIGHT_START) /
+            (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
+  return 1 + (dim - 1) * t;
+}
+
 function drawGround() {
-  if (!imageReady(groundImage)) {
-    // Fallback: thin line at ground level so the dino doesn't look like it's floating.
-    ctx.fillStyle = '#555555';
-    ctx.fillRect(0, GAME_CONFIG.CANVAS_H - 2, GAME_CONFIG.CANVAS_W, 2);
-    return;
+  const alpha = groundPaintAlpha();
+  const previousAlpha = ctx.globalAlpha;
+  ctx.globalAlpha = previousAlpha * alpha;
+  try {
+    if (!imageReady(groundImage)) {
+      // Fallback: thin line at ground level so the dino doesn't look like it's floating.
+      ctx.fillStyle = '#555555';
+      ctx.fillRect(0, GAME_CONFIG.CANVAS_H - 2, GAME_CONFIG.CANVAS_W, 2);
+      return;
+    }
+    const groundY = GAME_CONFIG.CANVAS_H - groundImage.height;
+    ctx.drawImage(groundImage, game.groundX, groundY, groundImage.width, groundImage.height);
+    ctx.drawImage(groundImage, game.groundX + groundImage.width, groundY, groundImage.width, groundImage.height);
+  } finally {
+    ctx.globalAlpha = previousAlpha;
   }
-  const groundY = GAME_CONFIG.CANVAS_H - groundImage.height;
-  ctx.drawImage(groundImage, game.groundX, groundY, groundImage.width, groundImage.height);
-  ctx.drawImage(groundImage, game.groundX + groundImage.width, groundY, groundImage.width, groundImage.height);
 }
 
 // Cluster hitbox stays GAME_CONFIG width. Paint two full small-cactus sprites.
@@ -2233,6 +2269,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.initClouds = initClouds;
   global.updateClouds = updateClouds;
   global.drawClouds = drawClouds;
+  global.drawGround = drawGround;
   global.spawnObstacle = spawnObstacle;
   global.updateObstacles = updateObstacles;
   global.drawObstacles = drawObstacles;
@@ -2298,5 +2335,6 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.obstacleNightBrightness = obstacleNightBrightness;
   global.dinoNightBrightness = dinoNightBrightness;
   global.cloudPaintAlpha = cloudPaintAlpha;
+  global.groundPaintAlpha = groundPaintAlpha;
   global.landDustColor = landDustColor;
 }
