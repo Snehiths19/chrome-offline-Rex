@@ -11,7 +11,7 @@ _Avoid_: visuals, juice, polish (too generic)
 **Classic mode** — the "pure flow" experience: no atmosphere, one obstacle type, nothing between the player and the obstacle. Its minimalism is intentional, not a deficiency. Classic should never receive atmospheric features — doing so would betray its identity. It is not an inferior Updated mode; it is a different answer to the same Flow pillar.
 _Avoid_: stripped-down mode, legacy mode, basic mode
 
-**One shared run** — the third pillar: once per day, every player faces the same obstacle sequence. The shared day is the UTC calendar day, so the course, the `#N`, and the TODAY BEST reset all flip together at 00:00 UTC. Gives scores meaning and creates a social moment via the Share Result. The "shared" context belongs at the edges of the run (pre-run framing, post-run result screen) — not during the run, where it induces anxiety and breaks Flow. The in-run Daily badge and the in-run TODAY label are off the HUD during WAITING and RUNNING. Pre-run framing is the quiet shared-course line on the GET READY overlay, and only then. A miss keeps TODAY BEST on the Game Over screen beside this run. A death that beats today takes over with the new today best celebration. The share result stays available after the run, and a single death-screen hint points at sharing once the score count-up finishes.
+**One shared run** — the third pillar: once per day, every player faces the same obstacle sequence. The shared day is the UTC calendar day, so the course, the `#N`, and the TODAY BEST reset all flip together at 00:00 UTC. Gives scores meaning and creates a social moment via the Share Result. The "shared" context belongs at the edges of the run (pre-run framing, post-run result screen) — not during the run, where it induces anxiety and breaks Flow. The in-run Daily badge and the in-run TODAY label are off the HUD during WAITING and RUNNING. Pre-run framing is the quiet shared-course line on the GET READY overlay, including today’s #N, and only then. A miss keeps TODAY BEST on the Game Over screen beside this run. A death that beats today takes over with the new today best celebration. The share result stays available after the run, and a single death-screen hint points at sharing once the score count-up finishes.
 _Avoid_: daily mode, social feature, leaderboard
 
 **Restart countdown** — the GET READY countdown shown in the WAITING state before each run. On first run: shown in full (builds anticipation for a new player). On restart after death: skippable by pressing space, so a player already in flow-mindset can return to RUNNING immediately without waiting 4 seconds.
@@ -86,7 +86,7 @@ _Avoid_: daily mode, date mode, challenge mode
 **Daily seed** — an integer derived from today's UTC date in YYYYMMDD format (e.g. `20260501`) used as the RNG seed for a daily challenge run. Recomputed when the UTC day changes; the same seed produces the same obstacle sequence for every player on that UTC day. Local wall-clock time does not choose the seed.
 _Avoid_: date seed, daily RNG
 
-**Daily number** — the count of UTC days since the project epoch (2026-03-01 00:00 UTC), shown as `#N` on the Game Over screen and in the share text. Day 1 = 2026-03-01 UTC. It flips at the same UTC midnight as the daily seed. It is not drawn on the in-run HUD.
+**Daily number** — the count of UTC days since the project epoch (2026-03-01 00:00 UTC), shown as `#N` on pre-run framing, the Game Over screen, and in the share text. Day 1 = 2026-03-01 UTC. It flips at the same UTC midnight as the daily seed. It is not drawn on the in-run HUD.
 _Avoid_: day number, challenge number
 
 **Daily best** — the player's highest score on today's daily challenge run, stored separately from all-time best. The stored day key (`dino-daily-date`) is the daily seed. It resets when the UTC day changes, together with the course and the daily number.
@@ -95,7 +95,7 @@ _Avoid_: daily high score, today's score, daily record
 **Share result** — a clipboard-copied text summarising the player's daily best, available from the Game Over screen during a daily challenge run. Format: `Rex Daily #N 🦕 / Score: X / <url>`.
 _Avoid_: share score, copy result, clipboard share
 
-**Pre-run framing** — the quiet line on the GET READY overlay during a Daily Challenge, shown only while state is WAITING. Copy: "Same course as everyone today". Static text, no motion. Classic and Updated never show it. It is not drawn during RUNNING, and it does not replace TODAY BEST or the share result on Game Over.
+**Pre-run framing** — the quiet line on the GET READY overlay during a Daily Challenge, shown only while state is WAITING. Copy: "Same course as everyone today · #N", where `#N` is the **Daily number**. Static text, no motion. Classic and Updated never show it. It is not drawn during RUNNING, and it does not replace TODAY BEST or the share result on Game Over.
 _Avoid_: daily banner, in-run badge, today label
 
 **Death-screen hint** — one static line on the Daily Challenge Game Over screen, drawn only after the score count-up finishes, in the same moment the Copy result button appears. Copy: "Share TODAY BEST with Copy result". It points at the existing share button. It does not replace the share button, the comparison on a miss, or the new today best celebration. Classic and Updated never show it. It is not drawn during WAITING or RUNNING. No motion.
@@ -114,7 +114,7 @@ _Avoid_: daily record, new daily high, today record
 - The **Daily seed**, **Daily number**, and **Daily best** day key all read that same UTC calendar day and change together at 00:00 UTC
 - **Daily best** is independent of all-time best; both are shown on the Game Over screen when in Daily Challenge
 - A **Share result** references both the **Daily number** and the **Daily best**
-- **Pre-run framing** is drawn only on the Daily Challenge GET READY overlay (WAITING). It is absent in RUNNING and in Classic and Updated free play
+- **Pre-run framing** is drawn only on the Daily Challenge GET READY overlay (WAITING), and that line names the **Daily number**. It is absent in RUNNING and in Classic and Updated free play
 - A **Death-screen hint** is drawn only on a settled Daily Challenge Game Over screen, under both the comparison and a **New today best**. It names the Copy result button, and it is absent in WAITING, RUNNING, Classic, and Updated
 - A **New today best** replaces the THIS RUN / TODAY BEST pair on that Game Over screen only. The **Death-screen hint** and **Share result** still appear once the count-up finishes
 - A Daily Challenge death that does not beat **Daily best**, including a tie, keeps the comparison layout
