@@ -58,7 +58,7 @@ _Avoid_: slope, sigmoid slope
 
 **Plateau** — the ceiling of the difficulty curve. Chosen to feel "focusable but demanding" — a skilled player can hold this speed indefinitely, but it is not forgiving of lapses in attention. The curve approaches plateau speed and never quite touches it, so the player is told they have arrived the first time speed reaches 98% of plateau speed (about score 641 on the current curve). That cue is a brief cool particle puff at the dino's heel — once per run, never a center message, never repeated. Classic never shows it. Under prefers-reduced-motion the puff is damped like other particles. It reframes a late failure from "this is impossible" to "I've reached the hard part, now I need to hold it."
 
-**Level** — a discrete score milestone (every 100 points) used for milestone flash effects and visual feedback only. Speed no longer steps at level boundaries; it increases continuously.
+**Level** — a discrete score milestone (every 100 points) used for milestone flash effects and visual feedback only. Speed no longer steps at level boundaries; it increases continuously. In Updated and Daily the center LEVEL label is a short, quiet read in the jump band, then it leaves while the gold wash finishes; Classic keeps the full-size label for the whole flash. Under prefers-reduced-motion the Updated and Daily word is shorter still, and the wash stays suppressed.
 
 **Particles** — the module that owns the particle pool, kind definitions, and all emit/update/draw/reset behaviour. Callers invoke `Particles.emit(kind, x, y)` without knowing pool size, reduced-motion rules, or mode gating — all suppression logic lives inside. Visual-only: uses `Math.random()`, never `game.rng()`.
 

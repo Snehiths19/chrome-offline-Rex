@@ -93,6 +93,7 @@ export default [
         refreshDailyButton: 'readonly',
         drawGetReadyOverlay: 'readonly',
         drawIdleScreen: 'readonly',
+        drawMilestoneFlash: 'readonly',
         drawNewBestBadge: 'readonly',
         drawDeathFlash: 'readonly',
         deathFlashPeakAlpha: 'readonly',

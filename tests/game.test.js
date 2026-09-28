@@ -10021,6 +10021,412 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
   });
 });
 
+describe('Quieter LEVEL label', () => {
+  const CLASSIC_FONT = "bold 22px 'Courier New', Courier, monospace";
+
+  function withTuning(overrides, fn) {
+    const orig = window.GAME_TUNING;
+    window.GAME_TUNING = overrides;
+    try { fn(); } finally { window.GAME_TUNING = orig; }
+  }
+
+  function spyText() {
+    const calls = [];
+    const origFillText = ctx.fillText;
+    ctx.fillText = function (text, x, y) {
+      calls.push({
+        text: String(text),
+        x: x,
+        y: y,
+        font: ctx.font,
+        alpha: ctx.globalAlpha,
+        fill: ctx.fillStyle,
+      });
+    };
+    return {
+      calls: calls,
+      restore() { ctx.fillText = origFillText; },
+    };
+  }
+
+  function levelCalls(calls) {
+    return calls.filter((c) => c.text.indexOf('LEVEL') === 0);
+  }
+
+  function paintLabel(frames) {
+    const spy = spyText();
+    const before = Animations.milestoneFrames;
+    Animations.milestoneFrames = frames;
+    try {
+      drawMilestoneFlash();
+      return { calls: levelCalls(spy.calls), framesAfter: Animations.milestoneFrames, before: before };
+    } finally {
+      spy.restore();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  it('keeps the Classic word at 22px for the full wash', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const origText = game.milestoneText;
+    try {
+      setReducedMotion(false);
+      setQaLevel(false);
+      game.mode = MODES.CLASSIC;
+      game.score = 40;
+      game.milestoneText = 'LEVEL 2';
+      const first = paintLabel(GAME_CONFIG.MILESTONE_FRAMES);
+      assertEquals(first.calls.length, 1, 'Classic paints the word on the first frame');
+      assertEquals(first.calls[0].font, CLASSIC_FONT, 'Classic stays bold 22px');
+      assertEquals(first.calls[0].alpha, 1, 'Classic still opens at full ink');
+      assertEquals(first.calls[0].fill, '#000000', 'day Classic stays black');
+      assertEquals(first.calls[0].x, GAME_CONFIG.CANVAS_W / 2, 'the word stays centered');
+      assertEquals(first.calls[0].y, GAME_CONFIG.CANVAS_H / 2 - 30, 'the word stays in the jump band');
+      assertEquals(first.framesAfter, GAME_CONFIG.MILESTONE_FRAMES - 1,
+        'Classic still counts the shared wash timer down by one');
+
+      const late = paintLabel(1);
+      assertEquals(late.calls.length, 1, 'Classic still paints on the last wash frame');
+      assertEquals(late.calls[0].font, CLASSIC_FONT, 'the last Classic frame is still 22px');
+      assert(Math.abs(late.calls[0].alpha - 1 / GAME_CONFIG.MILESTONE_FRAMES) < 1e-12,
+        'Classic alpha is still frames / MILESTONE_FRAMES');
+
+      withTuning({
+        UPDATED_MILESTONE_FONT_PX: 12,
+        UPDATED_MILESTONE_PEAK_ALPHA: 0.2,
+        UPDATED_MILESTONE_TEXT_FRAMES: 10,
+      }, () => {
+        const tuned = paintLabel(GAME_CONFIG.MILESTONE_FRAMES);
+        assertEquals(tuned.calls[0].font, CLASSIC_FONT, 'Classic does not read the Updated type size');
+        assertEquals(tuned.calls[0].alpha, 1, 'Classic does not read the Updated peak');
+      });
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      game.milestoneText = origText;
+      Animations.milestoneFrames = 0;
+      setReducedMotion(false);
+      setQaLevel(false);
+      ctx.globalAlpha = 1;
+    }
+  });
+
+  it('Updated and Daily open quieter and leave before the wash ends', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const origText = game.milestoneText;
+    try {
+      setReducedMotion(false);
+      setQaNight(false);
+      game.score = 40;
+      game.milestoneText = 'LEVEL 3';
+      assertEquals(GAME_CONFIG.UPDATED_MILESTONE_FONT_PX, 16,
+        'the quiet word is 16px');
+      assertEquals(GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES, 45,
+        'the word lasts half of the 90-frame wash');
+      assertEquals(GAME_CONFIG.UPDATED_MILESTONE_PEAK_ALPHA, 0.5,
+        'the first frame is half the old ink');
+      assert(GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES < GAME_CONFIG.MILESTONE_FRAMES,
+        'the word is shorter than the gold wash');
+
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        game.mode = mode;
+        const first = paintLabel(GAME_CONFIG.MILESTONE_FRAMES);
+        assertEquals(first.calls.length, 1, mode + ' still paints LEVEL on the first frame');
+        assertEquals(first.calls[0].text, 'LEVEL 3', mode + ' still uses the level label');
+        assertEquals(first.calls[0].font, "bold 16px 'Courier New', Courier, monospace",
+          mode + ' uses the smaller type');
+        assertEquals(first.calls[0].alpha, 0.5, mode + ' opens at the quiet peak');
+        assertEquals(first.calls[0].fill, '#000000', mode + ' stays black by day');
+        assertEquals(first.calls[0].x, GAME_CONFIG.CANVAS_W / 2, mode + ' stays centered');
+        assertEquals(first.calls[0].y, GAME_CONFIG.CANVAS_H / 2 - 30, mode + ' stays in the jump band');
+        assertEquals(first.framesAfter, GAME_CONFIG.MILESTONE_FRAMES - 1,
+          mode + ' still counts the shared wash timer');
+
+        const still = paintLabel(GAME_CONFIG.MILESTONE_FRAMES - GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES + 1);
+        assertEquals(still.calls.length, 1, mode + ' still paints on the last quiet frame');
+        assert(still.calls[0].alpha > 0 && still.calls[0].alpha < 0.5,
+          mode + ' has already faded below the peak');
+
+        const gone = paintLabel(GAME_CONFIG.MILESTONE_FRAMES - GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES);
+        assertEquals(gone.calls.length, 0, mode + ' word is gone while the wash timer remains');
+        assertEquals(gone.framesAfter, GAME_CONFIG.MILESTONE_FRAMES - GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES - 1,
+          mode + ' keeps counting the wash after the word leaves');
+      }
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      game.milestoneText = origText;
+      Animations.milestoneFrames = 0;
+      setQaNight(false);
+      setReducedMotion(false);
+      ctx.globalAlpha = 1;
+    }
+  });
+
+  it('keeps the gold wash on the full timer after the word has left', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const origText = game.milestoneText;
+    try {
+      setReducedMotion(false);
+      setQaNight(false);
+      game.mode = MODES.UPDATED;
+      game.score = 40;
+      game.milestoneText = 'LEVEL 2';
+      const left = GAME_CONFIG.MILESTONE_FRAMES - GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES;
+      Animations.milestoneFrames = left;
+      const fills = [];
+      const origFill = ctx.fillStyle;
+      Object.defineProperty(ctx, 'fillStyle', {
+        configurable: true,
+        get() { return origFill; },
+        set(v) { fills.push(v); },
+      });
+      drawSkyTint();
+      delete ctx.fillStyle;
+      const gold = fills.filter((s) => typeof s === 'string' && s.indexOf('rgba(255, 215, 0') === 0);
+      assertEquals(gold.length, 1, 'the wash still paints after the word has left');
+      const expected = ((left / GAME_CONFIG.MILESTONE_FRAMES) * GAME_CONFIG.SKY_TINT_PEAK_ALPHA).toFixed(3);
+      assert(gold[0].indexOf(expected) !== -1, 'the wash still fades across all 90 frames');
+      const word = paintLabel(left);
+      assertEquals(word.calls.length, 0, 'that same frame does not bring the word back');
+    } finally {
+      delete ctx.fillStyle;
+      game.mode = origMode;
+      game.score = origScore;
+      game.milestoneText = origText;
+      Animations.milestoneFrames = 0;
+      setReducedMotion(false);
+      ctx.globalAlpha = 1;
+    }
+  });
+
+  it('stays white once the sky is night, in Updated and in Classic', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const origText = game.milestoneText;
+    try {
+      setReducedMotion(false);
+      setQaNight(false);
+      game.score = GAME_CONFIG.DAY_NIGHT_START;
+      game.milestoneText = 'LEVEL 5';
+      game.mode = MODES.UPDATED;
+      const updated = paintLabel(GAME_CONFIG.MILESTONE_FRAMES);
+      assertEquals(updated.calls[0].fill, '#ffffff', 'Updated night word stays white');
+      assertEquals(updated.calls[0].alpha, GAME_CONFIG.UPDATED_MILESTONE_PEAK_ALPHA,
+        'night uses the same quiet peak');
+      game.mode = MODES.CLASSIC;
+      const classic = paintLabel(GAME_CONFIG.MILESTONE_FRAMES);
+      assertEquals(classic.calls[0].fill, '#ffffff', 'Classic night word stays white');
+      assertEquals(classic.calls[0].alpha, 1, 'Classic night ink is unchanged');
+      assertEquals(classic.calls[0].font, CLASSIC_FONT, 'Classic night size is unchanged');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      game.milestoneText = origText;
+      Animations.milestoneFrames = 0;
+      setReducedMotion(false);
+      ctx.globalAlpha = 1;
+    }
+  });
+
+  it('reads a safe tune and ignores a tune that would slap or vanish', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const origText = game.milestoneText;
+    try {
+      setReducedMotion(false);
+      game.mode = MODES.UPDATED;
+      game.score = 10;
+      game.milestoneText = 'LEVEL 2';
+      withTuning({
+        UPDATED_MILESTONE_FONT_PX: 18,
+        UPDATED_MILESTONE_PEAK_ALPHA: 0.4,
+        UPDATED_MILESTONE_TEXT_FRAMES: 30,
+      }, () => {
+        const first = paintLabel(GAME_CONFIG.MILESTONE_FRAMES);
+        assertEquals(first.calls[0].font, "bold 18px 'Courier New', Courier, monospace",
+          'a size inside 12..18 is used');
+        assertEquals(first.calls[0].alpha, 0.4, 'a peak inside 0..1 is used');
+        const edge = paintLabel(GAME_CONFIG.MILESTONE_FRAMES - 30);
+        assertEquals(edge.calls.length, 0, 'a shorter tune ends the word at that frame count');
+      });
+      withTuning({
+        UPDATED_MILESTONE_FONT_PX: 40,
+        UPDATED_MILESTONE_PEAK_ALPHA: 2,
+        UPDATED_MILESTONE_TEXT_FRAMES: 0,
+      }, () => {
+        const first = paintLabel(GAME_CONFIG.MILESTONE_FRAMES);
+        assertEquals(first.calls[0].font, "bold 16px 'Courier New', Courier, monospace",
+          'a size above 18 falls back');
+        assertEquals(first.calls[0].alpha, 0.5, 'a peak above 1 falls back');
+        const still = paintLabel(GAME_CONFIG.MILESTONE_FRAMES - 45 + 1);
+        assertEquals(still.calls.length, 1, 'a zero frame tune falls back to 45');
+      });
+      withTuning({ UPDATED_MILESTONE_TEXT_FRAMES: 200, UPDATED_MILESTONE_FONT_PX: 'big' }, () => {
+        const gone = paintLabel(GAME_CONFIG.MILESTONE_FRAMES - 45);
+        assertEquals(gone.calls.length, 0, 'a frame tune past the wash falls back to 45');
+        const first = paintLabel(GAME_CONFIG.MILESTONE_FRAMES);
+        assertEquals(first.calls[0].font, "bold 16px 'Courier New', Courier, monospace",
+          'a non-number size falls back');
+      });
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      game.milestoneText = origText;
+      Animations.milestoneFrames = 0;
+      setReducedMotion(false);
+      ctx.globalAlpha = 1;
+    }
+  });
+
+  it('shortens the Updated word again under reduced motion without restoring Classic', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const origText = game.milestoneText;
+    try {
+      setReducedMotion(true);
+      game.score = 20;
+      game.milestoneText = 'LEVEL 2';
+      game.mode = MODES.CLASSIC;
+      const classic = paintLabel(GAME_CONFIG.MILESTONE_FRAMES);
+      assertEquals(classic.calls[0].font, CLASSIC_FONT, 'reduced motion does not resize Classic');
+      assertEquals(classic.calls[0].alpha, 1, 'reduced motion does not fade Classic');
+      const classicLate = paintLabel(1);
+      assertEquals(classicLate.calls.length, 1, 'Classic still lasts the full wash under reduced motion');
+
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        game.mode = mode;
+        const first = paintLabel(GAME_CONFIG.MILESTONE_FRAMES);
+        assertEquals(first.calls[0].font, "bold 16px 'Courier New', Courier, monospace",
+          mode + ' stays on the small type under reduced motion');
+        assertEquals(first.calls[0].alpha, 0.5,
+          mode + ' keeps the quiet peak so the word still reads');
+        const half = Math.max(2, Math.round(GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES * 0.5));
+        const gone = paintLabel(GAME_CONFIG.MILESTONE_FRAMES - half);
+        assertEquals(gone.calls.length, 0, mode + ' word ends at half the quiet length');
+        assert(half < GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES,
+          mode + ' reduced-motion word is shorter than the motion-allowed word');
+        const still = paintLabel(GAME_CONFIG.MILESTONE_FRAMES - half + 1);
+        assertEquals(still.calls.length, 1, mode + ' still paints on the last reduced-motion frame');
+      }
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      game.milestoneText = origText;
+      Animations.milestoneFrames = 0;
+      setReducedMotion(false);
+      ctx.globalAlpha = 1;
+    }
+  });
+
+  function tick() {
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+  }
+
+  function armFreshRun() {
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    game.obstacles.length = 0;
+    game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+    game.nextSpawnGap = 10000;
+    dino.y = GAME_CONFIG.CANVAS_H - dino.height;
+    dino.isJumping = false;
+    dino.velocityY = 0;
+    Animations.milestoneFrames = 0;
+    game.qaLevelShown = false;
+    game.qaLevelHold = 0;
+  }
+
+  it('?qaLevel=1 holds the quiet word for playtest and damps that hold under reduced motion', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      armFreshRun();
+      game.mode = MODES.UPDATED;
+      setQaLevel(true);
+      const spy = spyText();
+      try {
+        tick();
+        assertEquals(game.qaLevelHold, 180, 'the playtest hold starts at the full capture window');
+        assertEquals(game.milestoneText, 'LEVEL 2', 'the hold uses the same early label');
+        assertEquals(Animations.milestoneFrames, GAME_CONFIG.MILESTONE_FRAMES - 1,
+          'the hold does not change the wash length');
+        const live = levelCalls(spy.calls);
+        assertEquals(live.length, 1, 'the first frame paints the live word once');
+        assertEquals(live[0].alpha, 0.5, 'the live word, not a louder hold, is what shows first');
+
+        spy.calls.length = 0;
+        Animations.milestoneFrames = 0;
+        game.qaLevelHold = 40;
+        tick();
+        const held = levelCalls(spy.calls);
+        assertEquals(held.length, 1, 'the hold keeps LEVEL up after the live word has ended');
+        assertEquals(held[0].font, "bold 16px 'Courier New', Courier, monospace",
+          'the hold uses the quiet type');
+        assertEquals(held[0].alpha, 0.5, 'motion allowed holds the quiet peak');
+        assertEquals(game.score < GAME_CONFIG.SCORE_PER_LEVEL, true,
+          'the hold must not jump the score to the real level');
+      } finally {
+        spy.restore();
+      }
+
+      armFreshRun();
+      game.mode = MODES.CLASSIC;
+      setQaLevel(true);
+      const classicSpy = spyText();
+      try {
+        tick();
+        assertEquals(game.qaLevelHold, 0, 'Classic does not start the hold');
+        assertEquals(levelCalls(classicSpy.calls).length, 0, 'Classic does not paint an early LEVEL');
+      } finally {
+        classicSpy.restore();
+      }
+
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        setReducedMotion(true);
+        armFreshRun();
+        game.mode = mode;
+        setQaLevel(true);
+        const rmSpy = spyText();
+        try {
+          tick();
+          assertEquals(game.qaLevelHold, 90, mode + ' reduced motion halves the 180-frame hold');
+          rmSpy.calls.length = 0;
+          Animations.milestoneFrames = 0;
+          game.qaLevelHold = 20;
+          tick();
+          const held = levelCalls(rmSpy.calls);
+          assertEquals(held.length, 1, mode + ' reduced motion still paints the held word');
+          assertEquals(held[0].alpha, 0.25, mode + ' reduced motion holds half the quiet peak');
+          assertEquals(held[0].font, "bold 16px 'Courier New', Courier, monospace",
+            mode + ' reduced-motion hold stays on the small type');
+        } finally {
+          rmSpy.restore();
+        }
+      }
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setQaLevel(false);
+      setQaNight(false);
+      setReducedMotion(false);
+      Animations.milestoneFrames = 0;
+      game.qaLevelHold = 0;
+      ctx.globalAlpha = 1;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+});
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {
