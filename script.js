@@ -522,19 +522,22 @@ function qaConfettiRect() {
   };
 }
 
-// Last paint of a running frame, and again during the death shake so a
-// hit during the hold does not wipe it. Reads the hold counter only.
-// Full strength, dark rim, on top of the HUD. Ignores the particle pool.
+// Overdraw after the whole frame. The running handler returns before its
+// own draw when a cactus hits, and the death shake then redraws the score
+// on top of whatever was there. This pass runs from gameLoop after that,
+// from the hold counter only — a missed particle emit cannot skip it.
+// Full strength, dark rim, source-over, on top of the HUD.
 function drawQaConfetti() {
-  if (!qaConfetti || !isUpdatedMode() || game.qaConfettiHold <= 0) return;
-  const prevAlpha = ctx.globalAlpha;
+  if (!isUpdatedMode() || game.qaConfettiHold <= 0) return;
+  ctx.save();
   ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
   const block = qaConfettiRect();
   ctx.fillStyle = QA_CONFETTI_RIM;
   ctx.fillRect(block.x - 4, block.y - 4, block.w + 8, block.h + 8);
   ctx.fillStyle = QA_CONFETTI_COLOR;
   ctx.fillRect(block.x, block.y, block.w, block.h);
-  ctx.globalAlpha = prevAlpha;
+  ctx.restore();
 }
 
 // Score the night sky consults. The QA flag pretends night has fully arrived.
@@ -2305,7 +2308,6 @@ function handleDead() {
     drawScore();
     ctx.restore();
     drawDeathFlash(); // white flash drawn outside the shake transform so it stays canvas-aligned
-    drawQaConfetti(); // hold block, also outside the shake, on top of the flash
     Particles.update();
     if (Animations.deathFlashFrames > 0) Animations.deathFlashFrames--;
     if (Animations.scorePopFrames > 0) Animations.scorePopFrames--;
@@ -2525,7 +2527,6 @@ function handleRunning() {
   runFeatureDraws('overlay');       // drawSkyTint
   drawMilestoneFlash();
   drawNewBestBadge();
-  drawQaConfetti();
 }
 
 const STATE_HANDLERS = {
@@ -2538,6 +2539,9 @@ const STATE_HANDLERS = {
 function gameLoop() {
   game.animationFrameId = requestAnimationFrame(gameLoop);
   STATE_HANDLERS[game.state]();
+  // After the handler so a collision return, the score, and the death
+  // card cannot cover the debug block. No-op unless the hold is running.
+  drawQaConfetti();
 }
 
 // == SECTION 9: INITIALISATION ==

@@ -8029,6 +8029,46 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
     }
   });
 
+  it('still paints the block when a hit skips the rest of the frame', () => {
+    const origMode = game.mode;
+    const spy = spyPaint();
+    try {
+      armFreshRun(MODES.UPDATED);
+      setQaConfetti(true);
+      tick();
+      assertEquals(game.qaConfettiHold, QA_CONFETTI_HOLD, 'the hold is up before the hit');
+      game.obstacles.push({
+        x: dino.x,
+        y: dino.y,
+        width: dino.width,
+        height: dino.height,
+        type: 'small',
+        render: 'single',
+      });
+      spy.calls.length = 0;
+      tick();
+      assertEquals(game.state, STATE.DEAD, 'the cactus ends the run');
+      const block = qaConfettiRect();
+      const gold = spy.calls.filter((c) => c.op === 'rect' && c.style === QA_CONFETTI_COLOR);
+      assertEquals(gold.length, 1, 'the hold still paints after the hit returns early');
+      assertEquals(gold[0].x, block.x, 'the block stays under the score');
+      assertEquals(gold[0].y, block.y, 'the block stays under the score line');
+      assertEquals(gold[0].w, QA_CONFETTI_BLOCK_W, 'the block stays large');
+      assertEquals(gold[0].h, QA_CONFETTI_BLOCK_H, 'the block stays tall');
+      assertEquals(gold[0].alpha, 1, 'the block stays opaque on the death frame');
+      spy.calls.length = 0;
+      tick();
+      assertBlock(spy.calls, 'death shake');
+      assert(game.qaConfettiHold > 0, 'dying during the hold does not clear it');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaConfetti(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
   it('Classic with ?qaConfetti=1 still paints nothing', () => {
     const origMode = game.mode;
     const spy = spyPaint();
