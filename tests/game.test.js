@@ -6950,6 +6950,282 @@ describe('Night land dust', () => {
     }
   });
 
+  // Night sky showing through #6a686e, and the night ground strip.
+  function compositedDust(alpha) {
+    const sky = [0x1a, 0x1a, 0x2e];
+    const dust = [0x6a, 0x68, 0x6e];
+    return sky.map((s, i) => s + (dust[i] - s) * alpha);
+  }
+
+  function compositedGroundLum() {
+    const sky = [0x1a, 0x1a, 0x2e];
+    const ground = [0x53, 0x53, 0x53];
+    const mixed = sky.map((s, i) => s + (ground[i] - s) * GAME_CONFIG.NIGHT_GROUND_ALPHA);
+    return 0.2126 * mixed[0] + 0.7152 * mixed[1] + 0.0722 * mixed[2];
+  }
+
+  function channelLum(channels) {
+    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+  }
+
+  function liveBurst(kind) {
+    Particles.reset();
+    const n = Particles.emit(kind, 80, 140);
+    return { n: n, motes: Particles.particles.filter(p => p.life > 0) };
+  }
+
+  it('softens jump and land dust once the sky is fully night, and leaves day alone', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const origRng = game.rng;
+    let rngCalls = 0;
+    game.rng = () => { rngCalls++; return origRng(); };
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      assertEquals(GAME_CONFIG.NIGHT_LAND_DUST_COLOR, '#6a686e',
+        'night dust stays the cool gray; the quiet is the ink, not a new color');
+      assertEquals(GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA, 0.42,
+        'night takeoff uses the quieter peak');
+      assertEquals(GAME_CONFIG.NIGHT_LAND_DUST_ALPHA, 0.36,
+        'night landing uses the quieter peak');
+      assertEquals(GAME_CONFIG.NIGHT_JUMP_DUST_COUNT, 2,
+        'night takeoff emits fewer motes');
+      assertEquals(GAME_CONFIG.NIGHT_LAND_DUST_COUNT, 3,
+        'night landing emits fewer motes');
+      assert(GAME_CONFIG.NIGHT_LAND_DUST_COUNT > GAME_CONFIG.NIGHT_JUMP_DUST_COUNT,
+        'a night landing still reads heavier than a takeoff');
+      assertEquals(GAME_CONFIG.NIGHT_LAND_DUST_LIFE, 6,
+        'night motes die sooner');
+      assert(GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA < Particles.KINDS.jump.alpha,
+        'night takeoff is softer than the day peak');
+      assert(GAME_CONFIG.NIGHT_LAND_DUST_ALPHA < Particles.KINDS.land.alpha,
+        'night landing is softer than the day peak');
+      assert(GAME_CONFIG.NIGHT_LAND_DUST_ALPHA < GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA,
+        'the wider night landing stays the softer of the two');
+      assertEquals(Particles.KINDS.jump.alpha, 0.5, 'day takeoff peak stays 0.5');
+      assertEquals(Particles.KINDS.land.alpha, 0.4, 'day landing peak stays 0.4');
+      assertEquals(Particles.KINDS.jump.count, 3, 'day takeoff count stays 3');
+      assertEquals(Particles.KINDS.land.count, 5, 'day landing count stays 5');
+      assertEquals(Particles.KINDS.jump.life, 8, 'day life stays 8');
+      assertEquals(Particles.KINDS.land.life, 8, 'day land life stays 8');
+
+      const road = compositedGroundLum();
+      const dayJump = channelLum(compositedDust(Particles.KINDS.jump.alpha));
+      const nightJump = channelLum(compositedDust(GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA));
+      const dayLand = channelLum(compositedDust(Particles.KINDS.land.alpha));
+      const nightLand = channelLum(compositedDust(GAME_CONFIG.NIGHT_LAND_DUST_ALPHA));
+      const sunkJump = channelLum(compositedDust(Particles.KINDS.jump.alpha * 0.6));
+      const sunkLand = channelLum(compositedDust(Particles.KINDS.land.alpha * 0.6));
+      assert(nightJump < dayJump, 'night takeoff lifts the road less than the day peak');
+      assert(nightLand < dayLand, 'night landing lifts the road less than the day peak');
+      assert(nightJump > road, 'night takeoff still reads above the night ground');
+      assert(nightLand > road, 'night landing still reads above the night ground');
+      assert(sunkJump <= road + 0.2, 'three-fifths of the day takeoff alpha would land on the road');
+      assert(sunkLand < road, 'three-fifths of the day landing alpha would sink under the road');
+      const jumpLift = dayJump - road;
+      const landLift = dayLand - road;
+      assert(Math.abs((nightJump - road) - jumpLift * 0.6) < 0.15,
+        'night takeoff keeps about three-fifths of the old lift over the road');
+      assert(Math.abs((nightLand - road) - landLift * 0.6) < 0.15,
+        'night landing keeps about three-fifths of the old lift over the road');
+
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      let burst = liveBurst('jump');
+      assertEquals(burst.n, Particles.KINDS.jump.count, 'a day jump still emits the day count');
+      burst.motes.forEach((p) => {
+        assertEquals(p.alpha, Particles.KINDS.jump.alpha, 'a day jump keeps the day peak');
+        assertEquals(p.life, Particles.KINDS.jump.life, 'a day jump keeps the day life');
+        assertEquals(p.color, DAY_DUST, 'a day jump stays brown');
+      });
+      burst = liveBurst('land');
+      assertEquals(burst.n, Particles.KINDS.land.count, 'a day landing still emits the day count');
+      burst.motes.forEach((p) => {
+        assertEquals(p.alpha, Particles.KINDS.land.alpha, 'a day landing keeps the day peak');
+        assertEquals(p.life, Particles.KINDS.land.life, 'a day landing keeps the day life');
+      });
+
+      game.score = 350;
+      const jumpMid = Particles.KINDS.jump.alpha
+        + (GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA - Particles.KINDS.jump.alpha) * 0.5;
+      const landMid = Particles.KINDS.land.alpha
+        + (GAME_CONFIG.NIGHT_LAND_DUST_ALPHA - Particles.KINDS.land.alpha) * 0.5;
+      burst = liveBurst('jump');
+      assertEquals(burst.n, Particles.KINDS.jump.count,
+        'twilight still uses the day takeoff count');
+      burst.motes.forEach((p) => {
+        assert(Math.abs(p.alpha - jumpMid) < 1e-9, 'mid-twilight eases the takeoff peak');
+        assertEquals(p.life, Particles.KINDS.jump.life, 'twilight still uses the day life');
+      });
+      burst = liveBurst('land');
+      assertEquals(burst.n, Particles.KINDS.land.count,
+        'twilight still uses the day landing count');
+      burst.motes.forEach((p) => {
+        assert(Math.abs(p.alpha - landMid) < 1e-9, 'mid-twilight eases the landing peak');
+      });
+
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      burst = liveBurst('jump');
+      assertEquals(burst.n, GAME_CONFIG.NIGHT_JUMP_DUST_COUNT, 'a night jump emits the shorter count');
+      burst.motes.forEach((p) => {
+        assertEquals(p.alpha, GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA, 'a night jump uses the quieter peak');
+        assertEquals(p.life, GAME_CONFIG.NIGHT_LAND_DUST_LIFE, 'a night jump uses the shorter life');
+        assertEquals(p.maxLife, GAME_CONFIG.NIGHT_LAND_DUST_LIFE, 'a night jump fades across that life');
+        assertEquals(p.color, GAME_CONFIG.NIGHT_LAND_DUST_COLOR, 'a night jump stays the cool gray');
+        assertEquals(p.size, Particles.KINDS.jump.size, 'night motes stay the day size');
+      });
+      burst = liveBurst('land');
+      assertEquals(burst.n, GAME_CONFIG.NIGHT_LAND_DUST_COUNT, 'a night landing emits the shorter count');
+      burst.motes.forEach((p) => {
+        assertEquals(p.alpha, GAME_CONFIG.NIGHT_LAND_DUST_ALPHA, 'a night landing uses the quieter peak');
+        assertEquals(p.life, GAME_CONFIG.NIGHT_LAND_DUST_LIFE, 'a night landing uses the shorter life');
+        assertEquals(p.color, GAME_CONFIG.NIGHT_LAND_DUST_COLOR, 'a night landing stays the cool gray');
+      });
+
+      game.mode = MODES.DAILY;
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      burst = liveBurst('land');
+      assertEquals(burst.n, GAME_CONFIG.NIGHT_LAND_DUST_COUNT, 'Daily night landing shares the shorter count');
+      burst.motes.forEach((p) => {
+        assertEquals(p.alpha, GAME_CONFIG.NIGHT_LAND_DUST_ALPHA, 'Daily night landing shares the quieter peak');
+        assertEquals(p.life, GAME_CONFIG.NIGHT_LAND_DUST_LIFE, 'Daily night landing shares the shorter life');
+      });
+
+      game.mode = MODES.CLASSIC;
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      assertEquals(liveBurst('jump').n, 0, 'Classic still emits no jump dust');
+      assertEquals(liveBurst('land').n, 0, 'Classic still emits no land dust');
+      assertEquals(rngCalls, 0, 'quieter night dust does not consume the run seed');
+    } finally {
+      game.rng = origRng;
+      game.mode = origMode;
+      game.score = origScore;
+      setQaNight(false);
+      setReducedMotion(false);
+      Particles.reset();
+    }
+  });
+
+  it('reduced motion snaps the night peaks and still damps the shorter burst', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      setQaNight(false);
+      game.mode = MODES.UPDATED;
+      setReducedMotion(true);
+      game.score = 350;
+      const burstMid = liveBurst('land');
+      assertEquals(burstMid.n, Math.max(1, Math.round(Particles.KINDS.land.count * 0.25)),
+        'reduced motion during twilight still damps the day landing');
+      burstMid.motes.forEach((p) => {
+        assertEquals(p.alpha, Particles.KINDS.land.alpha,
+          'reduced motion does not ease the landing peak during twilight');
+        assertEquals(p.life, Math.max(2, Math.round(Particles.KINDS.land.life * 0.5)),
+          'reduced motion during twilight still halves the day life');
+      });
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      const burst = liveBurst('land');
+      const nightCount = Math.max(1, Math.round(GAME_CONFIG.NIGHT_LAND_DUST_COUNT * 0.25));
+      const nightLife = Math.max(2, Math.round(GAME_CONFIG.NIGHT_LAND_DUST_LIFE * 0.5));
+      assertEquals(burst.n, nightCount, 'reduced motion quarters the night landing count');
+      assert(nightCount < GAME_CONFIG.NIGHT_LAND_DUST_COUNT, 'the night damp still removes motes');
+      burst.motes.forEach((p) => {
+        assertEquals(p.alpha, GAME_CONFIG.NIGHT_LAND_DUST_ALPHA,
+          'reduced motion snaps to the night landing peak');
+        assertEquals(p.life, nightLife, 'reduced motion halves the shorter night life');
+        assertEquals(p.color, GAME_CONFIG.NIGHT_LAND_DUST_COLOR,
+          'the damped night burst stays cool dust');
+      });
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setReducedMotion(false);
+      setQaNight(false);
+      Particles.reset();
+    }
+  });
+
+  it('night dust alpha and count overrides change only the night burst', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      game.mode = MODES.UPDATED;
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      withTuning({
+        NIGHT_JUMP_DUST_ALPHA: 0.22,
+        NIGHT_LAND_DUST_ALPHA: 0.18,
+        NIGHT_JUMP_DUST_COUNT: 4,
+        NIGHT_LAND_DUST_COUNT: 4,
+        NIGHT_LAND_DUST_LIFE: 4,
+      }, () => {
+        const jump = liveBurst('jump');
+        assertEquals(jump.n, 4, 'a visual override should change the night takeoff count');
+        jump.motes.forEach((p) => {
+          assertEquals(p.alpha, 0.22, 'a visual override should change the night takeoff peak');
+          assertEquals(p.life, 4, 'a visual override should change the night life');
+        });
+        const land = liveBurst('land');
+        assertEquals(land.n, 4, 'a visual override should change the night landing count');
+        land.motes.forEach((p) => {
+          assertEquals(p.alpha, 0.18, 'a visual override should change the night landing peak');
+        });
+      });
+      const restored = liveBurst('jump');
+      assertEquals(restored.n, GAME_CONFIG.NIGHT_JUMP_DUST_COUNT,
+        'clearing the override returns the night takeoff count');
+      restored.motes.forEach((p) => {
+        assertEquals(p.alpha, GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA,
+          'clearing the override returns the night takeoff peak');
+      });
+      game.score = 0;
+      withTuning({ NIGHT_JUMP_DUST_ALPHA: 0.22, NIGHT_JUMP_DUST_COUNT: 4 }, () => {
+        const day = liveBurst('jump');
+        assertEquals(day.n, Particles.KINDS.jump.count, 'day count ignores the night override');
+        day.motes.forEach((p) => {
+          assertEquals(p.alpha, Particles.KINDS.jump.alpha, 'day peak ignores the night override');
+        });
+      });
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      withTuning({
+        NIGHT_JUMP_DUST_ALPHA: 2,
+        NIGHT_LAND_DUST_ALPHA: 'soft',
+        NIGHT_JUMP_DUST_COUNT: 0,
+        NIGHT_LAND_DUST_COUNT: -3,
+        NIGHT_LAND_DUST_LIFE: 1,
+      }, () => {
+        const jump = liveBurst('jump');
+        assertEquals(jump.n, GAME_CONFIG.NIGHT_JUMP_DUST_COUNT,
+          'a bad count override falls back to the night takeoff count');
+        jump.motes.forEach((p) => {
+          assertEquals(p.alpha, GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA,
+            'a bad peak override falls back to the night takeoff peak');
+          assertEquals(p.life, GAME_CONFIG.NIGHT_LAND_DUST_LIFE,
+            'a too-short life override falls back to the night life');
+        });
+        const land = liveBurst('land');
+        land.motes.forEach((p) => {
+          assertEquals(p.alpha, GAME_CONFIG.NIGHT_LAND_DUST_ALPHA,
+            'a bad landing peak falls back to the night landing peak');
+        });
+      });
+      setReducedMotion(true);
+      withTuning({ NIGHT_LAND_DUST_COUNT: 8 }, () => {
+        const damped = liveBurst('land');
+        assertEquals(damped.n, Math.max(1, Math.round(8 * 0.25)),
+          'reduced motion quarters the tuned night count, not the day count');
+      });
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setQaNight(false);
+      setReducedMotion(false);
+      Particles.reset();
+    }
+  });
+
   it('leaves trail, collision, confetti, and plateau colors alone at night', () => {
     const origMode = game.mode;
     const origScore = game.score;
@@ -9447,14 +9723,15 @@ describe('QA dust flag (?qaDust=1)', () => {
     return calls.filter((c) => c.op === 'rect' && c.style === color && c.w === QA_DUST_SIZE && c.h === QA_DUST_SIZE);
   }
 
-  function assertMarks(calls, color, label) {
+  function assertMarks(calls, color, label, alpha) {
+    const peak = alpha === undefined ? 1 : alpha;
     const marks = qaDustMarks();
     const fills = dustFills(calls, color);
     assertEquals(fills.length, marks.length, label + ' paints every held mote');
     marks.forEach((mark, i) => {
       assertEquals(fills[i].x, mark.x, label + ' mote ' + i + ' stays on the foot x');
       assertEquals(fills[i].y, mark.y, label + ' mote ' + i + ' stays on the foot y');
-      assertEquals(fills[i].alpha, 1, label + ' mote ' + i + ' is opaque so a capture cannot miss it');
+      assertEquals(fills[i].alpha, peak, label + ' mote ' + i + ' paints at the expected ink');
     });
     const rims = calls.filter((c) => c.op === 'rect' && c.style === QA_DUST_RIM);
     assertEquals(rims.length, marks.length, label + ' paints a rim with every mote');
@@ -9628,10 +9905,13 @@ describe('QA dust flag (?qaDust=1)', () => {
       setQaNight(true);
       spy.calls.length = 0;
       tick();
-      assertMarks(spy.calls, GAME_CONFIG.NIGHT_LAND_DUST_COLOR, 'night');
+      assertMarks(spy.calls, GAME_CONFIG.NIGHT_LAND_DUST_COLOR, 'night', 0.42);
       assertEquals(GAME_CONFIG.NIGHT_LAND_DUST_COLOR, '#6a686e', 'night dust stays the cool gray');
+      assertEquals(GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA, 0.42,
+        'the night hold uses the quieter takeoff peak, not solid ink');
       assertEquals(dustFills(spy.calls, '#9c8770').length, 0, 'night hold does not paint the day brown');
       assert(game.score < 1, 'the night hold must not write the score');
+      assertEquals(game.qaDustHold, QA_DUST_HOLD, 'the quieter night hold keeps the full capture length');
     } finally {
       spy.restore();
       game.mode = origMode;
@@ -9690,6 +9970,35 @@ describe('QA dust flag (?qaDust=1)', () => {
     }
   });
 
+  it('reduced motion halves the night hold ink and keeps the capture length', () => {
+    const origMode = game.mode;
+    const spy = spyPaint();
+    try {
+      armFreshRun(MODES.UPDATED);
+      setReducedMotion(true);
+      setQaNight(true);
+      setQaDust(true);
+      tick();
+      assertMarks(spy.calls, '#6a686e', 'reduced motion night', 0.21);
+      assertEquals(game.qaDustHold, QA_DUST_HOLD,
+        'reduced motion damps the night ink without shortening the hold');
+      assertEquals(
+        Particles.particles.filter((p) => p.life > 0).length,
+        0,
+        'the held night motes do not go through the particle pool'
+      );
+      assert(game.score < 1, 'the damped night hold must not write the score');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaDust(false);
+      setQaNight(false);
+      setReducedMotion(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
   it('resetGame re-reads ?qaDust=1 from the page query', () => {
     const origMode = game.mode;
     const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
@@ -9709,7 +10018,7 @@ describe('QA dust flag (?qaDust=1)', () => {
       game.nextSpawnGap = GAME_CONFIG.MAX_SPAWN_GAP;
       Particles.reset();
       tick();
-      assertMarks(spy.calls, '#6a686e', 're-read flag');
+      assertMarks(spy.calls, '#6a686e', 're-read flag', 0.42);
       assertEquals(game.qaDustHold, QA_DUST_HOLD, 'the re-read flag latches the hold');
       assert(game.score < 1, 're-reading the flag must not change the score');
       assertEquals(game.qaDustShown, true, 'the re-read flag spends the latch');
