@@ -743,15 +743,22 @@ function dailySeed() {
   return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
 }
 
-// Ordinal UTC day shown on the Game Over screen and in share text (#1, #2, …).
-// 86400000 ms steps from the UTC epoch, so this matches dailySeed()'s calendar day.
+// Ordinal UTC day shown on pre-run framing, the Game Over screen, and in
+// share text (#1, #2, …). 86400000 ms steps from the UTC epoch, so this
+// matches dailySeed()'s calendar day. Display-only — not a second calendar.
 function dailyNumber() {
   return Math.floor((Date.now() - DAILY_EPOCH_MS) / 86400000) + 1;
 }
 
-// Pre-run framing. A shared-course reminder, not a score. Drawn only on the
-// GET READY overlay while WAITING in a Daily Challenge.
+// Pre-run framing. A shared-course reminder, not a score. The daily number
+// is composed when the line is drawn or announced, so GET READY shows the
+// same UTC #N as Game Over and share. Drawn only on the GET READY overlay
+// while WAITING in a Daily Challenge. Static — no pulse.
 const DAILY_PRE_RUN_LINE = 'Same course as everyone today';
+
+function dailyPreRunLine() {
+  return DAILY_PRE_RUN_LINE + ' · #' + dailyNumber();
+}
 
 // Death-screen hint. One quiet line after the score count-up, pointing at
 // TODAY BEST and the existing Copy result button. Static — no pulse.
@@ -1505,7 +1512,7 @@ function drawDailyPreRunLine() {
   ctx.textAlign = 'center';
   ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
   ctx.font = '12px ' + cfg('SCORE_FONT_FAMILY');
-  ctx.fillText(DAILY_PRE_RUN_LINE, GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 46);
+  ctx.fillText(dailyPreRunLine(), GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 46);
 }
 
 function drawGameOverScreen() {
@@ -2041,7 +2048,7 @@ if (dailyBtn && dailyBtn.addEventListener) {
     resetGame();
     gameLoop();
     announce(entering
-      ? `Daily challenge #${dailyNumber()}. ${DAILY_PRE_RUN_LINE}.`
+      ? `Daily challenge #${dailyNumber()}. ${dailyPreRunLine()}.`
       : 'Updated mode');
   };
   dailyBtn.addEventListener('click', onDailyTap);
@@ -2119,7 +2126,7 @@ function resetGame() {
   const ready = game.countdownSkippable
     ? 'Get ready. Press space or tap to start.'
     : 'Get ready.';
-  announce(isDailyMode() ? ready + ' ' + DAILY_PRE_RUN_LINE + '.' : ready);
+  announce(isDailyMode() ? ready + ' ' + dailyPreRunLine() + '.' : ready);
   if (document.body) document.body.style.background = '';
 }
 

@@ -3864,7 +3864,8 @@ describe('Plateau cue', () => {
 });
 
 describe('Daily pre-run framing', () => {
-  const LINE = 'Same course as everyone today';
+  const STEM = 'Same course as everyone today';
+  const preRunLine = () => STEM + ' · #' + dailyNumber();
 
   function captureFillText(draw) {
     const calls = [];
@@ -3903,8 +3904,11 @@ describe('Daily pre-run framing', () => {
 
   it('Daily GET READY shows a short shared-course line', () => {
     const calls = withDailyWaiting(GAME_CONFIG.GRACE_FRAMES, overlayCalls);
-    const line = calls.find((c) => c.text === LINE);
+    const line = calls.find((c) => c.text === preRunLine());
     assert(line, `Daily WAITING should show the shared-run line, got: ${JSON.stringify(calls.map((c) => c.text))}`);
+    assertEquals(line.text, STEM + ' · #' + dailyNumber(),
+      'the shared-course line should name today’s daily number');
+    assert(!line.text.includes('📅'), 'the pre-run line stays quiet, without the Game Over badge');
     assert(calls.some((c) => c.text === 'GET READY'), 'GET READY should stay on the overlay');
     assert(line.y > GAME_CONFIG.SCORE_Y, 'the line should sit with the overlay, not in the score HUD');
     assert(line.y < GAME_CONFIG.CANVAS_H - GAME_CONFIG.DINO_HEIGHT, 'the line should stay above the dino');
@@ -3916,9 +3920,9 @@ describe('Daily pre-run framing', () => {
       game.animFrame = 90;
       return overlayCalls();
     });
-    const earlyLine = early.find((c) => c.text === LINE);
-    const lateLine = late.find((c) => c.text === LINE);
-    assert(late.some((c) => c.text !== 'GET READY' && c.text !== LINE),
+    const earlyLine = early.find((c) => c.text === preRunLine());
+    const lateLine = late.find((c) => c.text === preRunLine());
+    assert(late.some((c) => c.text !== 'GET READY' && c.text !== preRunLine()),
       `countdown phase should still draw a count, got: ${JSON.stringify(late.map((c) => c.text))}`);
     assert(lateLine, 'the shared-run line should stay through the countdown');
     assertEquals(lateLine.fillStyle, earlyLine.fillStyle, 'the line should stay static when frames advance');
@@ -3943,9 +3947,9 @@ describe('Daily pre-run framing', () => {
     game.state = orig.state;
     game.graceFrames = orig.grace;
 
-    assert(!classic.some((c) => c.text === LINE),
+    assert(!classic.some((c) => c.text === preRunLine() || c.text.includes(STEM)),
       `Classic must not show Daily framing, got: ${JSON.stringify(classic.map((c) => c.text))}`);
-    assert(!updated.some((c) => c.text === LINE),
+    assert(!updated.some((c) => c.text === preRunLine() || c.text.includes(STEM)),
       `Updated must not show Daily framing, got: ${JSON.stringify(updated.map((c) => c.text))}`);
     assert(classic.some((c) => c.text === 'GET READY'), 'Classic GET READY should be unchanged');
     assert(updated.some((c) => c.text === 'GET READY'), 'Updated GET READY should be unchanged');
@@ -3997,11 +4001,11 @@ describe('Daily pre-run framing', () => {
     game.obstacles.length = 0;
     orig.obstacles.forEach((o) => game.obstacles.push(o));
 
-    assert(!running.some((c) => c.text === LINE),
+    assert(!running.some((c) => c.text === preRunLine()),
       `RUNNING must not show the shared-run line, got: ${JSON.stringify(running.map((c) => c.text))}`);
-    assert(!running.some((c) => c.text.includes('TODAY')),
-      `RUNNING must not grow a TODAY HUD, got: ${JSON.stringify(running.map((c) => c.text))}`);
-    assert(!over.some((c) => c.text === LINE),
+    assert(!running.some((c) => c.text.includes('TODAY') || c.text.includes('#' + dailyNumber()) || c.text.includes('DAILY')),
+      `RUNNING must not grow a Daily #N or TODAY HUD, got: ${JSON.stringify(running.map((c) => c.text))}`);
+    assert(!over.some((c) => c.text === preRunLine()),
       `Game Over should keep its own result screen, got: ${JSON.stringify(over.map((c) => c.text))}`);
     assert(over.some((c) => c.text === 'TODAY BEST'), 'Game Over should still show TODAY BEST');
   });
@@ -4033,9 +4037,10 @@ describe('Daily pre-run framing', () => {
     game.countdownSkippable = orig.skip;
     a11yLive.textContent = orig.text;
 
-    assert(!updated.includes(LINE), `Updated countdown must stay quiet, got: ${updated}`);
+    assert(!updated.includes(STEM), `Updated countdown must stay quiet, got: ${updated}`);
+    assert(!updated.includes('#' + dailyNumber()), `Updated countdown must not announce a daily number, got: ${updated}`);
     assert(daily.includes('Get ready'), `Daily countdown should still say get ready, got: ${daily}`);
-    assert(daily.includes(LINE), `Daily countdown should mention the shared course, got: ${daily}`);
+    assert(daily.includes(preRunLine()), `Daily countdown should mention the shared course and #N, got: ${daily}`);
   });
 
   it('the Daily button announces the shared course, and leaving does not', () => {
@@ -4044,6 +4049,13 @@ describe('Daily pre-run framing', () => {
     const btn = document.getElementById('daily-btn');
     const handler = btn && btn._listeners && btn._listeners.click && btn._listeners.click[0];
     assert(typeof handler === 'function', 'daily button must register a click handler');
+    const face = btn.textContent;
+    const ariaLabels = [];
+    const origSet = btn.setAttribute.bind(btn);
+    btn.setAttribute = (name, value) => {
+      if (name === 'aria-label') ariaLabels.push(String(value));
+      origSet(name, value);
+    };
     game.mode = MODES.UPDATED;
     handler({ stopPropagation() {} });
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -4052,6 +4064,7 @@ describe('Daily pre-run framing', () => {
     handler({ stopPropagation() {} });
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     const left = a11yLive.textContent;
+    btn.setAttribute = origSet;
 
     game.mode = origMode;
     resetGame();
@@ -4059,15 +4072,18 @@ describe('Daily pre-run framing', () => {
     a11yLive.textContent = origText;
 
     assert(/Daily challenge #\d+/.test(entered), `entering Daily should name the challenge, got: ${entered}`);
-    assert(entered.includes(LINE), `entering Daily should mention the shared course, got: ${entered}`);
-    assert(!left.includes(LINE), `leaving Daily must drop the shared-course line, got: ${left}`);
+    assert(entered.includes(preRunLine()), `entering Daily should mention the shared course and #N, got: ${entered}`);
+    assert(!left.includes(STEM), `leaving Daily must drop the shared-course line, got: ${left}`);
     assert(left.includes('Updated mode'), `leaving Daily should announce Updated mode, got: ${left}`);
+    assertEquals(btn.textContent, face, 'the Daily button face must stay the calendar glyph');
+    assertEquals(ariaLabels.join('|'), 'Leave daily challenge|Daily challenge',
+      'the Daily button label must not grow a #N');
   });
 });
 
 describe('Daily death-screen hint', () => {
   const HINT = 'Share TODAY BEST with Copy result';
-  const PRE_RUN = 'Same course as everyone today';
+  const preRunLine = () => 'Same course as everyone today · #' + dailyNumber();
 
   function captureFillText(draw) {
     const calls = [];
@@ -4149,7 +4165,7 @@ describe('Daily death-screen hint', () => {
     assert(hint, `Daily Game Over should nudge toward sharing, got: ${JSON.stringify(calls.map((c) => c.text))}`);
     assert(calls.some((c) => c.text === 'TODAY BEST'), 'TODAY BEST should stay on the death screen');
     assert(calls.some((c) => c.text === '00500'), 'the today-best score should stay on the death screen');
-    assert(!calls.some((c) => c.text === PRE_RUN), 'the pre-run line should stay off Game Over');
+    assert(!calls.some((c) => c.text === preRunLine()), 'the pre-run line should stay off Game Over');
     assertEquals(hint.y, GAME_CONFIG.CANVAS_H - 16, 'the hint should sit on the bottom edge, under the scores');
     assertEquals(button.display, 'block', 'Copy result should still appear once the count-up finishes');
     assertEquals(button.text, '📋 Copy result', 'the share button label should stay Copy result');
@@ -4247,7 +4263,7 @@ describe('Daily death-screen hint', () => {
 
     assert(!waiting.some((c) => c.text === HINT),
       `WAITING should keep the pre-run line only, got: ${JSON.stringify(waiting.map((c) => c.text))}`);
-    assert(waiting.some((c) => c.text === PRE_RUN), 'the pre-run shared-course line should stay');
+    assert(waiting.some((c) => c.text === preRunLine()), 'the pre-run shared-course line should stay');
     assert(!running.some((c) => c.text === HINT || c.text.includes('TODAY')),
       `RUNNING HUD must stay score-only, got: ${JSON.stringify(running.map((c) => c.text))}`);
   });
