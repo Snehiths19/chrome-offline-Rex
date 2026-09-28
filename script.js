@@ -247,17 +247,28 @@ const GAME_CONFIG = Object.freeze({
   UPDATED_DEATH_SHAKE_FREQ: Math.PI / 12,
   DEATH_FLASH_FRAMES:       6,    // PR-C: white-flash overlay length on collision
   DEATH_FLASH_COLOR_RGB:   '255, 255, 255', // death-flash overlay colour (rgb triplet, alpha applied at draw)
+  // Visual only. Peak scale of the white death-flash on the day sky, in
+  // Updated and Daily. The first frame multiplies this by
+  // deathFlashFrames / DEATH_FLASH_FRAMES, which starts at 1. The overlay
+  // is white on #ffffff, so the sky does not move. The blink is the dark
+  // shapes (#535353). A peak of 1 turns those shapes pure white and the
+  // lane disappears. 0.5 lifts their simple luminance from 83 to 169,
+  // just over double, and leaves them near #a9a9a9, so the death cue
+  // still reads without slapping Flow. Classic does not read this — the
+  // flash is not started. Eases toward NIGHT_DEATH_FLASH_PEAK_ALPHA from
+  // DAY_NIGHT_START to DAY_NIGHT_END. Reduced motion skips that ease and
+  // keeps this peak until DAY_NIGHT_END; the flash length stays the
+  // one-frame shorten. Playtest with ?qaFlash=1. Read through cfg().
+  DAY_DEATH_FLASH_PEAK_ALPHA: 0.5,
   // Visual only. Peak scale of the white death-flash once the sky is fully
-  // night, in Updated and Daily. Day blink stays a full overlay: alpha is
-  // deathFlashFrames / DEATH_FLASH_FRAMES, which starts at 1. On the day sky
-  // (#ffffff) that only washes the dark shapes. The same 1 on the night sky
-  // (#1a1a2e) whites out the whole canvas. 0.2 is a fifth of that blink: the
-  // sky stays darker than the day dino gray (#535353), and the luminance
-  // still more than doubles, so the death cue reads without slapping Flow.
-  // Classic does not read this — the flash is not started. Eases with the
-  // sky from DAY_NIGHT_START to DAY_NIGHT_END. Reduced motion skips that
-  // ease and snaps to this at DAY_NIGHT_END. Playtest with ?qaNight=1 and
-  // collide once. Read through cfg().
+  // night, in Updated and Daily. A full white overlay on #1a1a2e whites
+  // out the canvas. 0.2 is a fifth of that overlay: the sky stays darker
+  // than the day dino gray (#535353), and the luminance still more than
+  // doubles, so the death cue reads without slapping Flow. Quieter than
+  // DAY_DEATH_FLASH_PEAK_ALPHA. Classic does not read this — the flash is
+  // not started. The day peak eases to this from DAY_NIGHT_START to
+  // DAY_NIGHT_END. Reduced motion skips that ease and snaps to this at
+  // DAY_NIGHT_END. Playtest with ?qaFlash=1&qaNight=1. Read through cfg().
   NIGHT_DEATH_FLASH_PEAK_ALPHA: 0.2,
   SCORE_POP_FRAMES:        12,    // PR-C: HUD score scale-up duration during death shake
   MILESTONE_FRAMES:        90,
@@ -438,8 +449,9 @@ function setQaBig(enabled) {
 // lifts, the Updated/Daily night cloud dim, Updated/Daily jump/land
 // dust, the Updated/Daily night ground cool, the Updated/Daily night
 // milestone tint, and the Updated/Daily night death flash read it through
-// scoreForNightSky. Speed, gaps, scoring, and game.rng() do not. Collide
-// once under this flag to see the quieter blink. Re-read in resetGame()
+// scoreForNightSky. Speed, gaps, scoring, and game.rng() do not. Pair
+// with ?qaFlash=1 to see the quieter night blink without colliding.
+// Re-read in resetGame()
 // like the other QA flags. Tests flip it through setQaNight(); a normal
 // visit leaves this false.
 function readQaNightFlag(search) {
@@ -668,6 +680,72 @@ function advanceQaDust() {
     return;
   }
   if (game.state === STATE.RUNNING && game.qaDustHold > 0) game.qaDustHold--;
+}
+
+// QA/debug only — not for players. ?qaFlash=1 holds the Updated/Daily death
+// blink from the first RUNNING frame so playtest can see it without dying
+// late. The wash is its own full-canvas fill. It does not read
+// deathFlashFrames, the particle pool, or a collision — a missed hit or a
+// zero flash timer cannot skip it. The ink is the real peak:
+// DAY_DEATH_FLASH_PEAK_ALPHA by day, NIGHT_DEATH_FLASH_PEAK_ALPHA with
+// ?qaNight=1. It does not write the score, speed, gaps, or game.rng().
+// Classic never takes it. Reduced motion halves the hold and halves the
+// ink, so the debug wash is shorter and softer too. Re-read in resetGame().
+// Tests flip it through setQaFlash(); a normal visit leaves this false.
+const QA_FLASH_HOLD = 180;
+
+function readQaFlashFlag(search) {
+  const query = search !== undefined
+    ? search
+    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
+      ? location.search
+      : '');
+  if (!query) return false;
+  return new URLSearchParams(query).get('qaFlash') === '1';
+}
+
+let qaFlash = readQaFlashFlag();
+
+function setQaFlash(enabled) {
+  qaFlash = !!enabled;
+}
+
+function qaFlashHoldFrames() {
+  if (!reducedMotion) return QA_FLASH_HOLD;
+  return Math.max(2, Math.round(QA_FLASH_HOLD * 0.5));
+}
+
+// Motion-allowed playtest shows the real peak. Reduced motion still paints,
+// at half that peak, so a long hold cannot stay a full-strength blink.
+function qaFlashPaintAlpha() {
+  const peak = deathFlashPeakAlpha();
+  if (!reducedMotion) return peak;
+  return peak * 0.5;
+}
+
+function advanceQaFlash() {
+  if (!isUpdatedMode()) return;
+  if (qaFlash && !game.qaFlashShown && game.state === STATE.RUNNING) {
+    game.qaFlashShown = true;
+    game.qaFlashHold = qaFlashHoldFrames();
+    return;
+  }
+  if (game.state === STATE.RUNNING && game.qaFlashHold > 0) game.qaFlashHold--;
+}
+
+// Overdraw after the whole frame, from the hold counter only. handleDead
+// draws the real flash, and a collision returns before that draw on the
+// hit frame. This pass runs from gameLoop after the handler, so neither
+// can skip it. source-over, on top of the HUD.
+function drawQaFlash() {
+  if (!isUpdatedMode() || game.qaFlashHold <= 0) return;
+  const alpha = qaFlashPaintAlpha();
+  ctx.save();
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = 'rgba(' + cfg('DEATH_FLASH_COLOR_RGB') + ', ' + alpha.toFixed(3) + ')';
+  ctx.fillRect(0, 0, GAME_CONFIG.CANVAS_W, GAME_CONFIG.CANVAS_H);
+  ctx.restore();
 }
 
 // Solid block just under the score digits. Game coordinates, not pool slots.
@@ -1057,6 +1135,9 @@ const game = {
   qaDustHold:       0,
   // QA/debug only. Frames left on the ?qaPlateau=1 heel cluster.
   qaPlateauHold:    0,
+  // QA/debug only. Latches after ?qaFlash=1 spends its one early death blink.
+  qaFlashShown:     false,
+  qaFlashHold:      0,
   isNewBest:         false,
   previousHighScore: 0,
   // Set on a Daily death before today best is saved. Mirrors isNewBest:
@@ -1697,19 +1778,22 @@ function drawScore() {
   drawDebugHud();
 }
 
-// Day death blink stays a full white overlay. In Updated and Daily the peak
-// eases down across twilight so the flash stays a quiet blink once the sky
-// is night. Classic keeps the day peak; the flash itself is not started.
-// Reduced motion skips the ease and snaps.
+// A visual alpha in [0, 1]. Anything else falls back so a bad tune cannot
+// blank the blink or blow it back out to a full overlay.
+function tunedUnitAlpha(key, fallback) {
+  const tuned = cfg(key);
+  return typeof tuned === 'number' && tuned >= 0 && tuned <= 1 ? tuned : fallback;
+}
+
+// Updated and Daily day blink uses DAY_DEATH_FLASH_PEAK_ALPHA, then eases
+// across twilight to the night peak. Classic keeps a full-overlay value;
+// the flash itself is not started. Reduced motion skips the ease and snaps.
 function deathFlashPeakAlpha() {
-  const day = 1;
-  if (!isUpdatedMode()) return day;
+  if (!isUpdatedMode()) return 1;
+  const day = tunedUnitAlpha('DAY_DEATH_FLASH_PEAK_ALPHA', GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA);
   const s = scoreForNightSky(game.score);
   if (s < GAME_CONFIG.DAY_NIGHT_START) return day;
-  const tuned = cfg('NIGHT_DEATH_FLASH_PEAK_ALPHA');
-  const night = typeof tuned === 'number' && tuned >= 0 && tuned <= 1
-    ? tuned
-    : GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA;
+  const night = tunedUnitAlpha('NIGHT_DEATH_FLASH_PEAK_ALPHA', GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA);
   if (s >= GAME_CONFIG.DAY_NIGHT_END) return night;
   if (reducedMotion) return day;
   const t = (s - GAME_CONFIG.DAY_NIGHT_START) /
@@ -1718,8 +1802,9 @@ function deathFlashPeakAlpha() {
 }
 
 // PR-C: white-flash overlay drawn on top of the world during the first few
-// post-death frames. Mode-gated; reduce-motion caps it at 1 frame. Night
-// multiplies the same decay by a lower peak so the dark sky does not slap.
+// post-death frames. Mode-gated; reduce-motion caps it at 1 frame. The
+// decay is scaled by the day or night peak so Updated/Daily never start
+// at a full white overlay.
 function drawDeathFlash() {
   if (Animations.deathFlashFrames <= 0) return;
   const alpha = (Animations.deathFlashFrames / cfg('DEATH_FLASH_FRAMES')) * deathFlashPeakAlpha();
@@ -2435,6 +2520,8 @@ function resetGame() {
   game.qaDustShown       = false;
   game.qaDustHold        = 0;
   game.qaPlateauHold     = 0;
+  game.qaFlashShown      = false;
+  game.qaFlashHold       = 0;
   // QA/debug only. Re-read so a mode toggle still honors the page query.
   qaPlateau = readQaPlateauFlag();
   qaCluster = readQaClusterFlag();
@@ -2444,6 +2531,7 @@ function resetGame() {
   qaTrail = readQaTrailFlag();
   qaConfetti = readQaConfettiFlag();
   qaDust = readQaDustFlag();
+  qaFlash = readQaFlashFlag();
   game.isNewBest         = false;
   game.previousHighScore = 0;
   game.isNewTodayBest    = false;
@@ -2747,12 +2835,15 @@ const STATE_HANDLERS = {
 function gameLoop() {
   game.animationFrameId = requestAnimationFrame(gameLoop);
   advanceQaDust();
+  advanceQaFlash();
   STATE_HANDLERS[game.state]();
   // After the handler so a collision return, the score, and the death
   // card cannot cover the debug block. No-op unless the hold is running.
+  // The flash is last so those other holds cannot cover the wash either.
   drawQaConfetti();
   drawQaDust();
   drawQaPlateau();
+  drawQaFlash();
 }
 
 // == SECTION 9: INITIALISATION ==
@@ -2870,6 +2961,12 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.QA_DUST_RIM = QA_DUST_RIM;
   global.qaDustMarks = qaDustMarks;
   global.drawQaDust = drawQaDust;
+  global.setQaFlash = setQaFlash;
+  global.readQaFlashFlag = readQaFlashFlag;
+  global.QA_FLASH_HOLD = QA_FLASH_HOLD;
+  global.qaFlashHoldFrames = qaFlashHoldFrames;
+  global.qaFlashPaintAlpha = qaFlashPaintAlpha;
+  global.drawQaFlash = drawQaFlash;
   global.obstacleNightBrightness = obstacleNightBrightness;
   global.dinoNightBrightness = dinoNightBrightness;
   global.cloudPaintAlpha = cloudPaintAlpha;
