@@ -156,6 +156,9 @@ const GAME_CONFIG = Object.freeze({
   STAR_SIZE:                2,
   STAR_Y_RANGE:           100,
   STAR_COLOR:              '#ffffff',
+  // Visual only. Running frames stars take to ramp from invisible to full
+  // once night is complete (~0.8 s at 60 fps). Read through cfg().
+  STAR_FADE_FRAMES:        48,
 
   // --- Ambient depth (PR-D, updated mode only) ---
   HILL_COUNT:               3,    // mid-ground silhouette mounds
@@ -203,7 +206,7 @@ const GAME_CONFIG = Object.freeze({
 // --- Live-tuning hook (visual-only) -----------------------------------
 // cfg(key) reads window.GAME_TUNING[key] when set, else falls back to
 // GAME_CONFIG[key]. ONLY use cfg() for visual keys (colours, alphas,
-// shake amplitude/freq, particle spread, parallax). Physics, spawning,
+// fade lengths, shake amplitude/freq, particle spread, parallax). Physics, spawning,
 // scoring, and hitboxes MUST continue to read GAME_CONFIG.X directly so
 // determinism is preserved across runs and tuning sessions.
 //
@@ -310,6 +313,33 @@ let qaCluster = readQaClusterFlag();
 
 function setQaCluster(enabled) {
   qaCluster = !!enabled;
+}
+
+// QA/debug only — not for players. ?qaNight=1 paints full night from the
+// first frame so the star fade can be seen without a score-400 run.
+// Sky, hills, HUD ink, and star init read it. Speed, gaps, scoring, and
+// game.rng() do not. Re-read in resetGame() like the other QA flags.
+// Tests flip it through setQaNight(); a normal visit leaves this false.
+function readQaNightFlag(search) {
+  const query = search !== undefined
+    ? search
+    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
+      ? location.search
+      : '');
+  if (!query) return false;
+  return new URLSearchParams(query).get('qaNight') === '1';
+}
+
+let qaNight = readQaNightFlag();
+
+function setQaNight(enabled) {
+  qaNight = !!enabled;
+}
+
+// Score the night sky consults. The QA flag pretends night has fully arrived.
+function scoreForNightSky(score) {
+  if (!qaNight) return score;
+  return score < GAME_CONFIG.DAY_NIGHT_END ? GAME_CONFIG.DAY_NIGHT_END : score;
 }
 
 // Returns the rolled type, or the cluster type once per run when the QA flag
@@ -624,6 +654,8 @@ const game = {
   clouds:           [],
   stars:            [],
   starsInitialised: false,
+  // Running frames since stars appeared. 0 until night init; caps at the fade length.
+  starFadeFrames:   0,
   hills:            [],
   milestoneText:    '',
   newBestShown:     false,
@@ -837,6 +869,7 @@ window.replayRunSeed = replayRunSeed;
 // == SECTION 5: RENDERING ==
 
 function getBackgroundColor(s) {
+  s = scoreForNightSky(s);
   if (s < GAME_CONFIG.DAY_NIGHT_START) return '#ffffff';
   if (s >= GAME_CONFIG.DAY_NIGHT_END) return '#1a1a2e';
   if (reducedMotion) return '#ffffff'; // no smooth interpolation — snap at end
@@ -847,13 +880,24 @@ function getBackgroundColor(s) {
   return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
 }
 
+// 0 at the moment night begins, 1 once STAR_FADE_FRAMES have elapsed.
+// A non-positive tuned length means "show them immediately".
+function starFadeAlpha() {
+  const total = cfg('STAR_FADE_FRAMES');
+  if (!(total > 0)) return 1;
+  return Math.min(1, game.starFadeFrames / total);
+}
+
 function drawBackground() {
   ctx.fillStyle = getBackgroundColor(game.score);
   ctx.fillRect(0, 0, GAME_CONFIG.CANVAS_W, GAME_CONFIG.CANVAS_H);
 
   if (game.starsInitialised) {
+    const previousAlpha = ctx.globalAlpha;
+    ctx.globalAlpha = previousAlpha * starFadeAlpha();
     ctx.fillStyle = GAME_CONFIG.STAR_COLOR;
     game.stars.forEach(s => ctx.fillRect(s.x, s.y, GAME_CONFIG.STAR_SIZE, GAME_CONFIG.STAR_SIZE));
+    ctx.globalAlpha = previousAlpha;
   }
 }
 
@@ -924,6 +968,7 @@ function updateHills() {
 }
 
 function getHillColor(score) {
+  score = scoreForNightSky(score);
   if (score < GAME_CONFIG.DAY_NIGHT_START) return GAME_CONFIG.HILL_COLOR_DAY;
   if (score >= GAME_CONFIG.DAY_NIGHT_END)  return GAME_CONFIG.HILL_COLOR_NIGHT;
   if (reducedMotion) return GAME_CONFIG.HILL_COLOR_DAY; // snap — stays day until DAY_NIGHT_END
@@ -1069,7 +1114,7 @@ function drawScore() {
     ctx.scale(scale, scale);
     ctx.translate(-cx, -cy);
   }
-  const color = game.score >= GAME_CONFIG.DAY_NIGHT_START ? '#ffffff' : '#000000';
+  const color = scoreForNightSky(game.score) >= GAME_CONFIG.DAY_NIGHT_START ? '#ffffff' : '#000000';
   ctx.fillStyle = color;
   ctx.font = '20px ' + cfg('SCORE_FONT_FAMILY');
   ctx.textAlign = 'left';
@@ -1292,7 +1337,7 @@ function drawMilestoneFlash() {
   if (Animations.milestoneFrames <= 0) return;
   ctx.save();
   ctx.globalAlpha = Animations.milestoneFrames / GAME_CONFIG.MILESTONE_FRAMES;
-  ctx.fillStyle = game.score >= GAME_CONFIG.DAY_NIGHT_START ? '#ffffff' : '#000000';
+  ctx.fillStyle = scoreForNightSky(game.score) >= GAME_CONFIG.DAY_NIGHT_START ? '#ffffff' : '#000000';
   ctx.textAlign = 'center';
   ctx.font = 'bold 22px ' + cfg('SCORE_FONT_FAMILY');
   ctx.fillText(game.milestoneText, GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 30);
@@ -1700,6 +1745,7 @@ function resetGame() {
   game.state = STATE.WAITING;
   if (restartAfterDeath) game.countdownSkippable = true;
   game.starsInitialised = false;
+  game.starFadeFrames = 0;
   Animations.reset();
   game.newBestShown      = false;
   game.plateauCueShown   = false;
@@ -1707,6 +1753,7 @@ function resetGame() {
   // QA/debug only. Re-read so a mode toggle still honors the page query.
   qaPlateau = readQaPlateauFlag();
   qaCluster = readQaClusterFlag();
+  qaNight = readQaNightFlag();
   game.isNewBest         = false;
   game.previousHighScore = 0;
   game.isNewTodayBest    = false;
@@ -1807,12 +1854,19 @@ function handleRunning() {
   game.groundX -= game.currentSpeed;
   if (imageReady(groundImage) && game.groundX <= -groundImage.width) game.groundX = 0;
 
-  // Lazy-init stars once when score enters night. Skipped under reduce-motion.
-  if (!reducedMotion && game.score >= GAME_CONFIG.DAY_NIGHT_END && !game.starsInitialised) {
+  // Lazy-init stars once when night is full. Skipped under reduce-motion
+  // (no init, same as before). Opacity then ramps across STAR_FADE_FRAMES
+  // so the field eases in instead of popping on. Positions stay Math.random()
+  // — cosmetic, and this block does not touch game.rng().
+  if (!reducedMotion && scoreForNightSky(game.score) >= GAME_CONFIG.DAY_NIGHT_END && !game.starsInitialised) {
     for (let i = 0; i < GAME_CONFIG.STAR_COUNT; i++) {
       game.stars.push({ x: Math.random() * GAME_CONFIG.CANVAS_W, y: Math.random() * GAME_CONFIG.STAR_Y_RANGE });
     }
     game.starsInitialised = true;
+    game.starFadeFrames = 0;
+  }
+  if (game.starsInitialised && game.starFadeFrames < cfg('STAR_FADE_FRAMES')) {
+    game.starFadeFrames++;
   }
 
   drawBackground();
@@ -1960,6 +2014,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.getBackgroundColor = getBackgroundColor;
   global.getHillColor = getHillColor;
   global.drawBackground = drawBackground;
+  global.starFadeAlpha = starFadeAlpha;
   global.initClouds = initClouds;
   global.updateClouds = updateClouds;
   global.drawClouds = drawClouds;
@@ -2021,4 +2076,6 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.QA_PLATEAU_SCORE = QA_PLATEAU_SCORE;
   global.setQaCluster = setQaCluster;
   global.readQaClusterFlag = readQaClusterFlag;
+  global.setQaNight = setQaNight;
+  global.readQaNightFlag = readQaNightFlag;
 }
