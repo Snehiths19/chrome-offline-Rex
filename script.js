@@ -338,16 +338,22 @@ const GAME_CONFIG = Object.freeze({
   SKY_TINT_PEAK_ALPHA:      0.06,
   SKY_TINT_COLOR_RGB:      '255, 215, 0',   // gold sky-flash colour (rgb triplet, alpha applied at draw)
   // Visual only. Peak alpha of the gold milestone sky-flash once the sky is
-  // fully night, in Updated and Daily. A strong gold on the night sky
-  // (#1a1a2e) is a veil over the whole canvas, and the tint paints after
-  // the cacti, so it punches the obstacle lane. 0.04 keeps the level cue
-  // gold. Its luminance lift on the night sky stays near what the old 0.12
-  // day wash did on white, so quieting the day wash does not brighten night.
-  // Classic does not read this. Eases with the sky from DAY_NIGHT_START to
-  // DAY_NIGHT_END. Reduced motion skips that ease and snaps to this at
-  // DAY_NIGHT_END; the tint itself stays suppressed under reduced motion.
-  // Read through cfg().
-  NIGHT_SKY_TINT_PEAK_ALPHA: 0.04,
+  // fully night, in Updated and Daily. One full-canvas fill of gold
+  // (255, 215, 0), painted after the cacti, so it sits on the obstacle
+  // lane for the whole LEVEL. On the night sky (#1a1a2e) the old 0.04
+  // peak sat about 9, 8, and 2 levels off that sky — a gold veil across
+  // the canvas, brighter than the old 0.12 day wash on white (about 6
+  // luminance). Three-fifths of that band is alpha 0.024, about 5, 5,
+  // and 1. The luminance lift stays near that old day cue (about 4
+  // versus about 6), so the gold still reads once at LEVEL, and it stays
+  // under the day peak (0.06) so twilight still eases down. The night
+  // cactus (1.65) only moves about 3, 2, and 3, so the lane is not the
+  // spotlight. Classic does not read this. Eases with the sky from
+  // DAY_NIGHT_START to DAY_NIGHT_END. Reduced motion skips that ease and
+  // snaps to this at DAY_NIGHT_END; the tint itself stays suppressed
+  // under reduced motion. Playtest with ?qaLevel=1&qaNight=1. Read
+  // through cfg(). Physics does not read this.
+  NIGHT_SKY_TINT_PEAK_ALPHA: 0.024,
   PARTICLE_EMIT_SPREAD:     4,    // px width of the cosmetic xy jitter on every particle emit
 
   // --- Effects ---
@@ -1871,7 +1877,8 @@ function skyTintPeakAlpha() {
 
 // Gentle gold sky-tint during a milestone flash, on top of the day/night
 // background. The day peak is a half-strength breath so the wash does not
-// veil the obstacle lane. Night eases to a lower peak for the same reason.
+// veil the obstacle lane. Night eases to a three-fifths peak so the gold
+// stays a quiet breath once the sky is fully night.
 function drawSkyTint() {
   if (!isUpdatedMode() || reducedMotion) return;
   if (Animations.milestoneFrames <= 0) return;
