@@ -7164,6 +7164,185 @@ describe('Soft death shake', () => {
   });
 });
 
+describe('Soft collision burst', () => {
+  // The shake draws particles for 12 frames. A mote's farthest travel in
+  // that life must stay on the 40×50 dino, or the red leaves the runner
+  // and lands on the cactus.
+  const PUFF = {
+    count: 8,
+    color: '#d04a2a',
+    size: 3,
+    life: 12,
+    vyMin: -1.2,
+    vyMax: 0.4,
+    vxSpread: 1.0,
+    gravity: 0.10,
+  };
+
+  const UNCHANGED_KINDS = {
+    jump:      { count: 6,  color: '#9c8770',                size: 3, life: 18, vyMin: -2.0, vyMax: -0.5, vxSpread: 1.5, gravity: 0.05 },
+    land:      { count: 9,  color: '#9c8770',                size: 3, life: 14, vyMin: -1.5, vyMax: -0.2, vxSpread: 2.5, gravity: 0.08 },
+    trail:     { count: 1,  color: 'rgba(150,150,150,0.55)', size: 2, life: 10, vyMin: -0.2, vyMax:  0.2, vxSpread: 0.4, gravity: 0 },
+    confetti:  { count: 20, color: '#ffd700',                size: 3, life: 40, vyMin: -3.5, vyMax: -1.5, vxSpread: 3.0, gravity: 0.12 },
+    plateau:   { count: 8,  color: '#c5d4e4',                size: 2, life: 24, vyMin: -1.0, vyMax: -0.3, vxSpread: 0.6, gravity: 0.02 },
+    plateauQa: { count: 12, color: '#3d4f63',                size: 4, life: 40, vyMin: -1.4, vyMax: -0.4, vxSpread: 1.0, gravity: 0.03 },
+  };
+
+  function travel(kind) {
+    const n = kind.life;
+    const drop = kind.gravity * ((n - 1) * n) / 2;
+    return {
+      x: kind.vxSpread * n,
+      up: Math.abs(n * kind.vyMin + drop),
+      down: n * kind.vyMax + drop,
+    };
+  }
+
+  function collisionMotes() {
+    return Particles.particles.filter((p) => p.life > 0 && p.color === PUFF.color);
+  }
+
+  it('keeps the collision puff on the dino for the shake window', () => {
+    const kind = Particles.KINDS.collision;
+    const moved = travel(kind);
+    const halfW = GAME_CONFIG.DINO_WIDTH / 2;
+    const halfH = GAME_CONFIG.DINO_HEIGHT / 2;
+    const edge = cfg('PARTICLE_EMIT_SPREAD') / 2 + kind.size / 2;
+    assert(moved.x + edge <= halfW,
+      'horizontal travel stays on the dino, including emit jitter and mote size');
+    assert(moved.up + kind.size / 2 <= halfH, 'the puff does not fountain above the dino');
+    assert(moved.down + kind.size / 2 <= halfH, 'the puff does not rain off the dino');
+    assert(kind.count < 11, 'fewer than half the old 22-mote firework');
+    assert(kind.count > Particles.KINDS.jump.count, 'still reads louder than a jump puff');
+    assertEquals(kind.life, GAME_CONFIG.DEATH_SHAKE_FRAMES,
+      'the puff fades out as the death nudge ends');
+    assertEquals(kind.color, PUFF.color, 'death stays the same red');
+    assertEquals(kind.size, PUFF.size, 'mote size stays readable');
+    assertEquals(kind.gravity, PUFF.gravity, 'the puff keeps its weight');
+    assertEquals(kind.count, PUFF.count, 'the shipped puff is 8 motes');
+    assertEquals(kind.vyMin, PUFF.vyMin, 'the shipped rise is a short lift');
+    assertEquals(kind.vyMax, PUFF.vyMax, 'the shipped fall is a short drop');
+    assertEquals(kind.vxSpread, PUFF.vxSpread, 'the shipped spread stays on the body');
+
+    for (const name of Object.keys(UNCHANGED_KINDS)) {
+      const got = Particles.KINDS[name];
+      const want = UNCHANGED_KINDS[name];
+      for (const key of Object.keys(want)) {
+        assertEquals(got[key], want[key], name + ' ' + key + ' stays unchanged');
+      }
+    }
+  });
+
+  it('emits the puff in Updated and Daily and none in Classic', () => {
+    const origMode = game.mode;
+    const origRng = game.rng;
+    try {
+      setReducedMotion(false);
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        game.mode = mode;
+        let rngCalls = 0;
+        game.rng = () => { rngCalls++; return 0.5; };
+        Particles.reset();
+        const n = Particles.emit('collision', 80, 140);
+        const motes = collisionMotes();
+        assertEquals(n, PUFF.count, mode + ' emits the puff count');
+        assertEquals(motes.length, PUFF.count, mode + ' pool holds the puff');
+        assertEquals(rngCalls, 0, mode + ' collision puff does not consume the run seed');
+        motes.forEach((p) => {
+          assertEquals(p.life, PUFF.life, mode + ' mote lives for the shake window');
+          assertEquals(p.maxLife, PUFF.life, mode + ' mote fades across that life');
+          assertEquals(p.size, PUFF.size, mode + ' mote keeps the readable size');
+          assertEquals(p.color, PUFF.color, mode + ' mote stays red');
+          assertEquals(p.gravity, PUFF.gravity, mode + ' mote keeps its weight');
+          assert(Math.abs(p.vx) <= PUFF.vxSpread, mode + ' horizontal speed stays inside the spread');
+          assert(p.vy >= PUFF.vyMin && p.vy <= PUFF.vyMax, mode + ' vertical speed stays inside the short span');
+        });
+      }
+
+      game.mode = MODES.CLASSIC;
+      Particles.reset();
+      const classic = Particles.emit('collision', 80, 140);
+      assertEquals(classic, 0, 'Classic emits no collision puff');
+      assertEquals(collisionMotes().length, 0, 'Classic leaves the pool empty of red motes');
+    } finally {
+      game.mode = origMode;
+      game.rng = origRng;
+      setReducedMotion(false);
+      Particles.reset();
+    }
+  });
+
+  it('still damps the puff under reduced motion', () => {
+    const origMode = game.mode;
+    try {
+      game.mode = MODES.UPDATED;
+      setReducedMotion(true);
+      Particles.reset();
+      const n = Particles.emit('collision', 80, 140);
+      const expectedCount = Math.max(1, Math.round(PUFF.count * 0.25));
+      const expectedLife = Math.max(2, Math.round(PUFF.life * 0.5));
+      assertEquals(n, expectedCount, 'reduced motion keeps the quarter-count damping');
+      assert(expectedCount < PUFF.count, 'the damped puff is fewer motes');
+      assert(expectedLife < PUFF.life, 'the damped puff is a shorter life');
+      collisionMotes().forEach((p) => {
+        assertEquals(p.life, expectedLife, 'reduced motion still halves collision life');
+      });
+
+      Particles.reset();
+      const jumpN = Particles.emit('jump', 80, 140);
+      const jumpLife = Math.max(2, Math.round(Particles.KINDS.jump.life * 0.5));
+      assertEquals(jumpN, Math.max(1, Math.round(Particles.KINDS.jump.count * 0.25)),
+        'reduced motion still damps the jump puff the same way');
+      Particles.particles.filter((p) => p.life > 0).forEach((p) => {
+        assertEquals(p.life, jumpLife, 'reduced motion still halves jump life');
+      });
+    } finally {
+      game.mode = origMode;
+      setReducedMotion(false);
+      Particles.reset();
+    }
+  });
+
+  it('a cactus hit emits the puff in Updated and Daily and none in Classic', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const origSpeed = game.currentSpeed;
+    try {
+      setReducedMotion(false);
+      for (const mode of [MODES.UPDATED, MODES.DAILY, MODES.CLASSIC]) {
+        game.mode = mode;
+        if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+        resetGame();
+        Particles.reset();
+        game.state = STATE.RUNNING;
+        game.graceFrames = 0;
+        game.score = 0;
+        game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
+        gameLoop();
+        cancelAnimationFrame(game.animationFrameId);
+        assertEquals(game.state, STATE.DEAD, mode + ' collision still ends the run');
+        const motes = collisionMotes();
+        if (mode === MODES.CLASSIC) {
+          assertEquals(motes.length, 0, 'Classic collision still emits no red puff');
+        } else {
+          assertEquals(motes.length, PUFF.count, mode + ' collision emits the quiet puff');
+          assert(motes.every((p) => p.life === PUFF.life), mode + ' collision puff uses the short life');
+        }
+        assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
+          mode + ' collision leaves speed on the curve');
+      }
+      assertEquals(Math.floor(game.score), 0, 'one collision frame does not score a point');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      game.currentSpeed = origSpeed;
+      setReducedMotion(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+});
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {
