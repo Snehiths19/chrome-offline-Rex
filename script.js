@@ -227,6 +227,17 @@ const GAME_CONFIG = Object.freeze({
   DEATH_SHAKE_FRAMES:      12,
   DEATH_SHAKE_AMPLITUDE:    4,
   DEATH_SHAKE_FREQ:         1.5,  // multiplier on the sin oscillation that drives the shake transform
+  // Visual only. Updated and Daily death nudge. Classic keeps
+  // DEATH_SHAKE_AMPLITUDE (4) and DEATH_SHAKE_FREQ (1.5). Across these 12
+  // frames that sine reverses five times and steps by about 5.5px, past
+  // the ground line, so the camera yanks the lane. 1.5px is under half
+  // that peak and under a twentieth of the 40px dino, so the cue stays a
+  // settle. π/12 runs the 12 frames as one half-turn: no reversal, and
+  // each step stays under half a pixel. Day and night share it. The shift
+  // is the same pixels either way. Reduced motion keeps these values; the
+  // flash and the score pop keep their own shorten. Read through cfg().
+  UPDATED_DEATH_SHAKE_AMPLITUDE: 1.5,
+  UPDATED_DEATH_SHAKE_FREQ: Math.PI / 12,
   DEATH_FLASH_FRAMES:       6,    // PR-C: white-flash overlay length on collision
   DEATH_FLASH_COLOR_RGB:   '255, 255, 255', // death-flash overlay colour (rgb triplet, alpha applied at draw)
   // Visual only. Peak scale of the white death-flash once the sky is fully
@@ -2130,10 +2141,34 @@ function resetGame() {
   if (document.body) document.body.style.background = '';
 }
 
+// Classic reads the original shake keys. Updated and Daily read the quieter
+// pair. A tune outside the shipped Classic range falls back, so a typo cannot
+// yank harder than today's Classic shake.
+function deathShakeAmplitude() {
+  if (!isUpdatedMode()) return cfg('DEATH_SHAKE_AMPLITUDE');
+  const tuned = cfg('UPDATED_DEATH_SHAKE_AMPLITUDE');
+  if (typeof tuned === 'number' && tuned >= 0 && tuned <= GAME_CONFIG.DEATH_SHAKE_AMPLITUDE) {
+    return tuned;
+  }
+  return GAME_CONFIG.UPDATED_DEATH_SHAKE_AMPLITUDE;
+}
+
+function deathShakeFreq() {
+  if (!isUpdatedMode()) return cfg('DEATH_SHAKE_FREQ');
+  const tuned = cfg('UPDATED_DEATH_SHAKE_FREQ');
+  if (typeof tuned === 'number' && tuned >= 0 && tuned <= GAME_CONFIG.DEATH_SHAKE_FREQ) {
+    return tuned;
+  }
+  return GAME_CONFIG.UPDATED_DEATH_SHAKE_FREQ;
+}
+
 function handleDead() {
   if (Animations.deathShakeFrames > 0) {
     ctx.save();
-    ctx.translate(Math.sin(Animations.deathShakeFrames * cfg('DEATH_SHAKE_FREQ')) * cfg('DEATH_SHAKE_AMPLITUDE'), 0);
+    ctx.translate(
+      Math.sin(Animations.deathShakeFrames * deathShakeFreq()) * deathShakeAmplitude(),
+      0
+    );
     drawBackground();
     drawHills();
     drawGround();

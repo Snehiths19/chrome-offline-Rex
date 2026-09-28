@@ -6939,6 +6939,231 @@ describe('Night death flash', () => {
   });
 });
 
+describe('Soft death shake', () => {
+  // Classic sin(frame * 1.5) * 4 reverses five times and steps ~5.5px.
+  // Updated/Daily should be one half-turn at 1.5px: a nudge, still a cue.
+  const QUIET_AMPLITUDE = 1.5;
+  const QUIET_FREQ = Math.PI / 12;
+
+  function withTuning(overrides, fn) {
+    const orig = window.GAME_TUNING;
+    window.GAME_TUNING = overrides;
+    try { fn(); } finally { window.GAME_TUNING = orig; }
+  }
+
+  function expectedOffset(frame, amp, freq) {
+    return Math.sin(frame * freq) * amp;
+  }
+
+  function sampleShake() {
+    const samples = [];
+    const origTranslate = ctx.translate;
+    const origScore = game.score;
+    const origSpeed = game.currentSpeed;
+    const origRng = game.rng;
+    const origShake = Animations.deathShakeFrames;
+    const origFlash = Animations.deathFlashFrames;
+    const origPop = Animations.scorePopFrames;
+    const origState = game.state;
+    let rngCalls = 0;
+    game.rng = () => { rngCalls++; return origRng(); };
+    ctx.translate = (x, y) => {
+      samples.push({ x: x, y: y });
+      return origTranslate.call(ctx, x, y);
+    };
+    try {
+      Animations.deathShakeFrames = GAME_CONFIG.DEATH_SHAKE_FRAMES;
+      Animations.deathFlashFrames = 0;
+      Animations.scorePopFrames = 0;
+      game.state = STATE.DEAD;
+      for (let i = 0; i < GAME_CONFIG.DEATH_SHAKE_FRAMES; i++) {
+        STATE_HANDLERS[STATE.DEAD]();
+      }
+      assertEquals(samples.length, GAME_CONFIG.DEATH_SHAKE_FRAMES,
+        'each shake frame translates once');
+      assertEquals(rngCalls, 0, 'the death shake does not consume the run seed');
+      assertEquals(game.score, origScore, 'the death shake does not move the score');
+      assertEquals(game.currentSpeed, origSpeed, 'the death shake does not change speed');
+      samples.forEach(sample => {
+        assertEquals(sample.y, 0, 'the shake stays horizontal');
+      });
+      return samples;
+    } finally {
+      ctx.translate = origTranslate;
+      game.rng = origRng;
+      game.score = origScore;
+      game.currentSpeed = origSpeed;
+      Animations.deathShakeFrames = origShake;
+      Animations.deathFlashFrames = origFlash;
+      Animations.scorePopFrames = origPop;
+      game.state = origState;
+    }
+  }
+
+  function assertWave(samples, amp, freq, label) {
+    for (let i = 0; i < samples.length; i++) {
+      const frame = GAME_CONFIG.DEATH_SHAKE_FRAMES - i;
+      const expected = expectedOffset(frame, amp, freq);
+      assert(
+        Math.abs(samples[i].x - expected) < 1e-9,
+        label + ' frame ' + frame + ' offset should be the configured shake'
+      );
+    }
+  }
+
+  it('nudges Updated and Daily on one half-turn and leaves Classic buzzing', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      assert(QUIET_AMPLITUDE < GAME_CONFIG.DEATH_SHAKE_AMPLITUDE / 2,
+        'the quiet peak is under half the Classic yank');
+      assert(QUIET_AMPLITUDE > 0, 'the death cue still moves');
+      assert(QUIET_FREQ < GAME_CONFIG.DEATH_SHAKE_FREQ,
+        'the quiet shake turns slower than the Classic buzz');
+      assertEquals(GAME_CONFIG.DEATH_SHAKE_FRAMES * QUIET_FREQ, Math.PI,
+        'twelve frames at the quiet frequency are one half-turn');
+
+      game.mode = MODES.CLASSIC;
+      game.score = 0;
+      const classicDay = sampleShake();
+      assertWave(classicDay, GAME_CONFIG.DEATH_SHAKE_AMPLITUDE, GAME_CONFIG.DEATH_SHAKE_FREQ,
+        'Classic day');
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      assertWave(sampleShake(), GAME_CONFIG.DEATH_SHAKE_AMPLITUDE, GAME_CONFIG.DEATH_SHAKE_FREQ,
+        'Classic night');
+
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      const updatedDay = sampleShake();
+      assertWave(updatedDay, QUIET_AMPLITUDE, QUIET_FREQ, 'Updated day');
+      assert(Math.abs(updatedDay[0].x) < Math.abs(classicDay[0].x),
+        'the first Updated frame is already quieter than Classic');
+      game.score = 350;
+      assertWave(sampleShake(), QUIET_AMPLITUDE, QUIET_FREQ, 'Updated twilight');
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      assertWave(sampleShake(), QUIET_AMPLITUDE, QUIET_FREQ, 'Updated night');
+      game.score = 1000;
+      assertWave(sampleShake(), QUIET_AMPLITUDE, QUIET_FREQ, 'Updated later night');
+
+      game.mode = MODES.DAILY;
+      game.score = 0;
+      assertWave(sampleShake(), QUIET_AMPLITUDE, QUIET_FREQ, 'Daily day');
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      assertWave(sampleShake(), QUIET_AMPLITUDE, QUIET_FREQ, 'Daily night');
+
+      setQaNight(true);
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      assertWave(sampleShake(), QUIET_AMPLITUDE, QUIET_FREQ,
+        'qaNight does not change the Updated nudge');
+      game.mode = MODES.CLASSIC;
+      assertWave(sampleShake(), GAME_CONFIG.DEATH_SHAKE_AMPLITUDE, GAME_CONFIG.DEATH_SHAKE_FREQ,
+        'qaNight leaves the Classic buzz');
+
+      setReducedMotion(true);
+      setQaNight(false);
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      assertWave(sampleShake(), QUIET_AMPLITUDE, QUIET_FREQ,
+        'reduced motion keeps the quiet Updated nudge');
+      game.mode = MODES.CLASSIC;
+      assertWave(sampleShake(), GAME_CONFIG.DEATH_SHAKE_AMPLITUDE, GAME_CONFIG.DEATH_SHAKE_FREQ,
+        'reduced motion leaves the Classic buzz');
+
+      assertEquals(GAME_CONFIG.UPDATED_DEATH_SHAKE_AMPLITUDE, QUIET_AMPLITUDE,
+        'the quiet amplitude is the Updated/Daily tunable');
+      assertEquals(GAME_CONFIG.UPDATED_DEATH_SHAKE_FREQ, QUIET_FREQ,
+        'the quiet frequency is the Updated/Daily tunable');
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setQaNight(false);
+      setReducedMotion(false);
+    }
+  });
+
+  it('tunes the Updated nudge without moving Classic or the run', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      game.score = 0;
+
+      game.mode = MODES.UPDATED;
+      withTuning({ UPDATED_DEATH_SHAKE_AMPLITUDE: 0.5 }, () => {
+        assertWave(sampleShake(), 0.5, QUIET_FREQ, 'Updated amplitude tune');
+      });
+      withTuning({ UPDATED_DEATH_SHAKE_FREQ: 0.1 }, () => {
+        assertWave(sampleShake(), QUIET_AMPLITUDE, 0.1, 'Updated frequency tune');
+      });
+      withTuning({ DEATH_SHAKE_AMPLITUDE: 2, DEATH_SHAKE_FREQ: 2.5 }, () => {
+        assertWave(sampleShake(), QUIET_AMPLITUDE, QUIET_FREQ,
+          'Updated ignores the Classic shake tunes');
+      });
+      withTuning({ UPDATED_DEATH_SHAKE_AMPLITUDE: 40 }, () => {
+        assertWave(sampleShake(), QUIET_AMPLITUDE, QUIET_FREQ,
+          'an out-of-range amplitude falls back to the quiet nudge');
+      });
+      withTuning({ UPDATED_DEATH_SHAKE_FREQ: -1 }, () => {
+        assertWave(sampleShake(), QUIET_AMPLITUDE, QUIET_FREQ,
+          'a negative frequency falls back to the quiet nudge');
+      });
+      withTuning({ UPDATED_DEATH_SHAKE_AMPLITUDE: 'soft' }, () => {
+        assertWave(sampleShake(), QUIET_AMPLITUDE, QUIET_FREQ,
+          'a non-numeric amplitude falls back to the quiet nudge');
+      });
+
+      game.mode = MODES.CLASSIC;
+      withTuning({ UPDATED_DEATH_SHAKE_AMPLITUDE: 0.5, UPDATED_DEATH_SHAKE_FREQ: 0.1 }, () => {
+        assertWave(sampleShake(), GAME_CONFIG.DEATH_SHAKE_AMPLITUDE, GAME_CONFIG.DEATH_SHAKE_FREQ,
+          'Classic ignores the Updated shake tunes');
+      });
+      withTuning({ DEATH_SHAKE_AMPLITUDE: 2, DEATH_SHAKE_FREQ: 0.8 }, () => {
+        assertWave(sampleShake(), 2, 0.8, 'Classic still follows its own shake tunes');
+      });
+
+      game.mode = MODES.DAILY;
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      withTuning({ UPDATED_DEATH_SHAKE_AMPLITUDE: 0.25 }, () => {
+        assertWave(sampleShake(), 0.25, QUIET_FREQ, 'Daily shares the Updated amplitude tune');
+      });
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setQaNight(false);
+      setReducedMotion(false);
+    }
+  });
+
+  it('reduced motion still shortens the flash and pop while the shake stays armed', () => {
+    const origMode = game.mode;
+    try {
+      setReducedMotion(true);
+      game.mode = MODES.UPDATED;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      resetGame();
+      game.state = STATE.RUNNING;
+      game.graceFrames = 0;
+      game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
+      gameLoop();
+      cancelAnimationFrame(game.animationFrameId);
+      assertEquals(game.state, STATE.DEAD, 'collision still ends the run');
+      assertEquals(Animations.deathShakeFrames, GAME_CONFIG.DEATH_SHAKE_FRAMES,
+        'the shake countdown is unchanged');
+      assertEquals(Animations.deathFlashFrames, 1,
+        'reduced motion still caps the flash at one frame');
+      assertEquals(Animations.scorePopFrames, 0, 'reduced motion still skips the score pop');
+    } finally {
+      setReducedMotion(false);
+      game.mode = origMode;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+});
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {
