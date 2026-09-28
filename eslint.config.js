@@ -112,6 +112,7 @@ export default [
         readQaClusterFlag: 'readonly',
         setQaNight: 'readonly',
         readQaNightFlag: 'readonly',
+        obstacleNightBrightness: 'readonly',
         shareDailyResult: 'readonly',
         STATE_HANDLERS: 'readonly',
         updateHills: 'readonly',
