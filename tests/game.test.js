@@ -3064,11 +3064,14 @@ describe('Score count-up animation', () => {
       'handleAction after animation completes should transition to STATE.WAITING (via resetGame)');
   });
 
-  it('handleAction in DEAD snaps deathAnimFrame to DEATH_ANIM_FRAMES when animation is in progress', () => {
+  it('handleAction in DEAD snaps the Updated count-up to 18 frames when it is still rolling', () => {
     const origState      = game.state;
     const origAnimFrame  = Animations.deathAnimFrame;
     const origScore      = game.score;
+    const origMode       = game.mode;
 
+    setReducedMotion(false);
+    game.mode           = MODES.UPDATED;
     game.state          = STATE.DEAD;
     Animations.deathAnimFrame = 10;
     game.score          = 500;
@@ -3076,13 +3079,18 @@ describe('Score count-up animation', () => {
     handleAction();
 
     const snappedFrame = Animations.deathAnimFrame;
+    const stayedDead = game.state;
 
     game.state          = origState;
     Animations.deathAnimFrame = origAnimFrame;
     game.score          = origScore;
+    game.mode           = origMode;
+    setReducedMotion(false);
 
-    assertEquals(snappedFrame, GAME_CONFIG.DEATH_ANIM_FRAMES,
-      'handleAction during animation should snap deathAnimFrame to DEATH_ANIM_FRAMES');
+    assertEquals(snappedFrame, 18,
+      'Updated skip should finish the shorter count-up, not the Classic 30');
+    assertEquals(stayedDead, STATE.DEAD,
+      'skipping the count-up should not restart the run');
   });
 
   it('drawGameOverScreen renders full score when deathAnimFrame equals DEATH_ANIM_FRAMES', () => {
@@ -12935,6 +12943,563 @@ describe('QA copy flag (?qaCopy=1)', () => {
       game.qaCopyHold = 0;
       game.qaCopyShown = false;
       restoreButton(origBtn);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+});
+
+describe('Soft death score count-up', () => {
+  const QUIET_FRAMES = 18;
+
+  function withTuning(overrides, fn) {
+    const orig = window.GAME_TUNING;
+    window.GAME_TUNING = overrides;
+    try { fn(); } finally { window.GAME_TUNING = orig; }
+  }
+
+  function armDead(mode, score) {
+    game.mode = mode;
+    game.state = STATE.DEAD;
+    game.score = score;
+    game.isNewBest = true;
+    game.previousHighScore = 0;
+    game.isNewTodayBest = true;
+    game.previousDailyBest = 0;
+    Animations.deathShakeFrames = 0;
+    Animations.deathFlashFrames = 0;
+    Animations.scorePopFrames = 0;
+    Animations.copyFlashFrames = 0;
+    Animations.deathAnimFrame = 0;
+  }
+
+  function rollCountUp(maxSteps) {
+    const scores = [];
+    const origFill = ctx.fillText;
+    const origRng = game.rng;
+    let rngCalls = 0;
+    game.rng = () => { rngCalls++; return 0; };
+    ctx.fillText = (text) => {
+      const s = String(text);
+      if (/^\d{5}$/.test(s)) scores.push(s);
+    };
+    let steps = 0;
+    try {
+      const limit = maxSteps === undefined ? 40 : maxSteps;
+      for (let i = 0; i < limit; i++) {
+        const before = Animations.deathAnimFrame;
+        STATE_HANDLERS[STATE.DEAD]();
+        if (Animations.deathAnimFrame === before) break;
+        steps++;
+      }
+      return { steps: steps, frame: Animations.deathAnimFrame, scores: scores, rngCalls: rngCalls };
+    } finally {
+      ctx.fillText = origFill;
+      game.rng = origRng;
+    }
+  }
+
+  it('finishes Updated and Daily at 18 frames and leaves Classic at 30', () => {
+    const orig = {
+      mode: game.mode,
+      state: game.state,
+      score: game.score,
+      speed: game.currentSpeed,
+      hs: game.highScore,
+      daily: game.dailyBest,
+      newBest: game.isNewBest,
+      prev: game.previousHighScore,
+      newToday: game.isNewTodayBest,
+      prevDaily: game.previousDailyBest,
+      anim: Animations.deathAnimFrame,
+      shake: Animations.deathShakeFrames,
+      flash: Animations.deathFlashFrames,
+      pop: Animations.scorePopFrames,
+      copy: Animations.copyFlashFrames,
+    };
+    const storedDaily = localStorage.getItem('dino-daily-best');
+    try {
+      setReducedMotion(false);
+      game.currentSpeed = GAME_CONFIG.INITIAL_SPEED;
+      game.highScore = 900;
+      game.dailyBest = 400;
+
+      armDead(MODES.UPDATED, 500);
+      const updated = rollCountUp();
+      assertEquals(updated.steps, QUIET_FRAMES, 'Updated count-up advances 18 frames');
+      assertEquals(updated.frame, QUIET_FRAMES, 'Updated stops on frame 18');
+      assertEquals(updated.scores[QUIET_FRAMES - 1], '00500',
+        'Updated frame 18 draws the full score');
+      assertEquals(updated.rngCalls, 0, 'the count-up does not consume the run seed');
+      assertEquals(game.score, 500, 'the count-up does not change the score');
+      assertEquals(game.currentSpeed, GAME_CONFIG.INITIAL_SPEED, 'the count-up does not change speed');
+      assertEquals(game.highScore, 900, 'the count-up does not change the high score');
+      assertEquals(game.dailyBest, 400, 'the count-up does not change daily best');
+      assertEquals(localStorage.getItem('dino-daily-best'), storedDaily,
+        'the count-up does not write daily best');
+
+      armDead(MODES.DAILY, 500);
+      const daily = rollCountUp();
+      assertEquals(daily.steps, QUIET_FRAMES, 'Daily uses the same shorter roll');
+      assertEquals(daily.scores[QUIET_FRAMES - 1], '00500', 'Daily frame 18 draws the full score');
+
+      armDead(MODES.CLASSIC, 500);
+      const classic = rollCountUp();
+      assertEquals(classic.steps, GAME_CONFIG.DEATH_ANIM_FRAMES, 'Classic still rolls for 30 frames');
+      assertEquals(classic.scores[QUIET_FRAMES - 1], '00300',
+        'Classic frame 18 is still sixty percent of the score');
+      assertEquals(classic.scores[GAME_CONFIG.DEATH_ANIM_FRAMES - 1], '00500',
+        'Classic frame 30 draws the full score');
+
+      setReducedMotion(true);
+      armDead(MODES.UPDATED, 500);
+      const halved = rollCountUp();
+      assertEquals(halved.steps, 9, 'reduced motion halves the Updated roll');
+      assertEquals(halved.scores[8], '00500', 'the halved roll still reaches the full score');
+      armDead(MODES.DAILY, 500);
+      assertEquals(rollCountUp().steps, 9, 'reduced motion halves the Daily roll');
+      armDead(MODES.CLASSIC, 500);
+      assertEquals(rollCountUp().steps, GAME_CONFIG.DEATH_ANIM_FRAMES,
+        'reduced motion leaves the Classic roll at 30');
+    } finally {
+      game.mode = orig.mode;
+      game.state = orig.state;
+      game.score = orig.score;
+      game.currentSpeed = orig.speed;
+      game.highScore = orig.hs;
+      game.dailyBest = orig.daily;
+      game.isNewBest = orig.newBest;
+      game.previousHighScore = orig.prev;
+      game.isNewTodayBest = orig.newToday;
+      game.previousDailyBest = orig.prevDaily;
+      Animations.deathAnimFrame = orig.anim;
+      Animations.deathShakeFrames = orig.shake;
+      Animations.deathFlashFrames = orig.flash;
+      Animations.scorePopFrames = orig.pop;
+      Animations.copyFlashFrames = orig.copy;
+      setReducedMotion(false);
+    }
+  });
+
+  it('opens the Daily hint and Copy result when the shorter roll finishes', () => {
+    const orig = {
+      mode: game.mode,
+      state: game.state,
+      score: game.score,
+      daily: game.dailyBest,
+      newToday: game.isNewTodayBest,
+      prevDaily: game.previousDailyBest,
+      anim: Animations.deathAnimFrame,
+      shake: Animations.deathShakeFrames,
+    };
+    const shareBtn = document.getElementById('share-btn');
+    const origStyle = shareBtn.style;
+    const origText = shareBtn.textContent;
+    const origFill = ctx.fillText;
+    shareBtn.style = { display: 'none' };
+    shareBtn.textContent = '📋 Copy result';
+    try {
+      setReducedMotion(false);
+      game.mode = MODES.DAILY;
+      game.state = STATE.DEAD;
+      game.score = 120;
+      game.dailyBest = 500;
+      game.isNewTodayBest = false;
+      game.previousDailyBest = 0;
+      Animations.deathShakeFrames = 0;
+
+      Animations.deathAnimFrame = 17;
+      const early = [];
+      ctx.fillText = (text) => early.push(String(text));
+      drawGameOverScreen();
+      ctx.fillText = origFill;
+      assert(!early.includes('Share TODAY BEST with Copy result'),
+        'the hint waits until the shorter roll finishes');
+      assertEquals(shareBtn.style.display, 'none',
+        'Copy result stays hidden until the shorter roll finishes');
+
+      Animations.deathAnimFrame = 18;
+      const settled = [];
+      ctx.fillText = (text) => settled.push(String(text));
+      drawGameOverScreen();
+      ctx.fillText = origFill;
+      assert(settled.includes('Share TODAY BEST with Copy result'),
+        'the hint appears on the Updated/Daily frame 18');
+      assertEquals(shareBtn.style.display, 'block',
+        'Copy result appears with the hint');
+      assertEquals(shareBtn.textContent, '📋 Copy result',
+        'the share label stays Copy result');
+
+      game.mode = MODES.UPDATED;
+      shareBtn.style.display = 'block';
+      const updated = [];
+      ctx.fillText = (text) => updated.push(String(text));
+      drawGameOverScreen();
+      ctx.fillText = origFill;
+      assert(!updated.includes('Share TODAY BEST with Copy result'),
+        'Updated free play still does not draw the Daily hint');
+
+      setReducedMotion(true);
+      game.mode = MODES.DAILY;
+      Animations.deathAnimFrame = 8;
+      shareBtn.style.display = 'block';
+      drawGameOverScreen();
+      assertEquals(shareBtn.style.display, 'none',
+        'reduced motion keeps Copy result hidden until the halved roll finishes');
+      Animations.deathAnimFrame = 9;
+      const damped = [];
+      ctx.fillText = (text) => damped.push(String(text));
+      drawGameOverScreen();
+      ctx.fillText = origFill;
+      assert(damped.includes('Share TODAY BEST with Copy result'),
+        'reduced motion shows the hint once the halved roll finishes');
+      assertEquals(shareBtn.style.display, 'block',
+        'reduced motion shows Copy result with that hint');
+    } finally {
+      ctx.fillText = origFill;
+      game.mode = orig.mode;
+      game.state = orig.state;
+      game.score = orig.score;
+      game.dailyBest = orig.daily;
+      game.isNewTodayBest = orig.newToday;
+      game.previousDailyBest = orig.prevDaily;
+      Animations.deathAnimFrame = orig.anim;
+      Animations.deathShakeFrames = orig.shake;
+      if (origStyle === undefined) delete shareBtn.style;
+      else shareBtn.style = origStyle;
+      shareBtn.textContent = origText;
+      setReducedMotion(false);
+    }
+  });
+
+  it('space finishes the shorter roll, and Classic still snaps to 30', () => {
+    const orig = {
+      mode: game.mode,
+      state: game.state,
+      score: game.score,
+      anim: Animations.deathAnimFrame,
+    };
+    try {
+      setReducedMotion(false);
+      game.mode = MODES.CLASSIC;
+      game.state = STATE.DEAD;
+      game.score = 500;
+      Animations.deathAnimFrame = 18;
+      handleAction();
+      assertEquals(game.state, STATE.DEAD, 'Classic frame 18 is still rolling');
+      assertEquals(Animations.deathAnimFrame, GAME_CONFIG.DEATH_ANIM_FRAMES,
+        'Classic skip still jumps to frame 30');
+
+      game.mode = MODES.UPDATED;
+      game.state = STATE.DEAD;
+      Animations.deathAnimFrame = 18;
+      handleAction();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      assertEquals(game.state, STATE.WAITING,
+        'Updated frame 18 is the end of the roll, so space restarts');
+    } finally {
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      game.mode = orig.mode;
+      game.state = orig.state;
+      game.score = orig.score;
+      Animations.deathAnimFrame = orig.anim;
+      setReducedMotion(false);
+    }
+  });
+
+  it('tunes the Updated length without passing Classic 30 or going non-positive', () => {
+    const orig = {
+      mode: game.mode,
+      state: game.state,
+      score: game.score,
+      anim: Animations.deathAnimFrame,
+      shake: Animations.deathShakeFrames,
+      newBest: game.isNewBest,
+      newToday: game.isNewTodayBest,
+      prev: game.previousHighScore,
+      prevDaily: game.previousDailyBest,
+    };
+    try {
+      setReducedMotion(false);
+      assert(typeof deathAnimFrames === 'function',
+        'deathAnimFrames should be the mode-correct length');
+      game.score = 500;
+
+      game.mode = MODES.UPDATED;
+      withTuning({ UPDATED_DEATH_ANIM_FRAMES: 12 }, () => {
+        armDead(MODES.UPDATED, 500);
+        assertEquals(deathAnimFrames(), 12, 'a shorter whole-frame tune is honored');
+        assertEquals(rollCountUp().steps, 12, 'the roll uses that tuned length');
+      });
+      withTuning({ UPDATED_DEATH_ANIM_FRAMES: 30 }, () => {
+        assertEquals(deathAnimFrames(), 30, 'a tune equal to Classic is allowed');
+      });
+      withTuning({ UPDATED_DEATH_ANIM_FRAMES: 40 }, () => {
+        assertEquals(deathAnimFrames(), QUIET_FRAMES,
+          'a tune past Classic 30 falls back to 18');
+      });
+      withTuning({ UPDATED_DEATH_ANIM_FRAMES: 0 }, () => {
+        assertEquals(deathAnimFrames(), QUIET_FRAMES, 'zero falls back to 18');
+      });
+      withTuning({ UPDATED_DEATH_ANIM_FRAMES: -4 }, () => {
+        assertEquals(deathAnimFrames(), QUIET_FRAMES, 'a negative length falls back to 18');
+      });
+      withTuning({ UPDATED_DEATH_ANIM_FRAMES: 1.5 }, () => {
+        assertEquals(deathAnimFrames(), QUIET_FRAMES, 'a fractional length falls back to 18');
+      });
+      withTuning({ UPDATED_DEATH_ANIM_FRAMES: 'fast' }, () => {
+        assertEquals(deathAnimFrames(), QUIET_FRAMES, 'a non-numeric length falls back to 18');
+      });
+
+      game.mode = MODES.CLASSIC;
+      withTuning({ UPDATED_DEATH_ANIM_FRAMES: 12 }, () => {
+        armDead(MODES.CLASSIC, 500);
+        assertEquals(deathAnimFrames(), GAME_CONFIG.DEATH_ANIM_FRAMES,
+          'Classic ignores the Updated length');
+        assertEquals(rollCountUp().steps, GAME_CONFIG.DEATH_ANIM_FRAMES,
+          'Classic still rolls for 30 frames');
+      });
+
+      game.mode = MODES.DAILY;
+      withTuning({ UPDATED_DEATH_ANIM_FRAMES: 10 }, () => {
+        assertEquals(deathAnimFrames(), 10, 'Daily shares the Updated length tune');
+      });
+
+      setReducedMotion(true);
+      game.mode = MODES.UPDATED;
+      withTuning({ UPDATED_DEATH_ANIM_FRAMES: 1 }, () => {
+        assertEquals(deathAnimFrames(), 2,
+          'reduced motion keeps a positive length when the tune is 1');
+      });
+      game.mode = MODES.CLASSIC;
+      withTuning({ UPDATED_DEATH_ANIM_FRAMES: 12 }, () => {
+        assertEquals(deathAnimFrames(), GAME_CONFIG.DEATH_ANIM_FRAMES,
+          'reduced motion does not shorten Classic');
+      });
+    } finally {
+      game.mode = orig.mode;
+      game.state = orig.state;
+      game.score = orig.score;
+      Animations.deathAnimFrame = orig.anim;
+      Animations.deathShakeFrames = orig.shake;
+      game.isNewBest = orig.newBest;
+      game.isNewTodayBest = orig.newToday;
+      game.previousHighScore = orig.prev;
+      game.previousDailyBest = orig.prevDaily;
+      setReducedMotion(false);
+    }
+  });
+});
+
+describe('QA death count-up flag (?qaCountUp=1)', () => {
+  function tick() {
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+  }
+
+  function armWaiting(mode) {
+    game.mode = mode;
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    game.mode = mode;
+    setReducedMotion(false);
+    if (typeof setQaCountUp === 'function') setQaCountUp(false);
+    game.state = STATE.WAITING;
+    game.graceFrames = GAME_CONFIG.GRACE_FRAMES;
+    game.score = 0;
+    game.highScore = 0;
+    game.dailyBest = 0;
+    game.isNewBest = false;
+    game.isNewTodayBest = false;
+    Animations.deathAnimFrame = 0;
+    Animations.deathShakeFrames = 0;
+  }
+
+  function spyScoreText() {
+    const calls = [];
+    let alpha = null;
+    const orig = ctx.fillText;
+    ctx.fillText = function (text) {
+      const s = String(text);
+      calls.push(s);
+      if (s === '00100' || s === '00060') alpha = ctx.globalAlpha;
+    };
+    return {
+      calls: calls,
+      alpha: () => alpha,
+      restore() { ctx.fillText = orig; },
+    };
+  }
+
+  it('recognizes only ?qaCountUp=1', () => {
+    assert(typeof readQaCountUpFlag === 'function',
+      'readQaCountUpFlag should parse the playtest query');
+    assert(typeof setQaCountUp === 'function',
+      'setQaCountUp should be exposed for tests');
+    assert(readQaCountUpFlag('?qaCountUp=1') === true, '?qaCountUp=1 should hold the count-up');
+    assert(readQaCountUpFlag('?qaNight=1&qaCountUp=1') === true,
+      'the flag should work beside ?qaNight=1');
+    assert(readQaCountUpFlag('?qaCountUp=1&qaShake=1') === true, 'param order should not matter');
+    assert(readQaCountUpFlag('') === false, 'a normal visit should leave the roll for a real death');
+    assert(readQaCountUpFlag('?qaCountUp=0') === false, 'only the value 1 enables the flag');
+    assert(readQaCountUpFlag('?qaCountUp=18') === false, 'qaCountUp=18 must not count as the flag');
+    assert(readQaCountUpFlag('?qaScorePop=1') === false, 'the score pop must not hold the count-up');
+  });
+
+  it('holds a screenshotable Game Over roll without writing the run', () => {
+    const origMode = game.mode;
+    const spy = spyScoreText();
+    const storedDaily = localStorage.getItem('dino-daily-best');
+    const storedHigh = localStorage.getItem('dino-high-score');
+    try {
+      assert(typeof setQaCountUp === 'function', 'setQaCountUp should be exposed for tests');
+      assert(QA_COUNT_UP_HOLD >= 120, 'the debug hold must outlast a quick capture');
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        armWaiting(mode);
+        const origRng = game.rng;
+        let rngCalls = 0;
+        game.rng = () => { rngCalls++; return origRng(); };
+        setQaCountUp(true);
+        spy.calls.length = 0;
+        tick();
+        const expectFull = mode === MODES.DAILY;
+        assert(spy.calls.includes('00100'),
+          mode + ' holds the settled sample score from the shorter roll');
+        assert(!spy.calls.includes('00060'),
+          mode + ' does not paint the Classic partial score');
+        if (expectFull) {
+          assert(spy.calls.includes('Share TODAY BEST with Copy result'),
+            'Daily hold shows the hint once the shorter roll has settled');
+        } else {
+          assert(!spy.calls.includes('Share TODAY BEST with Copy result'),
+            'Updated hold does not draw the Daily hint');
+        }
+        assertEquals(game.qaCountUpHold, QA_COUNT_UP_HOLD, mode + ' latches the full hold');
+        assertEquals(game.qaCountUpShown, true, mode + ' spends the latch');
+        assertEquals(Animations.deathAnimFrame, 0, mode + ' does not arm the real count-up');
+        assertEquals(game.state, STATE.WAITING, mode + ' does not enter a real death');
+        assertEquals(game.score, 0, mode + ' hold must not write the score');
+        assertEquals(game.highScore, 0, mode + ' hold must not write the high score');
+        assertEquals(game.dailyBest, 0, mode + ' hold must not write daily best');
+        assertEquals(localStorage.getItem('dino-daily-best'), storedDaily,
+          mode + ' hold must not store daily best');
+        assertEquals(localStorage.getItem('dino-high-score'), storedHigh,
+          mode + ' hold must not store the high score');
+        assertEquals(rngCalls, 0, mode + ' hold must not consume the run seed');
+        assertEquals(game.currentSpeed, GAME_CONFIG.INITIAL_SPEED,
+          mode + ' hold must not change speed');
+        game.rng = origRng;
+      }
+
+      armWaiting(MODES.CLASSIC);
+      setQaCountUp(true);
+      spy.calls.length = 0;
+      tick();
+      assert(spy.calls.includes('00060'),
+        'Classic hold paints the 30-frame roll at the Updated marker');
+      assert(!spy.calls.includes('00100'),
+        'Classic hold does not paint the settled Updated score');
+      assert(!spy.calls.includes('Share TODAY BEST with Copy result'),
+        'Classic hold does not draw the Daily hint');
+      assertEquals(game.qaCountUpHold, QA_COUNT_UP_HOLD, 'Classic still holds long enough to capture');
+      assertEquals(Animations.deathAnimFrame, 0, 'Classic hold does not arm the real count-up');
+      assertEquals(game.score, 0, 'Classic hold must not write the score');
+
+      armWaiting(MODES.UPDATED);
+      setQaCountUp(true);
+      game.state = STATE.IDLE;
+      tick();
+      const held = game.qaCountUpHold;
+      tick();
+      assertEquals(held, QA_COUNT_UP_HOLD, 'the idle card latches the full hold');
+      assertEquals(game.qaCountUpHold, held, 'the idle card stays up for a capture');
+      assert(spy.calls.includes('00100'), 'the idle card paints the shorter roll');
+      assertEquals(game.state, STATE.IDLE, 'the idle hold does not start the run');
+      assertEquals(game.score, 0, 'the idle card must not write the score');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      if (typeof setQaCountUp === 'function') setQaCountUp(false);
+      setReducedMotion(false);
+      if (game.qaCountUpHold) game.qaCountUpHold = 0;
+      if (game.qaCountUpShown) game.qaCountUpShown = false;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('reduced motion halves the hold and quiets the paint', () => {
+    const origMode = game.mode;
+    const spy = spyScoreText();
+    try {
+      assert(typeof setQaCountUp === 'function', 'setQaCountUp should be exposed for tests');
+      armWaiting(MODES.UPDATED);
+      setReducedMotion(true);
+      setQaCountUp(true);
+      spy.calls.length = 0;
+      tick();
+      assertEquals(game.qaCountUpHold, qaCountUpHoldFrames(),
+        'the hold uses the shorter window');
+      assert(game.qaCountUpHold < QA_COUNT_UP_HOLD, 'the hold is shorter than the full capture');
+      assert(qaCountUpHoldFrames() >= 2, 'the hold still lasts long enough to see');
+      assertEquals(game.qaCountUpHold, Math.max(2, Math.round(QA_COUNT_UP_HOLD * 0.5)),
+        'reduced motion halves the 180-frame hold');
+      assert(spy.calls.includes('00100'), 'the damped hold still shows the settled score');
+      assertEquals(spy.alpha(), 0.5, 'reduced motion paints the card at half strength');
+      assertEquals(game.score, 0, 'the damped hold must not write the score');
+      assertEquals(Animations.deathAnimFrame, 0, 'the damped hold does not arm the real count-up');
+
+      armWaiting(MODES.CLASSIC);
+      setReducedMotion(true);
+      setQaCountUp(true);
+      spy.calls.length = 0;
+      tick();
+      assert(spy.calls.includes('00060'),
+        'reduced motion does not switch Classic onto the Updated length');
+      assert(!spy.calls.includes('00100'), 'Classic stays on the 30-frame partial score');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      if (typeof setQaCountUp === 'function') setQaCountUp(false);
+      setReducedMotion(false);
+      if (game.qaCountUpHold) game.qaCountUpHold = 0;
+      if (game.qaCountUpShown) game.qaCountUpShown = false;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('resetGame re-reads ?qaCountUp=1 from the page query', () => {
+    const origMode = game.mode;
+    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
+    const prevLocation = global.location;
+    const spy = spyScoreText();
+    global.location = { search: '?qaCountUp=1' };
+    try {
+      assert(typeof setQaCountUp === 'function', 'setQaCountUp should be exposed for tests');
+      setQaCountUp(false);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      game.mode = MODES.UPDATED;
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      const score = game.score;
+      spy.calls.length = 0;
+      tick();
+      assertEquals(game.state, STATE.WAITING, 'the re-read flag holds Game Over before the run');
+      assertEquals(game.qaCountUpHold, QA_COUNT_UP_HOLD, 'the re-read flag latches the hold');
+      assertEquals(game.qaCountUpShown, true, 'the re-read flag spends the latch');
+      assert(spy.calls.includes('00100'), 'the re-read flag paints the shorter roll');
+      assertEquals(game.score, score, 're-reading the flag must not change the score');
+      assertEquals(Animations.deathAnimFrame, 0, 're-reading the flag does not arm the real count-up');
+    } finally {
+      spy.restore();
+      if (hadLocation) global.location = prevLocation;
+      else delete global.location;
+      game.mode = origMode;
+      if (typeof setQaCountUp === 'function') setQaCountUp(false);
+      setReducedMotion(false);
+      if (game.qaCountUpHold) game.qaCountUpHold = 0;
+      if (game.qaCountUpShown) game.qaCountUpShown = false;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       resetGame();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);

@@ -369,7 +369,18 @@ const GAME_CONFIG = Object.freeze({
   PARTICLE_EMIT_SPREAD:     4,    // px width of the cosmetic xy jitter on every particle emit
 
   // --- Effects ---
-  DEATH_ANIM_FRAMES:       30,    // frames for the score count-up after shake ends
+  DEATH_ANIM_FRAMES:       30,    // frames for the Classic score count-up after shake ends
+  // Visual only. Updated and Daily Game Over score count-up. Classic keeps
+  // DEATH_ANIM_FRAMES (30). 18 frames is about 0.3s at 60fps, about three
+  // fifths of that roll, so the board settles and the death-screen hint
+  // and Copy result can appear without a long tick. Reduced motion halves
+  // this Updated length (minimum 2), the way the milestone word and the
+  // new-best badge do. Classic stays 30, including under reduced motion.
+  // A tune outside 1..DEATH_ANIM_FRAMES, or a non-integer, falls back, so
+  // a typo cannot run longer than Classic or drop the roll. Read through
+  // cfg(). Physics, scoring, and daily best do not read this. Playtest
+  // with ?qaCountUp=1.
+  UPDATED_DEATH_ANIM_FRAMES: 18,
   DEATH_SHAKE_FRAMES:      12,
   DEATH_SHAKE_AMPLITUDE:    4,
   DEATH_SHAKE_FREQ:         1.5,  // multiplier on the sin oscillation that drives the shake transform
@@ -1352,12 +1363,122 @@ function applyQaCopyButton() {
   const settledDailyDeath = isDailyMode()
     && game.state === STATE.DEAD
     && Animations.deathShakeFrames <= 0
-    && Animations.deathAnimFrame >= GAME_CONFIG.DEATH_ANIM_FRAMES;
+    && Animations.deathAnimFrame >= deathAnimFrames();
   if (settledDailyDeath) return;
   if (btn.style) btn.style.display = 'none';
   if (Animations.copyFlashFrames <= 0) {
     btn.textContent = '📋 Copy result';
     markShareCopied(btn, false, false);
+  }
+}
+
+// QA/debug only — not for players. ?qaCountUp=1 holds a Game Over card from
+// the idle screen so playtest can see the count-up without a real death.
+// The card freezes the display score at the Updated length: Updated and
+// Daily have finished that shorter roll, Classic is still partway through
+// its 30. It does not write Animations.deathAnimFrame, the score, speed,
+// gaps, high score, daily best, or game.rng(). The idle card stays up
+// until the player starts, so a capture does not have to win a race.
+// Reduced motion halves the hold once the run starts and paints the card
+// at half strength. Re-read in resetGame(). Tests flip it through
+// setQaCountUp(); a normal visit leaves this false.
+const QA_COUNT_UP_HOLD = 180;
+const QA_COUNT_UP_SCORE = 100;
+
+function readQaCountUpFlag(search) {
+  const query = search !== undefined
+    ? search
+    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
+      ? location.search
+      : '');
+  if (!query) return false;
+  return new URLSearchParams(query).get('qaCountUp') === '1';
+}
+
+let qaCountUp = readQaCountUpFlag();
+
+function setQaCountUp(enabled) {
+  qaCountUp = !!enabled;
+}
+
+function qaCountUpHoldFrames() {
+  if (!reducedMotion) return QA_COUNT_UP_HOLD;
+  return Math.max(2, Math.round(QA_COUNT_UP_HOLD * 0.5));
+}
+
+// Freeze at the Updated length. That frame has finished the shorter roll
+// and is still inside the Classic 30. A reduced-motion length below 18
+// caps here so the damped card shows the settled score.
+function qaCountUpPaintFrame() {
+  const length = deathAnimFrames();
+  return Math.min(GAME_CONFIG.UPDATED_DEATH_ANIM_FRAMES, length);
+}
+
+function advanceQaCountUp() {
+  const visible = game.state === STATE.IDLE
+    || game.state === STATE.WAITING
+    || game.state === STATE.RUNNING
+    || game.state === STATE.DEAD;
+  if (!visible) return;
+  if (qaCountUp && !game.qaCountUpShown) {
+    game.qaCountUpShown = true;
+    game.qaCountUpHold = qaCountUpHoldFrames();
+    return;
+  }
+  // Stay on the idle card until the player starts. A 3s hold from the
+  // first frame would expire before a slow capture.
+  if (game.state === STATE.IDLE) return;
+  if (game.qaCountUpHold > 0) game.qaCountUpHold--;
+}
+
+function clearQaCountUpShare() {
+  if (!game.qaCountUpShown || game.qaCountUpShareCleared || game.qaCountUpHold > 0) return;
+  game.qaCountUpShareCleared = true;
+  const btn = document.getElementById('share-btn');
+  if (!btn || !btn.style) return;
+  const settled = isDailyMode()
+    && game.state === STATE.DEAD
+    && Animations.deathShakeFrames <= 0
+    && Animations.deathAnimFrame >= deathAnimFrames();
+  if (settled) return;
+  btn.style.display = 'none';
+}
+
+// Paint-only sample board. The real score and best are restored before
+// the function returns, including when the draw throws.
+function drawQaCountUp() {
+  if (game.qaCountUpHold <= 0) {
+    clearQaCountUpShare();
+    return;
+  }
+  const savedAlpha = ctx.globalAlpha;
+  const saved = {
+    score: game.score,
+    highScore: game.highScore,
+    isNewBest: game.isNewBest,
+    anim: Animations.deathAnimFrame,
+    dailyBest: game.dailyBest,
+    isNewTodayBest: game.isNewTodayBest,
+  };
+  try {
+    game.score = QA_COUNT_UP_SCORE;
+    game.highScore = Math.max(saved.highScore, QA_COUNT_UP_SCORE + 150);
+    game.isNewBest = false;
+    game.isNewTodayBest = false;
+    if (isDailyMode()) {
+      game.dailyBest = Math.max(saved.dailyBest, QA_COUNT_UP_SCORE + 150);
+    }
+    Animations.deathAnimFrame = qaCountUpPaintFrame();
+    if (reducedMotion) ctx.globalAlpha = 0.5;
+    drawGameOverScreen();
+  } finally {
+    game.score = saved.score;
+    game.highScore = saved.highScore;
+    game.isNewBest = saved.isNewBest;
+    Animations.deathAnimFrame = saved.anim;
+    game.dailyBest = saved.dailyBest;
+    game.isNewTodayBest = saved.isNewTodayBest;
+    ctx.globalAlpha = savedAlpha;
   }
 }
 
@@ -1771,6 +1892,12 @@ const game = {
   qaCopyShown:      false,
   // QA/debug only. Frames left on the ?qaCopy=1 Copied label.
   qaCopyHold:       0,
+  // QA/debug only. Latches after ?qaCountUp=1 spends its Game Over card.
+  qaCountUpShown:   false,
+  // QA/debug only. Frames left on the ?qaCountUp=1 Game Over card.
+  qaCountUpHold:    0,
+  // QA/debug only. The share button was put back after that card.
+  qaCountUpShareCleared: false,
   isNewBest:         false,
   previousHighScore: 0,
   // Set on a Daily death before today best is saved. Mirrors isNewBest:
@@ -2556,7 +2683,7 @@ function drawDailyPreRunLine() {
 
 function drawGameOverScreen() {
   const font = cfg('SCORE_FONT_FAMILY');
-  const t = Math.min(Animations.deathAnimFrame / GAME_CONFIG.DEATH_ANIM_FRAMES, 1);
+  const t = Math.min(Animations.deathAnimFrame / deathAnimFrames(), 1);
   const displayScore = Math.round(t * Math.floor(game.score));
 
   ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
@@ -2686,7 +2813,7 @@ function drawGameOverScreen() {
 // No frame-driven alpha — prefers-reduced-motion has nothing to suppress.
 function drawDailyDeathHint() {
   if (!isDailyMode()) return;
-  if (Animations.deathAnimFrame < GAME_CONFIG.DEATH_ANIM_FRAMES) return;
+  if (Animations.deathAnimFrame < deathAnimFrames()) return;
   ctx.textAlign = 'center';
   ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
   ctx.font = '12px ' + cfg('SCORE_FONT_FAMILY');
@@ -3216,8 +3343,9 @@ function handleAction() {
   } else if (game.state === STATE.RUNNING) {
     jump();
   } else if (game.state === STATE.DEAD) {
-    if (Animations.deathAnimFrame < GAME_CONFIG.DEATH_ANIM_FRAMES) {
-      Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    const countFrames = deathAnimFrames();
+    if (Animations.deathAnimFrame < countFrames) {
+      Animations.deathAnimFrame = countFrames;
       drawGameOverScreen();
     } else {
       cancelAnimationFrame(game.animationFrameId);
@@ -3455,6 +3583,9 @@ function resetGame() {
   game.qaNewBestHold     = 0;
   game.qaCopyShown       = false;
   game.qaCopyHold        = 0;
+  game.qaCountUpShown    = false;
+  game.qaCountUpHold     = 0;
+  game.qaCountUpShareCleared = false;
   // QA/debug only. Re-read so a mode toggle still honors the page query.
   qaPlateau = readQaPlateauFlag();
   qaCluster = readQaClusterFlag();
@@ -3470,6 +3601,7 @@ function resetGame() {
   qaShake = readQaShakeFlag();
   qaNewBest = readQaNewBestFlag();
   qaCopy = readQaCopyFlag();
+  qaCountUp = readQaCountUpFlag();
   game.isNewBest         = false;
   game.previousHighScore = 0;
   game.isNewTodayBest    = false;
@@ -3529,6 +3661,27 @@ function deathShakeAmplitude() {
   return GAME_CONFIG.UPDATED_DEATH_SHAKE_AMPLITUDE;
 }
 
+// Classic reads the stored count-up directly. Updated and Daily read the
+// quieter length through cfg(), then halve it under reduced motion. A tune
+// outside 1..DEATH_ANIM_FRAMES, or a non-integer, falls back to 18 so a
+// typo cannot run longer than Classic or drop the roll. Gates and the
+// score denominator both use this, so the hint cannot lag the number.
+function updatedDeathAnimFrames() {
+  const tuned = cfg('UPDATED_DEATH_ANIM_FRAMES');
+  const cap = GAME_CONFIG.DEATH_ANIM_FRAMES;
+  if (typeof tuned === 'number' && tuned >= 1 && tuned <= cap && Math.floor(tuned) === tuned) {
+    return tuned;
+  }
+  return GAME_CONFIG.UPDATED_DEATH_ANIM_FRAMES;
+}
+
+function deathAnimFrames() {
+  if (!isUpdatedMode()) return GAME_CONFIG.DEATH_ANIM_FRAMES;
+  let frames = updatedDeathAnimFrames();
+  if (reducedMotion) frames = Math.max(2, Math.round(frames * 0.5));
+  return frames;
+}
+
 function deathShakeFreq() {
   if (!isUpdatedMode()) return cfg('DEATH_SHAKE_FREQ');
   const tuned = cfg('UPDATED_DEATH_SHAKE_FREQ');
@@ -3559,7 +3712,7 @@ function handleDead() {
     if (Animations.deathFlashFrames > 0) Animations.deathFlashFrames--;
     if (Animations.scorePopFrames > 0) Animations.scorePopFrames--;
     Animations.deathShakeFrames--;
-  } else if (Animations.deathAnimFrame < GAME_CONFIG.DEATH_ANIM_FRAMES) {
+  } else if (Animations.deathAnimFrame < deathAnimFrames()) {
     Animations.deathAnimFrame++;
     drawGameOverScreen();
   } else {
@@ -3815,6 +3968,7 @@ function gameLoop() {
   advanceQaNewBest();
   advanceQaCopy();
   advanceQaShake();
+  advanceQaCountUp();
   const shakeHeld = beginQaShake();
   STATE_HANDLERS[game.state]();
   endQaShake(shakeHeld);
@@ -3831,6 +3985,7 @@ function gameLoop() {
   drawQaLevelLabel();
   drawQaScorePop();
   drawQaNewBest();
+  drawQaCountUp();
   applyQaCopyButton();
 }
 
@@ -3996,6 +4151,12 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.readQaCopyFlag = readQaCopyFlag;
   global.QA_COPY_HOLD = QA_COPY_HOLD;
   global.qaCopyHoldFrames = qaCopyHoldFrames;
+  global.setQaCountUp = setQaCountUp;
+  global.readQaCountUpFlag = readQaCountUpFlag;
+  global.QA_COUNT_UP_HOLD = QA_COUNT_UP_HOLD;
+  global.qaCountUpHoldFrames = qaCountUpHoldFrames;
+  global.deathAnimFrames = deathAnimFrames;
+  global.updatedDeathAnimFrames = updatedDeathAnimFrames;
   global.obstacleNightBrightness = obstacleNightBrightness;
   global.dinoNightBrightness = dinoNightBrightness;
   global.cloudPaintAlpha = cloudPaintAlpha;
