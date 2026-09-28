@@ -5893,6 +5893,11 @@ describe('Night cloud dim', () => {
     return 0x1a + (0xe8 - 0x1a) * alpha;
   }
 
+  // Day sky #ffffff showing through the same #e8e8e8 ink.
+  function dayCloudChannel(alpha) {
+    return 0xff + (0xe8 - 0xff) * alpha;
+  }
+
   function liftedSpriteChannel(brightness) {
     return 0x53 * brightness;
   }
@@ -5903,7 +5908,17 @@ describe('Night cloud dim', () => {
     try {
       setQaNight(false);
       setReducedMotion(false);
-      assert(GAME_CONFIG.NIGHT_CLOUD_ALPHA < 1, 'night clouds are dimmer than the day puff');
+      const dayPeak = GAME_CONFIG.DAY_CLOUD_ALPHA;
+      const fullInk = 0xff - 0xe8;
+      const dayInk = 0xff - dayCloudChannel(dayPeak);
+      assert(dayPeak < 1, 'day Updated clouds are quieter than a full #e8e8e8 puff');
+      assert(dayPeak > 0, 'the day puff still paints');
+      assert(dayPeak > GAME_CONFIG.NIGHT_CLOUD_ALPHA,
+        'the day whisper stays stronger than the night dim so twilight eases down');
+      assert(dayInk < fullInk * 0.75, 'the day puff loses a real share of its ink');
+      assert(dayInk > 10, 'the puff still sits more than ten levels off the white sky');
+      assert(dayInk < (0xff - 0xcd), 'day clouds stay quieter than the day hills');
+      assert(GAME_CONFIG.NIGHT_CLOUD_ALPHA < dayPeak, 'night clouds are dimmer than the day puff');
       assert(GAME_CONFIG.NIGHT_CLOUD_ALPHA > 0,
         'night clouds stay visible against the night sky');
       assert(
@@ -5919,17 +5934,17 @@ describe('Night cloud dim', () => {
 
       game.mode = MODES.UPDATED;
       game.score = 0;
-      assertEquals(cloudPaintAlpha(), 1, 'day Updated keeps the day-bright cloud');
+      assertEquals(cloudPaintAlpha(), dayPeak, 'day Updated keeps the quieter day cloud');
       game.score = GAME_CONFIG.DAY_NIGHT_START;
-      assertEquals(cloudPaintAlpha(), 1, 'the ease starts with the sky, still day-bright at the boundary');
+      assertEquals(cloudPaintAlpha(), dayPeak, 'the ease starts with the sky, still the quieter day cloud at the boundary');
       game.score = 350;
-      const mid = 1 + (GAME_CONFIG.NIGHT_CLOUD_ALPHA - 1) * 0.5;
+      const mid = dayPeak + (GAME_CONFIG.NIGHT_CLOUD_ALPHA - dayPeak) * 0.5;
       assert(
         Math.abs(cloudPaintAlpha() - mid) < 1e-9,
-        'mid-twilight is halfway from day-bright to the night dim'
+        'mid-twilight is halfway from the quieter day cloud to the night dim'
       );
       game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
-      assert(cloudPaintAlpha() < 1 && cloudPaintAlpha() > GAME_CONFIG.NIGHT_CLOUD_ALPHA,
+      assert(cloudPaintAlpha() < dayPeak && cloudPaintAlpha() > GAME_CONFIG.NIGHT_CLOUD_ALPHA,
         'one point before night is still easing, not snapped');
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       assertEquals(cloudPaintAlpha(), GAME_CONFIG.NIGHT_CLOUD_ALPHA,
@@ -5939,6 +5954,9 @@ describe('Night cloud dim', () => {
         'later night keeps the same static dim');
 
       game.mode = MODES.DAILY;
+      game.score = 0;
+      assertEquals(cloudPaintAlpha(), dayPeak,
+        'Daily shares the quieter Updated day cloud');
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       assertEquals(cloudPaintAlpha(), GAME_CONFIG.NIGHT_CLOUD_ALPHA,
         'Daily shares the Updated night cloud dim');
@@ -5966,10 +5984,10 @@ describe('Night cloud dim', () => {
       game.mode = MODES.UPDATED;
       setReducedMotion(true);
       game.score = 350;
-      assertEquals(cloudPaintAlpha(), 1,
-        'reduced motion keeps day-bright clouds while the sky is still day');
+      assertEquals(cloudPaintAlpha(), GAME_CONFIG.DAY_CLOUD_ALPHA,
+        'reduced motion keeps the quieter day cloud while the sky is still day');
       game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
-      assertEquals(cloudPaintAlpha(), 1,
+      assertEquals(cloudPaintAlpha(), GAME_CONFIG.DAY_CLOUD_ALPHA,
         'reduced motion does not run the twilight ease');
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       assertEquals(cloudPaintAlpha(), GAME_CONFIG.NIGHT_CLOUD_ALPHA,
@@ -6019,7 +6037,7 @@ describe('Night cloud dim', () => {
         'clearing the override returns the configured night dim');
       game.score = 0;
       withTuning({ NIGHT_CLOUD_ALPHA: 0.2 }, () => {
-        assertEquals(cloudPaintAlpha(), 1, 'day clouds ignore the night override');
+        assertEquals(cloudPaintAlpha(), GAME_CONFIG.DAY_CLOUD_ALPHA, 'day clouds ignore the night override');
       });
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       withTuning({ NIGHT_CLOUD_ALPHA: 'soft' }, () => {
@@ -6029,6 +6047,90 @@ describe('Night cloud dim', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
+      setQaNight(false);
+      setReducedMotion(false);
+    }
+  });
+
+  it('DAY_CLOUD_ALPHA override changes only the day peak', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      withTuning({ DAY_CLOUD_ALPHA: 0.4 }, () => {
+        assertEquals(cloudPaintAlpha(), 0.4,
+          'a visual override should quiet day clouds by the tuned amount');
+      });
+      assertEquals(cloudPaintAlpha(), GAME_CONFIG.DAY_CLOUD_ALPHA,
+        'clearing the override returns the configured day peak');
+      game.score = GAME_CONFIG.DAY_NIGHT_END;
+      withTuning({ DAY_CLOUD_ALPHA: 0.4 }, () => {
+        assertEquals(cloudPaintAlpha(), GAME_CONFIG.NIGHT_CLOUD_ALPHA,
+          'full night ignores the day override');
+      });
+      game.score = 0;
+      withTuning({ DAY_CLOUD_ALPHA: 'soft' }, () => {
+        assertEquals(cloudPaintAlpha(), GAME_CONFIG.DAY_CLOUD_ALPHA,
+          'a non-numeric override falls back to the configured day peak');
+      });
+      game.mode = MODES.CLASSIC;
+      game.score = 0;
+      withTuning({ DAY_CLOUD_ALPHA: 0.4 }, () => {
+        assertEquals(cloudPaintAlpha(), 1,
+          'Classic keeps its own full-opacity cloud when the day peak is tuned');
+      });
+    } finally {
+      game.mode = origMode;
+      game.score = origScore;
+      setQaNight(false);
+      setReducedMotion(false);
+    }
+  });
+
+  it('GET READY already paints the quieter day clouds, so playtest needs no query flag', () => {
+    const origMode = game.mode;
+    const origScore = game.score;
+    const origState = game.state;
+    const origGrace = game.graceFrames;
+    const origFrame = game.animFrame;
+    const origAlpha = ctx.globalAlpha;
+    const origArc = ctx.arc;
+    const seen = [];
+    ctx.arc = function (...args) {
+      seen.push(ctx.globalAlpha);
+      return origArc.apply(this, args);
+    };
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      initClouds();
+      game.mode = MODES.UPDATED;
+      game.score = 0;
+      game.state = STATE.WAITING;
+      game.graceFrames = GAME_CONFIG.GRACE_FRAMES;
+      ctx.globalAlpha = 1;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      gameLoop();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      assert(game.state === STATE.WAITING, 'one opening frame stays on GET READY');
+      assertEquals(game.score, 0, 'painting the opening clouds must not write the score');
+      assert(seen.length === GAME_CONFIG.CLOUD_COUNT * GAME_CONFIG.CLOUD_CIRCLES.length,
+        'GET READY draws every cloud circle');
+      assert(seen.every(a => a === GAME_CONFIG.DAY_CLOUD_ALPHA),
+        'the opening screen uses the quieter day peak');
+      assertEquals(ctx.globalAlpha, 1, 'the opening cloud paint leaves the lane alone');
+    } finally {
+      ctx.arc = origArc;
+      ctx.globalAlpha = origAlpha;
+      game.mode = origMode;
+      game.score = origScore;
+      game.state = origState;
+      game.graceFrames = origGrace;
+      game.animFrame = origFrame;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       setQaNight(false);
       setReducedMotion(false);
     }
@@ -6081,7 +6183,7 @@ describe('Night cloud dim', () => {
       const day = alphasDuringCloudPaint();
       assert(day.length === GAME_CONFIG.CLOUD_COUNT * GAME_CONFIG.CLOUD_CIRCLES.length,
         'day still paints every cloud circle');
-      assert(day.every(a => a === 1), 'day clouds stay fully opaque');
+      assert(day.every(a => a === GAME_CONFIG.DAY_CLOUD_ALPHA), 'day clouds use the quieter day peak');
       assertEquals(ctx.globalAlpha, 1, 'a day draw leaves the obstacle lane alone');
       assertEquals(ctx.fillStyle, GAME_CONFIG.CLOUD_COLOR, 'day ink stays the day cloud colour');
 
