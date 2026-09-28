@@ -184,7 +184,7 @@ const GAME_CONFIG = Object.freeze({
   STAR_FADE_FRAMES:        48,
   // Visual only. CSS brightness applied to cactus sprites once the sky is
   // fully night, in Updated and Daily. The day sprite is #535353; night hills
-  // are #3a3a55, and a partial lift during the fade lands on the hill. 1.65
+  // are #2d2d46, and a partial lift during the fade lands on the hill. 1.65
   // holds the silhouette and clears the hill. Classic does not read this.
   // Read through cfg().
   NIGHT_OBSTACLE_BRIGHTNESS: 1.65,
@@ -234,7 +234,19 @@ const GAME_CONFIG = Object.freeze({
   // does not draw hills. The mounds are already on GET READY, so
   // playtest does not need a query flag. Physics does not read this.
   HILL_COLOR_DAY:          '#e1e1e1',
-  HILL_COLOR_NIGHT:        '#3a3a55',
+  // Visual only. Fill of Updated/Daily hills once the sky is fully night.
+  // Same three ellipses as the day fill, on the ground line behind the dino.
+  // #3a3a55 sits 32, 32, and 39 levels off the night sky (#1a1a2e) — a blue
+  // band across that lane. #2d2d46 keeps 19, 19, and 24 of those levels.
+  // The sum is 62 of 103, the same three-fifths the day mounds keep of
+  // their band. Red and green stay matched, and blue stays a step above
+  // them, so the shape is still a night silhouette. It stays under the
+  // night ground (the #535353 strip at 0.55) and well under the night dino
+  // (1.35) and cactus (1.65). Twilight lerps HILL_COLOR_DAY into this from
+  // DAY_NIGHT_START to DAY_NIGHT_END. Reduced motion skips that ease and
+  // snaps to this at DAY_NIGHT_END. Classic does not draw hills. Playtest
+  // with ?qaNight=1. Read through cfg(). Physics does not read this.
+  HILL_COLOR_NIGHT:        '#2d2d46',
   CLOUD_SPEED_FACTOR_UPDATED: 1.5, // multiply cloud speed in updated mode for stronger parallax
   // Visual only. Peak alpha of the gold milestone sky-flash by day, in
   // Updated and Daily. One full-canvas fill, painted after the cacti, so
@@ -907,8 +919,9 @@ function advanceQaScorePop() {
 // Overdraw after the whole frame, from the hold counter only. handleDead
 // draws the real pop inside the shake, and a collision returns before
 // that draw on the hit frame. This pass runs from gameLoop after the
-// handler, so neither can skip it. It sits above the NEW BEST hold so a
+// handler, so neither can skip it. It sits above the flash so a
 // full-canvas blink cannot cover the digits this hold exists to show.
+// drawQaNewBest paints after this, so the corner badge stays above the swell.
 function drawQaScorePop() {
   if (!isUpdatedMode() || game.qaScorePopHold <= 0) return;
   const cover = qaScorePopCover();
@@ -1672,10 +1685,16 @@ function updateHills() {
   }
 }
 
+function hillNightHex() {
+  const tuned = hexChannels(cfg('HILL_COLOR_NIGHT'))
+    || hexChannels(GAME_CONFIG.HILL_COLOR_NIGHT);
+  return '#' + tuned.map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
 function getHillColor(score) {
   score = scoreForNightSky(score);
   if (score < GAME_CONFIG.DAY_NIGHT_START) return GAME_CONFIG.HILL_COLOR_DAY;
-  if (score >= GAME_CONFIG.DAY_NIGHT_END)  return GAME_CONFIG.HILL_COLOR_NIGHT;
+  if (score >= GAME_CONFIG.DAY_NIGHT_END)  return hillNightHex();
   if (reducedMotion) return GAME_CONFIG.HILL_COLOR_DAY; // snap — stays day until DAY_NIGHT_END
   const t = (score - GAME_CONFIG.DAY_NIGHT_START) /
             (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
@@ -1685,7 +1704,7 @@ function getHillColor(score) {
     parseInt(hex.slice(5, 7), 16),
   ];
   const day   = parseHex(GAME_CONFIG.HILL_COLOR_DAY);
-  const night = parseHex(GAME_CONFIG.HILL_COLOR_NIGHT);
+  const night = parseHex(hillNightHex());
   const r = Math.round(day[0] + (night[0] - day[0]) * t);
   const g = Math.round(day[1] + (night[1] - day[1]) * t);
   const b = Math.round(day[2] + (night[2] - day[2]) * t);
@@ -3251,9 +3270,9 @@ function gameLoop() {
   STATE_HANDLERS[game.state]();
   // After the handler so a collision return, the score, and the death
   // card cannot cover the debug block. No-op unless the hold is running.
-  // The flash sits above the other marks. The LEVEL hold sits above that
-  // blink so the word stays readable. The score pop sits above the NEW BEST
-  // hold so a swollen score cannot cover the corner badge.
+  // The flash sits above the earlier marks. The LEVEL hold sits above that
+  // blink so the word stays readable. The NEW BEST hold is painted last,
+  // above the score pop, so a swollen score cannot cover the corner badge.
   drawQaConfetti();
   drawQaDust();
   drawQaPlateau();

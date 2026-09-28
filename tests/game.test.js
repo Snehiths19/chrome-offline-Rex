@@ -2158,7 +2158,6 @@ describe('Soft day hills', () => {
     assert(ink > dayCloudInk() * 2,
       'the mounds still read in front of the day cloud whisper');
     assert(ink < laneInk / 4, 'day hills stay much softer than the dino and the ground');
-    assertEquals(GAME_CONFIG.HILL_COLOR_NIGHT, '#3a3a55', 'night hill colour stays');
   });
 
   it('twilight still eases, and reduced motion holds the day colour until night', () => {
@@ -2266,6 +2265,63 @@ describe('Soft day hills', () => {
       game.mode = origMode;
       game.score = origScore;
       game.rng = origRng;
+      setQaNight(false);
+      setReducedMotion(false);
+    }
+  });
+});
+
+describe('Soft night hills', () => {
+  // Mean channel distance from the night sky #1a1a2e.
+  function nightSkyLift(hex) {
+    const sky = [0x1a, 0x1a, 0x2e];
+    const channels = [
+      parseInt(hex.slice(1, 3), 16),
+      parseInt(hex.slice(3, 5), 16),
+      parseInt(hex.slice(5, 7), 16),
+    ];
+    const lifts = channels.map((c, i) => c - sky[i]);
+    const mean = lifts.reduce((sum, n) => sum + n, 0) / lifts.length;
+    return { channels, lifts, mean };
+  }
+
+  it('night hills keep three-fifths of the old band and stay a silhouette', () => {
+    const night = GAME_CONFIG.HILL_COLOR_NIGHT;
+    const now = nightSkyLift(night);
+    const old = nightSkyLift('#3a3a55');
+    const dino = 0x53 * GAME_CONFIG.NIGHT_DINO_BRIGHTNESS;
+    const cactus = 0x53 * GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS;
+    const ground = 0x1a + (0x53 - 0x1a) * GAME_CONFIG.NIGHT_GROUND_ALPHA;
+    assertEquals(night, '#2d2d46', 'night hills use the quieter mound');
+    assert(/^#[0-9a-f]{6}$/.test(night), 'night hills stay a 6-digit hex colour');
+    assert(now.channels[0] === now.channels[1], 'red and green stay matched, like the night sky');
+    assert(now.channels[2] > now.channels[0], 'blue stays a step above, so the mound is still night');
+    assert(now.lifts.every(n => n > 0), 'the mounds still sit off the night sky');
+    assert(Math.abs(now.mean - old.mean * 0.6) < 0.5,
+      'the quieter mound keeps about three-fifths of the old #3a3a55 lift');
+    assert(now.mean < old.mean * 0.75, 'night hills lose a real share of the old band');
+    assert(now.channels[0] < ground, 'night hills stay darker than the night ground line');
+    assert(now.channels[0] < dino / 2, 'night hills stay well behind the night dino');
+    assert(now.channels[2] < cactus, 'night hills stay behind the night cactus');
+    assertEquals(GAME_CONFIG.HILL_COLOR_DAY, '#e1e1e1', 'day hills stay the quieter day fill');
+  });
+
+  it('a night-hill tune changes only the night fill', () => {
+    const origTuning = window.GAME_TUNING;
+    const origScore = game.score;
+    try {
+      setQaNight(false);
+      setReducedMotion(false);
+      window.GAME_TUNING = { HILL_COLOR_NIGHT: '#112233' };
+      assertEquals(getHillColor(0), GAME_CONFIG.HILL_COLOR_DAY, 'day fill ignores the night tune');
+      assertEquals(getHillColor(GAME_CONFIG.DAY_NIGHT_END), '#112233', 'full night reads the tune');
+      assertEquals(getHillColor(1000), '#112233', 'later night keeps the tune');
+      window.GAME_TUNING = { HILL_COLOR_NIGHT: 'nope' };
+      assertEquals(getHillColor(GAME_CONFIG.DAY_NIGHT_END), GAME_CONFIG.HILL_COLOR_NIGHT,
+        'a bad tune falls back to the shipped night fill');
+      assertEquals(game.score, origScore, 'tuning the night fill must not write the score');
+    } finally {
+      window.GAME_TUNING = origTuning;
       setQaNight(false);
       setReducedMotion(false);
     }
