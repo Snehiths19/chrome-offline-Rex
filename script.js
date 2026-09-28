@@ -407,6 +407,29 @@ function setQaNight(enabled) {
   qaNight = !!enabled;
 }
 
+// QA/debug only — not for players. ?qaLevel=1 fires the first Updated/Daily
+// milestone flash on the opening RUNNING frames so the sky wash can be seen
+// without a score-100 run. It does not write the score, speed, gaps, or
+// game.rng(). Classic never takes it, so Classic still has no gold tint.
+// The day wash stays the day peak; pair with ?qaNight=1 for the quiet night
+// peak. Re-read in resetGame() like the other QA flags. Tests flip it
+// through setQaLevel(); a normal visit leaves this false.
+function readQaLevelFlag(search) {
+  const query = search !== undefined
+    ? search
+    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
+      ? location.search
+      : '');
+  if (!query) return false;
+  return new URLSearchParams(query).get('qaLevel') === '1';
+}
+
+let qaLevel = readQaLevelFlag();
+
+function setQaLevel(enabled) {
+  qaLevel = !!enabled;
+}
+
 // Score the night sky consults. The QA flag pretends night has fully arrived.
 function scoreForNightSky(score) {
   if (!qaNight) return score;
@@ -749,6 +772,8 @@ const game = {
   qaClusterShown:   false,
   // QA/debug only. Latches after ?qaBig=1 spends its one early big cactus.
   qaBigShown:       false,
+  // QA/debug only. Latches after ?qaLevel=1 spends its one early milestone flash.
+  qaLevelShown:     false,
   isNewBest:         false,
   previousHighScore: 0,
   // Set on a Daily death before today best is saved. Mirrors isNewBest:
@@ -2033,11 +2058,13 @@ function resetGame() {
   game.plateauCueShown   = false;
   game.qaClusterShown    = false;
   game.qaBigShown        = false;
+  game.qaLevelShown      = false;
   // QA/debug only. Re-read so a mode toggle still honors the page query.
   qaPlateau = readQaPlateauFlag();
   qaCluster = readQaClusterFlag();
   qaBig = readQaBigFlag();
   qaNight = readQaNightFlag();
+  qaLevel = readQaLevelFlag();
   game.isNewBest         = false;
   game.previousHighScore = 0;
   game.isNewTodayBest    = false;
@@ -2129,6 +2156,14 @@ function handleRunning() {
   // Milestone flash on level-up.
   if (level > prevLevel && level > 0) {
     game.milestoneText = 'LEVEL ' + (level + 1);
+    Animations.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
+    audio.milestone();
+    Particles.emit('confetti', GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30, GAME_CONFIG.SCORE_Y);
+  } else if (qaLevel && isUpdatedMode() && !game.qaLevelShown) {
+    // QA/debug only. Same wash as the first real level, once, while the
+    // score is still near zero. Does not touch speed, gaps, or game.rng().
+    game.qaLevelShown = true;
+    game.milestoneText = 'LEVEL 2';
     Animations.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
     audio.milestone();
     Particles.emit('confetti', GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30, GAME_CONFIG.SCORE_Y);
@@ -2366,6 +2401,8 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.readQaBigFlag = readQaBigFlag;
   global.setQaNight = setQaNight;
   global.readQaNightFlag = readQaNightFlag;
+  global.setQaLevel = setQaLevel;
+  global.readQaLevelFlag = readQaLevelFlag;
   global.obstacleNightBrightness = obstacleNightBrightness;
   global.dinoNightBrightness = dinoNightBrightness;
   global.cloudPaintAlpha = cloudPaintAlpha;
