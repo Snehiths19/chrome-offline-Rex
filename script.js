@@ -219,11 +219,55 @@ const GAME_CONFIG = Object.freeze({
   // Updated and Daily. Day dust stays the brown on those kinds (#9c8770).
   // On the night sky that brown reads as warm day-dirt. #6a686e is cooler
   // and quieter than the night dino (1.35) and cactus (1.65), and a step
-  // above the soft night cloud, so the puff stays at the feet. Classic does
-  // not read this. Eases with the sky from DAY_NIGHT_START to DAY_NIGHT_END.
-  // Reduced motion skips that ease and snaps to this at DAY_NIGHT_END.
-  // Read through cfg().
+  // above the soft night cloud, so the puff stays at the feet. The gray
+  // stays. A darker gray at the night peaks below would sit on the road.
+  // The quieter night presence is those peaks, the shorter counts, and
+  // the shorter life. Classic does not read this. Eases with the sky from
+  // DAY_NIGHT_START to DAY_NIGHT_END. Reduced motion skips that ease and
+  // snaps to this at DAY_NIGHT_END. Read through cfg().
   NIGHT_LAND_DUST_COLOR:    '#6a686e',
+  // Visual only. Peak opacity of Updated/Daily jump foot dust once the sky
+  // is fully night. The mote stays #6a686e. The day takeoff is alpha 0.5:
+  // on the night ground (the #535353 strip at 0.42, about 50, 50, and 62)
+  // that peak sits about 16, 15, and 16 levels off the road — a gray spark
+  // at the ankle. Three-fifths of the alpha (0.30) composites to about
+  // 50, 49, and 65, which lands on the road, so the puff would stop
+  // reading. 0.42 keeps about 10, 9, and 11 of those levels, three-fifths
+  // of the old lift over the road, and stays under the night dino (1.35).
+  // Classic does not read this. The day peak eases to this from
+  // DAY_NIGHT_START to DAY_NIGHT_END. Reduced motion skips that ease and
+  // snaps to this at DAY_NIGHT_END. The ?qaDust=1 hold uses this peak at
+  // night instead of solid ink, and halves it under reduced motion.
+  // Playtest with ?qaDust=1&qaNight=1. Read through cfg(). Physics does
+  // not read this.
+  NIGHT_JUMP_DUST_ALPHA:    0.42,
+  // Visual only. Peak opacity of Updated/Daily land foot dust once the sky
+  // is fully night. The mote stays #6a686e. The day landing is alpha 0.4,
+  // softer than the takeoff so the extra motes do not stack into a cloud.
+  // On the same night ground that day peak sits about 8, 7, and 10 levels
+  // off the road. Three-fifths of the alpha (0.24) sinks under the road.
+  // 0.36 keeps about 5, 4, and 7 of those levels, three-fifths of the old
+  // lift, still above the road and quieter than the night takeoff.
+  // Classic does not read this. Eases with the sky the same way as
+  // NIGHT_JUMP_DUST_ALPHA. Reduced motion snaps at DAY_NIGHT_END. Read
+  // through cfg(). Physics does not read this.
+  NIGHT_LAND_DUST_ALPHA:    0.36,
+  // Visual only. How many jump and land motes Updated/Daily emit once the
+  // sky is fully night. Day stays 3 and 5. Two and three still make a
+  // landing heavier than a takeoff, with fewer motes so they do not stack
+  // back up to a spark on the road. Snaps at DAY_NIGHT_END, so twilight
+  // keeps the day counts. Reduced motion then quarters this count, same
+  // as the day burst. Classic does not read this. Read through cfg().
+  // Physics does not read this.
+  NIGHT_JUMP_DUST_COUNT:    2,
+  NIGHT_LAND_DUST_COUNT:    3,
+  // Visual only. Frames a night jump or land mote lives. Day stays 8.
+  // Six is enough for the puff to read at the ankle and short enough that
+  // it dies at the foot. The day spreads still apply, so a full life stays
+  // inside the day reach. Snaps at DAY_NIGHT_END. Reduced motion then
+  // halves it. Classic does not read this. Read through cfg(). Physics
+  // does not read this.
+  NIGHT_LAND_DUST_LIFE:     6,
   // Visual only. Opacity of the Updated/Daily ground strip once the sky is
   // fully night. The strip is the day sprite (#535353), the road edge under
   // the run. On the night sky (#1a1a2e) the old 0.55 line sat about 31, 31,
@@ -683,7 +727,10 @@ function setQaConfetti(enabled) {
 // the quieter kinds. It does not write the score, speed, gaps, or
 // game.rng(). Classic never takes it. The hold latches once per run and
 // only counts down while RUNNING, so it stays up on the idle dino and
-// through GET READY. Re-read in resetGame(). Tests flip it through
+// through GET READY. Day paint stays opaque so a capture cannot miss the
+// brown. Night paint uses the night takeoff peak instead of solid ink,
+// and reduced motion halves that night ink without shortening the hold.
+// Re-read in resetGame(). Tests flip it through
 // setQaDust(); a normal visit leaves this false.
 const QA_DUST_HOLD = 180;
 const QA_DUST_SIZE = 4;
@@ -781,11 +828,30 @@ function drawQaPlateau() {
 // Overdraw after the whole frame. A collision return, the death shake, and
 // a full particle pool all happen before this pass. The hold counter is
 // the only gate, so a missed emit cannot skip the marks.
+// Day hold stays solid. Night hold uses the takeoff peak, the louder of
+// the two night inks, so the cluster matches the puff instead of sparkling
+// as solid gray. Reduced motion halves that night ink. Twilight eases
+// from solid to the peak; reduced motion snaps at full night.
+function qaDustPaintAlpha() {
+  if (!isUpdatedMode()) return 1;
+  const night = tunedUnitAlpha('NIGHT_JUMP_DUST_ALPHA', GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA);
+  const s = scoreForNightSky(game.score);
+  let alpha = 1;
+  if (s >= GAME_CONFIG.DAY_NIGHT_END) alpha = night;
+  else if (s > GAME_CONFIG.DAY_NIGHT_START && !reducedMotion) {
+    const t = (s - GAME_CONFIG.DAY_NIGHT_START) /
+              (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
+    alpha = 1 + (night - 1) * t;
+  }
+  if (reducedMotion && s >= GAME_CONFIG.DAY_NIGHT_END) return alpha * 0.5;
+  return alpha;
+}
+
 function drawQaDust() {
   if (!isUpdatedMode() || game.qaDustHold <= 0) return;
   const color = landDustColor(Particles.KINDS.jump.color);
   ctx.save();
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = qaDustPaintAlpha();
   ctx.globalCompositeOperation = 'source-over';
   const marks = qaDustMarks();
   for (let i = 0; i < marks.length; i++) {
@@ -2519,6 +2585,55 @@ function landDustColor(dayColor) {
   return '#' + mixed.map(v => v.toString(16).padStart(2, '0')).join('');
 }
 
+// Day peaks stay on the jump and land kinds. In Updated and Daily the
+// peak eases toward the night key with the sky. Classic keeps the day
+// peak. Reduced motion snaps at full night, same as the color.
+function landDustAlpha(kind) {
+  const config = Particles.KINDS[kind];
+  const day = typeof config.alpha === 'number' ? config.alpha : 1;
+  if (!isUpdatedMode() || (kind !== 'jump' && kind !== 'land')) return day;
+  const key = kind === 'jump' ? 'NIGHT_JUMP_DUST_ALPHA' : 'NIGHT_LAND_DUST_ALPHA';
+  const night = tunedUnitAlpha(key, GAME_CONFIG[key]);
+  const s = scoreForNightSky(game.score);
+  if (s < GAME_CONFIG.DAY_NIGHT_START) return day;
+  if (s >= GAME_CONFIG.DAY_NIGHT_END) return night;
+  if (reducedMotion) return day;
+  const t = (s - GAME_CONFIG.DAY_NIGHT_START) /
+            (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
+  return day + (night - day) * t;
+}
+
+// A visual count of at least one mote. Anything else falls back so a bad
+// tune cannot blank the puff or emit a fractional mote.
+function tunedDustCount(key, fallback) {
+  const tuned = cfg(key);
+  if (typeof tuned !== 'number' || !Number.isFinite(tuned) || tuned < 1) return fallback;
+  return Math.round(tuned);
+}
+
+// Day counts stay on the kinds. Night counts snap on at full night so
+// twilight does not emit a fraction of a mote. Classic keeps the day count.
+function landDustCount(kind) {
+  const config = Particles.KINDS[kind];
+  if (!isUpdatedMode() || (kind !== 'jump' && kind !== 'land')) return config.count;
+  if (scoreForNightSky(game.score) < GAME_CONFIG.DAY_NIGHT_END) return config.count;
+  const key = kind === 'jump' ? 'NIGHT_JUMP_DUST_COUNT' : 'NIGHT_LAND_DUST_COUNT';
+  return tunedDustCount(key, GAME_CONFIG[key]);
+}
+
+// Day life stays on the kinds. Night life snaps on at full night and is
+// shared by jump and land. A tune under 2 frames falls back.
+function landDustLife(kind) {
+  const config = Particles.KINDS[kind];
+  if (!isUpdatedMode() || (kind !== 'jump' && kind !== 'land')) return config.life;
+  if (scoreForNightSky(game.score) < GAME_CONFIG.DAY_NIGHT_END) return config.life;
+  const tuned = cfg('NIGHT_LAND_DUST_LIFE');
+  if (typeof tuned !== 'number' || !Number.isFinite(tuned) || tuned < 2) {
+    return GAME_CONFIG.NIGHT_LAND_DUST_LIFE;
+  }
+  return Math.round(tuned);
+}
+
 const Particles = (() => {
   const POOL_SIZE = 80;
   const KINDS = Object.freeze({
@@ -2529,8 +2644,10 @@ const Particles = (() => {
     // -1.2..-0.4 with gravity 0.10: about 7px up, and the slow mote does
     // not fall through the ground. Peak alpha 0.5 is half the old solid
     // ink. Size stays 3 and the brown stays #9c8770. Night still recolors
-    // through landDustColor. Reduced motion still applies REDUCED_FACTOR
-    // and half life. Classic never emits.
+    // through landDustColor, and once the sky is fully night the peak,
+    // count, and life come from the night dust keys. Reduced motion still
+    // applies REDUCED_FACTOR and half life on top of that. Classic never
+    // emits.
     jump:      { count:  3, color: '#9c8770', size: 3, life:  8, alpha: 0.5, vyMin: -1.2, vyMax: -0.4, vxSpread: 0.6, gravity: 0.10 },
     // Landing whisper. The old burst was 9 motes living 14 frames and flung
     // ±2.5px, about 39px toward the next cactus. 5 motes is still more than
@@ -2538,7 +2655,9 @@ const Particles = (() => {
     // inside 10px of the foot. The rise is -0.9..-0.4 with gravity 0.12,
     // about 4px up, flatter than the takeoff. Peak alpha 0.4 is softer than
     // the takeoff so the extra motes do not stack into a cloud. Same brown,
-    // same night recolor, same reduced-motion damping. Classic never emits.
+    // same night recolor, and the same night peak, count, and life once
+    // the sky is fully night. Same reduced-motion damping. Classic never
+    // emits.
     land:      { count:  5, color: '#9c8770', size: 3, life:  8, alpha: 0.4, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.7, gravity: 0.12 },
     // Late-run heel whisper in Updated and Daily. One grey mote per frame
     // once speed is near the plateau, at the heel, off the obstacle lane.
@@ -2605,9 +2724,11 @@ const Particles = (() => {
       if (!isUpdatedMode()) return 0;
       const config = KINDS[kind];
       if (!config) return 0;
-      let count = config.count;
+      const foot = kind === 'jump' || kind === 'land';
+      let count = foot ? landDustCount(kind) : config.count;
+      let life = foot ? landDustLife(kind) : config.life;
       if (reducedMotion) count = Math.max(1, Math.round(count * REDUCED_FACTOR));
-      const life = reducedMotion ? Math.max(2, Math.round(config.life * 0.5)) : config.life;
+      if (reducedMotion) life = Math.max(2, Math.round(life * 0.5));
       let emitted = 0;
       for (let i = 0; i < pool.length && emitted < count; i++) {
         const p = pool[i];
@@ -2619,9 +2740,9 @@ const Particles = (() => {
         p.maxLife = life;
         p.life = life;
         p.size = config.size;
-        p.color = (kind === 'jump' || kind === 'land') ? landDustColor(config.color) : config.color;
+        p.color = foot ? landDustColor(config.color) : config.color;
         p.gravity = config.gravity;
-        p.alpha = typeof config.alpha === 'number' ? config.alpha : 1;
+        p.alpha = foot ? landDustAlpha(kind) : (typeof config.alpha === 'number' ? config.alpha : 1);
         emitted++;
       }
       return emitted;
