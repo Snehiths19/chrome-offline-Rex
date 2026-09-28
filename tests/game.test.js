@@ -7245,7 +7245,7 @@ describe('Soft collision burst', () => {
     jump:      { count: 6,  color: '#9c8770',                size: 3, life: 18, vyMin: -2.0, vyMax: -0.5, vxSpread: 1.5, gravity: 0.05 },
     land:      { count: 9,  color: '#9c8770',                size: 3, life: 14, vyMin: -1.5, vyMax: -0.2, vxSpread: 2.5, gravity: 0.08 },
     trail:     { count: 1,  color: 'rgba(150,150,150,0.28)', size: 2, life:  6, vyMin: -0.1, vyMax:  0.1, vxSpread: 0.2, gravity: 0 },
-    confetti:  { count: 20, color: '#ffd700',                size: 3, life: 40, vyMin: -3.5, vyMax: -1.5, vxSpread: 3.0, gravity: 0.12 },
+    confetti:  { count: 10, color: '#ffd700',                size: 3, life: 20, vyMin: -1.6, vyMax: -0.5, vxSpread: 1.2, gravity: 0.10 },
     plateau:   { count: 8,  color: '#c5d4e4',                size: 2, life: 24, vyMin: -1.0, vyMax: -0.3, vxSpread: 0.6, gravity: 0.02 },
     plateauQa: { count: 12, color: '#3d4f63',                size: 4, life: 40, vyMin: -1.4, vyMax: -0.4, vxSpread: 1.0, gravity: 0.03 },
   };
@@ -7426,7 +7426,7 @@ describe('Quiet late-run heel trail', () => {
     jump:      { count: 6,  color: '#9c8770', size: 3, life: 18, vyMin: -2.0, vyMax: -0.5, vxSpread: 1.5, gravity: 0.05 },
     land:      { count: 9,  color: '#9c8770', size: 3, life: 14, vyMin: -1.5, vyMax: -0.2, vxSpread: 2.5, gravity: 0.08 },
     collision: { count: 8,  color: '#d04a2a', size: 3, life: 12, vyMin: -1.2, vyMax:  0.4, vxSpread: 1.0, gravity: 0.10 },
-    confetti:  { count: 20, color: '#ffd700', size: 3, life: 40, vyMin: -3.5, vyMax: -1.5, vxSpread: 3.0, gravity: 0.12 },
+    confetti:  { count: 10, color: '#ffd700', size: 3, life: 20, vyMin: -1.6, vyMax: -0.5, vxSpread: 1.2, gravity: 0.10 },
     plateau:   { count: 8,  color: '#c5d4e4', size: 2, life: 24, vyMin: -1.0, vyMax: -0.3, vxSpread: 0.6, gravity: 0.02 },
     plateauQa: { count: 12, color: '#3d4f63', size: 4, life: 40, vyMin: -1.4, vyMax: -0.4, vxSpread: 1.0, gravity: 0.03 },
   };
@@ -7735,6 +7735,420 @@ describe('QA trail flag (?qaTrail=1)', () => {
       game.mode = origMode;
       setQaTrail(false);
       setQaNight(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+});
+
+describe('Quiet new-best confetti', () => {
+  // The level gold at the score was 20 motes living 40 frames and flung
+  // ±3px/frame. From the score that is a 120px spray toward the lane and
+  // a fountain off the top of the canvas. Half the motes and half the life
+  // stay gold. The spread stays on the number.
+  const PUFF = {
+    count: 10,
+    color: '#ffd700',
+    size: 3,
+    life: 20,
+    vyMin: -1.6,
+    vyMax: -0.5,
+    vxSpread: 1.2,
+    gravity: 0.10,
+  };
+
+  const UNCHANGED_KINDS = {
+    jump:      { count: 6,  color: '#9c8770',                size: 3, life: 18, vyMin: -2.0, vyMax: -0.5, vxSpread: 1.5, gravity: 0.05 },
+    land:      { count: 9,  color: '#9c8770',                size: 3, life: 14, vyMin: -1.5, vyMax: -0.2, vxSpread: 2.5, gravity: 0.08 },
+    trail:     { count: 1,  color: 'rgba(150,150,150,0.28)', size: 2, life:  6, vyMin: -0.1, vyMax:  0.1, vxSpread: 0.2, gravity: 0 },
+    collision: { count: 8,  color: '#d04a2a',                size: 3, life: 12, vyMin: -1.2, vyMax:  0.4, vxSpread: 1.0, gravity: 0.10 },
+    plateau:   { count: 8,  color: '#c5d4e4',                size: 2, life: 24, vyMin: -1.0, vyMax: -0.3, vxSpread: 0.6, gravity: 0.02 },
+    plateauQa: { count: 12, color: '#3d4f63',                size: 4, life: 40, vyMin: -1.4, vyMax: -0.4, vxSpread: 1.0, gravity: 0.03 },
+  };
+
+  function stepPath(vy0, kind) {
+    let y = 0;
+    let vy = vy0;
+    let min = 0;
+    let max = 0;
+    for (let i = 0; i < kind.life; i++) {
+      y += vy;
+      if (y < min) min = y;
+      if (y > max) max = y;
+      vy += kind.gravity;
+    }
+    return { end: y, min, max };
+  }
+
+  function goldMotes() {
+    return Particles.particles.filter((p) => p.life > 0 && p.color === PUFF.color);
+  }
+
+  it('is a shorter gold puff that stays on the score', () => {
+    const kind = Particles.KINDS.confetti;
+    assertEquals(kind.count, PUFF.count, 'half the old 20-mote firework');
+    assertEquals(kind.color, PUFF.color, 'celebration stays gold');
+    assertEquals(kind.size, PUFF.size, 'mote size stays readable');
+    assertEquals(kind.life, PUFF.life, 'half the old 40-frame life');
+    assertEquals(kind.vyMin, PUFF.vyMin, 'the rise is a short lift');
+    assertEquals(kind.vyMax, PUFF.vyMax, 'the slowest mote still lifts');
+    assertEquals(kind.vxSpread, PUFF.vxSpread, 'the spread stays on the score');
+    assertEquals(kind.gravity, PUFF.gravity, 'the puff keeps a light settle');
+
+    const up = stepPath(kind.vyMin, kind);
+    const down = stepPath(kind.vyMax, kind);
+    const edge = cfg('PARTICLE_EMIT_SPREAD') / 2 + kind.size / 2;
+    const reach = kind.vxSpread * kind.life + edge;
+    assert(reach <= 32, 'horizontal travel stays on the score number, including emit jitter');
+    assert(-up.min + kind.size / 2 < GAME_CONFIG.SCORE_Y,
+      'the puff does not leave the top of the canvas');
+    assert(down.max + kind.size / 2 < 24, 'the puff does not fall toward the lane');
+    assert(kind.count > Particles.KINDS.jump.count, 'still reads louder than a jump puff');
+    assert(kind.count < 20, 'fewer motes than the old firework');
+
+    for (const name of Object.keys(UNCHANGED_KINDS)) {
+      const got = Particles.KINDS[name];
+      const want = UNCHANGED_KINDS[name];
+      for (const key of Object.keys(want)) {
+        assertEquals(got[key], want[key], name + ' ' + key + ' stays unchanged');
+      }
+    }
+  });
+
+  it('a level-up in Updated and Daily emits the puff, and Classic emits none', () => {
+    const origMode = game.mode;
+    try {
+      setReducedMotion(false);
+      setQaConfetti(false);
+      for (const mode of [MODES.UPDATED, MODES.DAILY, MODES.CLASSIC]) {
+        game.mode = mode;
+        if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+        resetGame();
+        if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+        Particles.reset();
+        game.state = STATE.RUNNING;
+        game.graceFrames = 0;
+        game.obstacles.length = 0;
+        game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+        game.nextSpawnGap = GAME_CONFIG.MAX_SPAWN_GAP;
+        game.score = GAME_CONFIG.SCORE_PER_LEVEL - GAME_CONFIG.SCORE_INCREMENT;
+        gameLoop();
+        cancelAnimationFrame(game.animationFrameId);
+        const motes = goldMotes();
+        if (mode === MODES.CLASSIC) {
+          assertEquals(motes.length, 0, 'Classic level-up still emits no confetti');
+        } else {
+          assertEquals(motes.length, PUFF.count, mode + ' level-up emits the quiet puff');
+          assert(motes.every((p) => p.life === PUFF.life - 1), mode + ' puff uses the short life');
+          assert(motes.every((p) => p.color === PUFF.color), mode + ' puff stays gold');
+        }
+        assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
+          mode + ' level-up leaves speed on the curve');
+      }
+    } finally {
+      game.mode = origMode;
+      setQaConfetti(false);
+      setReducedMotion(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('still damps the puff under reduced motion', () => {
+    const origMode = game.mode;
+    try {
+      game.mode = MODES.UPDATED;
+      setReducedMotion(true);
+      Particles.reset();
+      const n = Particles.emit('confetti', 480, 30);
+      const expectedCount = Math.max(1, Math.round(PUFF.count * 0.25));
+      const expectedLife = Math.max(2, Math.round(PUFF.life * 0.5));
+      assertEquals(n, expectedCount, 'reduced motion still applies the quarter-count floor');
+      assert(expectedLife < PUFF.life, 'reduced motion still halves confetti life');
+      goldMotes().forEach((p) => {
+        assertEquals(p.life, expectedLife, 'reduced motion still halves the puff');
+        assertEquals(p.color, PUFF.color, 'reduced motion keeps the gold');
+      });
+    } finally {
+      game.mode = origMode;
+      setReducedMotion(false);
+      Particles.reset();
+    }
+  });
+});
+
+describe('QA confetti flag (?qaConfetti=1)', () => {
+  function tick() {
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+  }
+
+  function spyPaint() {
+    const calls = [];
+    const origFillRect = ctx.fillRect;
+    const origFillText = ctx.fillText;
+    ctx.fillRect = function (x, y, w, h) {
+      calls.push({ op: 'rect', style: ctx.fillStyle, x: x, y: y, w: w, h: h, alpha: ctx.globalAlpha });
+    };
+    ctx.fillText = function (text) {
+      calls.push({ op: 'text', text: String(text) });
+    };
+    return {
+      calls: calls,
+      restore() {
+        ctx.fillRect = origFillRect;
+        ctx.fillText = origFillText;
+      },
+    };
+  }
+
+  function goldAfterScore(calls) {
+    const scoreAt = calls.findIndex((c) => c.op === 'text' && /^\d{5}$/.test(c.text));
+    if (scoreAt < 0) return [];
+    return calls.slice(scoreAt + 1).filter((c) => c.op === 'rect' && c.style === QA_CONFETTI_COLOR);
+  }
+
+  function assertBlock(calls, label) {
+    const block = qaConfettiRect();
+    const gold = goldAfterScore(calls);
+    assertEquals(gold.length, 1, label + ' paints one dark-gold block after the score');
+    assertEquals(gold[0].x, block.x, label + ' block sits under the score digits');
+    assertEquals(gold[0].y, block.y, label + ' block sits under the score line');
+    assertEquals(gold[0].w, QA_CONFETTI_BLOCK_W, label + ' block is wide enough to see');
+    assertEquals(gold[0].h, QA_CONFETTI_BLOCK_H, label + ' block is tall enough to see');
+    assertEquals(gold[0].alpha, 1, label + ' block is fully opaque');
+    assert(gold[0].y >= GAME_CONFIG.SCORE_Y, label + ' block is below the score baseline');
+    const scoreAt = calls.findIndex((c) => c.op === 'text' && /^\d{5}$/.test(c.text));
+    const after = calls.slice(scoreAt + 1);
+    const rim = after.filter((c) => c.op === 'rect' && c.style === QA_CONFETTI_RIM);
+    assertEquals(rim.length, 1, label + ' paints a dark rim with the block');
+    const lastHud = after.reduce((at, c, i) => (c.op === 'text' ? i : at), -1);
+    const goldAt = after.findIndex((c) => c.op === 'rect' && c.style === QA_CONFETTI_COLOR);
+    assert(goldAt > lastHud, label + ' gold is the last paint, after every HUD string');
+  }
+
+  function armFreshRun(mode) {
+    game.mode = mode;
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    setQaLevel(false);
+    setQaNight(false);
+    setQaPlateau(false);
+    setQaTrail(false);
+    setQaConfetti(false);
+    setReducedMotion(false);
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    game.obstacles.length = 0;
+    game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+    game.nextSpawnGap = GAME_CONFIG.MAX_SPAWN_GAP;
+    dino.y = GAME_CONFIG.CANVAS_H - dino.height;
+    dino.isJumping = false;
+    dino.velocityY = 0;
+    Particles.reset();
+  }
+
+  it('recognizes only ?qaConfetti=1', () => {
+    assert(readQaConfettiFlag('?qaConfetti=1') === true, '?qaConfetti=1 should enable the early gold puff');
+    assert(readQaConfettiFlag('?qaNight=1&qaConfetti=1') === true, 'the flag should work beside ?qaNight=1');
+    assert(readQaConfettiFlag('?qaConfetti=1&qaTrail=1') === true, 'param order should not matter');
+    assert(readQaConfettiFlag('') === false, 'a normal visit should leave confetti on the real level');
+    assert(readQaConfettiFlag('?qaConfetti=0') === false, 'only the value 1 enables the flag');
+    assert(readQaConfettiFlag('?qaConfetti=12') === false, 'qaConfetti=12 must not count as the flag');
+    assert(readQaConfettiFlag('?qaLevel=1') === false, 'the level flag must not force this latch');
+  });
+
+  it('paints a dark-gold block from the hold, even when the pool cannot emit', () => {
+    const origMode = game.mode;
+    const spy = spyPaint();
+    try {
+      assert(QA_CONFETTI_HOLD >= 120, 'the debug hold must outlast a quick capture after GET READY');
+      assert(QA_CONFETTI_BLOCK_W >= 60, 'the debug block must be wide enough to see under the score');
+      assert(QA_CONFETTI_BLOCK_H >= 24, 'the debug block must be tall enough to see under the score');
+      assertEquals(Particles.KINDS.confetti.life, 20, 'production life stays the short puff');
+      assertEquals(Particles.KINDS.confetti.color, '#ffd700', 'production gold stays the light kind');
+      assertEquals(Particles.KINDS.confetti.size, 3, 'production mote size stays 3');
+      assertEquals(Particles.KINDS.confetti.count, 10, 'production count stays 10');
+      assertEquals(Particles.KINDS.confetti.vxSpread, 1.2, 'production spread stays tight');
+      for (const mode of [MODES.UPDATED, MODES.DAILY]) {
+        armFreshRun(mode);
+        game.rng = mulberry32(11);
+        setQaConfetti(false);
+        spy.calls.length = 0;
+        tick();
+        const rngAfterOff = game.rng();
+        const speedOff = game.currentSpeed;
+        assertEquals(goldAfterScore(spy.calls).length, 0, mode + ' without the flag does not paint');
+        assertEquals(game.qaConfettiShown, false, mode + ' without the flag does not spend the latch');
+        assertEquals(game.qaConfettiHold, 0, mode + ' without the flag does not start the hold');
+
+        armFreshRun(mode);
+        game.rng = mulberry32(11);
+        setQaConfetti(true);
+        Particles.particles.forEach((p) => {
+          p.life = 8;
+          p.maxLife = 8;
+          p.color = '#112233';
+          p.size = 2;
+        });
+        spy.calls.length = 0;
+        tick();
+        assertBlock(spy.calls, mode);
+        assertEquals(game.qaConfettiHold, QA_CONFETTI_HOLD, mode + ' latches the full hold');
+        assertEquals(game.qaConfettiShown, true, mode + ' spends the latch once');
+        Particles.particles.forEach((p) => {
+          assert(p.color !== QA_CONFETTI_COLOR, mode + ' does not restyle pool slots');
+          assert(p.color !== '#ffd700', mode + ' does not emit the production puff');
+        });
+        assertEquals(game.score, GAME_CONFIG.SCORE_INCREMENT, mode + ' must not jump the score');
+        assertEquals(game.currentSpeed, speedOff, mode + ' must not change speed');
+        assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
+          mode + ' speed still follows the real score');
+        assertEquals(game.rng(), rngAfterOff, mode + ' does not consume the run seed');
+        assertEquals(game.plateauCueShown, false, mode + ' does not spend the plateau cue');
+        assertEquals(game.qaLevelShown, false, mode + ' does not spend the level latch');
+        assertEquals(Animations.milestoneFrames, 0, mode + ' does not start the level wash');
+
+        for (let i = 0; i < 90; i++) {
+          spy.calls.length = 0;
+          tick();
+        }
+        assertBlock(spy.calls, mode + ' still');
+        assertEquals(game.qaConfettiHold, QA_CONFETTI_HOLD - 90,
+          mode + ' keeps the hold up well after GET READY');
+        assert(Math.abs(game.score - GAME_CONFIG.SCORE_INCREMENT * 91) < 1e-6,
+          mode + ' scoring keeps its normal step');
+      }
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaConfetti(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('still paints the block when a hit skips the rest of the frame', () => {
+    const origMode = game.mode;
+    const spy = spyPaint();
+    try {
+      armFreshRun(MODES.UPDATED);
+      setQaConfetti(true);
+      tick();
+      assertEquals(game.qaConfettiHold, QA_CONFETTI_HOLD, 'the hold is up before the hit');
+      game.obstacles.push({
+        x: dino.x,
+        y: dino.y,
+        width: dino.width,
+        height: dino.height,
+        type: 'small',
+        render: 'single',
+      });
+      spy.calls.length = 0;
+      tick();
+      assertEquals(game.state, STATE.DEAD, 'the cactus ends the run');
+      const block = qaConfettiRect();
+      const gold = spy.calls.filter((c) => c.op === 'rect' && c.style === QA_CONFETTI_COLOR);
+      assertEquals(gold.length, 1, 'the hold still paints after the hit returns early');
+      assertEquals(gold[0].x, block.x, 'the block stays under the score');
+      assertEquals(gold[0].y, block.y, 'the block stays under the score line');
+      assertEquals(gold[0].w, QA_CONFETTI_BLOCK_W, 'the block stays large');
+      assertEquals(gold[0].h, QA_CONFETTI_BLOCK_H, 'the block stays tall');
+      assertEquals(gold[0].alpha, 1, 'the block stays opaque on the death frame');
+      spy.calls.length = 0;
+      tick();
+      assertBlock(spy.calls, 'death shake');
+      assert(game.qaConfettiHold > 0, 'dying during the hold does not clear it');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaConfetti(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('Classic with ?qaConfetti=1 still paints nothing', () => {
+    const origMode = game.mode;
+    const spy = spyPaint();
+    try {
+      armFreshRun(MODES.CLASSIC);
+      setQaConfetti(true);
+      tick();
+      tick();
+      assertEquals(goldAfterScore(spy.calls).length, 0, 'Classic never paints the debug block');
+      assertEquals(
+        Particles.particles.filter((p) => p.life > 0 && p.color === '#ffd700').length,
+        0,
+        'Classic does not emit the production gold either'
+      );
+      assertEquals(game.qaConfettiShown, false, 'Classic does not spend the Updated latch');
+      assertEquals(game.qaConfettiHold, 0, 'Classic does not start the hold');
+      assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
+        'Classic speed still follows the score');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaConfetti(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('reduced motion still paints the debug block and does not emit', () => {
+    const origMode = game.mode;
+    const spy = spyPaint();
+    try {
+      armFreshRun(MODES.UPDATED);
+      setReducedMotion(true);
+      setQaConfetti(true);
+      tick();
+      assertBlock(spy.calls, 'reduced motion');
+      assertEquals(
+        Particles.particles.filter((p) => p.color === QA_CONFETTI_COLOR || p.color === '#ffd700').length,
+        0,
+        'the debug block does not go through the particle pool'
+      );
+      assert(game.score < 1, 'the debug block does not move the score');
+    } finally {
+      spy.restore();
+      game.mode = origMode;
+      setQaConfetti(false);
+      setReducedMotion(false);
+      Particles.reset();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('resetGame re-reads ?qaConfetti=1 from the page query', () => {
+    const origMode = game.mode;
+    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
+    const prevLocation = global.location;
+    const spy = spyPaint();
+    global.location = { search: '?qaConfetti=1' };
+    try {
+      setQaConfetti(false);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      game.state = STATE.RUNNING;
+      game.mode = MODES.UPDATED;
+      game.obstacles.length = 0;
+      game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+      game.nextSpawnGap = GAME_CONFIG.MAX_SPAWN_GAP;
+      Particles.reset();
+      tick();
+      assertBlock(spy.calls, 're-read flag');
+      assertEquals(game.qaConfettiHold, QA_CONFETTI_HOLD, 'the re-read flag latches the hold');
+      assert(game.score < 1, 're-reading the flag must not change the score');
+      assertEquals(game.qaConfettiShown, true, 'the re-read flag spends the latch');
+    } finally {
+      spy.restore();
+      if (hadLocation) global.location = prevLocation;
+      else delete global.location;
+      game.mode = origMode;
+      setQaConfetti(false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }

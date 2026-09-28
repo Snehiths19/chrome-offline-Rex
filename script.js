@@ -483,6 +483,63 @@ function setQaTrail(enabled) {
   qaTrail = !!enabled;
 }
 
+// QA/debug only — not for players. ?qaConfetti=1 shows an early gold block
+// in Updated/Daily so playtest can see it without a score-100 run.
+// The block is its own overlay. It does not emit, restyle, or read the
+// particle pool — a full pool or a missed "born" slot must still paint.
+// Production confetti stays #ffd700 at 3px on a real level-up.
+// It does not write the score, speed, gaps, or game.rng().
+// Classic never takes it. One hold per run. Re-read in resetGame().
+// Tests flip it through setQaConfetti(); a normal visit leaves this false.
+const QA_CONFETTI_HOLD = 180;
+const QA_CONFETTI_BLOCK_W = 88;
+const QA_CONFETTI_BLOCK_H = 36;
+const QA_CONFETTI_COLOR = '#b45309';
+const QA_CONFETTI_RIM = '#3f2a12';
+function readQaConfettiFlag(search) {
+  const query = search !== undefined
+    ? search
+    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
+      ? location.search
+      : '');
+  if (!query) return false;
+  return new URLSearchParams(query).get('qaConfetti') === '1';
+}
+
+let qaConfetti = readQaConfettiFlag();
+
+function setQaConfetti(enabled) {
+  qaConfetti = !!enabled;
+}
+
+// Solid block just under the score digits. Game coordinates, not pool slots.
+function qaConfettiRect() {
+  return {
+    x: GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET,
+    y: GAME_CONFIG.SCORE_Y + 10,
+    w: QA_CONFETTI_BLOCK_W,
+    h: QA_CONFETTI_BLOCK_H,
+  };
+}
+
+// Overdraw after the whole frame. The running handler returns before its
+// own draw when a cactus hits, and the death shake then redraws the score
+// on top of whatever was there. This pass runs from gameLoop after that,
+// from the hold counter only — a missed particle emit cannot skip it.
+// Full strength, dark rim, source-over, on top of the HUD.
+function drawQaConfetti() {
+  if (!isUpdatedMode() || game.qaConfettiHold <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  const block = qaConfettiRect();
+  ctx.fillStyle = QA_CONFETTI_RIM;
+  ctx.fillRect(block.x - 4, block.y - 4, block.w + 8, block.h + 8);
+  ctx.fillStyle = QA_CONFETTI_COLOR;
+  ctx.fillRect(block.x, block.y, block.w, block.h);
+  ctx.restore();
+}
+
 // Score the night sky consults. The QA flag pretends night has fully arrived.
 function scoreForNightSky(score) {
   if (!qaNight) return score;
@@ -834,6 +891,9 @@ const game = {
   qaBigShown:       false,
   // QA/debug only. Latches after ?qaLevel=1 spends its one early milestone flash.
   qaLevelShown:     false,
+  // QA/debug only. Latches after ?qaConfetti=1 spends its one early gold puff.
+  qaConfettiShown:  false,
+  qaConfettiHold:   0,
   isNewBest:         false,
   previousHighScore: 0,
   // Set on a Daily death before today best is saved. Mirrors isNewBest:
@@ -1783,7 +1843,17 @@ const Particles = (() => {
     // and the red stays #d04a2a so the hit still reads. Reduced motion
     // still applies REDUCED_FACTOR and half life.
     collision: { count:  8, color: '#d04a2a',                size: 3, life: 12, vyMin: -1.2, vyMax:  0.4, vxSpread: 1.0, gravity: 0.10 },
-    confetti:  { count: 20, color: '#ffd700',                size: 3, life: 40, vyMin: -3.5, vyMax: -1.5, vxSpread: 3.0, gravity: 0.12 },
+    // Level gold at the score in Updated and Daily. Classic never emits.
+    // The old burst was 20 motes living 40 frames and flung ±3px/frame.
+    // From the score that is a 120px spray toward the lane and a fountain
+    // off the top of the canvas, so the celebration yanks the eye. Half
+    // the motes (10) and half the life (20) keep a gold puff. vxSpread
+    // 1.2 holds a full life inside 24px of the number. The rise is
+    // -1.6..-0.5 with gravity 0.10: about 14px up and under 10px down,
+    // on the score and on the canvas. Size stays 3 and the gold stays
+    // #ffd700 so the level still reads as a celebration. Reduced motion
+    // still applies REDUCED_FACTOR and half life.
+    confetti:  { count: 10, color: '#ffd700',                size: 3, life: 20, vyMin: -1.6, vyMax: -0.5, vxSpread: 1.2, gravity: 0.10 },
     // Once-per-run plateau cue. Cool and small so it stays at the heel on the
     // night sky (~score 641). Distinct from gold confetti and brown foot dust.
     plateau:   { count:  8, color: '#c5d4e4',                size: 2, life: 24, vyMin: -1.0, vyMax: -0.3, vxSpread: 0.6, gravity: 0.02 },
@@ -2167,6 +2237,8 @@ function resetGame() {
   game.qaClusterShown    = false;
   game.qaBigShown        = false;
   game.qaLevelShown      = false;
+  game.qaConfettiShown   = false;
+  game.qaConfettiHold    = 0;
   // QA/debug only. Re-read so a mode toggle still honors the page query.
   qaPlateau = readQaPlateauFlag();
   qaCluster = readQaClusterFlag();
@@ -2174,6 +2246,7 @@ function resetGame() {
   qaNight = readQaNightFlag();
   qaLevel = readQaLevelFlag();
   qaTrail = readQaTrailFlag();
+  qaConfetti = readQaConfettiFlag();
   game.isNewBest         = false;
   game.previousHighScore = 0;
   game.isNewTodayBest    = false;
@@ -2300,6 +2373,18 @@ function handleRunning() {
     Animations.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
     audio.milestone();
     Particles.emit('confetti', GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30, GAME_CONFIG.SCORE_Y);
+  }
+
+  // QA/debug only — not for players. Latch a hold on the first Updated
+  // or Daily running frame. The paint is drawQaConfetti(), from this
+  // counter, not from a particle emit. A normal visit waits for the real
+  // level and keeps the small #ffd700 kind. Classic never enters.
+  // Does not change speed, gaps, scoring, or game.rng().
+  if (qaConfetti && isUpdatedMode() && !game.qaConfettiShown) {
+    game.qaConfettiShown = true;
+    game.qaConfettiHold = QA_CONFETTI_HOLD;
+  } else if (game.qaConfettiHold > 0) {
+    game.qaConfettiHold--;
   }
 
   // Scroll ground.
@@ -2454,6 +2539,9 @@ const STATE_HANDLERS = {
 function gameLoop() {
   game.animationFrameId = requestAnimationFrame(gameLoop);
   STATE_HANDLERS[game.state]();
+  // After the handler so a collision return, the score, and the death
+  // card cannot cover the debug block. No-op unless the hold is running.
+  drawQaConfetti();
 }
 
 // == SECTION 9: INITIALISATION ==
@@ -2548,6 +2636,15 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.readQaLevelFlag = readQaLevelFlag;
   global.setQaTrail = setQaTrail;
   global.readQaTrailFlag = readQaTrailFlag;
+  global.setQaConfetti = setQaConfetti;
+  global.readQaConfettiFlag = readQaConfettiFlag;
+  global.QA_CONFETTI_HOLD = QA_CONFETTI_HOLD;
+  global.QA_CONFETTI_BLOCK_W = QA_CONFETTI_BLOCK_W;
+  global.QA_CONFETTI_BLOCK_H = QA_CONFETTI_BLOCK_H;
+  global.QA_CONFETTI_COLOR = QA_CONFETTI_COLOR;
+  global.QA_CONFETTI_RIM = QA_CONFETTI_RIM;
+  global.qaConfettiRect = qaConfettiRect;
+  global.drawQaConfetti = drawQaConfetti;
   global.obstacleNightBrightness = obstacleNightBrightness;
   global.dinoNightBrightness = dinoNightBrightness;
   global.cloudPaintAlpha = cloudPaintAlpha;
