@@ -3,12 +3,27 @@
 body {
   display: flex;
   flex-direction: column;
+  /* Center when the stack fits. If it overflows a short window, start
+     below the top inset instead of sliding under the notch. */
   justify-content: center;
+  justify-content: safe center;
   align-items: center;
   min-height: 100vh;
+  min-height: 100dvh;
   margin: 0;
   background-color: #f0f0f0;
   overscroll-behavior: none; /* Prevent iOS bounce scroll */
+  /* viewport-fit=cover (index.html) lets these be non-zero under the notch,
+     Dynamic Island, and home indicator. border-box keeps the padding inside
+     the viewport, so share and jump sit above the home indicator. */
+  padding-top: constant(safe-area-inset-top);
+  padding-right: constant(safe-area-inset-right);
+  padding-bottom: constant(safe-area-inset-bottom);
+  padding-left: constant(safe-area-inset-left);
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
 }
 
 #game-wrapper {
@@ -17,13 +32,15 @@ body {
   flex-direction: column;
   align-items: center;
   width: 100%;
-  padding: 0 8px;
+  /* 44px holds mute / Daily / mode above the canvas, clear of the score.
+     8px each side is SHELL_GUTTER_X in script.js. */
+  padding: 44px 8px 0;
 }
 
 #mute-btn {
   position: absolute;
-  top: 6px;
-  left: 14px;
+  top: 8px;
+  left: 8px;
   z-index: 2;
   padding: 4px 8px;
   font-size: 14px;
@@ -49,7 +66,7 @@ body {
 
 #daily-btn {
   position: absolute;
-  top: 6px;
+  top: 8px;
   left: 68px;
   z-index: 2;
   padding: 4px 8px;
@@ -71,8 +88,12 @@ body {
 /* #N gains a digit every few years. Tuck the pill toward mute so it stays
    clear of Classic / Updated on a narrow phone. */
 @media (max-width: 420px) {
+  #mute-btn {
+    padding: 4px 6px;
+  }
+
   #daily-btn {
-    left: 58px;
+    left: 46px;
     padding: 4px 6px;
     font-size: 12px;
     letter-spacing: 0;
@@ -93,8 +114,8 @@ body {
 
 #mode-toggle {
   position: absolute;
-  top: 6px;
-  right: 14px;
+  top: 8px;
+  right: 8px;
   z-index: 2;
   display: inline-flex;
   padding: 2px;
@@ -128,6 +149,15 @@ body {
 
 #mode-toggle button:hover:not([aria-pressed='true']) { color: #555; }
 #mode-toggle button:focus-visible { outline: 2px solid #4a90e2; outline-offset: 2px; }
+
+/* After the base toggle rules so the tighter padding wins on a narrow phone. */
+@media (max-width: 420px) {
+  #mode-toggle button {
+    padding: 4px 7px;
+    font-size: 11px;
+    letter-spacing: 0;
+  }
+}
 
 #gameCanvas {
   border: 1px solid black;
@@ -200,6 +230,25 @@ body {
 
 #share-btn:active { transform: scale(0.96); }
 #share-btn:focus-visible { outline: 2px solid #4a90e2; outline-offset: 2px; }
+
+/* QA/debug only. ?qaSafe=1 (html.qa-safe) paints stand-in insets so Playtest
+   can check notch, side, and home-indicator clearance on a desktop browser.
+   The bands do not animate. A normal visit never gets this class. */
+html.qa-safe body {
+  padding-top: 59px;
+  padding-right: 47px;
+  padding-bottom: 34px;
+  padding-left: 47px;
+  background-color: #f0f0f0;
+  background-image:
+    linear-gradient(#f6cfc4, #f6cfc4),
+    linear-gradient(#f6cfc4, #f6cfc4),
+    linear-gradient(#f6cfc4, #f6cfc4),
+    linear-gradient(#f6cfc4, #f6cfc4);
+  background-repeat: no-repeat;
+  background-position: top center, center right, bottom center, left center;
+  background-size: 100% 59px, 47px 100%, 100% 34px, 47px 100%;
+}
 
 /* Visually hidden but readable by screen readers */
 .sr-only {
