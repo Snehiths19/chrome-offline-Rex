@@ -14493,7 +14493,7 @@ describe('QA share flag (?qaShare=1)', () => {
     Animations.deathAnimFrame = deathAnimFrames();
   }
 
-  it('does not spend the hold on GET READY, then holds Copied on Game Over', () => {
+  it('does not spend the hold on GET READY or the run, then holds Copied on Game Over', () => {
     const origMode = game.mode;
     const origBtn = buttonSnapshot();
     const origRng = game.rng;
@@ -14520,21 +14520,34 @@ describe('QA share flag (?qaShare=1)', () => {
       setReducedMotion(false);
       const shareBtn = armDailyWaiting();
       const seed = game.runSeed;
-      const gap = game.nextSpawnGap;
       const score = game.score;
-      const speed = game.currentSpeed;
       const best = game.dailyBest;
-      const obstacles = game.obstacles.length;
       let rngCalls = 0;
       game.rng = () => {
         rngCalls++;
         return origRng();
       };
-      for (let i = 0; i < 200; i++) tick();
+      // GET READY is 240 frames. The old latch started on the first Daily
+      // frame and the 180-frame window was already gone when Copy result appeared.
+      for (let i = 0; i < GAME_CONFIG.GRACE_FRAMES - 1; i++) tick();
       assertEquals(game.state, STATE.WAITING, 'GET READY is still counting down');
       assertEquals(game.qaShareHold, 0, 'GET READY must not start the hold');
       assertEquals(game.qaShareShown, false, 'GET READY must not spend the latch');
       assertEquals(shareBtn.textContent, '📋 Copy result', 'the button stays at rest before Game Over');
+      assertEquals(game.score, score, 'GET READY must not change the score');
+      assertEquals(rngCalls, 0, 'GET READY must not roll game.rng()');
+      game.state = STATE.RUNNING;
+      game.graceFrames = 0;
+      game.obstacles = [];
+      game.nextSpawnGap = 1000000;
+      for (let i = 0; i < QA_SHARE_HOLD; i++) tick();
+      assertEquals(game.state, STATE.RUNNING, 'the run is still going');
+      assertEquals(game.qaShareHold, 0, 'the run must not start the hold');
+      assertEquals(game.qaShareShown, false, 'the run must not spend the latch');
+      const rngBeforeCard = rngCalls;
+      const speedAtCard = game.currentSpeed;
+      const gapAtCard = game.nextSpawnGap;
+      const obstaclesAtCard = game.obstacles.length;
       settleDailyDeath();
       tick();
       assertEquals(game.qaShareHold, QA_SHARE_HOLD, 'Game Over latches the full capture window');
@@ -14546,13 +14559,12 @@ describe('QA share flag (?qaShare=1)', () => {
       assert(!shareBtn.classList.contains('is-qa-damped'), 'full motion does not damp the paint');
       assertEquals(shared, 0, 'the hold must not open the share sheet');
       assertEquals(wrote, 0, 'the hold must not write the clipboard');
-      assertEquals(rngCalls, 0, 'the hold must not roll game.rng()');
+      assertEquals(rngCalls, rngBeforeCard, 'settling the card must not roll game.rng()');
       assertEquals(game.runSeed, seed, 'the hold must not change the run seed');
-      assertEquals(game.nextSpawnGap, gap, 'the hold must not change the spawn gap');
-      assertEquals(game.score, score, 'the hold must not change the score');
-      assertEquals(game.currentSpeed, speed, 'the hold must not change speed');
       assertEquals(game.dailyBest, best, 'the hold must not change today best');
-      assertEquals(game.obstacles.length, obstacles, 'the hold must not spawn');
+      assertEquals(game.obstacles.length, obstaclesAtCard, 'settling the card must not spawn');
+      assertEquals(game.currentSpeed, speedAtCard, 'settling the card must not change speed');
+      assertEquals(game.nextSpawnGap, gapAtCard, 'settling the card must not change the spawn gap');
     } finally {
       if (origDesc) Object.defineProperty(global, 'navigator', origDesc);
       game.rng = origRng;
@@ -14707,8 +14719,15 @@ describe('QA share flag (?qaShare=1)', () => {
         setQaShare(true);
         const shareBtn = prepareButton();
         tick();
+        assertEquals(game.mode, mode, mode + ' stays put — the flag does not enter Daily');
         assertEquals(game.qaShareHold, 0, mode + ' does not start the hold');
         assertEquals(game.qaShareShown, false, mode + ' does not spend the latch');
+        game.state = STATE.DEAD;
+        Animations.deathShakeFrames = 0;
+        Animations.deathAnimFrame = deathAnimFrames();
+        tick();
+        drawGameOverScreen();
+        assertEquals(game.qaShareHold, 0, mode + ' death does not start the hold');
         assertEquals(shareBtn.style.display, 'none', mode + ' does not show Copy result');
         assertEquals(shareBtn.textContent, '📋 Copy result', mode + ' keeps the resting label');
         game.qaShareHold = 0;

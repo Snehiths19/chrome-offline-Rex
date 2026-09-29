@@ -1387,11 +1387,16 @@ function applyQaCopyButton() {
 }
 
 // QA/debug only — not for players. ?qaShare=1 holds ✓ Copied! on the Daily
-// Copy result button for the whole settled Game Over, after the count-up.
-// It does not spend the hold on GET READY or during the run, and it does
-// not tick back to Copy result while that button is up — a 3s window was
-// gone before a settled capture. A tap while the flag is on takes the same
-// in-page confirmation and does not open a sheet or write the clipboard.
+// Copy result button through settled Game Over. The flag does not switch
+// mode: a cold visit stays Classic or Updated until the player enters Daily.
+// The hold must not start on WAITING or RUNNING. GET READY is 240 frames
+// and the window is 180, so a latch on the first Daily frame is already
+// gone when the death card shows Copy result. The count-up finishes inside
+// handleDead, after this check, so the button's first visible frame
+// (deathAnimFrame >= length - 1) is the latch. It does not tick back to
+// Copy result while that button is up — same idea as the count-up card,
+// which stays until the capture surface is left. A tap while the flag is
+// on confirms in the page and does not open a sheet or write the clipboard.
 // This does not call navigator.share, does not call shareDailyResult(), and
 // does not write the score, speed, gaps, particles, or game.rng(). Classic
 // and free-play Updated never take it. Reduced motion latches the half
@@ -1433,8 +1438,8 @@ function dailyShareButtonSettled() {
 
 function advanceQaShare() {
   if (!qaShare || !dailyShareButtonSettled()) return;
-  // Stay on ✓ Copied! until the player leaves Game Over. Ticking the 180
-  // frames down put Copy result back before a settled screenshot.
+  // Latch once, on the settled card. Do not spend frames before Copy
+  // result is on screen, and do not count them down while it stays there.
   if (!game.qaShareShown || game.qaShareHold <= 0) {
     game.qaShareShown = true;
     game.qaShareHold = qaShareHoldFrames();
