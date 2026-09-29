@@ -94,7 +94,7 @@ const GAME_CONFIG = Object.freeze({
   RAMP_MIDPOINT:          300,    // score where acceleration is steepest (day/night transition)
   RAMP_STEEPNESS:           0.01, // sigmoid slope — controls how quickly speed rises through the midpoint
   SCORE_PER_LEVEL:        100,    // score points per level — used for milestone flash effects only
-  SCORE_INCREMENT:          0.1,  // score added per frame while RUNNING
+  SCORE_INCREMENT:          0.1,  // score added per sim frame (60Hz), not per display refresh
 
   // --- Hitbox forgiveness (rendering uses full sprite; collision uses shrunken box) ---
   DINO_PAD_X:               8,
@@ -1547,6 +1547,29 @@ function applyQaSafeShell() {
   if (!root || !root.classList || typeof root.classList.add !== 'function') return;
   if (qaSafe) root.classList.add('qa-safe');
   else if (typeof root.classList.remove === 'function') root.classList.remove('qa-safe');
+}
+
+// QA/debug only — not for players. ?qaHz=1 paints a static corner readout
+// of the measured sim rate and the display rate (rAF) so Playtest can
+// confirm a 120Hz phone still runs near 60 sim steps per second. Off,
+// nothing is counted and nothing is drawn. The ink does not pulse or
+// shake, so reduced motion has no hold to shorten. Re-read in resetGame().
+// Tests flip it through setQaHz(); a normal visit leaves this false.
+function readQaHzFlag(search) {
+  const query = search !== undefined
+    ? search
+    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
+      ? location.search
+      : '');
+  if (!query) return false;
+  return new URLSearchParams(query).get('qaHz') === '1';
+}
+
+let qaHz = readQaHzFlag();
+
+function setQaHz(enabled) {
+  qaHz = !!enabled;
+  if (!qaHz) resetQaHzMeter();
 }
 
 function advanceQaIdle() {
@@ -3952,6 +3975,10 @@ if (typeof document !== 'undefined' && document.addEventListener) {
 
 function resetGame() {
   const restartAfterDeath = game.state === STATE.DEAD;
+  // Drop any hitch that piled up on the previous run so the first frames
+  // of this one are not a catch-up burst.
+  resetSimClock();
+  resetQaHzMeter();
   dino.y = GAME_CONFIG.CANVAS_H - dino.height;
   dino.velocityY = 0;
   dino.isJumping = false;
@@ -4020,6 +4047,7 @@ function resetGame() {
   qaCountUp = readQaCountUpFlag();
   qaIdle = readQaIdleFlag();
   qaSafe = readQaSafeFlag();
+  qaHz = readQaHzFlag();
   applyQaSafeShell();
   game.isNewBest         = false;
   game.previousHighScore = 0;
@@ -4378,8 +4406,120 @@ const STATE_HANDLERS = {
   [STATE.DEAD]:    handleDead,
 };
 
-function gameLoop() {
-  game.animationFrameId = requestAnimationFrame(gameLoop);
+// One sim step is the historical 60Hz frame. Score, speed, spawn gaps,
+// jump physics, grace, and frame-tied juice all move once per step.
+// Display refresh may be faster. Real rAF time is spent in SIM_FRAME_MS
+// slices. A hitch is capped at MAX_SIM_STEPS so a backgrounded tab cannot
+// fast-forward the run. These are not live-tuning keys — physics stays
+// on the 60Hz slice, never on cfg().
+const SIM_FRAME_MS = 1000 / 60;
+const MAX_SIM_STEPS = 3;
+// Float dust only. A real short frame stays under one slice.
+const SIM_FRAME_EPSILON_MS = 1e-4;
+
+const simClock = {
+  accumulator: 0,
+  lastTimestamp: null,
+};
+
+function resetSimClock() {
+  simClock.accumulator = 0;
+  simClock.lastTimestamp = null;
+}
+
+// How many 60Hz slices this animation frame owes.
+// A call with no timestamp — tests, and the kickoff that starts the loop —
+// is exactly one slice and does not move the rAF clock. Mixing Date.now()
+// into lastTimestamp would disagree with rAF's performance timeline.
+function simStepsForFrame(timestamp) {
+  if (typeof timestamp !== 'number' || !Number.isFinite(timestamp)) return 1;
+  if (simClock.lastTimestamp === null) {
+    simClock.lastTimestamp = timestamp;
+    return 1;
+  }
+  let dt = timestamp - simClock.lastTimestamp;
+  simClock.lastTimestamp = timestamp;
+  if (!(dt > 0)) return 0;
+  const maxDt = SIM_FRAME_MS * MAX_SIM_STEPS;
+  if (dt > maxDt) dt = maxDt;
+  simClock.accumulator += dt;
+  let steps = 0;
+  while (simClock.accumulator + SIM_FRAME_EPSILON_MS >= SIM_FRAME_MS && steps < MAX_SIM_STEPS) {
+    simClock.accumulator -= SIM_FRAME_MS;
+    steps++;
+  }
+  // Hit the cap with time still owed. Drop it so the next frames don't burst.
+  if (steps === MAX_SIM_STEPS) simClock.accumulator = 0;
+  return steps;
+}
+
+// Sample window for ?qaHz=1. The anchor frame is not counted, so a full
+// second of later frames reports the rate Playtest should see: sim near
+// 60, raf near the display. Static numbers — no pulse.
+const qaHzMeter = {
+  raf: 0,
+  sim: 0,
+  anchor: null,
+  rafHz: null,
+  simHz: null,
+};
+
+function resetQaHzMeter() {
+  qaHzMeter.raf = 0;
+  qaHzMeter.sim = 0;
+  qaHzMeter.anchor = null;
+  qaHzMeter.rafHz = null;
+  qaHzMeter.simHz = null;
+}
+
+function noteQaHzFrame(steps, timestamp) {
+  if (!qaHz) return;
+  if (typeof timestamp !== 'number' || !Number.isFinite(timestamp)) return;
+  if (qaHzMeter.anchor === null) {
+    qaHzMeter.anchor = timestamp;
+    qaHzMeter.raf = 0;
+    qaHzMeter.sim = 0;
+    return;
+  }
+  qaHzMeter.raf += 1;
+  qaHzMeter.sim += steps;
+  const elapsed = timestamp - qaHzMeter.anchor;
+  // A summed 60Hz second can land a hair under 1000. That is still one second.
+  if (elapsed + 1e-3 < 1000) return;
+  qaHzMeter.rafHz = Math.round(qaHzMeter.raf * 1000 / elapsed);
+  qaHzMeter.simHz = Math.round(qaHzMeter.sim * 1000 / elapsed);
+  qaHzMeter.raf = 0;
+  qaHzMeter.sim = 0;
+  qaHzMeter.anchor = timestamp;
+}
+
+function qaHzLabel() {
+  const sim = qaHzMeter.simHz === null ? '--' : String(qaHzMeter.simHz);
+  const raf = qaHzMeter.rafHz === null ? '--' : String(qaHzMeter.rafHz);
+  return 'sim ' + sim + '  raf ' + raf;
+}
+
+function drawQaHz() {
+  if (!qaHz) return;
+  const label = qaHzLabel();
+  const night = game.score >= GAME_CONFIG.DAY_NIGHT_START;
+  ctx.save();
+  ctx.fillStyle = night ? 'rgba(26,26,46,0.72)' : 'rgba(255,255,255,0.72)';
+  ctx.fillRect(4, 12, 112, 16);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = night ? '#c8c8c8' : '#5c5c5c';
+  ctx.font = '11px ' + cfg('SCORE_FONT_FAMILY');
+  ctx.textAlign = 'left';
+  ctx.fillText(label, 8, 24);
+  ctx.restore();
+}
+
+// One 60Hz slice: the state handler plus the QA holds that used to run
+// once per animation frame. Drawing is inside the handler, so a slice
+// paints itself. A display frame that owes no slice does not call this —
+// the canvas already shows the last slice, and a second pass would move
+// score, hills, and particles for time that was not owed.
+function runSimFrame() {
   advanceQaDust();
   advanceQaCollision();
   advanceQaFlash();
@@ -4408,6 +4548,14 @@ function gameLoop() {
   drawQaNewBest();
   drawQaCountUp();
   applyQaCopyButton();
+}
+
+function gameLoop(timestamp) {
+  game.animationFrameId = requestAnimationFrame(gameLoop);
+  const steps = simStepsForFrame(timestamp);
+  for (let i = 0; i < steps; i++) runSimFrame();
+  noteQaHzFrame(steps, timestamp);
+  drawQaHz();
 }
 
 // == SECTION 9: INITIALISATION ==
@@ -4462,6 +4610,14 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.readQaSafeFlag = readQaSafeFlag;
   global.setQaSafe = setQaSafe;
   global.applyQaSafeShell = applyQaSafeShell;
+  global.readQaHzFlag = readQaHzFlag;
+  global.setQaHz = setQaHz;
+  global.qaHzLabel = qaHzLabel;
+  global.drawQaHz = drawQaHz;
+  global.SIM_FRAME_MS = SIM_FRAME_MS;
+  global.MAX_SIM_STEPS = MAX_SIM_STEPS;
+  global.simStepsForFrame = simStepsForFrame;
+  global.resetSimClock = resetSimClock;
   global.mulberry32 = mulberry32;
   global.MODES = MODES;
   global.setMode = setMode;

@@ -28,6 +28,7 @@ A clone of the Chrome offline dinosaur game, built with vanilla JavaScript and H
 - Day/night cycle — sky darkens at score 300, stars appear at 400
 - High score tracked across sessions via `localStorage`
 - Mobile-friendly with on-screen jump button
+- Pace is locked to a 60Hz sim clock, so a 120Hz phone matches a 60Hz desktop
 - Respects `prefers-reduced-motion`; announces game state to screen readers
 - Falls back to simple rectangles if sprite assets fail to load
 
@@ -53,6 +54,8 @@ npm run serve
 ```
 
 Then open `http://localhost:8080`.
+
+`?qaHz=1` paints a static corner readout of the measured sim rate and the display rate (`sim 60  raf 120`). It is for Playtest, not players. Off, it changes nothing. On a 60Hz screen both numbers stay near 60. On a 120Hz phone, `raf` stays near 120 and `sim` stays near 60 — the run should still feel like desktop. The label does not pulse, so reduced motion does not hide it.
 
 ## Development
 
