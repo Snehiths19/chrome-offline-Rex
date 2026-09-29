@@ -193,7 +193,7 @@ body {
   background: rgba(255, 140, 0, 0.62);
 }
 
-/* QA/debug only. ?qaCopy=1 under prefers-reduced-motion. */
+/* QA/debug only. ?qaCopy=1 or ?qaShare=1 under prefers-reduced-motion. */
 #share-btn.is-copied.is-qa-damped {
   background: rgba(255, 140, 0, 0.38);
 }

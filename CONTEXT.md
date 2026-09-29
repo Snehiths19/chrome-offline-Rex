@@ -107,8 +107,8 @@ _Avoid_: day number, challenge number
 **Daily best** — the player's highest score on today's daily challenge run, stored separately from all-time best. The stored day key (`dino-daily-date`) is the daily seed. It resets when the UTC day changes, together with the course and the daily number.
 _Avoid_: daily high score, today's score, daily record
 
-**Share result** — a clipboard-copied text summarising the player's daily best, available from the Game Over screen during a daily challenge run. Format: `Rex Daily #N 🦕 / Score: X / <url>`.
-_Avoid_: share score, copy result, clipboard share
+**Share result** — the Daily Game Over offer of the player's daily best. Capable browsers open the system share sheet with the existing text. If that sheet is missing, throws, or fails for a reason other than the player dismissing it, the same text is copied to the clipboard and the Copy result button flashes Copied. Dismissing the sheet copies nothing and does not flash. Format: `Rex Daily #N 🦕 / Score: X / <url>`.
+_Avoid_: share score, clipboard share
 
 **Pre-run framing** — the quiet line on the GET READY overlay during a Daily Challenge, shown only while state is WAITING. Copy: "Same course as everyone today · #N", where `#N` is the **Daily number**. Static text, no motion. Classic and Updated never show it. It is not drawn during RUNNING, and it does not replace TODAY BEST or the share result on Game Over.
 _Avoid_: daily banner, in-run badge, today label
@@ -128,7 +128,7 @@ _Avoid_: daily record, new daily high, today record
 - The **Daily number** is computed from the same UTC day as the **Daily seed** but is display-only — it does not influence the obstacle sequence
 - The **Daily seed**, **Daily number**, and **Daily best** day key all read that same UTC calendar day and change together at 00:00 UTC
 - **Daily best** is independent of all-time best; both are shown on the Game Over screen when in Daily Challenge
-- A **Share result** references both the **Daily number** and the **Daily best**
+- A **Share result** references both the **Daily number** and the **Daily best**. Capable browsers offer it through the system share sheet. The clipboard copy is the fallback when that sheet is unavailable
 - **Pre-run framing** is drawn only on the Daily Challenge GET READY overlay (WAITING), and that line names the **Daily number**. It is absent in RUNNING and in Classic and Updated free play
 - A **Death-screen hint** is drawn only on a settled Daily Challenge Game Over screen, under both the comparison and a **New today best**. It names the Copy result button, and it is absent in WAITING, RUNNING, Classic, and Updated
 - A **New today best** replaces the THIS RUN / TODAY BEST pair on that Game Over screen only. The **Death-screen hint** and **Share result** still appear once the count-up finishes

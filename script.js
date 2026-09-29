@@ -487,7 +487,8 @@ const GAME_CONFIG = Object.freeze({
   // longer than the old flash or drop the word. The confirmation stays
   // this long under reduced motion so it does not flicker. Playtest with
   // ?qaCopy=1, which holds the Copied label; that hold is half as long
-  // and quieter under reduced motion. Read through cfg().
+  // and quieter under reduced motion. ?qaShare=1 holds the same label
+  // without opening the system share sheet. Read through cfg().
   COPY_FLASH_FRAMES:        45,
   // Soft ceiling for the once-per-run plateau cue. The speed curve approaches
   // PLATEAU_SPEED but never reaches it; 0.98 is about score 641. Visual only —
@@ -1366,13 +1367,13 @@ function advanceQaCopy() {
 function applyQaCopyButton() {
   const btn = document.getElementById('share-btn');
   if (!btn) return;
-  if (isDailyMode() && game.qaCopyHold > 0) {
+  if (isDailyMode() && (game.qaCopyHold > 0 || game.qaShareHold > 0)) {
     if (btn.style) btn.style.display = 'block';
     btn.textContent = '✓ Copied!';
     markShareCopied(btn, true, reducedMotion);
     return;
   }
-  if (!game.qaCopyShown) return;
+  if (!game.qaCopyShown && !game.qaShareShown) return;
   const settledDailyDeath = isDailyMode()
     && game.state === STATE.DEAD
     && Animations.deathShakeFrames <= 0
@@ -1383,6 +1384,53 @@ function applyQaCopyButton() {
     btn.textContent = '📋 Copy result';
     markShareCopied(btn, false, false);
   }
+}
+
+// QA/debug only — not for players. ?qaShare=1 holds the Daily Copy result
+// button on ✓ Copied! from the first WAITING, RUNNING, or DEAD frame, so
+// playtest can catch the share confirmation without a system share sheet,
+// a clipboard write, or a finished score count-up. A tap while the flag is
+// on takes that same stub path. This does not call navigator.share, does
+// not call shareDailyResult(), and does not write the score, speed, gaps,
+// particles, or game.rng(). Classic and free-play Updated never take it.
+// Reduced motion halves the hold and adds the quieter is-qa-damped paint.
+// Re-read in resetGame(). Tests flip it through setQaShare(); a normal
+// visit leaves this false.
+const QA_SHARE_HOLD = 180;
+
+function readQaShareFlag(search) {
+  const query = search !== undefined
+    ? search
+    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
+      ? location.search
+      : '');
+  if (!query) return false;
+  return new URLSearchParams(query).get('qaShare') === '1';
+}
+
+let qaShare = readQaShareFlag();
+
+function setQaShare(enabled) {
+  qaShare = !!enabled;
+}
+
+function qaShareHoldFrames() {
+  if (!reducedMotion) return QA_SHARE_HOLD;
+  return Math.max(2, Math.round(QA_SHARE_HOLD * 0.5));
+}
+
+function advanceQaShare() {
+  if (!isDailyMode()) return;
+  const visible = game.state === STATE.WAITING
+    || game.state === STATE.RUNNING
+    || game.state === STATE.DEAD;
+  if (!visible) return;
+  if (qaShare && !game.qaShareShown) {
+    game.qaShareShown = true;
+    game.qaShareHold = qaShareHoldFrames();
+    return;
+  }
+  if (game.qaShareHold > 0) game.qaShareHold--;
 }
 
 // QA/debug only — not for players. ?qaCountUp=1 holds a Game Over card from
@@ -1953,6 +2001,10 @@ const game = {
   qaCopyShown:      false,
   // QA/debug only. Frames left on the ?qaCopy=1 Copied label.
   qaCopyHold:       0,
+  // QA/debug only. Latches after ?qaShare=1 spends its one Copied hold.
+  qaShareShown:     false,
+  // QA/debug only. Frames left on the ?qaShare=1 Copied label.
+  qaShareHold:      0,
   // QA/debug only. Latches after ?qaCountUp=1 spends its Game Over card.
   qaCountUpShown:   false,
   // QA/debug only. Frames left on the ?qaCountUp=1 Game Over card.
@@ -2013,23 +2065,46 @@ function setMode(newMode) {
   gameLoop();
 }
 
-// Build and copy the daily result string to the clipboard.
-// Returns the text so tests can assert its shape without touching clipboard.
-function shareDailyResult() {
+// The Daily share string. Title and url stay inside this text so a system
+// share sheet does not repeat them. Clipboard fallback uses the same string.
+function dailyShareText() {
   const score = game.dailyBest > 0 ? game.dailyBest : Math.floor(game.score);
-  const text = [
+  return [
     'Rex Daily #' + dailyNumber() + ' 🦕',
     'Score: ' + score,
     'https://snehiths19.github.io/chrome-offline-Rex/',
   ].join('\n');
-  if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
-    // writeText can throw synchronously when the clipboard is blocked.
-    // That must not escape: the Copied flash is independent of the write.
-    try {
-      const pending = navigator.clipboard.writeText(text);
-      if (pending && typeof pending.catch === 'function') pending.catch(() => {});
-    } catch { /* clipboard blocked */ }
-  }
+}
+
+function canOfferNativeShare() {
+  if (qaShare) return false;
+  return typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+}
+
+// Dismissing the sheet, or tapping again while it is already open, should
+// not look like a successful share and should not copy.
+function isShareQuietFailure(err) {
+  const name = err && err.name;
+  return name === 'AbortError' || name === 'InvalidStateError';
+}
+
+function writeDailyShareClipboard(text) {
+  if (typeof navigator === 'undefined' || !navigator.clipboard || !navigator.clipboard.writeText) return;
+  // writeText can throw synchronously when the clipboard is blocked.
+  // That must not escape: the Copied flash is independent of the write.
+  try {
+    const pending = navigator.clipboard.writeText(text);
+    if (pending && typeof pending.catch === 'function') pending.catch(() => {});
+  } catch { /* clipboard blocked */ }
+}
+
+// Build the daily result string. Copies it when the system share sheet is
+// unavailable. A capable browser leaves the sheet to the Copy result tap,
+// so calling this for its text does not open a sheet or also copy.
+// Returns the text so tests can assert its shape without touching clipboard.
+function shareDailyResult() {
+  const text = dailyShareText();
+  if (!qaShare && !canOfferNativeShare()) writeDailyShareClipboard(text);
   return text;
 }
 
@@ -3566,16 +3641,58 @@ function markShareCopied(btn, copied, damped) {
   else btn.classList.remove('is-qa-damped');
 }
 
+function flashShareCopied(btn) {
+  Animations.copyFlashFrames = copyFlashDuration();
+  if (!btn) return;
+  btn.textContent = '✓ Copied!';
+  markShareCopied(btn, true, false);
+}
+
+function fallbackCopyDaily(btn, text) {
+  // Start the flash before the clipboard call. A sync throw from
+  // writeText used to abort this handler, so the label never changed.
+  flashShareCopied(btn);
+  writeDailyShareClipboard(text);
+}
+
 // Share button — shown on death screen during daily challenge only.
+// Capable browsers open the system share sheet with the existing text.
+// Success flashes Copied. Dismissing the sheet, or a sheet that is
+// already open, does not flash and does not copy. A missing API, a sync
+// throw, or any other rejection falls back to today's clipboard write.
 const shareBtn = document.getElementById('share-btn');
 if (shareBtn && shareBtn.addEventListener) {
   const onShareTap = (event) => {
     if (event) event.stopPropagation();
-    // Start the flash before the clipboard call. A sync throw from
-    // writeText used to abort this handler, so the label never changed.
-    Animations.copyFlashFrames = copyFlashDuration();
-    shareBtn.textContent = '✓ Copied!';
-    markShareCopied(shareBtn, true, false);
+    // ?qaShare=1 never opens the OS sheet. The confirmation is in-page
+    // so a capture can see it. Reduced motion quiets that QA paint.
+    if (qaShare) {
+      Animations.copyFlashFrames = copyFlashDuration();
+      shareBtn.textContent = '✓ Copied!';
+      markShareCopied(shareBtn, true, reducedMotion);
+      return;
+    }
+    if (canOfferNativeShare()) {
+      const text = dailyShareText();
+      let pending;
+      try {
+        pending = navigator.share({ text });
+      } catch {
+        fallbackCopyDaily(shareBtn, text);
+        return;
+      }
+      if (!pending || typeof pending.then !== 'function') {
+        fallbackCopyDaily(shareBtn, text);
+        return;
+      }
+      return pending.then(() => {
+        flashShareCopied(shareBtn);
+      }).catch((err) => {
+        if (isShareQuietFailure(err)) return;
+        fallbackCopyDaily(shareBtn, text);
+      });
+    }
+    flashShareCopied(shareBtn);
     shareDailyResult();
   };
   shareBtn.addEventListener('click', onShareTap);
@@ -3695,6 +3812,8 @@ function resetGame() {
   game.qaNewBestHold     = 0;
   game.qaCopyShown       = false;
   game.qaCopyHold        = 0;
+  game.qaShareShown      = false;
+  game.qaShareHold       = 0;
   game.qaCountUpShown    = false;
   game.qaCountUpHold     = 0;
   game.qaCountUpShareCleared = false;
@@ -3715,6 +3834,7 @@ function resetGame() {
   qaShake = readQaShakeFlag();
   qaNewBest = readQaNewBestFlag();
   qaCopy = readQaCopyFlag();
+  qaShare = readQaShareFlag();
   qaCountUp = readQaCountUpFlag();
   qaIdle = readQaIdleFlag();
   game.isNewBest         = false;
@@ -4082,6 +4202,7 @@ function gameLoop() {
   advanceQaScorePop();
   advanceQaNewBest();
   advanceQaCopy();
+  advanceQaShare();
   advanceQaShake();
   advanceQaCountUp();
   advanceQaIdle();
@@ -4176,6 +4297,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.ScoreStore = ScoreStore;
   global.isDailyMode = isDailyMode;
   global.shareDailyResult = shareDailyResult;
+  global.dailyShareText = dailyShareText;
   global.setReducedMotion = setReducedMotion;
   global.enableDeathLog = enableDeathLog;
   global.disableDeathLog = disableDeathLog;
@@ -4267,6 +4389,10 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.readQaCopyFlag = readQaCopyFlag;
   global.QA_COPY_HOLD = QA_COPY_HOLD;
   global.qaCopyHoldFrames = qaCopyHoldFrames;
+  global.setQaShare = setQaShare;
+  global.readQaShareFlag = readQaShareFlag;
+  global.QA_SHARE_HOLD = QA_SHARE_HOLD;
+  global.qaShareHoldFrames = qaShareHoldFrames;
   global.setQaCountUp = setQaCountUp;
   global.readQaCountUpFlag = readQaCountUpFlag;
   global.QA_COUNT_UP_HOLD = QA_COUNT_UP_HOLD;
