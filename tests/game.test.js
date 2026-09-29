@@ -13962,6 +13962,893 @@ describe('QA idle pulse flag (?qaIdle=1)', () => {
   });
 });
 
+describe('Daily native share sheet', () => {
+  function shareHandler() {
+    const shareBtn = document.getElementById('share-btn');
+    const handler =
+      shareBtn._listeners && shareBtn._listeners.click && shareBtn._listeners.click[0];
+    assert(typeof handler === 'function', 'share button must register a click handler');
+    return handler;
+  }
+
+  function installClassList(el) {
+    const names = new Set();
+    el.classList = {
+      add(name) {
+        names.add(name);
+      },
+      remove(name) {
+        names.delete(name);
+      },
+      contains(name) {
+        return names.has(name);
+      },
+    };
+    return el.classList;
+  }
+
+  function withNavigator(value, run) {
+    const origDesc = Object.getOwnPropertyDescriptor(global, 'navigator');
+    Object.defineProperty(global, 'navigator', {
+      configurable: true,
+      writable: true,
+      value,
+    });
+    const restore = () => {
+      if (origDesc) Object.defineProperty(global, 'navigator', origDesc);
+    };
+    let result;
+    try {
+      result = run();
+    } catch (err) {
+      restore();
+      throw err;
+    }
+    if (result && typeof result.then === 'function') {
+      return result.then(
+        (out) => {
+          restore();
+          return out;
+        },
+        (err) => {
+          restore();
+          throw err;
+        }
+      );
+    }
+    restore();
+    return result;
+  }
+
+  function namedError(name, message) {
+    const err = new Error(message);
+    err.name = name;
+    return err;
+  }
+
+  // Settle inside the tap. The harness runs the next test before a real
+  // promise's callback, which would let a later test overwrite this one.
+  function settle(run) {
+    return {
+      then(onOk, onErr) {
+        try {
+          const out = run(onOk, onErr);
+          return out && typeof out.then === 'function' ? out : settle(() => out);
+        } catch (err) {
+          if (typeof onErr === 'function') return settle(() => onErr(err));
+          return shareRejected(err);
+        }
+      },
+      catch(onErr) {
+        return this.then(undefined, onErr);
+      },
+    };
+  }
+
+  function shareResolved() {
+    return settle((onOk) => (typeof onOk === 'function' ? onOk() : undefined));
+  }
+
+  function shareRejected(err) {
+    return settle((onOk, onErr) => {
+      if (typeof onErr === 'function') return onErr(err);
+      throw err;
+    });
+  }
+
+  it('shareDailyResult() still returns the text and does not open a sheet', () => {
+    const origBest = game.dailyBest;
+    game.dailyBest = 500;
+    let shared = 0;
+    let wrote = 0;
+    try {
+      withNavigator(
+        {
+          share() {
+            shared++;
+            return Promise.resolve();
+          },
+          clipboard: {
+            writeText() {
+              wrote++;
+              return Promise.resolve();
+            },
+          },
+        },
+        () => {
+          const text = shareDailyResult();
+          assertEquals(text, dailyShareText(), 'the share string stays the existing Daily text');
+          assert(text.includes('Rex Daily #' + dailyNumber()), 'the header stays in the text');
+          assert(text.includes('Score: 500'), 'the daily best stays in the text');
+          assert(
+            text.includes('https://snehiths19.github.io/chrome-offline-Rex/'),
+            'the url stays inside the text'
+          );
+          assertEquals(shared, 0, 'building the text must not open the share sheet');
+          assertEquals(wrote, 0, 'a capable share environment must not also copy');
+        }
+      );
+    } finally {
+      game.dailyBest = origBest;
+    }
+  });
+
+  it('canShare false keeps the clipboard fallback and the Copied flash', () => {
+    const shareBtn = document.getElementById('share-btn');
+    const origFlash = Animations.copyFlashFrames;
+    const origText = shareBtn.textContent;
+    const origBest = game.dailyBest;
+    game.dailyBest = 42;
+    Animations.copyFlashFrames = 0;
+    shareBtn.textContent = '📋 Copy result';
+    let shared = 0;
+    let wrote = null;
+    let flashAtWrite = -1;
+    try {
+      withNavigator(
+        {
+          share() {
+            shared++;
+            return Promise.resolve();
+          },
+          canShare() {
+            return false;
+          },
+          clipboard: {
+            writeText(text) {
+              wrote = text;
+              flashAtWrite = Animations.copyFlashFrames;
+              return Promise.resolve();
+            },
+          },
+        },
+        () => {
+          shareHandler()({ stopPropagation() {} });
+          assertEquals(shared, 0, 'no sheet means share() is not called');
+          assertEquals(wrote, dailyShareText(), 'the clipboard still gets the Daily text');
+          assertEquals(
+            flashAtWrite,
+            GAME_CONFIG.COPY_FLASH_FRAMES,
+            'the flash starts before the clipboard write'
+          );
+          assertEquals(shareBtn.textContent, '✓ Copied!', 'the button still confirms');
+        }
+      );
+    } finally {
+      Animations.copyFlashFrames = origFlash;
+      shareBtn.textContent = origText;
+      game.dailyBest = origBest;
+    }
+  });
+
+  it('shareDailyResult() still copies when the share sheet is unavailable', () => {
+    const origBest = game.dailyBest;
+    game.dailyBest = 80;
+    let wrote = null;
+    try {
+      withNavigator(
+        {
+          clipboard: {
+            writeText(text) {
+              wrote = text;
+              return Promise.resolve();
+            },
+          },
+        },
+        () => {
+          const text = shareDailyResult();
+          assertEquals(wrote, text, 'the clipboard fallback still writes the same text');
+        }
+      );
+    } finally {
+      game.dailyBest = origBest;
+    }
+  });
+
+  it('a successful share sheet flashes Copied and does not copy', () => {
+    const shareBtn = document.getElementById('share-btn');
+    const origFlash = Animations.copyFlashFrames;
+    const origText = shareBtn.textContent;
+    const origBest = game.dailyBest;
+    const classes = installClassList(shareBtn);
+    game.dailyBest = 500;
+    Animations.copyFlashFrames = 0;
+    shareBtn.textContent = '📋 Copy result';
+    let payload = null;
+    let wrote = false;
+    try {
+      withNavigator(
+        {
+          share(data) {
+            payload = data;
+            assertEquals(Animations.copyFlashFrames, 0, 'Copied waits until the sheet succeeds');
+            assertEquals(shareBtn.textContent, '📋 Copy result', 'the label waits with the flash');
+            return shareResolved();
+          },
+          clipboard: {
+            writeText() {
+              wrote = true;
+              return Promise.resolve();
+            },
+          },
+        },
+        () => {
+          shareHandler()({ stopPropagation() {} });
+          assertEquals(
+            payload.text,
+            dailyShareText(),
+            'the sheet receives the existing Daily text'
+          );
+          assertEquals(
+            Object.keys(payload).join(','),
+            'text',
+            'title and url stay inside the text so the sheet does not repeat them'
+          );
+          assert(!wrote, 'a successful share must not also write the clipboard');
+          assertEquals(
+            Animations.copyFlashFrames,
+            GAME_CONFIG.COPY_FLASH_FRAMES,
+            'a successful share starts the same Copied flash'
+          );
+          assertEquals(shareBtn.textContent, '✓ Copied!', 'the button confirms the share');
+          assert(classes.contains('is-copied'), 'the confirmation uses the calmer Copied paint');
+          assert(
+            !classes.contains('is-qa-damped'),
+            'a real share is not the reduced-motion QA hold'
+          );
+        }
+      );
+    } finally {
+      Animations.copyFlashFrames = origFlash;
+      shareBtn.textContent = origText;
+      game.dailyBest = origBest;
+    }
+  });
+
+  it('dismissing the share sheet does not flash and does not copy', () => {
+    const shareBtn = document.getElementById('share-btn');
+    const origFlash = Animations.copyFlashFrames;
+    const origText = shareBtn.textContent;
+    Animations.copyFlashFrames = 0;
+    shareBtn.textContent = '📋 Copy result';
+    let wrote = false;
+    try {
+      withNavigator(
+        {
+          share() {
+            return shareRejected(namedError('AbortError', 'dismissed'));
+          },
+          clipboard: {
+            writeText() {
+              wrote = true;
+              return Promise.resolve();
+            },
+          },
+        },
+        () => {
+          shareHandler()({ stopPropagation() {} });
+          assert(!wrote, 'dismissing the sheet must not copy');
+          assertEquals(Animations.copyFlashFrames, 0, 'dismissing the sheet must not flash Copied');
+          assertEquals(shareBtn.textContent, '📋 Copy result', 'the label stays Copy result');
+        }
+      );
+    } finally {
+      Animations.copyFlashFrames = origFlash;
+      shareBtn.textContent = origText;
+    }
+  });
+
+  it('a share sheet that is already open does not flash and does not copy', () => {
+    const shareBtn = document.getElementById('share-btn');
+    const origFlash = Animations.copyFlashFrames;
+    const origText = shareBtn.textContent;
+    Animations.copyFlashFrames = 0;
+    shareBtn.textContent = '📋 Copy result';
+    let wrote = false;
+    try {
+      withNavigator(
+        {
+          share() {
+            return shareRejected(namedError('InvalidStateError', 'already sharing'));
+          },
+          clipboard: {
+            writeText() {
+              wrote = true;
+              return Promise.resolve();
+            },
+          },
+        },
+        () => {
+          shareHandler()({ stopPropagation() {} });
+          assert(!wrote, 'a second tap must not copy while the sheet is open');
+          assertEquals(Animations.copyFlashFrames, 0, 'a second tap must not flash Copied');
+          assertEquals(shareBtn.textContent, '📋 Copy result', 'the label stays Copy result');
+        }
+      );
+    } finally {
+      Animations.copyFlashFrames = origFlash;
+      shareBtn.textContent = origText;
+    }
+  });
+
+  it('any other share rejection falls back to the clipboard and flashes', () => {
+    const shareBtn = document.getElementById('share-btn');
+    const origFlash = Animations.copyFlashFrames;
+    const origText = shareBtn.textContent;
+    const origBest = game.dailyBest;
+    game.dailyBest = 42;
+    Animations.copyFlashFrames = 0;
+    shareBtn.textContent = '📋 Copy result';
+    let wrote = null;
+    let flashAtWrite = -1;
+    try {
+      withNavigator(
+        {
+          share() {
+            return shareRejected(namedError('NotAllowedError', 'blocked'));
+          },
+          clipboard: {
+            writeText(text) {
+              wrote = text;
+              flashAtWrite = Animations.copyFlashFrames;
+              return Promise.resolve();
+            },
+          },
+        },
+        () => {
+          shareHandler()({ stopPropagation() {} });
+          assertEquals(wrote, dailyShareText(), 'the fallback writes the existing Daily text');
+          assertEquals(
+            flashAtWrite,
+            GAME_CONFIG.COPY_FLASH_FRAMES,
+            'the flash starts before the clipboard write'
+          );
+          assertEquals(shareBtn.textContent, '✓ Copied!', 'the fallback still confirms');
+        }
+      );
+    } finally {
+      Animations.copyFlashFrames = origFlash;
+      shareBtn.textContent = origText;
+      game.dailyBest = origBest;
+    }
+  });
+
+  it('a sync throw from navigator.share falls back to the clipboard and flashes', () => {
+    const shareBtn = document.getElementById('share-btn');
+    const origFlash = Animations.copyFlashFrames;
+    const origText = shareBtn.textContent;
+    const origBest = game.dailyBest;
+    game.dailyBest = 42;
+    Animations.copyFlashFrames = 0;
+    shareBtn.textContent = '📋 Copy result';
+    let wrote = null;
+    let flashAtWrite = -1;
+    try {
+      withNavigator(
+        {
+          share() {
+            throw new Error('share unavailable');
+          },
+          clipboard: {
+            writeText(text) {
+              wrote = text;
+              flashAtWrite = Animations.copyFlashFrames;
+              return Promise.resolve();
+            },
+          },
+        },
+        () => {
+          let threw = false;
+          try {
+            shareHandler()({ stopPropagation() {} });
+          } catch {
+            threw = true;
+          }
+          assert(!threw, 'a blocked share sheet must not abort the tap');
+          assertEquals(wrote, dailyShareText(), 'the fallback writes the existing Daily text');
+          assertEquals(
+            flashAtWrite,
+            GAME_CONFIG.COPY_FLASH_FRAMES,
+            'the flash starts before the clipboard write'
+          );
+          assertEquals(shareBtn.textContent, '✓ Copied!', 'the fallback still confirms');
+        }
+      );
+    } finally {
+      Animations.copyFlashFrames = origFlash;
+      shareBtn.textContent = origText;
+      game.dailyBest = origBest;
+    }
+  });
+
+  it('a share call that does not return a promise falls back to the clipboard', () => {
+    const shareBtn = document.getElementById('share-btn');
+    const origFlash = Animations.copyFlashFrames;
+    const origText = shareBtn.textContent;
+    Animations.copyFlashFrames = 0;
+    shareBtn.textContent = '📋 Copy result';
+    let wrote = false;
+    try {
+      withNavigator(
+        {
+          share() {
+            return undefined;
+          },
+          clipboard: {
+            writeText() {
+              wrote = true;
+              return Promise.resolve();
+            },
+          },
+        },
+        () => {
+          shareHandler()({ stopPropagation() {} });
+          assert(wrote, 'a share API that does not return a promise uses the clipboard');
+          assert(Animations.copyFlashFrames > 0, 'that fallback still flashes Copied');
+        }
+      );
+    } finally {
+      Animations.copyFlashFrames = origFlash;
+      shareBtn.textContent = origText;
+    }
+  });
+});
+
+describe('QA share flag (?qaShare=1)', () => {
+  function tick() {
+    gameLoop();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+  }
+
+  function installClassList(el) {
+    const names = new Set();
+    el.classList = {
+      add(name) {
+        names.add(name);
+      },
+      remove(name) {
+        names.delete(name);
+      },
+      contains(name) {
+        return names.has(name);
+      },
+    };
+    return el.classList;
+  }
+
+  function buttonSnapshot() {
+    const shareBtn = document.getElementById('share-btn');
+    return {
+      style: shareBtn.style,
+      text: shareBtn.textContent,
+      classList: shareBtn.classList,
+    };
+  }
+
+  function prepareButton() {
+    const shareBtn = document.getElementById('share-btn');
+    shareBtn.style = { display: 'none' };
+    shareBtn.textContent = '📋 Copy result';
+    installClassList(shareBtn);
+    return shareBtn;
+  }
+
+  function restoreButton(orig) {
+    const shareBtn = document.getElementById('share-btn');
+    if (orig.style === undefined) delete shareBtn.style;
+    else shareBtn.style = orig.style;
+    shareBtn.textContent = orig.text;
+    if (orig.classList === undefined) delete shareBtn.classList;
+    else shareBtn.classList = orig.classList;
+  }
+
+  function armDailyWaiting() {
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    game.mode = MODES.DAILY;
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    setQaShare(true);
+    return prepareButton();
+  }
+
+  it('?qaShare=1 is Daily-only and off for any other value', () => {
+    assert(readQaShareFlag('?qaShare=1') === true, '?qaShare=1 should hold the share confirmation');
+    assert(
+      readQaShareFlag('?qaCopy=1&qaShare=1') === true,
+      'the flag should work beside other params'
+    );
+    assert(readQaShareFlag('?qaShare=0') === false, 'only the value 1 enables the flag');
+    assert(readQaShareFlag('?qaShare=12') === false, 'qaShare=12 must not count as the flag');
+    assert(readQaShareFlag('') === false, 'an empty query leaves the flag off');
+    assert(readQaShareFlag('?qaCopy=1') === false, 'the copy hold must not force the share stub');
+    assert(
+      readQaCopyFlag('?qaShare=1') === false,
+      'this flag must not hold the clipboard confirmation'
+    );
+  });
+
+  function settleDailyDeath() {
+    game.state = STATE.DEAD;
+    Animations.deathShakeFrames = 0;
+    Animations.deathAnimFrame = deathAnimFrames();
+  }
+
+  it('does not spend the hold on GET READY or the run, then holds Copied on Game Over', () => {
+    const origMode = game.mode;
+    const origBtn = buttonSnapshot();
+    const origRng = game.rng;
+    const origDesc = Object.getOwnPropertyDescriptor(global, 'navigator');
+    let shared = 0;
+    let wrote = 0;
+    Object.defineProperty(global, 'navigator', {
+      configurable: true,
+      writable: true,
+      value: {
+        share() {
+          shared++;
+          return Promise.resolve();
+        },
+        clipboard: {
+          writeText() {
+            wrote++;
+            return Promise.resolve();
+          },
+        },
+      },
+    });
+    try {
+      setReducedMotion(false);
+      const shareBtn = armDailyWaiting();
+      const seed = game.runSeed;
+      const score = game.score;
+      const best = game.dailyBest;
+      let rngCalls = 0;
+      game.rng = () => {
+        rngCalls++;
+        return origRng();
+      };
+      // GET READY is 240 frames. The old latch started on the first Daily
+      // frame and the 180-frame window was already gone when Copy result appeared.
+      for (let i = 0; i < GAME_CONFIG.GRACE_FRAMES - 1; i++) tick();
+      assertEquals(game.state, STATE.WAITING, 'GET READY is still counting down');
+      assertEquals(game.qaShareHold, 0, 'GET READY must not start the hold');
+      assertEquals(game.qaShareShown, false, 'GET READY must not spend the latch');
+      assertEquals(shareBtn.textContent, '📋 Copy result', 'the button stays at rest before Game Over');
+      assertEquals(game.score, score, 'GET READY must not change the score');
+      assertEquals(rngCalls, 0, 'GET READY must not roll game.rng()');
+      game.state = STATE.RUNNING;
+      game.graceFrames = 0;
+      game.obstacles = [];
+      game.nextSpawnGap = 1000000;
+      for (let i = 0; i < QA_SHARE_HOLD; i++) tick();
+      assertEquals(game.state, STATE.RUNNING, 'the run is still going');
+      assertEquals(game.qaShareHold, 0, 'the run must not start the hold');
+      assertEquals(game.qaShareShown, false, 'the run must not spend the latch');
+      const rngBeforeCard = rngCalls;
+      const speedAtCard = game.currentSpeed;
+      const gapAtCard = game.nextSpawnGap;
+      const obstaclesAtCard = game.obstacles.length;
+      settleDailyDeath();
+      tick();
+      assertEquals(game.qaShareHold, QA_SHARE_HOLD, 'Game Over latches the full capture window');
+      assertEquals(qaShareHoldFrames(), QA_SHARE_HOLD, 'the helper matches the full window');
+      assertEquals(game.qaShareShown, true, 'Game Over spends the latch once');
+      assertEquals(shareBtn.style.display, 'block', 'Copied is on the visible Copy result control');
+      assertEquals(shareBtn.textContent, '✓ Copied!', 'the hold shows the share confirmation');
+      assert(shareBtn.classList.contains('is-copied'), 'the hold uses the calmer Copied paint');
+      assert(!shareBtn.classList.contains('is-qa-damped'), 'full motion does not damp the paint');
+      assertEquals(shared, 0, 'the hold must not open the share sheet');
+      assertEquals(wrote, 0, 'the hold must not write the clipboard');
+      assertEquals(rngCalls, rngBeforeCard, 'settling the card must not roll game.rng()');
+      assertEquals(game.runSeed, seed, 'the hold must not change the run seed');
+      assertEquals(game.dailyBest, best, 'the hold must not change today best');
+      assertEquals(game.obstacles.length, obstaclesAtCard, 'settling the card must not spawn');
+      assertEquals(game.currentSpeed, speedAtCard, 'settling the card must not change speed');
+      assertEquals(game.nextSpawnGap, gapAtCard, 'settling the card must not change the spawn gap');
+    } finally {
+      if (origDesc) Object.defineProperty(global, 'navigator', origDesc);
+      game.rng = origRng;
+      game.mode = origMode;
+      setQaShare(false);
+      setReducedMotion(false);
+      game.qaShareHold = 0;
+      game.qaShareShown = false;
+      restoreButton(origBtn);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('keeps Copied for the whole settled Game Over, not a 3s window', () => {
+    const origMode = game.mode;
+    const origBtn = buttonSnapshot();
+    const origDesc = Object.getOwnPropertyDescriptor(global, 'navigator');
+    let shared = 0;
+    let wrote = 0;
+    Object.defineProperty(global, 'navigator', {
+      configurable: true,
+      writable: true,
+      value: {
+        share() {
+          shared++;
+          return Promise.resolve();
+        },
+        clipboard: {
+          writeText() {
+            wrote++;
+            return Promise.resolve();
+          },
+        },
+      },
+    });
+    try {
+      setReducedMotion(false);
+      const shareBtn = armDailyWaiting();
+      settleDailyDeath();
+      for (let i = 0; i < QA_SHARE_HOLD + 40; i++) tick();
+      assertEquals(game.state, STATE.DEAD, 'the settled screen stays up');
+      assert(game.qaShareHold > 0, 'the hold does not burn away while Copy result is up');
+      assertEquals(shareBtn.style.display, 'block', 'the control stays visible');
+      assertEquals(shareBtn.textContent, '✓ Copied!', 'a late capture still reads Copied');
+      assert(shareBtn.classList.contains('is-copied'), 'the Copied paint stays on');
+      assertEquals(shared, 0, 'staying on Copied must not open a sheet');
+      assertEquals(wrote, 0, 'staying on Copied must not write the clipboard');
+      drawGameOverScreen();
+      assertEquals(shareBtn.textContent, '✓ Copied!', 'Game Over paint must not restore Copy result');
+      game.qaShareHold = 0;
+      Animations.copyFlashFrames = 0;
+      drawGameOverScreen();
+      assertEquals(
+        shareBtn.textContent,
+        '✓ Copied!',
+        'the flag keeps Copied even if the frame counter is already spent'
+      );
+    } finally {
+      if (origDesc) Object.defineProperty(global, 'navigator', origDesc);
+      game.mode = origMode;
+      setQaShare(false);
+      setReducedMotion(false);
+      game.qaShareHold = 0;
+      game.qaShareShown = false;
+      restoreButton(origBtn);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('Game Over paint keeps a live Copied flash and a QA hold', () => {
+    const origMode = game.mode;
+    const origState = game.state;
+    const origBtn = buttonSnapshot();
+    const origAnim = Animations.deathAnimFrame;
+    const origShake = Animations.deathShakeFrames;
+    const origFlash = Animations.copyFlashFrames;
+    try {
+      setReducedMotion(false);
+      setQaShare(false);
+      game.mode = MODES.DAILY;
+      game.state = STATE.DEAD;
+      Animations.deathShakeFrames = 0;
+      Animations.deathAnimFrame = deathAnimFrames();
+      Animations.copyFlashFrames = 40;
+      game.qaShareHold = 0;
+      game.qaCopyHold = 0;
+      const shareBtn = prepareButton();
+      shareBtn.style.display = 'block';
+      drawGameOverScreen();
+      assertEquals(shareBtn.textContent, '✓ Copied!', 'a live flash survives the Game Over paint');
+      assert(shareBtn.classList.contains('is-copied'), 'the live flash keeps the Copied paint');
+      assert(!shareBtn.classList.contains('is-qa-damped'), 'a real flash is not the QA damp');
+
+      Animations.copyFlashFrames = 0;
+      game.qaShareHold = 30;
+      setReducedMotion(true);
+      setQaShare(true);
+      drawGameOverScreen();
+      assertEquals(shareBtn.textContent, '✓ Copied!', 'a QA hold survives the Game Over paint');
+      assert(shareBtn.classList.contains('is-qa-damped'), 'reduced motion quiets the held confirmation');
+    } finally {
+      game.mode = origMode;
+      game.state = origState;
+      Animations.deathAnimFrame = origAnim;
+      Animations.deathShakeFrames = origShake;
+      Animations.copyFlashFrames = origFlash;
+      game.qaShareHold = 0;
+      game.qaCopyHold = 0;
+      setQaShare(false);
+      setReducedMotion(false);
+      restoreButton(origBtn);
+    }
+  });
+
+  it('reduced motion halves the share hold and quiets the ink', () => {
+    const origMode = game.mode;
+    const origBtn = buttonSnapshot();
+    try {
+      setReducedMotion(true);
+      const shareBtn = armDailyWaiting();
+      settleDailyDeath();
+      tick();
+      const half = Math.max(2, Math.round(QA_SHARE_HOLD * 0.5));
+      assertEquals(game.qaShareHold, half, 'reduced motion halves the 180-frame hold');
+      assertEquals(game.qaShareHold, qaShareHoldFrames(), 'the helper matches the damped hold');
+      assert(game.qaShareHold < QA_SHARE_HOLD, 'the damped hold is shorter');
+      assert(qaShareHoldFrames() >= 2, 'the hold still lasts long enough to see');
+      assertEquals(shareBtn.textContent, '✓ Copied!', 'Copied is still readable');
+      assert(shareBtn.classList.contains('is-copied'), 'the damped hold still paints Copied');
+      assert(shareBtn.classList.contains('is-qa-damped'), 'reduced motion quiets the paint');
+      assertEquals(Animations.copyFlashFrames, 0, 'the damped hold does not start the live flash');
+    } finally {
+      game.mode = origMode;
+      setQaShare(false);
+      setReducedMotion(false);
+      game.qaShareHold = 0;
+      game.qaShareShown = false;
+      restoreButton(origBtn);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('Classic and Updated never take the share hold', () => {
+    const origMode = game.mode;
+    const origBtn = buttonSnapshot();
+    try {
+      [MODES.CLASSIC, MODES.UPDATED].forEach((mode) => {
+        if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+        game.mode = mode;
+        resetGame();
+        if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+        setQaShare(true);
+        const shareBtn = prepareButton();
+        tick();
+        assertEquals(game.mode, mode, mode + ' stays put — the flag does not enter Daily');
+        assertEquals(game.qaShareHold, 0, mode + ' does not start the hold');
+        assertEquals(game.qaShareShown, false, mode + ' does not spend the latch');
+        game.state = STATE.DEAD;
+        Animations.deathShakeFrames = 0;
+        Animations.deathAnimFrame = deathAnimFrames();
+        tick();
+        drawGameOverScreen();
+        assertEquals(game.qaShareHold, 0, mode + ' death does not start the hold');
+        assertEquals(shareBtn.style.display, 'none', mode + ' does not show Copy result');
+        assertEquals(shareBtn.textContent, '📋 Copy result', mode + ' keeps the resting label');
+        game.qaShareHold = 0;
+        game.qaShareShown = false;
+        setQaShare(false);
+      });
+    } finally {
+      game.mode = origMode;
+      setQaShare(false);
+      game.qaShareHold = 0;
+      game.qaShareShown = false;
+      restoreButton(origBtn);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('a tap under ?qaShare=1 confirms in place and does not open a sheet', () => {
+    const shareBtn = document.getElementById('share-btn');
+    const handler =
+      shareBtn._listeners && shareBtn._listeners.click && shareBtn._listeners.click[0];
+    const origFlash = Animations.copyFlashFrames;
+    const origText = shareBtn.textContent;
+    const classes = installClassList(shareBtn);
+    Animations.copyFlashFrames = 0;
+    shareBtn.textContent = '📋 Copy result';
+    setQaShare(true);
+    let shared = 0;
+    let wrote = 0;
+    const origDesc = Object.getOwnPropertyDescriptor(global, 'navigator');
+    Object.defineProperty(global, 'navigator', {
+      configurable: true,
+      writable: true,
+      value: {
+        share() {
+          shared++;
+          return Promise.resolve();
+        },
+        clipboard: {
+          writeText() {
+            wrote++;
+            return Promise.resolve();
+          },
+        },
+      },
+    });
+    try {
+      setReducedMotion(true);
+      handler({ stopPropagation() {} });
+      assertEquals(shared, 0, 'the QA flag must not open the system share sheet');
+      assertEquals(wrote, 0, 'the QA flag must not write the clipboard');
+      assertEquals(
+        Animations.copyFlashFrames,
+        GAME_CONFIG.COPY_FLASH_FRAMES,
+        'the stub path still confirms with the live flash'
+      );
+      assertEquals(shareBtn.textContent, '✓ Copied!', 'the stub path says Copied');
+      assert(classes.contains('is-copied'), 'the stub path paints Copied');
+      assert(classes.contains('is-qa-damped'), 'reduced motion quiets the QA confirmation');
+      game.mode = MODES.DAILY;
+      game.state = STATE.DEAD;
+      Animations.deathShakeFrames = 0;
+      Animations.deathAnimFrame = deathAnimFrames();
+      shareBtn.style = { display: 'block' };
+      drawGameOverScreen();
+      assertEquals(shareBtn.textContent, '✓ Copied!', 'Game Over paint keeps the tap confirmation');
+      assert(classes.contains('is-copied'), 'Game Over paint keeps the Copied class');
+      assert(classes.contains('is-qa-damped'), 'Game Over paint keeps the reduced-motion ink');
+      assertEquals(shared, 0, 'the redraw must not open the share sheet');
+      assertEquals(wrote, 0, 'the redraw must not write the clipboard');
+    } finally {
+      if (origDesc) Object.defineProperty(global, 'navigator', origDesc);
+      setReducedMotion(false);
+      setQaShare(false);
+      Animations.copyFlashFrames = origFlash;
+      shareBtn.textContent = origText;
+    }
+  });
+
+  it('resetGame re-reads ?qaShare=1 from the page query', () => {
+    const origMode = game.mode;
+    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
+    const prevLocation = global.location;
+    try {
+      global.location = { search: '' };
+      setQaShare(true);
+      game.qaShareShown = true;
+      game.qaShareHold = 40;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      game.mode = MODES.DAILY;
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      assertEquals(game.qaShareHold, 0, 'a visit without the flag clears the hold');
+      assertEquals(game.qaShareShown, false, 'a visit without the flag clears the latch');
+      global.location = { search: '?qaShare=1' };
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      gameLoop();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      assertEquals(game.state, STATE.WAITING, 're-reading the flag still starts on GET READY');
+      assertEquals(game.qaShareHold, 0, 'GET READY does not latch the hold');
+      assertEquals(game.qaShareShown, false, 'GET READY does not spend the latch');
+      game.state = STATE.DEAD;
+      Animations.deathShakeFrames = 0;
+      Animations.deathAnimFrame = deathAnimFrames();
+      gameLoop();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      assertEquals(game.qaShareHold, QA_SHARE_HOLD, 'settled Game Over latches the hold');
+      assertEquals(game.qaShareShown, true, 'settled Game Over spends the latch');
+    } finally {
+      if (hadLocation) global.location = prevLocation;
+      else delete global.location;
+      game.mode = origMode;
+      setQaShare(false);
+      game.qaShareHold = 0;
+      game.qaShareShown = false;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+});
+
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {
