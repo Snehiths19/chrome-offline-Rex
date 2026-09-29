@@ -1386,11 +1386,12 @@ function applyQaCopyButton() {
   }
 }
 
-// QA/debug only — not for players. ?qaShare=1 holds the Daily Copy result
-// button on ✓ Copied! from the first WAITING, RUNNING, or DEAD frame, so
-// playtest can catch the share confirmation without a system share sheet,
-// a clipboard write, or a finished score count-up. A tap while the flag is
-// on takes that same stub path. This does not call navigator.share, does
+// QA/debug only — not for players. ?qaShare=1 holds ✓ Copied! on the Daily
+// Copy result button once that button is actually on screen: settled Game
+// Over, after the count-up. It does not spend the hold on GET READY or
+// during the run, so a capture still sees it after the death. A tap while
+// the flag is on takes the same in-page confirmation and does not open a
+// sheet or write the clipboard. This does not call navigator.share, does
 // not call shareDailyResult(), and does not write the score, speed, gaps,
 // particles, or game.rng(). Classic and free-play Updated never take it.
 // Reduced motion halves the hold and adds the quieter is-qa-damped paint.
@@ -1419,13 +1420,20 @@ function qaShareHoldFrames() {
   return Math.max(2, Math.round(QA_SHARE_HOLD * 0.5));
 }
 
+// True on the frame the Copy result button becomes visible, and on every
+// settled Game Over frame after that. The count-up increments inside
+// handleDead after this check, so the finishing frame (length - 1) counts
+// too. GET READY and the run do not.
+function dailyShareButtonSettled() {
+  if (!isDailyMode() || game.state !== STATE.DEAD) return false;
+  if (Animations.deathShakeFrames > 0) return false;
+  const length = deathAnimFrames();
+  return Animations.deathAnimFrame >= Math.max(0, length - 1);
+}
+
 function advanceQaShare() {
-  if (!isDailyMode()) return;
-  const visible = game.state === STATE.WAITING
-    || game.state === STATE.RUNNING
-    || game.state === STATE.DEAD;
-  if (!visible) return;
-  if (qaShare && !game.qaShareShown) {
+  if (!qaShare || !dailyShareButtonSettled()) return;
+  if (!game.qaShareShown) {
     game.qaShareShown = true;
     game.qaShareHold = qaShareHoldFrames();
     return;
@@ -2078,7 +2086,15 @@ function dailyShareText() {
 
 function canOfferNativeShare() {
   if (qaShare) return false;
-  return typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+  if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') return false;
+  // A browser can expose share() and still have no sheet (desktop Linux).
+  // canShare() === false means the clipboard path, which flashes Copied.
+  if (typeof navigator.canShare !== 'function') return true;
+  try {
+    return navigator.canShare({ text: dailyShareText() }) === true;
+  } catch {
+    return false;
+  }
 }
 
 // Dismissing the sheet, or tapping again while it is already open, should
@@ -2938,9 +2954,14 @@ function drawGameOverScreen() {
     if (shareBtnEl && shareBtnEl.style) {
       shareBtnEl.style.display = t >= 1 ? 'block' : 'none';
       if (t >= 1) {
-        const flashing = Animations.copyFlashFrames > 0;
-        shareBtnEl.textContent = flashing ? '✓ Copied!' : '📋 Copy result';
-        markShareCopied(shareBtnEl, flashing, false);
+        // The loop also paints this from the QA hold. This write used to
+        // look only at the live flash, so a hold or a tap was put back to
+        // Copy result on the next Game Over frame.
+        const qaHold = game.qaCopyHold > 0 || game.qaShareHold > 0;
+        const copied = qaHold || Animations.copyFlashFrames > 0;
+        shareBtnEl.textContent = copied ? '✓ Copied!' : '📋 Copy result';
+        const damped = reducedMotion && (qaHold || (copied && qaShare));
+        markShareCopied(shareBtnEl, copied, damped);
       }
     }
     if (t >= 1) drawDailyDeathHint();
@@ -3667,6 +3688,12 @@ if (shareBtn && shareBtn.addEventListener) {
     // ?qaShare=1 never opens the OS sheet. The confirmation is in-page
     // so a capture can see it. Reduced motion quiets that QA paint.
     if (qaShare) {
+      // Refresh the on-screen hold so a tap after the first window still
+      // survives the next Game Over paint. No sheet, no clipboard.
+      if (game.state === STATE.DEAD && isDailyMode()) {
+        game.qaShareShown = true;
+        game.qaShareHold = qaShareHoldFrames();
+      }
       Animations.copyFlashFrames = copyFlashDuration();
       shareBtn.textContent = '✓ Copied!';
       markShareCopied(shareBtn, true, reducedMotion);

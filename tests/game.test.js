@@ -14093,6 +14093,54 @@ describe('Daily native share sheet', () => {
     }
   });
 
+  it('canShare false keeps the clipboard fallback and the Copied flash', () => {
+    const shareBtn = document.getElementById('share-btn');
+    const origFlash = Animations.copyFlashFrames;
+    const origText = shareBtn.textContent;
+    const origBest = game.dailyBest;
+    game.dailyBest = 42;
+    Animations.copyFlashFrames = 0;
+    shareBtn.textContent = '📋 Copy result';
+    let shared = 0;
+    let wrote = null;
+    let flashAtWrite = -1;
+    try {
+      withNavigator(
+        {
+          share() {
+            shared++;
+            return Promise.resolve();
+          },
+          canShare() {
+            return false;
+          },
+          clipboard: {
+            writeText(text) {
+              wrote = text;
+              flashAtWrite = Animations.copyFlashFrames;
+              return Promise.resolve();
+            },
+          },
+        },
+        () => {
+          shareHandler()({ stopPropagation() {} });
+          assertEquals(shared, 0, 'no sheet means share() is not called');
+          assertEquals(wrote, dailyShareText(), 'the clipboard still gets the Daily text');
+          assertEquals(
+            flashAtWrite,
+            GAME_CONFIG.COPY_FLASH_FRAMES,
+            'the flash starts before the clipboard write'
+          );
+          assertEquals(shareBtn.textContent, '✓ Copied!', 'the button still confirms');
+        }
+      );
+    } finally {
+      Animations.copyFlashFrames = origFlash;
+      shareBtn.textContent = origText;
+      game.dailyBest = origBest;
+    }
+  });
+
   it('shareDailyResult() still copies when the share sheet is unavailable', () => {
     const origBest = game.dailyBest;
     game.dailyBest = 80;
@@ -14439,7 +14487,13 @@ describe('QA share flag (?qaShare=1)', () => {
     );
   });
 
-  it('holds Copied on a Daily waiting screen without a sheet or a clipboard write', () => {
+  function settleDailyDeath() {
+    game.state = STATE.DEAD;
+    Animations.deathShakeFrames = 0;
+    Animations.deathAnimFrame = deathAnimFrames();
+  }
+
+  it('does not spend the hold on GET READY, then holds Copied on Game Over', () => {
     const origMode = game.mode;
     const origBtn = buttonSnapshot();
     const origRng = game.rng;
@@ -14476,13 +14530,17 @@ describe('QA share flag (?qaShare=1)', () => {
         rngCalls++;
         return origRng();
       };
+      for (let i = 0; i < 200; i++) tick();
+      assertEquals(game.state, STATE.WAITING, 'GET READY is still counting down');
+      assertEquals(game.qaShareHold, 0, 'GET READY must not start the hold');
+      assertEquals(game.qaShareShown, false, 'GET READY must not spend the latch');
+      assertEquals(shareBtn.textContent, '📋 Copy result', 'the button stays at rest before Game Over');
+      settleDailyDeath();
       tick();
-      assertEquals(game.state, STATE.WAITING, 'the hold starts before the run');
-      assertEquals(game.qaShareHold, QA_SHARE_HOLD, 'Daily latches the full capture window');
+      assertEquals(game.qaShareHold, QA_SHARE_HOLD, 'Game Over latches the full capture window');
       assertEquals(qaShareHoldFrames(), QA_SHARE_HOLD, 'the helper matches the full window');
-      assertEquals(game.qaShareShown, true, 'Daily spends the latch once');
-      assertEquals(Animations.copyFlashFrames, 0, 'the hold does not start the live flash');
-      assertEquals(shareBtn.style.display, 'block', 'Copied stays visible before Game Over');
+      assertEquals(game.qaShareShown, true, 'Game Over spends the latch once');
+      assertEquals(shareBtn.style.display, 'block', 'Copied is on the visible Copy result control');
       assertEquals(shareBtn.textContent, '✓ Copied!', 'the hold shows the share confirmation');
       assert(shareBtn.classList.contains('is-copied'), 'the hold uses the calmer Copied paint');
       assert(!shareBtn.classList.contains('is-qa-damped'), 'full motion does not damp the paint');
@@ -14508,12 +14566,58 @@ describe('QA share flag (?qaShare=1)', () => {
     }
   });
 
+  it('Game Over paint keeps a live Copied flash and a QA hold', () => {
+    const origMode = game.mode;
+    const origState = game.state;
+    const origBtn = buttonSnapshot();
+    const origAnim = Animations.deathAnimFrame;
+    const origShake = Animations.deathShakeFrames;
+    const origFlash = Animations.copyFlashFrames;
+    try {
+      setReducedMotion(false);
+      setQaShare(false);
+      game.mode = MODES.DAILY;
+      game.state = STATE.DEAD;
+      Animations.deathShakeFrames = 0;
+      Animations.deathAnimFrame = deathAnimFrames();
+      Animations.copyFlashFrames = 40;
+      game.qaShareHold = 0;
+      game.qaCopyHold = 0;
+      const shareBtn = prepareButton();
+      shareBtn.style.display = 'block';
+      drawGameOverScreen();
+      assertEquals(shareBtn.textContent, '✓ Copied!', 'a live flash survives the Game Over paint');
+      assert(shareBtn.classList.contains('is-copied'), 'the live flash keeps the Copied paint');
+      assert(!shareBtn.classList.contains('is-qa-damped'), 'a real flash is not the QA damp');
+
+      Animations.copyFlashFrames = 0;
+      game.qaShareHold = 30;
+      setReducedMotion(true);
+      setQaShare(true);
+      drawGameOverScreen();
+      assertEquals(shareBtn.textContent, '✓ Copied!', 'a QA hold survives the Game Over paint');
+      assert(shareBtn.classList.contains('is-qa-damped'), 'reduced motion quiets the held confirmation');
+    } finally {
+      game.mode = origMode;
+      game.state = origState;
+      Animations.deathAnimFrame = origAnim;
+      Animations.deathShakeFrames = origShake;
+      Animations.copyFlashFrames = origFlash;
+      game.qaShareHold = 0;
+      game.qaCopyHold = 0;
+      setQaShare(false);
+      setReducedMotion(false);
+      restoreButton(origBtn);
+    }
+  });
+
   it('reduced motion halves the share hold and quiets the ink', () => {
     const origMode = game.mode;
     const origBtn = buttonSnapshot();
     try {
       setReducedMotion(true);
       const shareBtn = armDailyWaiting();
+      settleDailyDeath();
       tick();
       const half = Math.max(2, Math.round(QA_SHARE_HOLD * 0.5));
       assertEquals(game.qaShareHold, half, 'reduced motion halves the 180-frame hold');
@@ -14607,6 +14711,17 @@ describe('QA share flag (?qaShare=1)', () => {
       assertEquals(shareBtn.textContent, '✓ Copied!', 'the stub path says Copied');
       assert(classes.contains('is-copied'), 'the stub path paints Copied');
       assert(classes.contains('is-qa-damped'), 'reduced motion quiets the QA confirmation');
+      game.mode = MODES.DAILY;
+      game.state = STATE.DEAD;
+      Animations.deathShakeFrames = 0;
+      Animations.deathAnimFrame = deathAnimFrames();
+      shareBtn.style = { display: 'block' };
+      drawGameOverScreen();
+      assertEquals(shareBtn.textContent, '✓ Copied!', 'Game Over paint keeps the tap confirmation');
+      assert(classes.contains('is-copied'), 'Game Over paint keeps the Copied class');
+      assert(classes.contains('is-qa-damped'), 'Game Over paint keeps the reduced-motion ink');
+      assertEquals(shared, 0, 'the redraw must not open the share sheet');
+      assertEquals(wrote, 0, 'the redraw must not write the clipboard');
     } finally {
       if (origDesc) Object.defineProperty(global, 'navigator', origDesc);
       setReducedMotion(false);
@@ -14636,8 +14751,16 @@ describe('QA share flag (?qaShare=1)', () => {
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       gameLoop();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
-      assertEquals(game.qaShareHold, QA_SHARE_HOLD, 'the re-read flag latches the hold');
-      assertEquals(game.qaShareShown, true, 'the re-read flag spends the latch');
+      assertEquals(game.state, STATE.WAITING, 're-reading the flag still starts on GET READY');
+      assertEquals(game.qaShareHold, 0, 'GET READY does not latch the hold');
+      assertEquals(game.qaShareShown, false, 'GET READY does not spend the latch');
+      game.state = STATE.DEAD;
+      Animations.deathShakeFrames = 0;
+      Animations.deathAnimFrame = deathAnimFrames();
+      gameLoop();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      assertEquals(game.qaShareHold, QA_SHARE_HOLD, 'settled Game Over latches the hold');
+      assertEquals(game.qaShareShown, true, 'settled Game Over spends the latch');
     } finally {
       if (hadLocation) global.location = prevLocation;
       else delete global.location;
