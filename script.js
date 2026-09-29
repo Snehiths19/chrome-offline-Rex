@@ -1519,6 +1519,36 @@ function qaIdleHoldFrames() {
   return Math.max(2, Math.round(QA_IDLE_HOLD * 0.5));
 }
 
+// QA/debug only — not for players. ?qaSafe=1 paints stand-in safe-area
+// bands (notch, side insets, home indicator) so Playtest can check that
+// the canvas stays inside the padded shell and the controls stay clear of
+// the notch and the home indicator. Off, this adds no class and changes
+// no gameplay. The bands do not animate, so reduced motion has nothing to
+// shorten. Re-read in resetGame() like the other QA flags. Tests flip it
+// through setQaSafe(); a normal visit leaves this false.
+function readQaSafeFlag(search) {
+  const query = search !== undefined
+    ? search
+    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
+      ? location.search
+      : '');
+  if (!query) return false;
+  return new URLSearchParams(query).get('qaSafe') === '1';
+}
+
+let qaSafe = readQaSafeFlag();
+
+function setQaSafe(enabled) {
+  qaSafe = !!enabled;
+}
+
+function applyQaSafeShell() {
+  const root = typeof document !== 'undefined' ? document.documentElement : null;
+  if (!root || !root.classList || typeof root.classList.add !== 'function') return;
+  if (qaSafe) root.classList.add('qa-safe');
+  else if (typeof root.classList.remove === 'function') root.classList.remove('qa-safe');
+}
+
 function advanceQaIdle() {
   const visible = game.state === STATE.IDLE
     || game.state === STATE.WAITING
@@ -1728,8 +1758,12 @@ const audio = {
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-initCanvasScale();
-if (typeof process === 'undefined') window.addEventListener('resize', handleResize);
+if (typeof process === 'undefined') {
+  window.addEventListener('resize', handleResize);
+  if (window.visualViewport && window.visualViewport.addEventListener) {
+    window.visualViewport.addEventListener('resize', handleResize);
+  }
+}
 const a11yLive = document.getElementById('a11y-live');
 
 function announce(message) {
@@ -1773,17 +1807,133 @@ function imageReady(img) {
   return img && img.complete && img.naturalWidth !== 0;
 }
 
+// Horizontal padding on #game-wrapper in style.css. The browser path reads
+// computed padding when it can; this is the reserve used when that read is
+// empty (Node, or before layout). Keep it in sync with that padding.
+const SHELL_GUTTER_X = 8;
+
+// Vertical chrome the canvas must clear. The row matches #game-wrapper
+// padding-top. Jump and share match their margin plus used height in Chrome
+// (12+53 and 10+38), reserved even while share is hidden so a Daily result
+// does not push the stack under the home indicator. Keep them in sync with
+// style.css.
+const SHELL_CHROME_ROW = 44;
+const SHELL_JUMP_BLOCK = 65;
+const SHELL_SHARE_BLOCK = 48;
+
+// CSS width of the canvas inside the padded shell. Floors so a fractional
+// inset cannot round the bitmap up into the padding and clip. A non-positive
+// result becomes 1 so the canvas stays drawable. Logical CANVAS_W/H are not
+// involved — this is display size only.
+function computeCanvasCssWidth(viewportWidth, horizontalInset) {
+  const width = Number(viewportWidth);
+  if (!Number.isFinite(width) || width <= 0) return 1;
+  const inset = Number(horizontalInset);
+  const used = Number.isFinite(inset) && inset > 0 ? inset : 0;
+  const available = Math.floor(width - used);
+  return available >= 1 ? available : 1;
+}
+
+function readPaddingPx(el, side) {
+  if (!el) return 0;
+  let raw = '';
+  const reader = window && typeof window.getComputedStyle === 'function'
+    ? window.getComputedStyle
+    : null;
+  if (reader) {
+    let cs = null;
+    try { cs = reader(el); } catch { cs = null; }
+    if (cs) raw = cs['padding' + side] || '';
+  }
+  if (!raw && el.style) raw = el.style['padding' + side] || '';
+  const n = parseFloat(raw);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+// Prefer the wrapper's laid-out content box. clientWidth already sits inside
+// body safe-area padding, so only the wrapper's own horizontal padding comes
+// off. When the wrapper has not been laid out, subtract body safe-area (if
+// readable) plus the shell gutter from the viewport width.
+function measureCanvasCssWidth(wrapper, viewportWidth) {
+  if (wrapper && typeof wrapper.clientWidth === 'number' && wrapper.clientWidth > 0) {
+    const pad = readPaddingPx(wrapper, 'Left') + readPaddingPx(wrapper, 'Right');
+    const gutter = pad > 0 ? pad : SHELL_GUTTER_X * 2;
+    return computeCanvasCssWidth(wrapper.clientWidth, gutter);
+  }
+  const body = typeof document !== 'undefined' ? document.body : null;
+  const bodyPad = readPaddingPx(body, 'Left') + readPaddingPx(body, 'Right');
+  return computeCanvasCssWidth(viewportWidth, bodyPad + SHELL_GUTTER_X * 2);
+}
+
+// Height available to the canvas after safe-area and the shell controls.
+// A non-positive viewport means "no height cap" so a width-only call stays
+// width-first.
+function computeCanvasMaxHeight(viewportHeight, verticalChrome) {
+  const height = Number(viewportHeight);
+  if (!Number.isFinite(height) || height <= 0) return 0;
+  const chrome = Number(verticalChrome);
+  const used = Number.isFinite(chrome) && chrome > 0 ? chrome : 0;
+  const available = Math.floor(height - used);
+  return available >= 1 ? available : 1;
+}
+
+// Fit a 3:1 display size inside both limits. Width-first when the height
+// has room. When the height is the limit, shrink the width too so the
+// canvas letterboxes instead of running under jump and share.
+function fitCanvasCssSize(maxWidth, maxHeight) {
+  const cssWFromWidth = computeCanvasCssWidth(maxWidth, 0);
+  let cssW = cssWFromWidth;
+  let cssH = Math.max(1, Math.round(cssW / 3));
+  const cap = Number(maxHeight);
+  if (Number.isFinite(cap) && cap >= 1 && cssH > cap) {
+    cssH = Math.floor(cap);
+    if (cssH < 1) cssH = 1;
+    cssW = cssH * 3;
+    if (cssW > cssWFromWidth) {
+      cssW = cssWFromWidth;
+      cssH = Math.max(1, Math.round(cssW / 3));
+    }
+  }
+  return { cssW: cssW, cssH: cssH };
+}
+
+function readViewportHeight() {
+  const vv = window.visualViewport;
+  if (vv && typeof vv.height === 'number' && vv.height > 0) return vv.height;
+  if (typeof window.innerHeight === 'number' && window.innerHeight > 0) return window.innerHeight;
+  return 0;
+}
+
+function shellVerticalChrome(wrapper) {
+  const body = typeof document !== 'undefined' ? document.body : null;
+  const safeY = readPaddingPx(body, 'Top') + readPaddingPx(body, 'Bottom');
+  const row = wrapper ? readPaddingPx(wrapper, 'Top') : 0;
+  const chromeRow = row > 0 ? row : SHELL_CHROME_ROW;
+  return safeY + chromeRow + SHELL_JUMP_BLOCK + SHELL_SHARE_BLOCK;
+}
+
+function measureCanvasCssSize(wrapper, viewportWidth, viewportHeight) {
+  const maxW = measureCanvasCssWidth(wrapper, viewportWidth);
+  const maxH = computeCanvasMaxHeight(viewportHeight, shellVerticalChrome(wrapper));
+  return fitCanvasCssSize(maxW, maxH);
+}
+
 function initCanvasScale() {
-  const dpr  = window.devicePixelRatio || 1;
-  const cssW = window.innerWidth;
-  const cssH = Math.round(cssW / 3);
-  canvas.style.width  = cssW + 'px';
+  applyQaSafeShell();
+  const dpr = window.devicePixelRatio || 1;
+  const wrapper = document.getElementById('game-wrapper');
+  const size = measureCanvasCssSize(wrapper, window.innerWidth, readViewportHeight());
+  const cssW = size.cssW;
+  const cssH = size.cssH;
+  canvas.style.width = cssW + 'px';
   canvas.style.height = cssH + 'px';
-  canvas.width  = Math.round(cssW * dpr);
+  canvas.width = Math.round(cssW * dpr);
   canvas.height = Math.round(canvas.width / 3);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.scale(canvas.width / GAME_CONFIG.CANVAS_W, canvas.height / GAME_CONFIG.CANVAS_H);
 }
+
+initCanvasScale();
 
 function handleResize() {
   initCanvasScale();
@@ -3869,6 +4019,8 @@ function resetGame() {
   qaShare = readQaShareFlag();
   qaCountUp = readQaCountUpFlag();
   qaIdle = readQaIdleFlag();
+  qaSafe = readQaSafeFlag();
+  applyQaSafeShell();
   game.isNewBest         = false;
   game.previousHighScore = 0;
   game.isNewTodayBest    = false;
@@ -4299,6 +4451,17 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.handleAction   = handleAction;
   global.initCanvasScale = initCanvasScale;
   global.handleResize   = handleResize;
+  global.computeCanvasCssWidth = computeCanvasCssWidth;
+  global.measureCanvasCssWidth = measureCanvasCssWidth;
+  global.fitCanvasCssSize = fitCanvasCssSize;
+  global.computeCanvasMaxHeight = computeCanvasMaxHeight;
+  global.SHELL_GUTTER_X = SHELL_GUTTER_X;
+  global.SHELL_CHROME_ROW = SHELL_CHROME_ROW;
+  global.SHELL_JUMP_BLOCK = SHELL_JUMP_BLOCK;
+  global.SHELL_SHARE_BLOCK = SHELL_SHARE_BLOCK;
+  global.readQaSafeFlag = readQaSafeFlag;
+  global.setQaSafe = setQaSafe;
+  global.applyQaSafeShell = applyQaSafeShell;
   global.mulberry32 = mulberry32;
   global.MODES = MODES;
   global.setMode = setMode;

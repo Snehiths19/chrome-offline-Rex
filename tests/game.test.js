@@ -1042,6 +1042,12 @@ describe('Obstacle Types', () => {
     const smoothing = [];
     const origDrawImage = ctx.drawImage;
     const origSmoothing = ctx.imageSmoothingEnabled;
+    const origBitmapW = canvas.width;
+    const origBitmapH = canvas.height;
+    // Device-pixel snap uses the bitmap. Pin 1:1 with the logical board so
+    // the expected x is the game-space center, not the shell's boot scale.
+    canvas.width = GAME_CONFIG.CANVAS_W;
+    canvas.height = GAME_CONFIG.CANVAS_H;
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage = (...args) => {
       calls.push(args.slice());
@@ -1050,6 +1056,8 @@ describe('Obstacle Types', () => {
     drawObstacles();
     const smoothingAfter = ctx.imageSmoothingEnabled;
     ctx.drawImage = origDrawImage;
+    canvas.width = origBitmapW;
+    canvas.height = origBitmapH;
     if (origSmoothing === undefined) delete ctx.imageSmoothingEnabled;
     else ctx.imageSmoothingEnabled = origSmoothing;
     const placed = game.obstacles[0];
@@ -2911,11 +2919,13 @@ describe('Canvas scaling', () => {
       'GAME_CONFIG.CANVAS_H should be 200');
   });
 
-  it('initCanvasScale sets bitmap width to cssW * dpr', () => {
+  it('initCanvasScale sets bitmap width to the content-box css width times dpr', () => {
     const origInnerWidth = window.innerWidth;
     const origDpr        = window.devicePixelRatio;
     const origWidth      = canvas.width;
     const origHeight     = canvas.height;
+    // 390px phone minus the 8px shell gutter on each side. The bitmap stays 3:1.
+    const cssW = 374;
 
     window.innerWidth       = 390;
     window.devicePixelRatio = 2;
@@ -2929,13 +2939,15 @@ describe('Canvas scaling', () => {
     canvas.width            = origWidth;
     canvas.height           = origHeight;
 
-    assertEquals(bitmapW, 780,
-      'canvas.width should be Math.round(390 * 2) = 780');
-    assertEquals(bitmapH, 260,
-      'canvas.height should be Math.round(780 / 3) = 260');
+    assertEquals(bitmapW, Math.round(cssW * 2),
+      'canvas.width should be Math.round(374 * 2) = 748');
+    assertEquals(bitmapH, Math.round(bitmapW / 3),
+      'canvas.height should stay 3:1 with the bitmap width');
+    assertEquals(GAME_CONFIG.CANVAS_W, 600, 'logical board width stays 600');
+    assertEquals(GAME_CONFIG.CANVAS_H, 200, 'logical board height stays 200');
   });
 
-  it('initCanvasScale sets CSS display size', () => {
+  it('initCanvasScale sets CSS display size to the padded content box', () => {
     const origInnerWidth  = window.innerWidth;
     const origDpr         = window.devicePixelRatio;
     const origWidth       = canvas.width;
@@ -2957,10 +2969,10 @@ describe('Canvas scaling', () => {
     canvas.style.width      = origStyleWidth;
     canvas.style.height     = origStyleHeight;
 
-    assertEquals(styleW, '390px',
-      'canvas.style.width should be "390px"');
-    assertEquals(styleH, '130px',
-      'canvas.style.height should be "130px" (Math.round(390/3))');
+    assertEquals(styleW, '374px',
+      'canvas.style.width should be the 390px viewport minus the 16px shell gutter');
+    assertEquals(styleH, '125px',
+      'canvas.style.height should be Math.round(374/3) = 125');
   });
 });
 
@@ -3003,8 +3015,8 @@ describe('Orientation resize', () => {
     canvas.style.width      = origStyleWidth;
     canvas.style.height     = origStyleHeight;
 
-    assertEquals(styleW, '320px',
-      'canvas.style.width should be "320px" after resize to innerWidth 320');
+    assertEquals(styleW, '304px',
+      'canvas.style.width should be "304px" after resize to innerWidth 320 (minus the shell gutter)');
   });
 
   it('handleResize updates canvas.width when innerWidth changes', () => {
@@ -3024,8 +3036,8 @@ describe('Orientation resize', () => {
     canvas.width            = origWidth;
     canvas.height           = origHeight;
 
-    assertEquals(bitmapW, 320,
-      'canvas.width should be Math.round(320 * 1) = 320 after resize');
+    assertEquals(bitmapW, 304,
+      'canvas.width should be 304 after resize to innerWidth 320 (dpr 1, minus the shell gutter)');
   });
 });
 
@@ -3171,7 +3183,7 @@ describe('Idle screen pulse animation', () => {
 });
 
 describe('Tablet width cap removed', () => {
-  it('initCanvasScale fills full innerWidth when wider than 600px', () => {
+  it('initCanvasScale fills the content box when wider than 600px', () => {
     const origInnerWidth = window.innerWidth;
     const origDpr        = window.devicePixelRatio;
     const origWidth      = canvas.width;
@@ -3188,8 +3200,319 @@ describe('Tablet width cap removed', () => {
     canvas.width            = origWidth;
     canvas.height           = origHeight;
 
-    assertEquals(bitmapW, 900,
-      'canvas.width should be 900 when innerWidth=900 and dpr=1 (no 600px cap)');
+    assertEquals(bitmapW, 884,
+      'canvas.width should be 884 when innerWidth=900 and dpr=1 (no 600px cap, minus the shell gutter)');
+  });
+});
+
+describe('Shell canvas width', () => {
+  it('computeCanvasCssWidth subtracts horizontal inset and floors so the canvas cannot overflow', () => {
+    assertEquals(computeCanvasCssWidth(390, 16), 374,
+      'a 390px phone with 8px gutter each side fits 374px');
+    assertEquals(computeCanvasCssWidth(390, 16 + 47 + 47), 280,
+      'side safe-area insets come off the same width');
+    assertEquals(computeCanvasCssWidth(390.9, 16.2), 374,
+      'fractional inset floors instead of rounding up into the padding');
+    assertEquals(computeCanvasCssWidth(390, 0), 390,
+      'a zero inset keeps the full viewport');
+    assertEquals(computeCanvasCssWidth(390, -4), 390,
+      'a negative inset is ignored');
+    assertEquals(computeCanvasCssWidth(10, 80), 1,
+      'the width never goes non-positive');
+    assertEquals(computeCanvasCssWidth(0, 0), 1, 'a zero viewport still returns a drawable width');
+    assertEquals(computeCanvasCssWidth(NaN, 16), 1, 'a non-numeric viewport still returns a drawable width');
+  });
+
+  it('SHELL_GUTTER_X matches the 8px wrapper padding', () => {
+    assertEquals(SHELL_GUTTER_X, 8,
+      'keep this in sync with #game-wrapper horizontal padding in style.css');
+  });
+
+  it('measureCanvasCssWidth reserves the shell gutter when layout padding is unread', () => {
+    const origReader = window.getComputedStyle;
+    window.getComputedStyle = undefined;
+    const width = measureCanvasCssWidth({}, 390);
+    window.getComputedStyle = origReader;
+    assertEquals(width, 390 - SHELL_GUTTER_X * 2,
+      'unread padding still keeps the canvas inside the 8px gutter');
+  });
+
+  it('measureCanvasCssWidth uses the laid-out wrapper content box, not the viewport', () => {
+    const wrapper = { clientWidth: 358 };
+    const origReader = window.getComputedStyle;
+    window.getComputedStyle = (el) => {
+      if (el === wrapper) return { paddingLeft: '8px', paddingRight: '8px' };
+      return { paddingLeft: '0px', paddingRight: '0px' };
+    };
+    let width;
+    try {
+      width = measureCanvasCssWidth(wrapper, 9999);
+    } finally {
+      window.getComputedStyle = origReader;
+    }
+    assertEquals(width, 342,
+      'content box is clientWidth minus horizontal padding');
+  });
+
+  it('measureCanvasCssWidth adds the gutter on top of body safe-area when the wrapper is not laid out', () => {
+    const body = { id: 'body' };
+    const prevBody = document.body;
+    const origReader = window.getComputedStyle;
+    document.body = body;
+    window.getComputedStyle = (el) => {
+      if (el === body) return { paddingLeft: '47px', paddingRight: '47px' };
+      return { paddingLeft: '0px', paddingRight: '0px' };
+    };
+    let width;
+    try {
+      width = measureCanvasCssWidth(null, 390);
+    } finally {
+      window.getComputedStyle = origReader;
+      document.body = prevBody;
+    }
+    assertEquals(width, 390 - 47 - 47 - SHELL_GUTTER_X * 2,
+      'fallback width is viewport minus safe-area minus the shell gutter');
+  });
+
+  it('measureCanvasCssWidth does not subtract body insets already inside clientWidth', () => {
+    const wrapper = { clientWidth: 280 };
+    const body = { id: 'body' };
+    const prevBody = document.body;
+    const origReader = window.getComputedStyle;
+    document.body = body;
+    window.getComputedStyle = (el) => {
+      if (el === wrapper) return { paddingLeft: '8px', paddingRight: '8px' };
+      if (el === body) return { paddingLeft: '47px', paddingRight: '47px' };
+      return { paddingLeft: '0px', paddingRight: '0px' };
+    };
+    let width;
+    try {
+      width = measureCanvasCssWidth(wrapper, 390);
+    } finally {
+      window.getComputedStyle = origReader;
+      document.body = prevBody;
+    }
+    assertEquals(width, 264,
+      'clientWidth already sits inside the body safe-area, so only the wrapper gutter comes off');
+  });
+
+  it('initCanvasScale prefers a laid-out wrapper over window.innerWidth', () => {
+    const wrapper = document.getElementById('game-wrapper');
+    const origClient = wrapper.clientWidth;
+    const origInner = window.innerWidth;
+    const origDpr = window.devicePixelRatio;
+    const origWidth = canvas.width;
+    const origHeight = canvas.height;
+    const origStyleWidth = canvas.style.width;
+    const origStyleHeight = canvas.style.height;
+    const origReader = window.getComputedStyle;
+    wrapper.clientWidth = 358;
+    window.innerWidth = 390;
+    window.devicePixelRatio = 2;
+    window.getComputedStyle = (el) => {
+      if (el === wrapper) return { paddingLeft: '8px', paddingRight: '8px' };
+      return { paddingLeft: '0px', paddingRight: '0px' };
+    };
+    try {
+      initCanvasScale();
+      assertEquals(canvas.style.width, '342px',
+        'display width follows the wrapper content box');
+      assertEquals(canvas.style.height, '114px',
+        'display height stays Math.round(cssW / 3)');
+      assertEquals(canvas.width, 684, 'bitmap width is cssW * dpr');
+      assertEquals(canvas.height, 228, 'bitmap height stays 3:1');
+    } finally {
+      window.getComputedStyle = origReader;
+      window.innerWidth = origInner;
+      window.devicePixelRatio = origDpr;
+      if (origClient === undefined) delete wrapper.clientWidth;
+      else wrapper.clientWidth = origClient;
+      canvas.width = origWidth;
+      canvas.height = origHeight;
+      canvas.style.width = origStyleWidth;
+      canvas.style.height = origStyleHeight;
+    }
+  });
+});
+
+describe('Shell canvas height', () => {
+  it('reserves the chrome row, jump, and share measured from the shell', () => {
+    assertEquals(SHELL_CHROME_ROW, 44,
+      'keep this in sync with #game-wrapper padding-top');
+    assertEquals(SHELL_JUMP_BLOCK, 65,
+      'jump is margin-top 12 plus a 53px control');
+    assertEquals(SHELL_SHARE_BLOCK, 48,
+      'share is margin-top 10 plus a 38px control');
+  });
+
+  it('fitCanvasCssSize keeps the width-first 3:1 size when the height has room', () => {
+    const size = fitCanvasCssSize(374, 687);
+    assertEquals(size.cssW, 374, 'portrait stays on the content-box width');
+    assertEquals(size.cssH, 125, 'height stays Math.round(374 / 3)');
+    assertEquals(fitCanvasCssSize(374, 0).cssH, 125,
+      'a missing viewport height does not letterbox');
+  });
+
+  it('fitCanvasCssSize letterboxes when the 3:1 height would pass the jump', () => {
+    const maxW = 734;
+    const maxH = computeCanvasMaxHeight(390, 21 + SHELL_CHROME_ROW + SHELL_JUMP_BLOCK + SHELL_SHARE_BLOCK);
+    const wide = fitCanvasCssSize(maxW, 0);
+    const size = fitCanvasCssSize(maxW, maxH);
+    assertEquals(maxH, 212, '390px landscape minus home indicator, chrome, jump, and share');
+    assert(wide.cssH > maxH, 'width-first height is what clips the jump');
+    assert(size.cssH <= maxH, 'fitted height stays inside the reserve');
+    assert(size.cssW < maxW, 'the spare width is the letterbox');
+    assert(size.cssW <= maxW, 'letterbox does not exceed the content box');
+    assertEquals(size.cssW, size.cssH * 3, 'the fitted canvas stays 3:1');
+    assertEquals(size.cssH, 212);
+    assertEquals(size.cssW, 636);
+  });
+
+  it('initCanvasScale letterboxes a short viewport and leaves a tall phone width-first', () => {
+    const origInner = window.innerWidth;
+    const origInnerH = window.innerHeight;
+    const origVv = window.visualViewport;
+    const origDpr = window.devicePixelRatio;
+    const origWidth = canvas.width;
+    const origHeight = canvas.height;
+    const origStyleWidth = canvas.style.width;
+    const origStyleHeight = canvas.style.height;
+    const origReader = window.getComputedStyle;
+    window.getComputedStyle = undefined;
+    window.devicePixelRatio = 1;
+    try {
+      window.innerWidth = 390;
+      window.innerHeight = 844;
+      window.visualViewport = undefined;
+      initCanvasScale();
+      assertEquals(canvas.style.width, '374px', 'a tall phone still uses the content-box width');
+      assertEquals(canvas.style.height, '125px', 'a tall phone does not letterbox');
+
+      window.innerWidth = 844;
+      window.innerHeight = 390;
+      initCanvasScale();
+      assertEquals(canvas.style.width, '699px',
+        'landscape display width letterboxes inside the 8px gutter');
+      assertEquals(canvas.style.height, '233px',
+        'landscape display height stays above jump and share');
+      assertEquals(canvas.width, 699, 'bitmap width matches the letterboxed css width at dpr 1');
+      assertEquals(canvas.height, 233, 'bitmap height stays 3:1');
+
+      window.innerHeight = 900;
+      window.visualViewport = { height: 390 };
+      initCanvasScale();
+      assertEquals(canvas.style.height, '233px',
+        'the visible viewport wins over a taller layout viewport');
+      assertEquals(canvas.style.width, '699px',
+        'letterbox follows the visible height');
+    } finally {
+      window.getComputedStyle = origReader;
+      window.innerWidth = origInner;
+      if (origInnerH === undefined) delete window.innerHeight;
+      else window.innerHeight = origInnerH;
+      if (origVv === undefined) delete window.visualViewport;
+      else window.visualViewport = origVv;
+      window.devicePixelRatio = origDpr;
+      canvas.width = origWidth;
+      canvas.height = origHeight;
+      canvas.style.width = origStyleWidth;
+      canvas.style.height = origStyleHeight;
+    }
+  });
+});
+
+function qaSafeClassList() {
+  const names = new Set();
+  return {
+    add(name) { names.add(name); },
+    remove(name) { names.delete(name); },
+    contains(name) { return names.has(name); },
+  };
+}
+
+describe('QA safe shell (?qaSafe=1)', () => {
+  it('?qaSafe=1 is off for any value other than 1', () => {
+    assert(readQaSafeFlag('?qaSafe=1') === true, '?qaSafe=1 should paint the stand-in insets');
+    assert(readQaSafeFlag('?qaNight=1&qaSafe=1') === true, 'the flag should work beside other params');
+    assert(readQaSafeFlag('?qaSafe=1&qaCopy=1') === true, 'param order should not matter');
+    assert(readQaSafeFlag('?qaSafe=0') === false, 'only the value 1 enables the flag');
+    assert(readQaSafeFlag('?qaSafe=12') === false, 'qaSafe=12 must not count as the flag');
+    assert(readQaSafeFlag('') === false, 'an empty query leaves the flag off');
+    assert(readQaSafeFlag() === false, 'a normal visit leaves the flag off');
+  });
+
+  it('applyQaSafeShell toggles the document class and does not touch the run', () => {
+    const root = { classList: qaSafeClassList() };
+    const prevRoot = document.documentElement;
+    const origScore = game.score;
+    const origMode = game.mode;
+    const origRng = game.rng;
+    document.documentElement = root;
+    try {
+      setQaSafe(false);
+      applyQaSafeShell();
+      assert(root.classList.contains('qa-safe') === false, 'off leaves the shell unmarked');
+      setQaSafe(true);
+      applyQaSafeShell();
+      assert(root.classList.contains('qa-safe') === true, 'on marks the shell for the stand-in insets');
+      assertEquals(game.score, origScore, 'the flag must not change the score');
+      assertEquals(game.mode, origMode, 'the flag must not change the mode');
+      assert(game.rng === origRng, 'the flag must not reseed the run');
+      setQaSafe(false);
+      applyQaSafeShell();
+      assert(root.classList.contains('qa-safe') === false, 'turning the flag off removes the mark');
+    } finally {
+      document.documentElement = prevRoot;
+      setQaSafe(false);
+    }
+  });
+
+  it('applyQaSafeShell is a no-op without a document root', () => {
+    const prevRoot = document.documentElement;
+    document.documentElement = undefined;
+    let threw = false;
+    try {
+      setQaSafe(true);
+      applyQaSafeShell();
+    } catch {
+      threw = true;
+    }
+    document.documentElement = prevRoot;
+    setQaSafe(false);
+    assert(!threw, 'missing documentElement should not throw');
+  });
+
+  it('resetGame re-reads ?qaSafe=1 onto the document', () => {
+    const root = { classList: qaSafeClassList() };
+    const prevRoot = document.documentElement;
+    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
+    const prevLocation = global.location;
+    const origMode = game.mode;
+    document.documentElement = root;
+    try {
+      global.location = { search: '' };
+      setQaSafe(true);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      assert(root.classList.contains('qa-safe') === false, 'a visit without the flag clears the mark');
+
+      global.location = { search: '?qaSafe=1' };
+      setQaSafe(false);
+      game.mode = MODES.CLASSIC;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      resetGame();
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+      assert(root.classList.contains('qa-safe') === true, 'resetGame applies the re-read flag');
+      assertEquals(game.mode, MODES.CLASSIC, 're-reading the flag must not change the mode');
+    } finally {
+      if (hadLocation) global.location = prevLocation;
+      else delete global.location;
+      document.documentElement = prevRoot;
+      setQaSafe(false);
+      game.mode = origMode;
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
   });
 });
 
