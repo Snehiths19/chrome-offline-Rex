@@ -14566,6 +14566,62 @@ describe('QA share flag (?qaShare=1)', () => {
     }
   });
 
+  it('keeps Copied for the whole settled Game Over, not a 3s window', () => {
+    const origMode = game.mode;
+    const origBtn = buttonSnapshot();
+    const origDesc = Object.getOwnPropertyDescriptor(global, 'navigator');
+    let shared = 0;
+    let wrote = 0;
+    Object.defineProperty(global, 'navigator', {
+      configurable: true,
+      writable: true,
+      value: {
+        share() {
+          shared++;
+          return Promise.resolve();
+        },
+        clipboard: {
+          writeText() {
+            wrote++;
+            return Promise.resolve();
+          },
+        },
+      },
+    });
+    try {
+      setReducedMotion(false);
+      const shareBtn = armDailyWaiting();
+      settleDailyDeath();
+      for (let i = 0; i < QA_SHARE_HOLD + 40; i++) tick();
+      assertEquals(game.state, STATE.DEAD, 'the settled screen stays up');
+      assert(game.qaShareHold > 0, 'the hold does not burn away while Copy result is up');
+      assertEquals(shareBtn.style.display, 'block', 'the control stays visible');
+      assertEquals(shareBtn.textContent, '✓ Copied!', 'a late capture still reads Copied');
+      assert(shareBtn.classList.contains('is-copied'), 'the Copied paint stays on');
+      assertEquals(shared, 0, 'staying on Copied must not open a sheet');
+      assertEquals(wrote, 0, 'staying on Copied must not write the clipboard');
+      drawGameOverScreen();
+      assertEquals(shareBtn.textContent, '✓ Copied!', 'Game Over paint must not restore Copy result');
+      game.qaShareHold = 0;
+      Animations.copyFlashFrames = 0;
+      drawGameOverScreen();
+      assertEquals(
+        shareBtn.textContent,
+        '✓ Copied!',
+        'the flag keeps Copied even if the frame counter is already spent'
+      );
+    } finally {
+      if (origDesc) Object.defineProperty(global, 'navigator', origDesc);
+      game.mode = origMode;
+      setQaShare(false);
+      setReducedMotion(false);
+      game.qaShareHold = 0;
+      game.qaShareShown = false;
+      restoreButton(origBtn);
+      if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
   it('Game Over paint keeps a live Copied flash and a QA hold', () => {
     const origMode = game.mode;
     const origState = game.state;

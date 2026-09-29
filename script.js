@@ -1387,16 +1387,16 @@ function applyQaCopyButton() {
 }
 
 // QA/debug only — not for players. ?qaShare=1 holds ✓ Copied! on the Daily
-// Copy result button once that button is actually on screen: settled Game
-// Over, after the count-up. It does not spend the hold on GET READY or
-// during the run, so a capture still sees it after the death. A tap while
-// the flag is on takes the same in-page confirmation and does not open a
-// sheet or write the clipboard. This does not call navigator.share, does
-// not call shareDailyResult(), and does not write the score, speed, gaps,
-// particles, or game.rng(). Classic and free-play Updated never take it.
-// Reduced motion halves the hold and adds the quieter is-qa-damped paint.
-// Re-read in resetGame(). Tests flip it through setQaShare(); a normal
-// visit leaves this false.
+// Copy result button for the whole settled Game Over, after the count-up.
+// It does not spend the hold on GET READY or during the run, and it does
+// not tick back to Copy result while that button is up — a 3s window was
+// gone before a settled capture. A tap while the flag is on takes the same
+// in-page confirmation and does not open a sheet or write the clipboard.
+// This does not call navigator.share, does not call shareDailyResult(), and
+// does not write the score, speed, gaps, particles, or game.rng(). Classic
+// and free-play Updated never take it. Reduced motion latches the half
+// length and adds the quieter is-qa-damped paint. Re-read in resetGame().
+// Tests flip it through setQaShare(); a normal visit leaves this false.
 const QA_SHARE_HOLD = 180;
 
 function readQaShareFlag(search) {
@@ -1433,12 +1433,12 @@ function dailyShareButtonSettled() {
 
 function advanceQaShare() {
   if (!qaShare || !dailyShareButtonSettled()) return;
-  if (!game.qaShareShown) {
+  // Stay on ✓ Copied! until the player leaves Game Over. Ticking the 180
+  // frames down put Copy result back before a settled screenshot.
+  if (!game.qaShareShown || game.qaShareHold <= 0) {
     game.qaShareShown = true;
     game.qaShareHold = qaShareHoldFrames();
-    return;
   }
-  if (game.qaShareHold > 0) game.qaShareHold--;
 }
 
 // QA/debug only — not for players. ?qaCountUp=1 holds a Game Over card from
@@ -2954,13 +2954,13 @@ function drawGameOverScreen() {
     if (shareBtnEl && shareBtnEl.style) {
       shareBtnEl.style.display = t >= 1 ? 'block' : 'none';
       if (t >= 1) {
-        // The loop also paints this from the QA hold. This write used to
-        // look only at the live flash, so a hold or a tap was put back to
-        // Copy result on the next Game Over frame.
+        // This write used to look only at the live flash, so a hold or a
+        // tap was put back to Copy result on the next Game Over frame.
+        // ?qaShare=1 keeps ✓ Copied! for the whole settled screen.
         const qaHold = game.qaCopyHold > 0 || game.qaShareHold > 0;
-        const copied = qaHold || Animations.copyFlashFrames > 0;
+        const copied = qaHold || Animations.copyFlashFrames > 0 || qaShare;
         shareBtnEl.textContent = copied ? '✓ Copied!' : '📋 Copy result';
-        const damped = reducedMotion && (qaHold || (copied && qaShare));
+        const damped = reducedMotion && copied && (qaHold || qaShare);
         markShareCopied(shareBtnEl, copied, damped);
       }
     }
