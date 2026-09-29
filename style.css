@@ -161,7 +161,9 @@ body {
 
 #gameCanvas {
   border: 1px solid black;
-  width: 100%;     /* Scales to screen width while keeping internal 600x200 coords */
+  /* JS sets the used size. 100% is the fallback; a short landscape window
+     sets a narrower inline width so the 3:1 canvas letterboxes. */
+  width: 100%;
   height: auto;
   display: block;
   touch-action: none; /* Prevent scroll/zoom while playing */

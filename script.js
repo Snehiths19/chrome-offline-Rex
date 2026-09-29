@@ -1758,7 +1758,12 @@ const audio = {
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-if (typeof process === 'undefined') window.addEventListener('resize', handleResize);
+if (typeof process === 'undefined') {
+  window.addEventListener('resize', handleResize);
+  if (window.visualViewport && window.visualViewport.addEventListener) {
+    window.visualViewport.addEventListener('resize', handleResize);
+  }
+}
 const a11yLive = document.getElementById('a11y-live');
 
 function announce(message) {
@@ -1807,6 +1812,15 @@ function imageReady(img) {
 // empty (Node, or before layout). Keep it in sync with that padding.
 const SHELL_GUTTER_X = 8;
 
+// Vertical chrome the canvas must clear. The row matches #game-wrapper
+// padding-top. Jump and share match their margin plus used height in Chrome
+// (12+53 and 10+38), reserved even while share is hidden so a Daily result
+// does not push the stack under the home indicator. Keep them in sync with
+// style.css.
+const SHELL_CHROME_ROW = 44;
+const SHELL_JUMP_BLOCK = 65;
+const SHELL_SHARE_BLOCK = 48;
+
 // CSS width of the canvas inside the padded shell. Floors so a fractional
 // inset cannot round the bitmap up into the padding and clip. A non-positive
 // result becomes 1 so the canvas stays drawable. Logical CANVAS_W/H are not
@@ -1851,12 +1865,66 @@ function measureCanvasCssWidth(wrapper, viewportWidth) {
   return computeCanvasCssWidth(viewportWidth, bodyPad + SHELL_GUTTER_X * 2);
 }
 
+// Height available to the canvas after safe-area and the shell controls.
+// A non-positive viewport means "no height cap" so a width-only call stays
+// width-first.
+function computeCanvasMaxHeight(viewportHeight, verticalChrome) {
+  const height = Number(viewportHeight);
+  if (!Number.isFinite(height) || height <= 0) return 0;
+  const chrome = Number(verticalChrome);
+  const used = Number.isFinite(chrome) && chrome > 0 ? chrome : 0;
+  const available = Math.floor(height - used);
+  return available >= 1 ? available : 1;
+}
+
+// Fit a 3:1 display size inside both limits. Width-first when the height
+// has room. When the height is the limit, shrink the width too so the
+// canvas letterboxes instead of running under jump and share.
+function fitCanvasCssSize(maxWidth, maxHeight) {
+  const cssWFromWidth = computeCanvasCssWidth(maxWidth, 0);
+  let cssW = cssWFromWidth;
+  let cssH = Math.max(1, Math.round(cssW / 3));
+  const cap = Number(maxHeight);
+  if (Number.isFinite(cap) && cap >= 1 && cssH > cap) {
+    cssH = Math.floor(cap);
+    if (cssH < 1) cssH = 1;
+    cssW = cssH * 3;
+    if (cssW > cssWFromWidth) {
+      cssW = cssWFromWidth;
+      cssH = Math.max(1, Math.round(cssW / 3));
+    }
+  }
+  return { cssW: cssW, cssH: cssH };
+}
+
+function readViewportHeight() {
+  const vv = window.visualViewport;
+  if (vv && typeof vv.height === 'number' && vv.height > 0) return vv.height;
+  if (typeof window.innerHeight === 'number' && window.innerHeight > 0) return window.innerHeight;
+  return 0;
+}
+
+function shellVerticalChrome(wrapper) {
+  const body = typeof document !== 'undefined' ? document.body : null;
+  const safeY = readPaddingPx(body, 'Top') + readPaddingPx(body, 'Bottom');
+  const row = wrapper ? readPaddingPx(wrapper, 'Top') : 0;
+  const chromeRow = row > 0 ? row : SHELL_CHROME_ROW;
+  return safeY + chromeRow + SHELL_JUMP_BLOCK + SHELL_SHARE_BLOCK;
+}
+
+function measureCanvasCssSize(wrapper, viewportWidth, viewportHeight) {
+  const maxW = measureCanvasCssWidth(wrapper, viewportWidth);
+  const maxH = computeCanvasMaxHeight(viewportHeight, shellVerticalChrome(wrapper));
+  return fitCanvasCssSize(maxW, maxH);
+}
+
 function initCanvasScale() {
   applyQaSafeShell();
   const dpr = window.devicePixelRatio || 1;
   const wrapper = document.getElementById('game-wrapper');
-  const cssW = measureCanvasCssWidth(wrapper, window.innerWidth);
-  const cssH = Math.round(cssW / 3);
+  const size = measureCanvasCssSize(wrapper, window.innerWidth, readViewportHeight());
+  const cssW = size.cssW;
+  const cssH = size.cssH;
   canvas.style.width = cssW + 'px';
   canvas.style.height = cssH + 'px';
   canvas.width = Math.round(cssW * dpr);
@@ -4385,7 +4453,12 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.handleResize   = handleResize;
   global.computeCanvasCssWidth = computeCanvasCssWidth;
   global.measureCanvasCssWidth = measureCanvasCssWidth;
+  global.fitCanvasCssSize = fitCanvasCssSize;
+  global.computeCanvasMaxHeight = computeCanvasMaxHeight;
   global.SHELL_GUTTER_X = SHELL_GUTTER_X;
+  global.SHELL_CHROME_ROW = SHELL_CHROME_ROW;
+  global.SHELL_JUMP_BLOCK = SHELL_JUMP_BLOCK;
+  global.SHELL_SHARE_BLOCK = SHELL_SHARE_BLOCK;
   global.readQaSafeFlag = readQaSafeFlag;
   global.setQaSafe = setQaSafe;
   global.applyQaSafeShell = applyQaSafeShell;

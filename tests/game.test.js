@@ -3335,6 +3335,92 @@ describe('Shell canvas width', () => {
   });
 });
 
+describe('Shell canvas height', () => {
+  it('reserves the chrome row, jump, and share measured from the shell', () => {
+    assertEquals(SHELL_CHROME_ROW, 44,
+      'keep this in sync with #game-wrapper padding-top');
+    assertEquals(SHELL_JUMP_BLOCK, 65,
+      'jump is margin-top 12 plus a 53px control');
+    assertEquals(SHELL_SHARE_BLOCK, 48,
+      'share is margin-top 10 plus a 38px control');
+  });
+
+  it('fitCanvasCssSize keeps the width-first 3:1 size when the height has room', () => {
+    const size = fitCanvasCssSize(374, 687);
+    assertEquals(size.cssW, 374, 'portrait stays on the content-box width');
+    assertEquals(size.cssH, 125, 'height stays Math.round(374 / 3)');
+    assertEquals(fitCanvasCssSize(374, 0).cssH, 125,
+      'a missing viewport height does not letterbox');
+  });
+
+  it('fitCanvasCssSize letterboxes when the 3:1 height would pass the jump', () => {
+    const maxW = 734;
+    const maxH = computeCanvasMaxHeight(390, 21 + SHELL_CHROME_ROW + SHELL_JUMP_BLOCK + SHELL_SHARE_BLOCK);
+    const wide = fitCanvasCssSize(maxW, 0);
+    const size = fitCanvasCssSize(maxW, maxH);
+    assertEquals(maxH, 212, '390px landscape minus home indicator, chrome, jump, and share');
+    assert(wide.cssH > maxH, 'width-first height is what clips the jump');
+    assert(size.cssH <= maxH, 'fitted height stays inside the reserve');
+    assert(size.cssW < maxW, 'the spare width is the letterbox');
+    assert(size.cssW <= maxW, 'letterbox does not exceed the content box');
+    assertEquals(size.cssW, size.cssH * 3, 'the fitted canvas stays 3:1');
+    assertEquals(size.cssH, 212);
+    assertEquals(size.cssW, 636);
+  });
+
+  it('initCanvasScale letterboxes a short viewport and leaves a tall phone width-first', () => {
+    const origInner = window.innerWidth;
+    const origInnerH = window.innerHeight;
+    const origVv = window.visualViewport;
+    const origDpr = window.devicePixelRatio;
+    const origWidth = canvas.width;
+    const origHeight = canvas.height;
+    const origStyleWidth = canvas.style.width;
+    const origStyleHeight = canvas.style.height;
+    const origReader = window.getComputedStyle;
+    window.getComputedStyle = undefined;
+    window.devicePixelRatio = 1;
+    try {
+      window.innerWidth = 390;
+      window.innerHeight = 844;
+      window.visualViewport = undefined;
+      initCanvasScale();
+      assertEquals(canvas.style.width, '374px', 'a tall phone still uses the content-box width');
+      assertEquals(canvas.style.height, '125px', 'a tall phone does not letterbox');
+
+      window.innerWidth = 844;
+      window.innerHeight = 390;
+      initCanvasScale();
+      assertEquals(canvas.style.width, '699px',
+        'landscape display width letterboxes inside the 8px gutter');
+      assertEquals(canvas.style.height, '233px',
+        'landscape display height stays above jump and share');
+      assertEquals(canvas.width, 699, 'bitmap width matches the letterboxed css width at dpr 1');
+      assertEquals(canvas.height, 233, 'bitmap height stays 3:1');
+
+      window.innerHeight = 900;
+      window.visualViewport = { height: 390 };
+      initCanvasScale();
+      assertEquals(canvas.style.height, '233px',
+        'the visible viewport wins over a taller layout viewport');
+      assertEquals(canvas.style.width, '699px',
+        'letterbox follows the visible height');
+    } finally {
+      window.getComputedStyle = origReader;
+      window.innerWidth = origInner;
+      if (origInnerH === undefined) delete window.innerHeight;
+      else window.innerHeight = origInnerH;
+      if (origVv === undefined) delete window.visualViewport;
+      else window.visualViewport = origVv;
+      window.devicePixelRatio = origDpr;
+      canvas.width = origWidth;
+      canvas.height = origHeight;
+      canvas.style.width = origStyleWidth;
+      canvas.style.height = origStyleHeight;
+    }
+  });
+});
+
 function qaSafeClassList() {
   const names = new Set();
   return {
