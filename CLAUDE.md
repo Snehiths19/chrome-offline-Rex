@@ -50,7 +50,7 @@ The file is divided into numbered sections. Add new code inside the section it b
 6. **Feature registry** (~line 770). `FEATURES` array + `runFeatureUpdates` + `runFeatureDraws(layer)`. Declarative ordering for ambient features (hills, clouds, particles, skyTint).
 7. **Section 6 — Physics & game logic** (~line 800). `DifficultyProfile.nextObstacle()` (type + gap), `spawnObstacle`, collision, `jump`, `resetGame`. `pickObstacleType` and `computeNextSpawnGap` are internal helpers — not exported.
 8. **Section 7 — Input handlers** (~line 870). Keyboard + mouse + touch. Mute and mode-toggle buttons live here too.
-9. **Section 8 — Game loop** (~line 970). Three branches: WAITING, RUNNING, DEAD. RUNNING uses the feature registry; WAITING and DEAD are hand-written.
+9. **Section 8 — Game loop** (~line 970). `gameLoop` spends rAF time in 60Hz sim slices, then runs one state handler per slice (WAITING, RUNNING, DEAD, IDLE). RUNNING uses the feature registry; the other states are hand-written. A display frame that owes no slice does not run a handler.
 10. **Section 9 — Initialisation** (~line 1160). Loads assets, sets state, kicks off the loop.
 11. **Section 10 — Test exposure** (~line 1170). Node-only globals so tests can poke internals.
 
@@ -181,6 +181,8 @@ Rules that apply across all call sites. Violating these silently misbehaves rath
 **`game.rng()` is the only source of gameplay randomness.** Obstacle type, spawn-gap jitter, hill init/respawn all use `game.rng()`. `Math.random()` is reserved for purely cosmetic effects (particles, clouds, audio pitch). Swapping them breaks the daily-challenge determinism contract.
 
 **Physics/spawning/scoring read `GAME_CONFIG.X` directly — never via `cfg()`.** `cfg()` is for visual tunables only. Any physics or spawning value routed through `cfg()` would allow live-tuning overrides to perturb the determinism contract.
+
+**Sim steps are 60Hz, not the display refresh.** `gameLoop(timestamp)` accumulates rAF time and runs each state handler once per `SIM_FRAME_MS` (1/60s) slice, at most `MAX_SIM_STEPS` slices per animation frame. A frame that owes nothing does not run the handler, so a 120Hz display does not double score, speed, spawn timing, jump physics, or particle emits. `gameLoop()` with no timestamp — the test harness, and the kickoff after `resetGame()` — is exactly one slice and does not write the rAF clock. `resetGame()` clears the accumulator so a hitch cannot burst into the next run.
 
 ## Where design history lives
 

@@ -40,8 +40,11 @@ _Avoid_: randomness, variation
 **Score** — the primary measure of how far a run has progressed; the sole input to the difficulty curve.
 _Avoid_: distance, points
 
-**Speed** — the obstacle scroll speed in pixels per frame at the current score.
+**Speed** — the obstacle scroll speed in pixels per sim frame at the current score. A sim frame is one slice of the sim clock (1/60s), not a display refresh.
 _Avoid_: velocity, game speed, scroll speed
+
+**Sim clock** — the fixed 60Hz step that advances score, speed, spawn timing, jump physics, the restart countdown, and frame-tied juice. Display refresh may be faster (a 120Hz phone fires animation frames twice as often). Real time from those frames accumulates and is spent in 1/60s slices, at most a few slices per animation frame, so a hitch does not fast-forward the run. A call with no timestamp (the test harness, and the kickoff that starts the loop) is one slice. Classic and Updated/Daily share this clock. DifficultyProfile and the run seed do not read it. `?qaHz=1` paints the measured sim rate and the display rate for Playtest; off, it counts nothing and draws nothing.
+_Avoid_: delta time, fps cap, frame skip
 
 **Initial speed** — the speed at score 0 — the lowest point of the difficulty curve.
 _Avoid_: start speed, base speed
@@ -139,6 +142,7 @@ _Avoid_: daily record, new daily high, today record
 - **Stars** appear only once the sky is fully night. Updated and Daily fade in sooner, then hold a quieter peak. Classic keeps today's fade to the full-white field. The day sky has none
 - **Clouds** in Updated and Daily ease from the day whisper to a quieter night dim once the sky is fully night. Classic keeps full opacity. The day sky does not use the night dim
 - The **Level** gold wash in Updated and Daily eases from the day breath to a quieter peak once the sky is fully night. Classic never draws the wash. Reduced motion suppresses it. The gold puff at the score stays on the number in Updated and Daily. Classic never emits it
+- The **Sim clock** advances **Score**, **Speed**, spawn timing, and jump physics once per 60Hz slice in Classic and in Updated/Daily. A faster display does not add slices. **DifficultyProfile** and the **Run seed** do not read the clock
 
 ## Flagged Ambiguities
 

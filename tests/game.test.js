@@ -15172,6 +15172,368 @@ describe('QA share flag (?qaShare=1)', () => {
 });
 
 
+describe('Sim clock (60Hz)', () => {
+  function cancelLoop() {
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+  }
+
+  function rngTrace(drive) {
+    const origMode = game.mode;
+    setReducedMotion(false);
+    game.mode = MODES.DAILY;
+    resetGame();
+    cancelLoop();
+    const seeded = game.rng;
+    const seen = [];
+    game.rng = () => {
+      const value = seeded();
+      seen.push(value);
+      return value;
+    };
+    game.state = STATE.RUNNING;
+    // Park the dino above the lane so the sample is not cut short by a hit.
+    // A grounded run dies before the second spawn, and both clocks would
+    // then show the same single roll.
+    dino.y = -500;
+    dino.isJumping = false;
+    try {
+      drive();
+    } finally {
+      game.rng = seeded;
+      game.mode = origMode;
+      setReducedMotion(false);
+      cancelLoop();
+    }
+    return seen;
+  }
+
+  it('a timestamp-free call is one slice and does not spend a banked partial frame', () => {
+    resetSimClock();
+    assertEquals(simStepsForFrame(0), 1, 'the first stamped frame anchors the clock and steps once');
+    assertEquals(simStepsForFrame(SIM_FRAME_MS / 2), 0, 'half a slice banks and does not step');
+    assertEquals(simStepsForFrame(), 1, 'a direct gameLoop() call is still one slice');
+    assertEquals(simStepsForFrame(SIM_FRAME_MS / 2 + SIM_FRAME_MS), 1,
+      'the banked half plus the next full slice is one step');
+    assertEquals(simStepsForFrame(SIM_FRAME_MS + SIM_FRAME_MS), 1,
+      'the leftover half plus another half completes the next slice');
+    resetSimClock();
+  });
+
+  it('same timestamp or a backwards timestamp does not step', () => {
+    resetSimClock();
+    assertEquals(simStepsForFrame(1000), 1);
+    assertEquals(simStepsForFrame(1000), 0, 'a duplicate rAF timestamp owes nothing');
+    assertEquals(simStepsForFrame(999), 0, 'time going backwards owes nothing');
+    resetSimClock();
+  });
+
+  it('a long hitch is capped and the next frame is not a second burst', () => {
+    resetSimClock();
+    assertEquals(simStepsForFrame(0), 1);
+    assertEquals(simStepsForFrame(SIM_FRAME_MS * 40), MAX_SIM_STEPS,
+      'catch-up stops at MAX_SIM_STEPS');
+    assertEquals(simStepsForFrame(SIM_FRAME_MS * 40 + SIM_FRAME_MS), 1,
+      'dropped hitch time must not burst on the following frame');
+    resetSimClock();
+  });
+
+  it('live-tuning cannot change the slice length', () => {
+    const prev = window.GAME_TUNING;
+    window.GAME_TUNING = Object.assign({}, prev, { SIM_FRAME_MS: 1 });
+    try {
+      resetSimClock();
+      assertEquals(simStepsForFrame(0), 1);
+      assertEquals(simStepsForFrame(SIM_FRAME_MS / 2), 0,
+        'a half slice stays banked even if a tune claims the slice is 1ms');
+    } finally {
+      window.GAME_TUNING = prev;
+      resetSimClock();
+    }
+  });
+
+  it('resetGame drops a banked hitch so the next run does not fast-forward', () => {
+    resetSimClock();
+    assertEquals(simStepsForFrame(0), 1);
+    assertEquals(simStepsForFrame(SIM_FRAME_MS / 2), 0);
+    resetGame();
+    cancelLoop();
+    assertEquals(simStepsForFrame(5000), 1, 'the first frame of a new run is one slice, not the old hitch');
+    cancelLoop();
+    resetSimClock();
+  });
+
+  it('120Hz display frames advance score, grace, jump, and shake at the 60Hz slice', () => {
+    const origMode = game.mode;
+    const origState = game.state;
+    const origY = dino.y;
+    const origVy = dino.velocityY;
+    const origJump = dino.isJumping;
+    try {
+      game.mode = MODES.CLASSIC;
+      resetGame();
+      cancelLoop();
+      game.state = STATE.WAITING;
+      game.graceFrames = 10;
+      resetSimClock();
+      gameLoop(0);
+      assertEquals(game.graceFrames, 9, 'the anchor frame spends one countdown slice');
+      gameLoop(SIM_FRAME_MS / 2);
+      assertEquals(game.graceFrames, 9, 'a 120Hz half-frame must not spend another countdown slice');
+      gameLoop(SIM_FRAME_MS);
+      assertEquals(game.graceFrames, 8);
+
+      game.state = STATE.RUNNING;
+      game.score = 0;
+      dino.isJumping = true;
+      dino.velocityY = GAME_CONFIG.JUMP_POWER;
+      dino.y = 80;
+      const yBefore = dino.y;
+      const vBefore = dino.velocityY;
+      gameLoop(SIM_FRAME_MS + SIM_FRAME_MS / 2);
+      assertEquals(dino.y, yBefore, 'jump height waits for a full slice');
+      assertEquals(dino.velocityY, vBefore, 'gravity waits for a full slice');
+      gameLoop(SIM_FRAME_MS * 2);
+      assert(dino.y !== yBefore, 'the next full slice applies gravity');
+
+      game.state = STATE.DEAD;
+      Animations.deathShakeFrames = 6;
+      const shakeAt = Animations.deathShakeFrames;
+      gameLoop(SIM_FRAME_MS * 2 + SIM_FRAME_MS / 2);
+      assertEquals(Animations.deathShakeFrames, shakeAt, 'death shake is frame-tied juice and waits for a slice');
+      gameLoop(SIM_FRAME_MS * 3);
+      assertEquals(Animations.deathShakeFrames, shakeAt - 1);
+    } finally {
+      dino.y = origY;
+      dino.velocityY = origVy;
+      dino.isJumping = origJump;
+      game.mode = origMode;
+      game.state = origState;
+      Animations.deathShakeFrames = 0;
+      cancelLoop();
+      resetGame();
+      cancelLoop();
+    }
+  });
+
+  it('a 120Hz second matches a 60Hz second of score in Classic and Updated', () => {
+    const origMode = game.mode;
+    function scoreFor(mode, frames, dt) {
+      game.mode = mode;
+      resetGame();
+      cancelLoop();
+      game.state = STATE.RUNNING;
+      game.score = 0;
+      let t = 0;
+      for (let i = 0; i < frames; i++) {
+        gameLoop(t);
+        t += dt;
+      }
+      cancelLoop();
+      return game.score;
+    }
+    try {
+      const classicFast = scoreFor(MODES.CLASSIC, 120, SIM_FRAME_MS / 2);
+      const updatedFast = scoreFor(MODES.UPDATED, 120, SIM_FRAME_MS / 2);
+      const classic60 = scoreFor(MODES.CLASSIC, 60, SIM_FRAME_MS);
+      const expected = GAME_CONFIG.SCORE_INCREMENT * 60;
+      assert(Math.abs(classicFast - expected) < 1e-9,
+        '120 display frames at 120Hz are 60 sim slices');
+      assertEquals(updatedFast, classicFast, 'Updated keeps the same sim clock as Classic');
+      assertEquals(classic60, classicFast, '60Hz stamps match the 120Hz wall-clock second');
+      assertEquals(game.state, STATE.RUNNING, 'the sample run must not die early');
+    } finally {
+      game.mode = origMode;
+      cancelLoop();
+      resetGame();
+      cancelLoop();
+    }
+  });
+
+  it('60Hz stamps roll the same daily rng sequence as one call per slice', () => {
+    const frames = 240;
+    const plain = rngTrace(() => {
+      for (let i = 0; i < frames; i++) gameLoop();
+    });
+    const stamped = rngTrace(() => {
+      let t = 0;
+      for (let i = 0; i < frames; i++) {
+        gameLoop(t);
+        t += SIM_FRAME_MS;
+      }
+    });
+    assert(plain.length > 2, 'the sample must reach a second seeded roll');
+    assertEquals(stamped.join('|'), plain.join('|'),
+      'a 60Hz rAF stream must not change hill or spawn rolls versus one slice per call');
+    const fast = rngTrace(() => {
+      let t = 0;
+      for (let i = 0; i < frames; i++) {
+        gameLoop(t);
+        t += SIM_FRAME_MS / 2;
+      }
+    });
+    assert(fast.length < plain.length,
+      'twice as many animation frames must not roll rng twice as often');
+    cancelLoop();
+    resetGame();
+    cancelLoop();
+  });
+
+  it('a display frame that owes no slice does not redraw or emit', () => {
+    const origState = game.state;
+    const origScore = game.score;
+    const origFill = ctx.fillText;
+    try {
+      setQaHz(false);
+      resetSimClock();
+      game.state = STATE.RUNNING;
+      game.score = 4;
+      gameLoop(0);
+      const texts = [];
+      ctx.fillText = (text) => { texts.push(String(text)); };
+      gameLoop(SIM_FRAME_MS / 2);
+      assertEquals(texts.length, 0, 'a banked half-frame must not repaint the HUD');
+      assertEquals(game.score, 4 + GAME_CONFIG.SCORE_INCREMENT, 'score advances only on the slice that was owed');
+    } finally {
+      ctx.fillText = origFill;
+      setQaHz(false);
+      game.state = origState;
+      game.score = origScore;
+      cancelLoop();
+      resetSimClock();
+    }
+  });
+});
+
+describe('QA pace readout (?qaHz=1)', () => {
+  function cancelLoop() {
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+  }
+
+  it('only qaHz=1 enables the readout', () => {
+    assert(readQaHzFlag('?qaHz=1') === true, '?qaHz=1 should enable the readout');
+    assert(readQaHzFlag('?foo=1&qaHz=1') === true, 'the flag should work alongside other params');
+    assert(readQaHzFlag('') === false, 'a normal visit should leave the readout off');
+    assert(readQaHzFlag('?qaHz=0') === false, 'only the value 1 enables the readout');
+    assert(readQaHzFlag('?qaHz=12') === false, 'qaHz=12 must not count as the flag');
+    assert(readQaHzFlag('?other=1') === false, 'an unrelated param must not enable the readout');
+  });
+
+  it('off, the readout draws nothing and does not change a sim step', () => {
+    const origFill = ctx.fillText;
+    const origState = game.state;
+    try {
+      setQaHz(false);
+      const texts = [];
+      ctx.fillText = (text) => { texts.push(String(text)); };
+      drawQaHz();
+      assertEquals(texts.length, 0, 'a normal visit must not paint the pace label');
+
+      resetGame();
+      cancelLoop();
+      setQaHz(false);
+      game.state = STATE.RUNNING;
+      game.score = 0;
+      gameLoop();
+      const offScore = game.score;
+      resetGame();
+      cancelLoop();
+      setQaHz(true);
+      game.state = STATE.RUNNING;
+      game.score = 0;
+      gameLoop();
+      assertEquals(game.score, offScore, 'the flag must not change how far one slice scores');
+      assertEquals(offScore, GAME_CONFIG.SCORE_INCREMENT);
+    } finally {
+      ctx.fillText = origFill;
+      setQaHz(false);
+      game.state = origState;
+      cancelLoop();
+      resetGame();
+      cancelLoop();
+    }
+  });
+
+  it('paints a static label under reduced motion and reports 60/120 after one second', () => {
+    const origFill = ctx.fillText;
+    const origState = game.state;
+    const origMode = game.mode;
+    try {
+      setReducedMotion(true);
+      setQaHz(true);
+      const texts = [];
+      ctx.fillText = (text) => { texts.push(String(text)); };
+      drawQaHz();
+      assertEquals(texts.length, 1, 'reduced motion still shows the readout');
+      assertEquals(texts[0], 'sim --  raf --', 'before a full second the rates are not invented');
+      assertEquals(qaHzLabel(), 'sim --  raf --');
+
+      setReducedMotion(false);
+      game.mode = MODES.CLASSIC;
+      resetGame();
+      cancelLoop();
+      setQaHz(true);
+      game.state = STATE.RUNNING;
+      let t = 0;
+      for (let i = 0; i <= 120; i++) {
+        gameLoop(t);
+        t += 1000 / 120;
+      }
+      assertEquals(qaHzLabel(), 'sim 60  raf 120',
+        'a 120Hz second should read sim 60 and raf 120');
+
+      resetGame();
+      cancelLoop();
+      setQaHz(true);
+      game.state = STATE.RUNNING;
+      t = 0;
+      for (let i = 0; i <= 60; i++) {
+        gameLoop(t);
+        t += SIM_FRAME_MS;
+      }
+      assertEquals(qaHzLabel(), 'sim 60  raf 60',
+        'a 60Hz second should read sim 60 and raf 60');
+    } finally {
+      ctx.fillText = origFill;
+      setReducedMotion(false);
+      setQaHz(false);
+      game.mode = origMode;
+      game.state = origState;
+      cancelLoop();
+      resetGame();
+      cancelLoop();
+    }
+  });
+
+  it('resetGame re-reads ?qaHz=1 and a normal visit clears it', () => {
+    const prevLocation = global.location;
+    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
+    const origFill = ctx.fillText;
+    try {
+      global.location = { search: '?qaHz=1' };
+      resetGame();
+      cancelLoop();
+      const texts = [];
+      ctx.fillText = (text) => { texts.push(String(text)); };
+      drawQaHz();
+      assertEquals(texts[0], 'sim --  raf --', 'the query enables the label after reset');
+      global.location = { search: '' };
+      resetGame();
+      cancelLoop();
+      texts.length = 0;
+      drawQaHz();
+      assertEquals(texts.length, 0, 'a visit without the flag clears the readout');
+    } finally {
+      if (hadLocation) global.location = prevLocation;
+      else delete global.location;
+      ctx.fillText = origFill;
+      setQaHz(false);
+      cancelLoop();
+      resetGame();
+      cancelLoop();
+    }
+  });
+});
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {
