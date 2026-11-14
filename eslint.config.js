@@ -61,6 +61,7 @@ export default [
         ctx: 'readonly',
         dino: 'readonly',
         getBackgroundColor: 'readonly',
+        setPageBackground: 'readonly',
         drawBackground: 'readonly',
         starFadeAlpha: 'readonly',
         starPaintAlpha: 'readonly',

@@ -3973,6 +3973,17 @@ if (typeof document !== 'undefined' && document.addEventListener) {
 
 // == SECTION 8: GAME LOOP ==
 
+// The page behind the canvas follows the sky colour. Writing body.style makes
+// the browser recalculate page styles, so remember the last colour written and
+// skip the write while the sky holds still. Most of a run is one colour.
+let lastPageBackground = null;
+function setPageBackground(color) {
+  if (typeof document === 'undefined' || !document.body) return;
+  if (color === lastPageBackground) return;
+  lastPageBackground = color;
+  document.body.style.background = color;
+}
+
 function resetGame() {
   const restartAfterDeath = game.state === STATE.DEAD;
   // Drop any hitch that piled up on the previous run so the first frames
@@ -4070,7 +4081,7 @@ function resetGame() {
     ? 'Get ready. Press space or tap to start.'
     : 'Get ready.';
   announce(isDailyMode() ? ready + ' ' + dailyPreRunLine() + '.' : ready);
-  if (document.body) document.body.style.background = '';
+  setPageBackground('');
 }
 
 // Classic reads the original shake keys. Updated and Daily read the quieter
@@ -4171,7 +4182,7 @@ function handleDead() {
 function handleIdle() {
   game.animFrame++;
   drawBackground();
-  if (document.body) document.body.style.background = getBackgroundColor(game.score);
+  setPageBackground(getBackgroundColor(game.score));
   drawHills();
   drawGround();
   updateClouds();
@@ -4188,7 +4199,7 @@ function handleWaiting() {
     announce('Go!');
   }
   drawBackground();
-  if (document.body) document.body.style.background = getBackgroundColor(game.score);
+  setPageBackground(getBackgroundColor(game.score));
   drawHills();
   drawGround();
   updateClouds();
@@ -4263,7 +4274,7 @@ function handleRunning() {
   }
 
   drawBackground();
-  if (document.body) document.body.style.background = getBackgroundColor(game.score);
+  setPageBackground(getBackgroundColor(game.score));
   runFeatureUpdates();              // updateHills, updateClouds, Particles.update
   runFeatureDraws('background');    // drawHills, drawClouds
   drawGround();
@@ -4574,6 +4585,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.ctx = ctx;
   global.dino = dino;
   global.getBackgroundColor = getBackgroundColor;
+  global.setPageBackground = setPageBackground;
   global.getHillColor = getHillColor;
   global.drawBackground = drawBackground;
   global.starFadeAlpha = starFadeAlpha;
