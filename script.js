@@ -1725,7 +1725,7 @@ const audio = {
                 : (typeof webkitAudioContext !== 'undefined') ? webkitAudioContext
                 : null;
       if (!Ctx) return null;
-      try { this.ctx = new Ctx(); } catch (e) { this.ctx = null; }
+      try { this.ctx = new Ctx(); } catch { this.ctx = null; }
     }
     if (this.ctx && this.ctx.state === 'suspended' && typeof this.ctx.resume === 'function') {
       this.ctx.resume().catch(() => { /* swallow autoplay-block etc. */ });

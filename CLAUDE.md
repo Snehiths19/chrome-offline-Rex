@@ -6,7 +6,7 @@ Architecture reference for contributors and future Claude Code sessions. Optimis
 
 Single-file vanilla-JS clone of Chrome's offline dino game. Render target is a `<canvas>` driven by `requestAnimationFrame`. No bundler, no framework, no runtime dependencies — `npm` is for ESLint/Prettier only.
 
-- Game logic: `script.js` (~1200 LOC, sectioned)
+- Game logic: `script.js` (~4,800 lines, sectioned)
 - Tests: `tests/game.test.js` (custom harness, runs under Node)
 - HTML shell: `index.html` (canvas + UI buttons)
 - Styles: `style.css`
@@ -21,7 +21,7 @@ npm run lint                   # ESLint script.js + tests
 npm run serve                  # local server on :8080
 ```
 
-The lint and test gates also run in CI on every push (`.github/workflows/ci.yml`) and as a deploy gate on `pages.yml`.
+The lint and test gates also run in CI on pull requests and on pushes to any branch except `master` (`.github/workflows/ci.yml`) and as a deploy gate on `pages.yml`.
 
 ## File map
 
@@ -42,17 +42,19 @@ eslint.config.js, .prettierrc.json
 
 The file is divided into numbered sections. Add new code inside the section it belongs to; don't append at EOF.
 
+Line numbers drift as the file grows, so treat them as rough. Find the current ones with `grep -n "== SECTION" script.js` (headers look like `// == SECTION 5: RENDERING ==`).
+
 1. **Section 1 — Node stubs** (~line 1). Browser-API shims so `script.js` can be `require`d under Node. Browsers skip this block.
-2. **Section 2 — Configuration** (~line 65). `GAME_CONFIG` (frozen) plus the `cfg`/`loadTuning`/`saveTuning` live-tuning hook, and `ScoreStore` (all localStorage score persistence).
-3. **Section 3 — Asset loading** (~line 280). Sprite preload with timeout fallback.
-4. **Section 4 — Game state** (~line 380). `STATE` enum, `MODES`, the `game` object, the `mulberry32` seeded RNG, `audio` object.
-5. **Section 5 — Rendering** (~line 470). Pure draw functions: `drawBackground`, `drawDino`, `drawObstacles`, `drawClouds`, `drawHills`, `drawSkyTint`, `drawDeathFlash`, `drawScore`, `drawMilestoneFlash`, `drawNewBestBadge`, etc.
-6. **Feature registry** (~line 770). `FEATURES` array + `runFeatureUpdates` + `runFeatureDraws(layer)`. Declarative ordering for ambient features (hills, clouds, particles, skyTint).
-7. **Section 6 — Physics & game logic** (~line 800). `DifficultyProfile.nextObstacle()` (type + gap), `spawnObstacle`, collision, `jump`, `resetGame`. `pickObstacleType` and `computeNextSpawnGap` are internal helpers — not exported.
-8. **Section 7 — Input handlers** (~line 870). Keyboard + mouse + touch. Mute and mode-toggle buttons live here too.
-9. **Section 8 — Game loop** (~line 970). `gameLoop` spends rAF time in 60Hz sim slices, then runs one state handler per slice (WAITING, RUNNING, DEAD, IDLE). RUNNING uses the feature registry; the other states are hand-written. A display frame that owes no slice does not run a handler.
-10. **Section 9 — Initialisation** (~line 1160). Loads assets, sets state, kicks off the loop.
-11. **Section 10 — Test exposure** (~line 1170). Node-only globals so tests can poke internals.
+2. **Section 2 — Configuration** (~line 80). `GAME_CONFIG` (frozen), the `cfg`/`loadTuning`/`saveTuning` live-tuning hook, `ScoreStore` (all localStorage score persistence), the `STATE` enum, `reducedMotion`/`setReducedMotion`, the QA URL-flag helpers (`readQa*Flag`/`setQa*`, `drawQa*`; ~lines 600–1710, the bulk of this section), and the `audio` object.
+3. **Section 3 — Asset loading** (~line 1780). `canvas`/`ctx`, `a11yLive`/`announce`, `dino`, sprite preload with timeout fallback, and the canvas-sizing shell helpers (`computeCanvasCssWidth`, `fitCanvasCssSize`, `initCanvasScale`, `handleResize`).
+4. **Section 4 — Game state** (~line 2010). The `mulberry32` seeded RNG, `DifficultyProfile.nextObstacle()` (type + gap; `pickObstacleType` and `computeNextSpawnGap` are internal helpers, not exported), `MODES`/`loadMode`, daily seed helpers, the `game` object, `Animations`, `setMode`, daily share, and the death-log debug tools.
+5. **Section 5 — Rendering** (~line 2440). Pure draw functions: `drawBackground`, `drawDino`, `drawObstacles`, `drawClouds`, `drawHills`, `drawSkyTint`, `drawDeathFlash`, `drawScore`, `drawMilestoneFlash`, `drawNewBestBadge`, etc. Also `isDailyMode`/`isUpdatedMode` and `Particles`.
+6. **Feature registry** (~line 3620). `FEATURES` array + `runFeatureUpdates` + `runFeatureDraws(layer)`. Declarative ordering for ambient features (hills, clouds, particles, skyTint).
+7. **Section 6 — Physics & game logic** (~line 3640). `spawnObstacle`, `updateObstacles`, `checkCollision`, `computeRunResult`, `jump`.
+8. **Section 7 — Input handlers** (~line 3715). `handleAction`, keyboard + mouse + touch. Jump, mute, mode-toggle, share and daily buttons live here too.
+9. **Section 8 — Game loop** (~line 3975). `resetGame`, the per-state handlers (`handleDead`, `handleIdle`, `handleWaiting`, `handleRunning`) and `STATE_HANDLERS`, the 60Hz sim clock (`SIM_FRAME_MS`, `simStepsForFrame`), and `gameLoop`. `gameLoop` spends rAF time in 60Hz sim slices, then runs one state handler per slice (WAITING, RUNNING, DEAD, IDLE). RUNNING uses the feature registry; the other states are hand-written. A display frame that owes no slice does not run a handler.
+10. **Section 9 — Initialisation** (~line 4560). Loads assets, sets state, kicks off the loop.
+11. **Section 10 — Test exposure** (~line 4565). Node-only globals so tests can poke internals.
 
 ### Adding a visual tunable
 
@@ -149,7 +151,7 @@ When running `/tdd`, tests must only use globals exported in the `Section 10 —
 
 `.github/workflows/pages.yml`:
 
-1. **Test job** — runs `node tests/game.test.js` under Node 20. Failures block deploy.
+1. **Test job** — under Node 20, runs `npm ci`, then `npm run lint` and `node tests/game.test.js`. A lint error or a failing test blocks deploy. Lint warnings print but do not block.
 2. **Deploy job** — runs `sed` to inject `${GITHUB_SHA::7}` into `script.js?v=__VERSION__` and `style.css?v=__VERSION__` in `index.html`. This forces browsers to re-fetch on every push.
 3. **Pages publish** — uploads the repo root as an artifact and deploys to GitHub Pages.
 
