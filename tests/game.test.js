@@ -15540,7 +15540,12 @@ describe('Page background writes (R4)', () => {
   }
 
   // A fake body that counts every write to style.background.
-  function countingBody() {
+  // Counts every write to the page's style.background through a fake body.
+  // A browser refuses a plain object assigned to document.body, and its real
+  // style object keeps any spy defined on it, so shadow the body getter with
+  // an own property instead. Deleting that property brings back the real body
+  // (or, under Node, whatever the stub had before).
+  function installCountingBody() {
     const writes = [];
     let value = '';
     const style = {};
@@ -15548,14 +15553,18 @@ describe('Page background writes (R4)', () => {
       get: () => value,
       set: (v) => { value = v; writes.push(v); },
     });
-    return { style, writes };
+    const fake = { style };
+    const prev = Object.getOwnPropertyDescriptor(document, 'body');
+    Object.defineProperty(document, 'body', { configurable: true, get: () => fake });
+    const restore = () => {
+      delete document.body;
+      if (prev) Object.defineProperty(document, 'body', prev);
+    };
+    return { style, writes, restore };
   }
 
   function withBody(fn) {
-    const prevBody = document.body;
-    const hadBody = Object.prototype.hasOwnProperty.call(document, 'body');
-    const body = countingBody();
-    document.body = body;
+    const body = installCountingBody();
     const orig = {
       state: game.state,
       score: game.score,
@@ -15573,8 +15582,7 @@ describe('Page background writes (R4)', () => {
       game.obstacles.length = 0;
       orig.obstacles.forEach((o) => game.obstacles.push(o));
       setPageBackground(null);
-      if (hadBody) document.body = prevBody;
-      else delete document.body;
+      body.restore();
       stopLoop();
       resetGame();
       stopLoop();
