@@ -15600,6 +15600,10 @@ describe('Installable and offline (PL1)', () => {
     assert(/CACHE_NAME = 'rex-run-' \+ CACHE_VERSION/.test(sw), 'cache name uses the version');
     const pages = read('.github/workflows/pages.yml');
     assert(/sed -i "s\/__VERSION__\/[^"]*" [^\n]*\bsw\.js/.test(pages), 'pages.yml rewrites sw.js');
+    // The dev-mode sentinel must survive that sed, or a deploy would think it is local.
+    const deployed = sw.replace(/__VERSION__/g, 'abc1234');
+    assert(deployed.includes("CACHE_VERSION !== '__VER' + 'SION__'"), 'sentinel survives deploy sed');
+    assert(deployed.includes("CACHE_VERSION = 'abc1234'"), 'version injected');
   });
 
   it('registerServiceWorker registers sw.js on load in a capable browser', () => {

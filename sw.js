@@ -6,11 +6,14 @@
 // the previous deploy's cache. The new version shows on the next launch; we
 // never reload a page mid-run (Flow pillar).
 //
-// Locally __VERSION__ stays literal, which is fine: one cache, never stale
-// across deploys because local dev never deploys.
+// Locally (`npm run serve`) __VERSION__ stays literal and edits never change
+// this file, so cache-first would hide them. An undeployed build therefore
+// goes network-first and only falls back to the cache when offline.
 
 const CACHE_VERSION = '__VERSION__';
 const CACHE_NAME = 'rex-run-' + CACHE_VERSION;
+// Split so pages.yml's sed does not rewrite this sentinel too.
+const IS_DEPLOYED = CACHE_VERSION !== '__VER' + 'SION__';
 
 // Every file the game needs to boot with the network off. Paths are relative
 // to this file so the same list works at / locally and at /chrome-offline-Rex/
@@ -65,16 +68,24 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
   if (new URL(request.url).origin !== self.location.origin) return;
 
-  event.respondWith(
-    // ignoreSearch: index.html asks for script.js?v=<sha> and style.css?v=<sha>,
-    // and a launch may carry ?qaHz=1 or similar flags.
+  // ignoreSearch: index.html asks for script.js?v=<sha> and style.css?v=<sha>,
+  // and a launch may carry ?qaHz=1 or similar flags.
+  const fromCache = () =>
     caches.match(request, { ignoreSearch: true, cacheName: CACHE_NAME }).then((cached) => {
       if (cached) return cached;
-      return fetch(request).catch(() => {
-        // Offline and not precached: an app launch still gets the shell.
-        if (request.mode === 'navigate') return caches.match('./', { cacheName: CACHE_NAME });
-        return Response.error();
-      });
-    })
+      // Offline and not precached: an app launch still gets the shell.
+      if (request.mode === 'navigate') return caches.match('./', { cacheName: CACHE_NAME });
+      return Response.error();
+    });
+
+  if (!IS_DEPLOYED) {
+    // no-cache revalidates with the dev server, so a plain reload shows edits.
+    event.respondWith(fetch(request.url, { cache: 'no-cache' }).catch(fromCache));
+    return;
+  }
+  event.respondWith(
+    caches
+      .match(request, { ignoreSearch: true, cacheName: CACHE_NAME })
+      .then((cached) => cached || fetch(request).catch(fromCache))
   );
 });
