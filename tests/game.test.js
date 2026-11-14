@@ -15657,6 +15657,139 @@ describe('Blocked storage (C2)', () => {
     assertEquals(result.hi, 4321, 'high score is recorded in memory');
   });
 });
+describe('Page background writes (R4)', () => {
+  function stopLoop() {
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+  }
+
+  // A fake body that counts every write to style.background.
+  // Counts every write to the page's style.background through a fake body.
+  // A browser refuses a plain object assigned to document.body, and its real
+  // style object keeps any spy defined on it, so shadow the body getter with
+  // an own property instead. Deleting that property brings back the real body
+  // (or, under Node, whatever the stub had before).
+  function installCountingBody() {
+    const writes = [];
+    let value = '';
+    const style = {};
+    Object.defineProperty(style, 'background', {
+      get: () => value,
+      set: (v) => { value = v; writes.push(v); },
+    });
+    const fake = { style };
+    const prev = Object.getOwnPropertyDescriptor(document, 'body');
+    Object.defineProperty(document, 'body', { configurable: true, get: () => fake });
+    const restore = () => {
+      delete document.body;
+      if (prev) Object.defineProperty(document, 'body', prev);
+    };
+    return { style, writes, restore };
+  }
+
+  function withBody(fn) {
+    const body = installCountingBody();
+    const orig = {
+      state: game.state,
+      score: game.score,
+      speed: game.currentSpeed,
+      obstacles: game.obstacles.slice(),
+    };
+    try {
+      setPageBackground(null); // forget whatever an earlier test wrote
+      body.writes.length = 0;
+      fn(body);
+    } finally {
+      game.state = orig.state;
+      game.score = orig.score;
+      game.currentSpeed = orig.speed;
+      game.obstacles.length = 0;
+      orig.obstacles.forEach((o) => game.obstacles.push(o));
+      setPageBackground(null);
+      body.restore();
+      stopLoop();
+      resetGame();
+      stopLoop();
+    }
+  }
+
+  function runFrames(n, scoreAt) {
+    for (let i = 0; i < n; i++) {
+      game.state = STATE.RUNNING;
+      game.obstacles.length = 0;
+      game.score = scoreAt(i);
+      STATE_HANDLERS[STATE.RUNNING]();
+    }
+  }
+
+  it('writes once while the sky colour holds over a run', () => {
+    withBody((body) => {
+      resetGame();
+      stopLoop();
+      body.writes.length = 0;
+      runFrames(120, () => 50);
+      assertEquals(body.writes.length, 1, 'one write for 120 day frames');
+      assertEquals(body.writes[0], getBackgroundColor(50), 'the write is the day sky');
+    });
+  });
+
+  it('writes only when getBackgroundColor returns something new across dusk', () => {
+    withBody((body) => {
+      resetGame();
+      stopLoop();
+      body.writes.length = 0;
+      // Let the run's own score carry the sky through dusk into night.
+      const start = GAME_CONFIG.DAY_NIGHT_START - 5;
+      const frames = Math.ceil((GAME_CONFIG.DAY_NIGHT_END + 5 - start) / GAME_CONFIG.SCORE_INCREMENT);
+      const seen = [];
+      let s = start;
+      for (let i = 0; i < frames; i++) {
+        s += GAME_CONFIG.SCORE_INCREMENT; // handleRunning scores before it paints
+        const c = getBackgroundColor(s);
+        if (seen[seen.length - 1] !== c) seen.push(c);
+      }
+      game.score = start;
+      for (let i = 0; i < frames; i++) {
+        game.state = STATE.RUNNING;
+        game.obstacles.length = 0;
+        STATE_HANDLERS[STATE.RUNNING]();
+      }
+      assertEquals(body.writes.length, seen.length, 'one write per colour change');
+      assert(body.writes.length < frames, 'fewer writes than sim frames');
+      assertEquals(body.writes.join(','), seen.join(','), 'writes follow the sky in order');
+    });
+  });
+
+  it('resetGame clears the page background once, and the next run writes again', () => {
+    withBody((body) => {
+      runFrames(5, () => GAME_CONFIG.DAY_NIGHT_END + 10);
+      resetGame();
+      stopLoop();
+      assertEquals(body.style.background, '', 'reset clears the night page');
+      const before = body.writes.length;
+      resetGame();
+      stopLoop();
+      assertEquals(body.writes.length, before, 'a second reset does not rewrite the same empty value');
+      runFrames(3, () => 0);
+      assertEquals(body.writes.length, before + 1, 'the new run writes the day sky once');
+      assertEquals(body.style.background, getBackgroundColor(0), 'page follows the day sky');
+    });
+  });
+
+  it('idle and get-ready frames share the cache', () => {
+    withBody((body) => {
+      game.score = 0;
+      for (let i = 0; i < 30; i++) STATE_HANDLERS[STATE.IDLE]();
+      assertEquals(body.writes.length, 1, 'idle writes once');
+      const origGrace = game.graceFrames;
+      game.graceFrames = 100;
+      game.state = STATE.WAITING;
+      for (let i = 0; i < 30; i++) STATE_HANDLERS[STATE.WAITING]();
+      game.graceFrames = origGrace;
+      assertEquals(body.writes.length, 1, 'get-ready at the same sky adds no write');
+    });
+  });
+});
+
 
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
