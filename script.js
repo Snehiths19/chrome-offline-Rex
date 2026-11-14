@@ -1868,11 +1868,11 @@ function imageReady(img) {
 const SHELL_GUTTER_X = 8;
 
 // Vertical chrome the canvas must clear. The row matches #game-wrapper
-// padding-top. Jump and share match their margin plus used height in Chrome
+// padding-top: 6px top offset + 44px touch targets + 6px gap. Jump and share match their margin plus used height in Chrome
 // (12+53 and 10+38), reserved even while share is hidden so a Daily result
 // does not push the stack under the home indicator. Keep them in sync with
 // style.css.
-const SHELL_CHROME_ROW = 44;
+const SHELL_CHROME_ROW = 56;
 const SHELL_JUMP_BLOCK = 65;
 const SHELL_SHARE_BLOCK = 48;
 

@@ -3337,7 +3337,7 @@ describe('Shell canvas width', () => {
 
 describe('Shell canvas height', () => {
   it('reserves the chrome row, jump, and share measured from the shell', () => {
-    assertEquals(SHELL_CHROME_ROW, 44,
+    assertEquals(SHELL_CHROME_ROW, 56,
       'keep this in sync with #game-wrapper padding-top');
     assertEquals(SHELL_JUMP_BLOCK, 65,
       'jump is margin-top 12 plus a 53px control');
@@ -3358,14 +3358,14 @@ describe('Shell canvas height', () => {
     const maxH = computeCanvasMaxHeight(390, 21 + SHELL_CHROME_ROW + SHELL_JUMP_BLOCK + SHELL_SHARE_BLOCK);
     const wide = fitCanvasCssSize(maxW, 0);
     const size = fitCanvasCssSize(maxW, maxH);
-    assertEquals(maxH, 212, '390px landscape minus home indicator, chrome, jump, and share');
+    assertEquals(maxH, 200, '390px landscape minus home indicator, chrome, jump, and share');
     assert(wide.cssH > maxH, 'width-first height is what clips the jump');
     assert(size.cssH <= maxH, 'fitted height stays inside the reserve');
     assert(size.cssW < maxW, 'the spare width is the letterbox');
     assert(size.cssW <= maxW, 'letterbox does not exceed the content box');
     assertEquals(size.cssW, size.cssH * 3, 'the fitted canvas stays 3:1');
-    assertEquals(size.cssH, 212);
-    assertEquals(size.cssW, 636);
+    assertEquals(size.cssH, 200);
+    assertEquals(size.cssW, 600);
   });
 
   it('initCanvasScale letterboxes a short viewport and leaves a tall phone width-first', () => {
@@ -3391,19 +3391,19 @@ describe('Shell canvas height', () => {
       window.innerWidth = 844;
       window.innerHeight = 390;
       initCanvasScale();
-      assertEquals(canvas.style.width, '699px',
+      assertEquals(canvas.style.width, '663px',
         'landscape display width letterboxes inside the 8px gutter');
-      assertEquals(canvas.style.height, '233px',
+      assertEquals(canvas.style.height, '221px',
         'landscape display height stays above jump and share');
-      assertEquals(canvas.width, 699, 'bitmap width matches the letterboxed css width at dpr 1');
-      assertEquals(canvas.height, 233, 'bitmap height stays 3:1');
+      assertEquals(canvas.width, 663, 'bitmap width matches the letterboxed css width at dpr 1');
+      assertEquals(canvas.height, 221, 'bitmap height stays 3:1');
 
       window.innerHeight = 900;
       window.visualViewport = { height: 390 };
       initCanvasScale();
-      assertEquals(canvas.style.height, '233px',
+      assertEquals(canvas.style.height, '221px',
         'the visible viewport wins over a taller layout viewport');
-      assertEquals(canvas.style.width, '699px',
+      assertEquals(canvas.style.width, '663px',
         'letterbox follows the visible height');
     } finally {
       window.getComputedStyle = origReader;
@@ -15171,7 +15171,6 @@ describe('QA share flag (?qaShare=1)', () => {
   });
 });
 
-
 describe('Sim clock (60Hz)', () => {
   function cancelLoop() {
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -15790,6 +15789,26 @@ describe('Page background writes (R4)', () => {
   });
 });
 
+describe('Shell touch targets (S1)', () => {
+  it('the chrome row reserves a 44px touch target plus its top offset and gap', () => {
+    const TOUCH_TARGET = 44;
+    const TOP_OFFSET = 6;
+    const GAP = 6;
+    assert(SHELL_CHROME_ROW >= TOUCH_TARGET + TOP_OFFSET + GAP,
+      'a 44px row at top 6px keeps a gap above the canvas');
+    assertEquals(SHELL_CHROME_ROW, TOUCH_TARGET + TOP_OFFSET + GAP,
+      'matches #game-wrapper padding-top in style.css');
+  });
+
+  it('a phone in landscape letterboxes the canvas below the taller row', () => {
+    const maxH = computeCanvasMaxHeight(390,
+      SHELL_CHROME_ROW + SHELL_JUMP_BLOCK + SHELL_SHARE_BLOCK);
+    const size = fitCanvasCssSize(828, maxH);
+    assertEquals(maxH, 221, '390px tall minus the 56px row, jump, and share');
+    assert(size.cssH <= maxH, 'canvas never runs into the control row or jump');
+    assertEquals(size.cssW, size.cssH * 3, 'the fitted canvas stays 3:1');
+  });
+});
 
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
