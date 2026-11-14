@@ -15171,7 +15171,6 @@ describe('QA share flag (?qaShare=1)', () => {
   });
 });
 
-
 describe('Sim clock (60Hz)', () => {
   function cancelLoop() {
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -15531,6 +15530,262 @@ describe('QA pace readout (?qaHz=1)', () => {
       resetGame();
       cancelLoop();
     }
+  });
+});
+
+describe('Blocked storage (C2)', () => {
+  // A browser that blocks storage throws on every localStorage access.
+  function withBlockedStorage(fn) {
+    const origStorage = global.localStorage;
+    const origMemory = safeStorage._memory;
+    safeStorage._memory = {};
+    global.localStorage = {
+      getItem() { throw new Error('SecurityError: storage blocked'); },
+      setItem() { throw new Error('SecurityError: storage blocked'); },
+      removeItem() { throw new Error('SecurityError: storage blocked'); },
+    };
+    try { fn(); } finally {
+      global.localStorage = origStorage;
+      safeStorage._memory = origMemory;
+    }
+  }
+
+  it('safeStorage.get returns the fallback and set reports failure without throwing', () => {
+    withBlockedStorage(() => {
+      assertEquals(safeStorage.get('dino-mode'), null, 'missing key reads as null');
+      assertEquals(safeStorage.get('dino-high-score', '0'), '0', 'missing key reads as the fallback');
+      assertEquals(safeStorage.set('dino-mode', 'classic'), false, 'a blocked write returns false');
+      assertEquals(safeStorage.get('dino-mode'), 'classic', 'the write is kept in memory for this session');
+      safeStorage.remove('dino-mode');
+      assertEquals(safeStorage.get('dino-mode', 'x'), 'x', 'remove clears the in-memory copy');
+    });
+  });
+
+  it('safeStorage reads the real store when it works', () => {
+    const orig = localStorage.getItem('dino-muted');
+    localStorage.removeItem('dino-muted');
+    assertEquals(safeStorage.get('dino-muted', 'd'), 'd', 'missing key returns the fallback');
+    assertEquals(safeStorage.set('dino-muted', '1'), true, 'a working write returns true');
+    assertEquals(localStorage.getItem('dino-muted'), '1', 'value lands in localStorage');
+    if (orig === null) localStorage.removeItem('dino-muted');
+    else localStorage.setItem('dino-muted', orig);
+  });
+
+  it('a failed write reads back even when reads still work (full quota)', () => {
+    const origStorage = global.localStorage;
+    const origMemory = safeStorage._memory;
+    safeStorage._memory = {};
+    global.localStorage = {
+      getItem() { return null; },
+      setItem() { throw new Error('QuotaExceededError'); },
+      removeItem() {},
+    };
+    try {
+      ScoreStore.saveDailyBest(321);
+      assertEquals(ScoreStore.loadDailyBest(), 321, 'daily best reads back from memory');
+    } finally {
+      global.localStorage = origStorage;
+      safeStorage._memory = origMemory;
+    }
+  });
+
+  it('mode, mute and scores keep working in memory when storage is blocked', () => {
+    const origMode = game.mode;
+    const origMuted = audio.muted;
+    withBlockedStorage(() => {
+      assertEquals(loadMode(), MODES.UPDATED, 'loadMode falls back to Updated');
+      assertEquals(ScoreStore.loadHighScore(), 0, 'no saved high score reads as 0');
+      assertEquals(ScoreStore.loadDailyBest(), 0, 'no saved daily best reads as 0');
+      audio.setMuted(true);
+      assertEquals(audio.muted, true, 'mute toggles without storage');
+      setMode(MODES.CLASSIC);
+      cancelAnimationFrame(game.animationFrameId);
+      assertEquals(loadMode(), MODES.CLASSIC, 'mode choice is remembered in memory');
+      ScoreStore.saveDailyBest(321);
+      assertEquals(ScoreStore.loadDailyBest(), 321, 'daily best is remembered in memory');
+    });
+    audio.muted = origMuted;
+    setMode(origMode === MODES.CLASSIC ? MODES.CLASSIC : MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    game.mode = origMode;
+  });
+
+  it('a run that beats the high score records it in memory when storage is blocked', () => {
+    const origHS = game.highScore;
+    withBlockedStorage(() => {
+      resetGame();
+      game.obstacles.push({ x: 50, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
+      game.state = STATE.RUNNING;
+      game.graceFrames = 0;
+      game.score = 150;
+      game.highScore = 50;
+      gameLoop();
+      cancelAnimationFrame(game.animationFrameId);
+      assertEquals(game.state, STATE.DEAD, 'the run ends normally');
+      assertEquals(game.highScore, 150, 'game.highScore updates');
+      assertEquals(ScoreStore.loadHighScore(), 150, 'ScoreStore reads the new best back from memory');
+    });
+    game.highScore = origHS;
+    resetGame();
+    cancelAnimationFrame(game.animationFrameId);
+  });
+
+  it('script.js boots in a fresh Node process where every storage access throws', () => {
+    if (typeof require !== 'function') return; // browser runner: Node-only check
+    const { execFileSync } = require('child_process');
+    const scriptPath = require.resolve('../script.js');
+    // The getter throws on every read, and the setter swallows the Node stub's
+    // assignment, so script.js sees storage exactly as a blocking browser does.
+    const code = [
+      "Object.defineProperty(global, 'localStorage', {",
+      "  configurable: true,",
+      "  get() { throw new Error('SecurityError: storage blocked'); },",
+      "  set() {},",
+      "});",
+      'require(' + JSON.stringify(scriptPath) + ');',
+      'ScoreStore.saveHighScore(4321);',
+      'process.stdout.write(JSON.stringify({',
+      '  mode: game.mode, muted: audio.muted, hi: ScoreStore.loadHighScore(),',
+      '}));',
+      'process.exit(0);',
+    ].join('\n');
+    const out = execFileSync(process.execPath, ['-e', code], { encoding: 'utf8', timeout: 10000 });
+    const result = JSON.parse(out);
+    assertEquals(result.mode, MODES.UPDATED, 'boots in the default mode');
+    assertEquals(result.muted, false, 'boots unmuted');
+    assertEquals(result.hi, 4321, 'high score is recorded in memory');
+  });
+});
+describe('Page background writes (R4)', () => {
+  function stopLoop() {
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+  }
+
+  // A fake body that counts every write to style.background.
+  // Counts every write to the page's style.background through a fake body.
+  // A browser refuses a plain object assigned to document.body, and its real
+  // style object keeps any spy defined on it, so shadow the body getter with
+  // an own property instead. Deleting that property brings back the real body
+  // (or, under Node, whatever the stub had before).
+  function installCountingBody() {
+    const writes = [];
+    let value = '';
+    const style = {};
+    Object.defineProperty(style, 'background', {
+      get: () => value,
+      set: (v) => { value = v; writes.push(v); },
+    });
+    const fake = { style };
+    const prev = Object.getOwnPropertyDescriptor(document, 'body');
+    Object.defineProperty(document, 'body', { configurable: true, get: () => fake });
+    const restore = () => {
+      delete document.body;
+      if (prev) Object.defineProperty(document, 'body', prev);
+    };
+    return { style, writes, restore };
+  }
+
+  function withBody(fn) {
+    const body = installCountingBody();
+    const orig = {
+      state: game.state,
+      score: game.score,
+      speed: game.currentSpeed,
+      obstacles: game.obstacles.slice(),
+    };
+    try {
+      setPageBackground(null); // forget whatever an earlier test wrote
+      body.writes.length = 0;
+      fn(body);
+    } finally {
+      game.state = orig.state;
+      game.score = orig.score;
+      game.currentSpeed = orig.speed;
+      game.obstacles.length = 0;
+      orig.obstacles.forEach((o) => game.obstacles.push(o));
+      setPageBackground(null);
+      body.restore();
+      stopLoop();
+      resetGame();
+      stopLoop();
+    }
+  }
+
+  function runFrames(n, scoreAt) {
+    for (let i = 0; i < n; i++) {
+      game.state = STATE.RUNNING;
+      game.obstacles.length = 0;
+      game.score = scoreAt(i);
+      STATE_HANDLERS[STATE.RUNNING]();
+    }
+  }
+
+  it('writes once while the sky colour holds over a run', () => {
+    withBody((body) => {
+      resetGame();
+      stopLoop();
+      body.writes.length = 0;
+      runFrames(120, () => 50);
+      assertEquals(body.writes.length, 1, 'one write for 120 day frames');
+      assertEquals(body.writes[0], getBackgroundColor(50), 'the write is the day sky');
+    });
+  });
+
+  it('writes only when getBackgroundColor returns something new across dusk', () => {
+    withBody((body) => {
+      resetGame();
+      stopLoop();
+      body.writes.length = 0;
+      // Let the run's own score carry the sky through dusk into night.
+      const start = GAME_CONFIG.DAY_NIGHT_START - 5;
+      const frames = Math.ceil((GAME_CONFIG.DAY_NIGHT_END + 5 - start) / GAME_CONFIG.SCORE_INCREMENT);
+      const seen = [];
+      let s = start;
+      for (let i = 0; i < frames; i++) {
+        s += GAME_CONFIG.SCORE_INCREMENT; // handleRunning scores before it paints
+        const c = getBackgroundColor(s);
+        if (seen[seen.length - 1] !== c) seen.push(c);
+      }
+      game.score = start;
+      for (let i = 0; i < frames; i++) {
+        game.state = STATE.RUNNING;
+        game.obstacles.length = 0;
+        STATE_HANDLERS[STATE.RUNNING]();
+      }
+      assertEquals(body.writes.length, seen.length, 'one write per colour change');
+      assert(body.writes.length < frames, 'fewer writes than sim frames');
+      assertEquals(body.writes.join(','), seen.join(','), 'writes follow the sky in order');
+    });
+  });
+
+  it('resetGame clears the page background once, and the next run writes again', () => {
+    withBody((body) => {
+      runFrames(5, () => GAME_CONFIG.DAY_NIGHT_END + 10);
+      resetGame();
+      stopLoop();
+      assertEquals(body.style.background, '', 'reset clears the night page');
+      const before = body.writes.length;
+      resetGame();
+      stopLoop();
+      assertEquals(body.writes.length, before, 'a second reset does not rewrite the same empty value');
+      runFrames(3, () => 0);
+      assertEquals(body.writes.length, before + 1, 'the new run writes the day sky once');
+      assertEquals(body.style.background, getBackgroundColor(0), 'page follows the day sky');
+    });
+  });
+
+  it('idle and get-ready frames share the cache', () => {
+    withBody((body) => {
+      game.score = 0;
+      for (let i = 0; i < 30; i++) STATE_HANDLERS[STATE.IDLE]();
+      assertEquals(body.writes.length, 1, 'idle writes once');
+      const origGrace = game.graceFrames;
+      game.graceFrames = 100;
+      game.state = STATE.WAITING;
+      for (let i = 0; i < 30; i++) STATE_HANDLERS[STATE.WAITING]();
+      game.graceFrames = origGrace;
+      assertEquals(body.writes.length, 1, 'get-ready at the same sky adds no write');
+    });
   });
 });
 
