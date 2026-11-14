@@ -15534,6 +15534,112 @@ describe('QA pace readout (?qaHz=1)', () => {
   });
 });
 
+describe('Blocked storage (C2)', () => {
+  // A browser that blocks storage throws on every localStorage access.
+  function withBlockedStorage(fn) {
+    const origStorage = global.localStorage;
+    const origMemory = safeStorage._memory;
+    safeStorage._memory = {};
+    global.localStorage = {
+      getItem() { throw new Error('SecurityError: storage blocked'); },
+      setItem() { throw new Error('SecurityError: storage blocked'); },
+      removeItem() { throw new Error('SecurityError: storage blocked'); },
+    };
+    try { fn(); } finally {
+      global.localStorage = origStorage;
+      safeStorage._memory = origMemory;
+    }
+  }
+
+  it('safeStorage.get returns the fallback and set reports failure without throwing', () => {
+    withBlockedStorage(() => {
+      assertEquals(safeStorage.get('dino-mode'), null, 'missing key reads as null');
+      assertEquals(safeStorage.get('dino-high-score', '0'), '0', 'missing key reads as the fallback');
+      assertEquals(safeStorage.set('dino-mode', 'classic'), false, 'a blocked write returns false');
+      assertEquals(safeStorage.get('dino-mode'), 'classic', 'the write is kept in memory for this session');
+      safeStorage.remove('dino-mode');
+      assertEquals(safeStorage.get('dino-mode', 'x'), 'x', 'remove clears the in-memory copy');
+    });
+  });
+
+  it('safeStorage reads the real store when it works', () => {
+    const orig = localStorage.getItem('dino-muted');
+    localStorage.removeItem('dino-muted');
+    assertEquals(safeStorage.get('dino-muted', 'd'), 'd', 'missing key returns the fallback');
+    assertEquals(safeStorage.set('dino-muted', '1'), true, 'a working write returns true');
+    assertEquals(localStorage.getItem('dino-muted'), '1', 'value lands in localStorage');
+    if (orig === null) localStorage.removeItem('dino-muted');
+    else localStorage.setItem('dino-muted', orig);
+  });
+
+  it('mode, mute and scores keep working in memory when storage is blocked', () => {
+    const origMode = game.mode;
+    const origMuted = audio.muted;
+    withBlockedStorage(() => {
+      assertEquals(loadMode(), MODES.UPDATED, 'loadMode falls back to Updated');
+      assertEquals(ScoreStore.loadHighScore(), 0, 'no saved high score reads as 0');
+      assertEquals(ScoreStore.loadDailyBest(), 0, 'no saved daily best reads as 0');
+      audio.setMuted(true);
+      assertEquals(audio.muted, true, 'mute toggles without storage');
+      setMode(MODES.CLASSIC);
+      cancelAnimationFrame(game.animationFrameId);
+      assertEquals(loadMode(), MODES.CLASSIC, 'mode choice is remembered in memory');
+      ScoreStore.saveDailyBest(321);
+      assertEquals(ScoreStore.loadDailyBest(), 321, 'daily best is remembered in memory');
+    });
+    audio.muted = origMuted;
+    setMode(origMode === MODES.CLASSIC ? MODES.CLASSIC : MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    game.mode = origMode;
+  });
+
+  it('a run that beats the high score records it in memory when storage is blocked', () => {
+    const origHS = game.highScore;
+    withBlockedStorage(() => {
+      resetGame();
+      game.obstacles.push({ x: 50, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
+      game.state = STATE.RUNNING;
+      game.graceFrames = 0;
+      game.score = 150;
+      game.highScore = 50;
+      gameLoop();
+      cancelAnimationFrame(game.animationFrameId);
+      assertEquals(game.state, STATE.DEAD, 'the run ends normally');
+      assertEquals(game.highScore, 150, 'game.highScore updates');
+      assertEquals(ScoreStore.loadHighScore(), 150, 'ScoreStore reads the new best back from memory');
+    });
+    game.highScore = origHS;
+    resetGame();
+    cancelAnimationFrame(game.animationFrameId);
+  });
+
+  it('script.js boots in a fresh Node process where every storage access throws', () => {
+    if (typeof require !== 'function') return; // browser runner: Node-only check
+    const { execFileSync } = require('child_process');
+    const scriptPath = require.resolve('../script.js');
+    // The getter throws on every read, and the setter swallows the Node stub's
+    // assignment, so script.js sees storage exactly as a blocking browser does.
+    const code = [
+      "Object.defineProperty(global, 'localStorage', {",
+      "  configurable: true,",
+      "  get() { throw new Error('SecurityError: storage blocked'); },",
+      "  set() {},",
+      "});",
+      'require(' + JSON.stringify(scriptPath) + ');',
+      'ScoreStore.saveHighScore(4321);',
+      'process.stdout.write(JSON.stringify({',
+      '  mode: game.mode, muted: audio.muted, hi: ScoreStore.loadHighScore(),',
+      '}));',
+      'process.exit(0);',
+    ].join('\n');
+    const out = execFileSync(process.execPath, ['-e', code], { encoding: 'utf8', timeout: 10000 });
+    const result = JSON.parse(out);
+    assertEquals(result.mode, MODES.UPDATED, 'boots in the default mode');
+    assertEquals(result.muted, false, 'boots unmuted');
+    assertEquals(result.hi, 4321, 'high score is recorded in memory');
+  });
+});
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {

@@ -543,35 +543,61 @@ function cfg(key) {
   return GAME_CONFIG[key];
 }
 
+// --- Safe storage (C2) ---
+// Every localStorage call goes through safeStorage. Browsers that block
+// storage (privacy modes, sandboxed iframes, cookies off) throw on the first
+// access, and an unguarded read at module load would stop the game booting.
+// A failed read returns the fallback; a failed write is ignored. Writes also
+// land in an in-memory map so values set this session (high score, mute,
+// daily best) still read back when the real store throws.
+const safeStorage = {
+  _memory: {},
+  get(key, fallback = null) {
+    try {
+      const v = localStorage.getItem(key);
+      return v === null || v === undefined ? fallback : v;
+    } catch {
+      // Storage blocked — fall back to what this session wrote, else the default.
+      return Object.prototype.hasOwnProperty.call(this._memory, key) ? this._memory[key] : fallback;
+    }
+  },
+  set(key, value) {
+    const v = String(value);
+    this._memory[key] = v;
+    try { localStorage.setItem(key, v); return true; } catch { return false; }
+  },
+  remove(key) {
+    delete this._memory[key];
+    try { localStorage.removeItem(key); } catch { /* storage blocked — ignore */ }
+  },
+};
+
 function loadTuning() {
   window.GAME_TUNING = window.GAME_TUNING || {};
   try {
-    const raw = localStorage.getItem('dino-tuning');
+    const raw = safeStorage.get('dino-tuning');
     if (raw) Object.assign(window.GAME_TUNING, JSON.parse(raw));
-  } catch (e) { /* malformed JSON or disabled storage — keep defaults */ }
+  } catch { /* malformed JSON — keep defaults */ }
 }
 
 function saveTuning() {
-  try {
-    localStorage.setItem('dino-tuning', JSON.stringify(window.GAME_TUNING || {}));
-    return true;
-  } catch (e) { return false; }
+  return safeStorage.set('dino-tuning', JSON.stringify(window.GAME_TUNING || {}));
 }
 
 loadTuning();
 
 const ScoreStore = {
-  loadHighScore()      { return parseInt(localStorage.getItem('dino-high-score') || '0', 10); },
-  saveHighScore(n)     { localStorage.setItem('dino-high-score', String(n)); },
+  loadHighScore()      { return parseInt(safeStorage.get('dino-high-score', '0'), 10) || 0; },
+  saveHighScore(n)     { safeStorage.set('dino-high-score', n); },
   loadDailyBest() {
-    const storedDate = parseInt(localStorage.getItem('dino-daily-date') || '0', 10);
+    const storedDate = parseInt(safeStorage.get('dino-daily-date', '0'), 10) || 0;
     if (storedDate !== dailySeed()) return 0;
-    return parseInt(localStorage.getItem('dino-daily-best') || '0', 10);
+    return parseInt(safeStorage.get('dino-daily-best', '0'), 10) || 0;
   },
   saveDailyBest(score) {
     if (score > this.loadDailyBest()) {
-      localStorage.setItem('dino-daily-date', String(dailySeed()));
-      localStorage.setItem('dino-daily-best', String(score));
+      safeStorage.set('dino-daily-date', dailySeed());
+      safeStorage.set('dino-daily-best', score);
     }
   },
 };
@@ -1718,7 +1744,7 @@ function qaBigOverride(rolledType) {
 // unavailable (Node tests, very old browsers).
 const audio = {
   ctx: null,
-  muted: localStorage.getItem('dino-muted') === '1',
+  muted: safeStorage.get('dino-muted') === '1',
   ensure() {
     if (!this.ctx) {
       const Ctx = (typeof AudioContext !== 'undefined') ? AudioContext
@@ -1734,7 +1760,7 @@ const audio = {
   },
   setMuted(v) {
     this.muted = !!v;
-    localStorage.setItem('dino-muted', this.muted ? '1' : '0');
+    safeStorage.set('dino-muted', this.muted ? '1' : '0');
   },
   // Short envelope-shaped tone. Used by jump/land/milestone.
   blip(freq, durationMs, type = 'sine', gain = 0.04) {
@@ -2087,7 +2113,7 @@ const MODES = Object.freeze({ CLASSIC: 'classic', UPDATED: 'updated', DAILY: 'da
 // Read the saved mode (defaults to 'updated' for first-time players). Persists
 // across reload so the user's preference is remembered.
 function loadMode() {
-  const stored = localStorage.getItem('dino-mode');
+  const stored = safeStorage.get('dino-mode');
   return stored === MODES.CLASSIC ? MODES.CLASSIC : MODES.UPDATED;
 }
 
@@ -2243,7 +2269,7 @@ const Animations = {
 
 function setMode(newMode) {
   game.mode = newMode === MODES.CLASSIC ? MODES.CLASSIC : MODES.UPDATED;
-  localStorage.setItem('dino-mode', game.mode);
+  safeStorage.set('dino-mode', game.mode);
   refreshModeToggle();
   // Restart the run cleanly so the new mode's spawn rules take effect immediately.
   cancelAnimationFrame(game.animationFrameId);
@@ -3939,7 +3965,7 @@ if (dailyBtn && dailyBtn.addEventListener) {
       game.mode = MODES.DAILY;
     } else {
       game.mode = MODES.UPDATED;
-      localStorage.setItem('dino-mode', MODES.UPDATED);
+      safeStorage.set('dino-mode', MODES.UPDATED);
     }
     refreshDailyButton();
     cancelAnimationFrame(game.animationFrameId);
@@ -4622,6 +4648,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.MODES = MODES;
   global.setMode = setMode;
   global.loadMode = loadMode;
+  global.safeStorage = safeStorage;
   global.Particles = Particles;
   global.audio = audio;
   global.drawDeathFlash = drawDeathFlash;

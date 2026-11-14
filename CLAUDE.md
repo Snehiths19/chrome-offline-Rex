@@ -133,6 +133,8 @@ const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matc
 | `dino-daily-date` | YYYYMMDD integer string | `ScoreStore.saveDailyBest()` | `ScoreStore.loadDailyBest()` |
 | `dino-daily-best` | integer string | `ScoreStore.saveDailyBest()` | `ScoreStore.loadDailyBest()` |
 
+Every read and write goes through `safeStorage.get(key, fallback)` / `safeStorage.set(key, value)` in Section 2, never `localStorage` directly.
+
 ## Test harness
 
 Custom `describe`/`it` with `assert`/`assertEquals`/`assertNotEquals`. No Jest, no Mocha, no JSDOM. Tests run as a single Node script via `node tests/game.test.js`.
@@ -177,6 +179,8 @@ Read the `cfg()` block at the top of `script.js` Section 2 for the full list of 
 Rules that apply across all call sites. Violating these silently misbehaves rather than crashes — so they must be checked during any refactor that touches the affected code.
 
 **`cancelAnimationFrame` before restarting the loop.** Any code path that calls `resetGame()` + `gameLoop()` must first call `cancelAnimationFrame(game.animationFrameId)`, or a duplicate loop is created and the game runs at double speed. Current compliant sites: `setMode()`, daily-mode toggle, `handleAction()` (DEAD→restart branch). Pattern: `cancelAnimationFrame(game.animationFrameId); resetGame(); gameLoop();`
+
+**All storage goes through `safeStorage`.** Browsers that block storage throw on every `localStorage` access, and one unguarded read at module load stops the game booting. `safeStorage.get` returns the fallback when the read throws (or this session's in-memory copy), and `safeStorage.set` ignores a failed write. Never call `localStorage` directly outside `safeStorage`.
 
 **`game.rng()` is the only source of gameplay randomness.** Obstacle type, spawn-gap jitter, hill init/respawn all use `game.rng()`. `Math.random()` is reserved for purely cosmetic effects (particles, clouds, audio pitch). Swapping them breaks the daily-challenge determinism contract.
 
