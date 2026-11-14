@@ -71,6 +71,68 @@ function assertNotEquals(actual, unexpected, message = `Expected value not to be
   }
 }
 
+// --- Browser and Node environment helpers ---
+// The suite runs under Node (npm test) and in a real browser
+// (tests/test-runner.html). These helpers hide the few places where the two
+// differ, so a test reads the same in both.
+
+// The global object: `global` in Node, `window` in a browser.
+const testGlobal = typeof globalThis !== 'undefined' ? globalThis : global;
+const IN_NODE = typeof process !== 'undefined' && !!(process.versions && process.versions.node);
+
+// The game reads QA flags from `location.search`. Node has no location, so
+// there a plain { search } object stands in. A browser's location cannot be
+// replaced, so there the query is swapped with history.replaceState, which
+// changes location.search without reloading the page.
+function setPageQuery(search) {
+  if (IN_NODE) {
+    testGlobal.location = { search };
+    return;
+  }
+  const query = search && search.charAt(0) !== '?' ? '?' + search : search || '';
+  const loc = window.location;
+  window.history.replaceState(window.history.state, '', loc.pathname + query + loc.hash);
+}
+
+// Snapshot the page query; the returned function puts it back.
+function savePageQuery() {
+  if (IN_NODE) {
+    const had = Object.prototype.hasOwnProperty.call(testGlobal, 'location');
+    const prev = testGlobal.location;
+    return () => {
+      if (had) testGlobal.location = prev;
+      else delete testGlobal.location;
+    };
+  }
+  const prevSearch = window.location.search;
+  return () => setPageQuery(prevSearch);
+}
+
+// A browser element's style is a getter, so `btn.style = { display: 'none' }`
+// is ignored there. Shadow it with a plain object instead (Node's stub nodes
+// take the same path); restoreElementStyle puts the saved style back.
+function stubElementStyle(el, style) {
+  Object.defineProperty(el, 'style', { configurable: true, writable: true, value: style });
+}
+
+function restoreElementStyle(el, saved) {
+  delete el.style;
+  if (saved !== undefined && el.style !== saved) el.style = saved;
+}
+
+// A browser refuses a plain object assigned to document.body or
+// document.documentElement (they are getters on Document.prototype). Shadow the
+// getter with an own property instead; the returned function deletes it, which
+// brings back the real node. Node's stub document takes the same path.
+function overrideDocumentProp(name, value) {
+  const prev = Object.getOwnPropertyDescriptor(document, name);
+  Object.defineProperty(document, name, { configurable: true, writable: true, value });
+  return () => {
+    delete document[name];
+    if (prev) Object.defineProperty(document, name, prev);
+  };
+}
+
 // --- Mocking and Setup ---
 // The game script (script.js) is loaded by test-runner.html before this script
 // (in browsers) or via require() above (in Node). Tests drive the game loop
@@ -651,9 +713,24 @@ describe('Death flash + score pop (PR-C)', () => {
 });
 
 describe('Audio (PR-B)', () => {
-  it('audio.ensure() returns null in Node (no AudioContext)', () => {
-    const result = audio.ensure();
-    assertEquals(result, null, 'AudioContext is unavailable in Node — ensure should return null');
+  it('audio.ensure() returns null when there is no AudioContext', () => {
+    // Node has no AudioContext; a browser does, so hide it for this test.
+    const names = ['AudioContext', 'webkitAudioContext'];
+    const saved = names.map((n) => Object.getOwnPropertyDescriptor(testGlobal, n));
+    const origCtx = audio.ctx;
+    names.forEach((n) => { testGlobal[n] = undefined; });
+    audio.ctx = null;
+    let result;
+    try {
+      result = audio.ensure();
+    } finally {
+      names.forEach((n, i) => {
+        delete testGlobal[n];
+        if (saved[i]) Object.defineProperty(testGlobal, n, saved[i]);
+      });
+      audio.ctx = origCtx;
+    }
+    assertEquals(result, null, 'without an AudioContext, ensure should return null');
   });
 
   it('setMuted persists through localStorage', () => {
@@ -3256,9 +3333,8 @@ describe('Shell canvas width', () => {
 
   it('measureCanvasCssWidth adds the gutter on top of body safe-area when the wrapper is not laid out', () => {
     const body = { id: 'body' };
-    const prevBody = document.body;
     const origReader = window.getComputedStyle;
-    document.body = body;
+    const restoreBody = overrideDocumentProp('body', body);
     window.getComputedStyle = (el) => {
       if (el === body) return { paddingLeft: '47px', paddingRight: '47px' };
       return { paddingLeft: '0px', paddingRight: '0px' };
@@ -3268,7 +3344,7 @@ describe('Shell canvas width', () => {
       width = measureCanvasCssWidth(null, 390);
     } finally {
       window.getComputedStyle = origReader;
-      document.body = prevBody;
+      restoreBody();
     }
     assertEquals(width, 390 - 47 - 47 - SHELL_GUTTER_X * 2,
       'fallback width is viewport minus safe-area minus the shell gutter');
@@ -3277,9 +3353,8 @@ describe('Shell canvas width', () => {
   it('measureCanvasCssWidth does not subtract body insets already inside clientWidth', () => {
     const wrapper = { clientWidth: 280 };
     const body = { id: 'body' };
-    const prevBody = document.body;
     const origReader = window.getComputedStyle;
-    document.body = body;
+    const restoreBody = overrideDocumentProp('body', body);
     window.getComputedStyle = (el) => {
       if (el === wrapper) return { paddingLeft: '8px', paddingRight: '8px' };
       if (el === body) return { paddingLeft: '47px', paddingRight: '47px' };
@@ -3290,7 +3365,7 @@ describe('Shell canvas width', () => {
       width = measureCanvasCssWidth(wrapper, 390);
     } finally {
       window.getComputedStyle = origReader;
-      document.body = prevBody;
+      restoreBody();
     }
     assertEquals(width, 264,
       'clientWidth already sits inside the body safe-area, so only the wrapper gutter comes off');
@@ -3306,7 +3381,8 @@ describe('Shell canvas width', () => {
     const origStyleWidth = canvas.style.width;
     const origStyleHeight = canvas.style.height;
     const origReader = window.getComputedStyle;
-    wrapper.clientWidth = 358;
+    // A real element's clientWidth is a getter, so shadow it to fake a layout.
+    Object.defineProperty(wrapper, 'clientWidth', { configurable: true, writable: true, value: 358 });
     window.innerWidth = 390;
     window.devicePixelRatio = 2;
     window.getComputedStyle = (el) => {
@@ -3325,8 +3401,8 @@ describe('Shell canvas width', () => {
       window.getComputedStyle = origReader;
       window.innerWidth = origInner;
       window.devicePixelRatio = origDpr;
-      if (origClient === undefined) delete wrapper.clientWidth;
-      else wrapper.clientWidth = origClient;
+      delete wrapper.clientWidth;
+      if (wrapper.clientWidth !== origClient) wrapper.clientWidth = origClient;
       canvas.width = origWidth;
       canvas.height = origHeight;
       canvas.style.width = origStyleWidth;
@@ -3443,11 +3519,10 @@ describe('QA safe shell (?qaSafe=1)', () => {
 
   it('applyQaSafeShell toggles the document class and does not touch the run', () => {
     const root = { classList: qaSafeClassList() };
-    const prevRoot = document.documentElement;
     const origScore = game.score;
     const origMode = game.mode;
     const origRng = game.rng;
-    document.documentElement = root;
+    const restoreRoot = overrideDocumentProp('documentElement', root);
     try {
       setQaSafe(false);
       applyQaSafeShell();
@@ -3462,14 +3537,13 @@ describe('QA safe shell (?qaSafe=1)', () => {
       applyQaSafeShell();
       assert(root.classList.contains('qa-safe') === false, 'turning the flag off removes the mark');
     } finally {
-      document.documentElement = prevRoot;
+      restoreRoot();
       setQaSafe(false);
     }
   });
 
   it('applyQaSafeShell is a no-op without a document root', () => {
-    const prevRoot = document.documentElement;
-    document.documentElement = undefined;
+    const restoreRoot = overrideDocumentProp('documentElement', undefined);
     let threw = false;
     try {
       setQaSafe(true);
@@ -3477,27 +3551,25 @@ describe('QA safe shell (?qaSafe=1)', () => {
     } catch {
       threw = true;
     }
-    document.documentElement = prevRoot;
+    restoreRoot();
     setQaSafe(false);
     assert(!threw, 'missing documentElement should not throw');
   });
 
   it('resetGame re-reads ?qaSafe=1 onto the document', () => {
     const root = { classList: qaSafeClassList() };
-    const prevRoot = document.documentElement;
-    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
-    const prevLocation = global.location;
+    const restorePageQuery = savePageQuery();
     const origMode = game.mode;
-    document.documentElement = root;
+    const restoreRoot = overrideDocumentProp('documentElement', root);
     try {
-      global.location = { search: '' };
+      setPageQuery('');
       setQaSafe(true);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       resetGame();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       assert(root.classList.contains('qa-safe') === false, 'a visit without the flag clears the mark');
 
-      global.location = { search: '?qaSafe=1' };
+      setPageQuery('?qaSafe=1');
       setQaSafe(false);
       game.mode = MODES.CLASSIC;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -3506,9 +3578,8 @@ describe('QA safe shell (?qaSafe=1)', () => {
       assert(root.classList.contains('qa-safe') === true, 'resetGame applies the re-read flag');
       assertEquals(game.mode, MODES.CLASSIC, 're-reading the flag must not change the mode');
     } finally {
-      if (hadLocation) global.location = prevLocation;
-      else delete global.location;
-      document.documentElement = prevRoot;
+      restorePageQuery();
+      restoreRoot();
       setQaSafe(false);
       game.mode = origMode;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -3540,12 +3611,12 @@ describe('Share result', () => {
     const shareBtn = document.getElementById('share-btn');
     const handler = shareBtn._listeners && shareBtn._listeners.click && shareBtn._listeners.click[0];
     assert(typeof handler === 'function', 'share button must register a click handler');
-    const origDesc = Object.getOwnPropertyDescriptor(global, 'navigator');
+    const origDesc = Object.getOwnPropertyDescriptor(testGlobal, 'navigator');
     const origFlash = Animations.copyFlashFrames;
     const origText = shareBtn.textContent;
     Animations.copyFlashFrames = 0;
     shareBtn.textContent = '📋 Copy result';
-    Object.defineProperty(global, 'navigator', {
+    Object.defineProperty(testGlobal, 'navigator', {
       configurable: true,
       writable: true,
       value: { clipboard: { writeText } },
@@ -3558,7 +3629,7 @@ describe('Share result', () => {
     }
     const flash = Animations.copyFlashFrames;
     const label = shareBtn.textContent;
-    if (origDesc) Object.defineProperty(global, 'navigator', origDesc);
+    if (origDesc) Object.defineProperty(testGlobal, 'navigator', origDesc);
     Animations.copyFlashFrames = origFlash;
     shareBtn.textContent = origText;
     run({ threw, flash, label });
@@ -3640,24 +3711,24 @@ describe('Daily obstacle sequence vs reduced motion', () => {
 
 describe('Restart cancels the animation frame first', () => {
   function assertCancelBeforeReset(trigger) {
-    const origCancel = global.cancelAnimationFrame;
-    const origRAF = global.requestAnimationFrame;
+    const origCancel = testGlobal.cancelAnimationFrame;
+    const origRAF = testGlobal.requestAnimationFrame;
     game.score = 77;
     let scoreAtCancel = null;
     let scoreAtLoop = null;
-    global.cancelAnimationFrame = (id) => {
+    testGlobal.cancelAnimationFrame = (id) => {
       if (scoreAtCancel === null) scoreAtCancel = game.score;
       return origCancel(id);
     };
-    global.requestAnimationFrame = (cb) => {
+    testGlobal.requestAnimationFrame = (cb) => {
       if (scoreAtLoop === null) scoreAtLoop = game.score;
       return origRAF(cb);
     };
     try {
       trigger();
     } finally {
-      global.cancelAnimationFrame = origCancel;
-      global.requestAnimationFrame = origRAF;
+      testGlobal.cancelAnimationFrame = origCancel;
+      testGlobal.requestAnimationFrame = origRAF;
       if (game.animationFrameId) origCancel(game.animationFrameId);
     }
     assert(scoreAtCancel !== null, 'restart path must call cancelAnimationFrame');
@@ -3790,7 +3861,7 @@ describe('Daily best persistence', () => {
 // Pins "now" to one UTC instant and makes local Y/M/D disagree with UTC.
 // offsetMinutesEast is the wall-clock shift (UTC-8 → -480). Restores Date after fn.
 function withSplitClock(utcMs, offsetMinutesEast, fn) {
-  const RealDate = global.Date;
+  const RealDate = testGlobal.Date;
   function utcParts(ms) {
     const d = new RealDate(ms);
     return {
@@ -3823,11 +3894,11 @@ function withSplitClock(utcMs, offsetMinutesEast, fn) {
   FakeDate.parse = RealDate.parse.bind(RealDate);
   FakeDate.UTC = RealDate.UTC.bind(RealDate);
   FakeDate.prototype = RealDate.prototype;
-  global.Date = FakeDate;
+  testGlobal.Date = FakeDate;
   try {
     return fn();
   } finally {
-    global.Date = RealDate;
+    testGlobal.Date = RealDate;
     RealDate.prototype.getFullYear = orig.getFullYear;
     RealDate.prototype.getMonth = orig.getMonth;
     RealDate.prototype.getDate = orig.getDate;
@@ -4187,8 +4258,7 @@ describe('Death log (opt-in seed dump)', () => {
     Date.now = orig.now;
     console.log = orig.log;
     ctx.fillText = orig.fill;
-    if (orig.location === undefined) delete global.location;
-    else global.location = orig.location;
+    orig.restorePageQuery();
     resetGame();
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
   }
@@ -4200,7 +4270,7 @@ describe('Death log (opt-in seed dump)', () => {
       now: Date.now,
       log: console.log,
       fill: ctx.fillText,
-      location: global.location,
+      restorePageQuery: savePageQuery(),
     };
   }
 
@@ -4208,23 +4278,29 @@ describe('Death log (opt-in seed dump)', () => {
     const copies = [];
     // Node's test harness has no DOM. CI (Node 20) has no navigator at all;
     // newer Node exposes a getter-only navigator, which must not be replaced.
-    const hadNavigator = typeof global.navigator !== 'undefined';
-    if (!hadNavigator) global.navigator = {};
-    const nav = global.navigator;
-    const prev = nav.clipboard;
-    nav.clipboard = {
-      writeText(text) {
-        copies.push(text);
-        return Promise.resolve();
+    const hadNavigator = typeof testGlobal.navigator !== 'undefined';
+    if (!hadNavigator) testGlobal.navigator = {};
+    const nav = testGlobal.navigator;
+    // A browser's navigator.clipboard is a getter, so shadow it on the
+    // instance; deleting that own property brings the real one back.
+    const prev = Object.getOwnPropertyDescriptor(nav, 'clipboard');
+    Object.defineProperty(nav, 'clipboard', {
+      configurable: true,
+      writable: true,
+      value: {
+        writeText(text) {
+          copies.push(text);
+          return Promise.resolve();
+        },
       },
-    };
+    });
     copies.restore = () => {
       if (!hadNavigator) {
-        delete global.navigator;
+        delete testGlobal.navigator;
         return;
       }
-      if (prev === undefined) delete nav.clipboard;
-      else nav.clipboard = prev;
+      delete nav.clipboard;
+      if (prev) Object.defineProperty(nav, 'clipboard', prev);
     };
     return copies;
   }
@@ -4458,7 +4534,7 @@ describe('Death log (opt-in seed dump)', () => {
     let copies;
     try {
       disableDeathLog();
-      global.location = { search: '?debug=1' };
+      setPageQuery('?debug=1');
       applyDebugFromLocation();
       assertEquals(isDeathLogEnabled(), true, '?debug=1 turns the death log on');
       assert(typeof window.enableDeathLog === 'function', 'DevTools hook is on window');
@@ -4467,7 +4543,7 @@ describe('Death log (opt-in seed dump)', () => {
       assert(typeof window.replayRunSeed === 'function', 'replayRunSeed is on window');
 
       disableDeathLog();
-      global.location = { search: '' };
+      setPageQuery('');
       applyDebugFromLocation();
       assertEquals(isDeathLogEnabled(), false, 'a URL without debug=1 does not turn logging on');
 
@@ -4810,9 +4886,8 @@ describe('Plateau cue', () => {
 
   it('resetGame re-reads ?qaPlateau=1 from the page query', () => {
     const origMode = game.mode;
-    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
-    const prevLocation = global.location;
-    global.location = { search: '?qaPlateau=1' };
+    const restorePageQuery = savePageQuery();
+    setPageQuery('?qaPlateau=1');
     try {
       setQaPlateau(false);
       game.mode = MODES.UPDATED;
@@ -4830,8 +4905,7 @@ describe('Plateau cue', () => {
       assert(qaPlateauParticles().length > 0, 'resetGame should arm the QA puff from location.search');
       assert(game.plateauCueShown === true, 'the re-read flag should still latch after one puff');
     } finally {
-      if (hadLocation) global.location = prevLocation;
-      else delete global.location;
+      restorePageQuery();
       setQaPlateau(false);
       game.mode = origMode;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -5481,7 +5555,7 @@ describe('Daily death-screen hint', () => {
     game.previousDailyBest = 0;
     Animations.copyFlashFrames = 0;
     game.animFrame = 0;
-    shareBtn.style = { display: 'none' };
+    stubElementStyle(shareBtn, { display: 'none' });
     shareBtn.textContent = '📋 Copy result';
     if (extras) extras();
     const calls = draw();
@@ -5498,8 +5572,7 @@ describe('Daily death-screen hint', () => {
     Animations.deathAnimFrame = orig.anim;
     Animations.copyFlashFrames = orig.flash;
     game.animFrame = orig.frame;
-    if (orig.btnStyle === undefined) delete shareBtn.style;
-    else shareBtn.style = orig.btnStyle;
+    restoreElementStyle(shareBtn, orig.btnStyle);
     shareBtn.textContent = orig.btnText;
     return { calls, button };
   }
@@ -5778,7 +5851,7 @@ describe('Daily new today best celebration', () => {
     });
     dino.isJumping = false;
     a11yLive.textContent = '';
-    shareBtn.style = { display: 'none' };
+    stubElementStyle(shareBtn, { display: 'none' });
     shareBtn.textContent = '📋 Copy result';
 
     STATE_HANDLERS[STATE.RUNNING]();
@@ -5816,8 +5889,7 @@ describe('Daily new today best celebration', () => {
     Animations.deathFlashFrames = orig.flash;
     Animations.scorePopFrames = orig.pop;
     Animations.copyFlashFrames = orig.copy;
-    if (orig.btnStyle === undefined) delete shareBtn.style;
-    else shareBtn.style = orig.btnStyle;
+    restoreElementStyle(shareBtn, orig.btnStyle);
     shareBtn.textContent = orig.btnText;
     restoreStorage(stored);
     Particles.reset();
@@ -5945,7 +6017,7 @@ describe('Daily new today best celebration', () => {
     game.dailyBest = 80;
     game.isNewTodayBest = true;
     game.previousDailyBest = 25;
-    shareBtn.style = { display: 'block' };
+    stubElementStyle(shareBtn, { display: 'block' });
     shareBtn.textContent = '📋 Copy result';
     Animations.deathAnimFrame = 0;
     const early = captureFillText(drawGameOverScreen);
@@ -5960,8 +6032,7 @@ describe('Daily new today best celebration', () => {
     game.isNewTodayBest = orig.newToday;
     game.previousDailyBest = orig.prevDaily;
     Animations.deathAnimFrame = orig.anim;
-    if (orig.btnStyle === undefined) delete shareBtn.style;
-    else shareBtn.style = orig.btnStyle;
+    restoreElementStyle(shareBtn, orig.btnStyle);
     shareBtn.textContent = orig.btnText;
 
     assert(early.some((c) => c.text === CELEBRATION), 'the title is up while the score counts');
@@ -6034,7 +6105,7 @@ describe('Daily new today best celebration', () => {
       game.isNewTodayBest = true;
       game.previousDailyBest = 10;
       Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
-      shareBtn.style = { display: 'none' };
+      stubElementStyle(shareBtn, { display: 'none' });
       return captureFillText(drawGameOverScreen);
     }
     const classic = drawMode(MODES.CLASSIC, false);
@@ -6059,8 +6130,7 @@ describe('Daily new today best celebration', () => {
     game.isNewTodayBest = orig.newToday;
     game.previousDailyBest = orig.prevDaily;
     Animations.deathAnimFrame = orig.anim;
-    if (orig.btnStyle === undefined) delete shareBtn.style;
-    else shareBtn.style = orig.btnStyle;
+    restoreElementStyle(shareBtn, orig.btnStyle);
 
     assert(classic.some((c) => c.text === 'YOUR BEST'), 'Classic should keep the free-play comparison');
     assert(classic.some((c) => c.text === 'Tap / Press Space to Restart'), 'Classic should keep its restart line');
@@ -6113,9 +6183,8 @@ describe('QA cluster flag (?qaCluster=1)', () => {
   // flag is applied after that. The first frame is early enough that production
   // rules would still only roll a small cactus.
   function runFirstSpawn(mode, { flag, search } = {}) {
-    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
-    const prevLocation = global.location;
-    if (search !== undefined) global.location = { search };
+    const restorePageQuery = savePageQuery();
+    if (search !== undefined) setPageQuery(search);
     game.mode = mode;
     game.seedOverride = 99;
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -6137,8 +6206,7 @@ describe('QA cluster flag (?qaCluster=1)', () => {
       score,
       restore() {
         if (search !== undefined) {
-          if (hadLocation) global.location = prevLocation;
-          else delete global.location;
+          restorePageQuery();
         }
       },
     };
@@ -6257,9 +6325,8 @@ describe('QA big cactus flag (?qaBig=1)', () => {
   // flag is applied after that. The first frame is early enough that production
   // rules would still only roll a small cactus.
   function runFirstSpawn(mode, { flag, search } = {}) {
-    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
-    const prevLocation = global.location;
-    if (search !== undefined) global.location = { search };
+    const restorePageQuery = savePageQuery();
+    if (search !== undefined) setPageQuery(search);
     game.mode = mode;
     game.seedOverride = 99;
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -6281,8 +6348,7 @@ describe('QA big cactus flag (?qaBig=1)', () => {
       score,
       restore() {
         if (search !== undefined) {
-          if (hadLocation) global.location = prevLocation;
-          else delete global.location;
+          restorePageQuery();
         }
       },
     };
@@ -6731,7 +6797,8 @@ describe('Night dino contrast', () => {
       game.mode = MODES.UPDATED;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       dino.isJumping = true;
-      dino.image.naturalWidth = 0;
+      // A loaded browser image's naturalWidth is a getter, so shadow it.
+      Object.defineProperty(dino.image, 'naturalWidth', { configurable: true, writable: true, value: 0 });
       ctx.filter = 'contrast(2)';
       drawDino();
       assertEquals(seen.length, 1, 'a missing sprite still paints one fallback rect');
@@ -6838,9 +6905,8 @@ describe('QA night flag (?qaNight=1)', () => {
   });
 
   it('resetGame re-reads ?qaNight=1 from the page query', () => {
-    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
-    const prevLocation = global.location;
-    global.location = { search: '?qaNight=1' };
+    const restorePageQuery = savePageQuery();
+    setPageQuery('?qaNight=1');
     try {
       setQaNight(false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -6853,8 +6919,7 @@ describe('QA night flag (?qaNight=1)', () => {
       assert(game.starsInitialised, 'resetGame should arm the early star fade from location.search');
       assert(game.score < 1, 're-reading the flag must not change the score');
     } finally {
-      if (hadLocation) global.location = prevLocation;
-      else delete global.location;
+      restorePageQuery();
       setQaNight(false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -8481,9 +8546,8 @@ describe('QA level flag (?qaLevel=1)', () => {
 
   it('resetGame re-reads ?qaLevel=1 from the page query', () => {
     const origMode = game.mode;
-    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
-    const prevLocation = global.location;
-    global.location = { search: '?qaNight=1&qaLevel=1' };
+    const restorePageQuery = savePageQuery();
+    setPageQuery('?qaNight=1&qaLevel=1');
     try {
       setQaLevel(false);
       setQaNight(false);
@@ -8502,8 +8566,7 @@ describe('QA level flag (?qaLevel=1)', () => {
       assertEquals(skyTintPeakAlpha(), GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
         'qaNight on the same query still selects the quiet peak');
     } finally {
-      if (hadLocation) global.location = prevLocation;
-      else delete global.location;
+      restorePageQuery();
       game.mode = origMode;
       setQaLevel(false);
       setQaNight(false);
@@ -9334,10 +9397,9 @@ describe('QA death shake flag (?qaShake=1)', () => {
 
   it('resetGame re-reads ?qaShake=1 from the page query', () => {
     const origMode = game.mode;
-    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
-    const prevLocation = global.location;
+    const restorePageQuery = savePageQuery();
     const spy = spyTranslate();
-    global.location = { search: '?qaShake=1' };
+    setPageQuery('?qaShake=1');
     try {
       setQaShake(false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -9360,8 +9422,7 @@ describe('QA death shake flag (?qaShake=1)', () => {
       assertEquals(game.qaShakeShown, true, 'the re-read flag spends the latch');
     } finally {
       spy.restore();
-      if (hadLocation) global.location = prevLocation;
-      else delete global.location;
+      restorePageQuery();
       game.mode = origMode;
       setQaShake(false);
       Particles.reset();
@@ -9819,10 +9880,9 @@ describe('QA collision flag (?qaCollision=1)', () => {
 
   it('resetGame re-reads ?qaCollision=1 from the page query', () => {
     const origMode = game.mode;
-    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
-    const prevLocation = global.location;
+    const restorePageQuery = savePageQuery();
     const spy = spyPaint();
-    global.location = { search: '?qaCollision=1' };
+    setPageQuery('?qaCollision=1');
     try {
       setQaCollision(false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -9841,8 +9901,7 @@ describe('QA collision flag (?qaCollision=1)', () => {
       assertEquals(game.qaCollisionShown, true, 'the re-read flag spends the latch');
     } finally {
       spy.restore();
-      if (hadLocation) global.location = prevLocation;
-      else delete global.location;
+      restorePageQuery();
       game.mode = origMode;
       setQaCollision(false);
       Particles.reset();
@@ -10155,9 +10214,8 @@ describe('QA trail flag (?qaTrail=1)', () => {
 
   it('resetGame re-reads ?qaTrail=1 from the page query', () => {
     const origMode = game.mode;
-    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
-    const prevLocation = global.location;
-    global.location = { search: '?qaNight=1&qaTrail=1' };
+    const restorePageQuery = savePageQuery();
+    setPageQuery('?qaNight=1&qaTrail=1');
     try {
       setQaTrail(false);
       setQaNight(false);
@@ -10176,8 +10234,7 @@ describe('QA trail flag (?qaTrail=1)', () => {
       assertEquals(getBackgroundColor(game.score), '#1a1a2e',
         'qaNight on the same query still paints night');
     } finally {
-      if (hadLocation) global.location = prevLocation;
-      else delete global.location;
+      restorePageQuery();
       game.mode = origMode;
       setQaTrail(false);
       setQaNight(false);
@@ -10592,10 +10649,9 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
 
   it('resetGame re-reads ?qaConfetti=1 from the page query', () => {
     const origMode = game.mode;
-    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
-    const prevLocation = global.location;
+    const restorePageQuery = savePageQuery();
     const spy = spyPaint();
-    global.location = { search: '?qaConfetti=1' };
+    setPageQuery('?qaConfetti=1');
     try {
       setQaConfetti(false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -10614,8 +10670,7 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
       assertEquals(game.qaConfettiShown, true, 'the re-read flag spends the latch');
     } finally {
       spy.restore();
-      if (hadLocation) global.location = prevLocation;
-      else delete global.location;
+      restorePageQuery();
       game.mode = origMode;
       setQaConfetti(false);
       Particles.reset();
@@ -11174,10 +11229,9 @@ describe('QA dust flag (?qaDust=1)', () => {
 
   it('resetGame re-reads ?qaDust=1 from the page query', () => {
     const origMode = game.mode;
-    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
-    const prevLocation = global.location;
+    const restorePageQuery = savePageQuery();
     const spy = spyPaint();
-    global.location = { search: '?qaNight=1&qaDust=1' };
+    setPageQuery('?qaNight=1&qaDust=1');
     try {
       setQaDust(false);
       setQaNight(false);
@@ -11199,8 +11253,7 @@ describe('QA dust flag (?qaDust=1)', () => {
         'qaNight on the same query still paints night');
     } finally {
       spy.restore();
-      if (hadLocation) global.location = prevLocation;
-      else delete global.location;
+      restorePageQuery();
       game.mode = origMode;
       setQaDust(false);
       setQaNight(false);
@@ -11455,10 +11508,9 @@ describe('QA flash flag (?qaFlash=1)', () => {
 
   it('resetGame re-reads ?qaFlash=1 from the page query', () => {
     const origMode = game.mode;
-    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
-    const prevLocation = global.location;
+    const restorePageQuery = savePageQuery();
     const spy = spyPaint();
-    global.location = { search: '?qaNight=1&qaFlash=1' };
+    setPageQuery('?qaNight=1&qaFlash=1');
     try {
       setQaFlash(false);
       setQaNight(false);
@@ -11482,8 +11534,7 @@ describe('QA flash flag (?qaFlash=1)', () => {
         'qaNight on the same query still paints night');
     } finally {
       spy.restore();
-      if (hadLocation) global.location = prevLocation;
-      else delete global.location;
+      restorePageQuery();
       game.mode = origMode;
       setQaFlash(false);
       setQaNight(false);
@@ -11894,10 +11945,9 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
 
   it('resetGame re-reads ?qaScorePop=1 from the page query', () => {
     const origMode = game.mode;
-    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
-    const prevLocation = global.location;
+    const restorePageQuery = savePageQuery();
     const spy = spyPaint();
-    global.location = { search: '?qaScorePop=1' };
+    setPageQuery('?qaScorePop=1');
     try {
       setQaScorePop(false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -11919,8 +11969,7 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
       assertEquals(game.qaScorePopShown, true, 'the re-read flag spends the latch');
     } finally {
       spy.restore();
-      if (hadLocation) global.location = prevLocation;
-      else delete global.location;
+      restorePageQuery();
       game.mode = origMode;
       setQaScorePop(false);
       Particles.reset();
@@ -12844,10 +12893,9 @@ describe('Quieter NEW BEST badge', () => {
 
   it('resetGame re-reads ?qaNewBest=1 from the page query', () => {
     const origMode = game.mode;
-    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
-    const prevLocation = global.location;
+    const restorePageQuery = savePageQuery();
     const spy = spyText();
-    global.location = { search: '?qaNewBest=1' };
+    setPageQuery('?qaNewBest=1');
     try {
       setQaNewBest(false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -12873,8 +12921,7 @@ describe('Quieter NEW BEST badge', () => {
       assertEquals(game.highScore, 40, 're-reading the flag must not change the high score');
     } finally {
       spy.restore();
-      if (hadLocation) global.location = prevLocation;
-      else delete global.location;
+      restorePageQuery();
       game.mode = origMode;
       setQaNewBest(false);
       ctx.globalAlpha = 1;
@@ -12962,7 +13009,7 @@ describe('Quieter copy flash', () => {
     const shareBtn = document.getElementById('share-btn');
     const handler = shareBtn._listeners && shareBtn._listeners.click && shareBtn._listeners.click[0];
     assert(typeof handler === 'function', 'share button must register a click handler');
-    const origDesc = Object.getOwnPropertyDescriptor(global, 'navigator');
+    const origDesc = Object.getOwnPropertyDescriptor(testGlobal, 'navigator');
     const origFlash = Animations.copyFlashFrames;
     const origText = shareBtn.textContent;
     const origClass = shareBtn.classList;
@@ -12972,7 +13019,7 @@ describe('Quieter copy flash', () => {
     let wrote = false;
     let flashAtWrite = -1;
     let labelAtWrite = '';
-    Object.defineProperty(global, 'navigator', {
+    Object.defineProperty(testGlobal, 'navigator', {
       configurable: true,
       writable: true,
       value: {
@@ -12997,7 +13044,7 @@ describe('Quieter copy flash', () => {
       assert(classes.contains('is-copied'), 'the Copied state uses the calmer button class');
       assert(!classes.contains('is-qa-damped'), 'a real tap is not the reduced-motion QA hold');
     } finally {
-      if (origDesc) Object.defineProperty(global, 'navigator', origDesc);
+      if (origDesc) Object.defineProperty(testGlobal, 'navigator', origDesc);
       Animations.copyFlashFrames = origFlash;
       shareBtn.textContent = origText;
       if (origClass === undefined) delete shareBtn.classList;
@@ -13033,7 +13080,7 @@ describe('QA copy flag (?qaCopy=1)', () => {
 
   function prepareButton() {
     const shareBtn = document.getElementById('share-btn');
-    shareBtn.style = { display: 'none' };
+    stubElementStyle(shareBtn, { display: 'none' });
     shareBtn.textContent = '📋 Copy result';
     installClassList(shareBtn);
     return shareBtn;
@@ -13041,8 +13088,7 @@ describe('QA copy flag (?qaCopy=1)', () => {
 
   function restoreButton(orig) {
     const shareBtn = document.getElementById('share-btn');
-    if (orig.style === undefined) delete shareBtn.style;
-    else shareBtn.style = orig.style;
+    restoreElementStyle(shareBtn, orig.style);
     shareBtn.textContent = orig.text;
     if (orig.classList === undefined) delete shareBtn.classList;
     else shareBtn.classList = orig.classList;
@@ -13227,11 +13273,10 @@ describe('QA copy flag (?qaCopy=1)', () => {
   it('resetGame re-reads ?qaCopy=1 from the page query', () => {
     const origMode = game.mode;
     const origBtn = buttonSnapshot();
-    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
-    const prevLocation = global.location;
+    const restorePageQuery = savePageQuery();
     try {
       setReducedMotion(false);
-      global.location = { search: '' };
+      setPageQuery('');
       if (typeof setQaCopy === 'function') setQaCopy(true);
       game.qaCopyShown = true;
       game.qaCopyHold = 40;
@@ -13242,7 +13287,7 @@ describe('QA copy flag (?qaCopy=1)', () => {
       assertEquals(game.qaCopyHold, 0, 'a visit without the flag clears the hold');
       assertEquals(game.qaCopyShown, false, 'a visit without the flag clears the latch');
 
-      global.location = { search: '?qaCopy=1' };
+      setPageQuery('?qaCopy=1');
       if (typeof setQaCopy === 'function') setQaCopy(false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       resetGame();
@@ -13258,8 +13303,7 @@ describe('QA copy flag (?qaCopy=1)', () => {
       assertEquals(game.score, score, 're-reading the flag must not change the score');
       assertEquals(Animations.copyFlashFrames, 0, 're-reading the flag does not start the live flash');
     } finally {
-      if (hadLocation) global.location = prevLocation;
-      else delete global.location;
+      restorePageQuery();
       game.mode = origMode;
       if (typeof setQaCopy === 'function') setQaCopy(false);
       setReducedMotion(false);
@@ -13420,7 +13464,7 @@ describe('Soft death score count-up', () => {
     const origStyle = shareBtn.style;
     const origText = shareBtn.textContent;
     const origFill = ctx.fillText;
-    shareBtn.style = { display: 'none' };
+    stubElementStyle(shareBtn, { display: 'none' });
     shareBtn.textContent = '📋 Copy result';
     try {
       setReducedMotion(false);
@@ -13489,8 +13533,7 @@ describe('Soft death score count-up', () => {
       game.previousDailyBest = orig.prevDaily;
       Animations.deathAnimFrame = orig.anim;
       Animations.deathShakeFrames = orig.shake;
-      if (origStyle === undefined) delete shareBtn.style;
-      else shareBtn.style = origStyle;
+      restoreElementStyle(shareBtn, origStyle);
       shareBtn.textContent = origText;
       setReducedMotion(false);
     }
@@ -13794,10 +13837,9 @@ describe('QA death count-up flag (?qaCountUp=1)', () => {
 
   it('resetGame re-reads ?qaCountUp=1 from the page query', () => {
     const origMode = game.mode;
-    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
-    const prevLocation = global.location;
+    const restorePageQuery = savePageQuery();
     const spy = spyScoreText();
-    global.location = { search: '?qaCountUp=1' };
+    setPageQuery('?qaCountUp=1');
     try {
       assert(typeof setQaCountUp === 'function', 'setQaCountUp should be exposed for tests');
       setQaCountUp(false);
@@ -13816,8 +13858,7 @@ describe('QA death count-up flag (?qaCountUp=1)', () => {
       assertEquals(Animations.deathAnimFrame, 0, 're-reading the flag does not arm the real count-up');
     } finally {
       spy.restore();
-      if (hadLocation) global.location = prevLocation;
-      else delete global.location;
+      restorePageQuery();
       game.mode = origMode;
       if (typeof setQaCountUp === 'function') setQaCountUp(false);
       setReducedMotion(false);
@@ -14248,10 +14289,9 @@ describe('QA idle pulse flag (?qaIdle=1)', () => {
 
   it('resetGame re-reads ?qaIdle=1 from the page query', () => {
     const origMode = game.mode;
-    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
-    const prevLocation = global.location;
+    const restorePageQuery = savePageQuery();
     const spy = spyPrompt();
-    global.location = { search: '?qaIdle=1' };
+    setPageQuery('?qaIdle=1');
     try {
       assert(typeof setQaIdle === 'function', 'setQaIdle should be exposed for tests');
       setQaIdle(false);
@@ -14271,8 +14311,7 @@ describe('QA idle pulse flag (?qaIdle=1)', () => {
       assertEquals(game.score, score, 're-reading the flag must not change the score');
     } finally {
       spy.restore();
-      if (hadLocation) global.location = prevLocation;
-      else delete global.location;
+      restorePageQuery();
       game.mode = origMode;
       if (typeof setQaIdle === 'function') setQaIdle(false);
       setReducedMotion(false);
@@ -14311,14 +14350,14 @@ describe('Daily native share sheet', () => {
   }
 
   function withNavigator(value, run) {
-    const origDesc = Object.getOwnPropertyDescriptor(global, 'navigator');
-    Object.defineProperty(global, 'navigator', {
+    const origDesc = Object.getOwnPropertyDescriptor(testGlobal, 'navigator');
+    Object.defineProperty(testGlobal, 'navigator', {
       configurable: true,
       writable: true,
       value,
     });
     const restore = () => {
-      if (origDesc) Object.defineProperty(global, 'navigator', origDesc);
+      if (origDesc) Object.defineProperty(testGlobal, 'navigator', origDesc);
     };
     let result;
     try {
@@ -14770,7 +14809,7 @@ describe('QA share flag (?qaShare=1)', () => {
 
   function prepareButton() {
     const shareBtn = document.getElementById('share-btn');
-    shareBtn.style = { display: 'none' };
+    stubElementStyle(shareBtn, { display: 'none' });
     shareBtn.textContent = '📋 Copy result';
     installClassList(shareBtn);
     return shareBtn;
@@ -14778,8 +14817,7 @@ describe('QA share flag (?qaShare=1)', () => {
 
   function restoreButton(orig) {
     const shareBtn = document.getElementById('share-btn');
-    if (orig.style === undefined) delete shareBtn.style;
-    else shareBtn.style = orig.style;
+    restoreElementStyle(shareBtn, orig.style);
     shareBtn.textContent = orig.text;
     if (orig.classList === undefined) delete shareBtn.classList;
     else shareBtn.classList = orig.classList;
@@ -14820,10 +14858,10 @@ describe('QA share flag (?qaShare=1)', () => {
     const origMode = game.mode;
     const origBtn = buttonSnapshot();
     const origRng = game.rng;
-    const origDesc = Object.getOwnPropertyDescriptor(global, 'navigator');
+    const origDesc = Object.getOwnPropertyDescriptor(testGlobal, 'navigator');
     let shared = 0;
     let wrote = 0;
-    Object.defineProperty(global, 'navigator', {
+    Object.defineProperty(testGlobal, 'navigator', {
       configurable: true,
       writable: true,
       value: {
@@ -14889,7 +14927,7 @@ describe('QA share flag (?qaShare=1)', () => {
       assertEquals(game.currentSpeed, speedAtCard, 'settling the card must not change speed');
       assertEquals(game.nextSpawnGap, gapAtCard, 'settling the card must not change the spawn gap');
     } finally {
-      if (origDesc) Object.defineProperty(global, 'navigator', origDesc);
+      if (origDesc) Object.defineProperty(testGlobal, 'navigator', origDesc);
       game.rng = origRng;
       game.mode = origMode;
       setQaShare(false);
@@ -14904,10 +14942,10 @@ describe('QA share flag (?qaShare=1)', () => {
   it('keeps Copied for the whole settled Game Over, not a 3s window', () => {
     const origMode = game.mode;
     const origBtn = buttonSnapshot();
-    const origDesc = Object.getOwnPropertyDescriptor(global, 'navigator');
+    const origDesc = Object.getOwnPropertyDescriptor(testGlobal, 'navigator');
     let shared = 0;
     let wrote = 0;
-    Object.defineProperty(global, 'navigator', {
+    Object.defineProperty(testGlobal, 'navigator', {
       configurable: true,
       writable: true,
       value: {
@@ -14946,7 +14984,7 @@ describe('QA share flag (?qaShare=1)', () => {
         'the flag keeps Copied even if the frame counter is already spent'
       );
     } finally {
-      if (origDesc) Object.defineProperty(global, 'navigator', origDesc);
+      if (origDesc) Object.defineProperty(testGlobal, 'navigator', origDesc);
       game.mode = origMode;
       setQaShare(false);
       setReducedMotion(false);
@@ -15079,8 +15117,8 @@ describe('QA share flag (?qaShare=1)', () => {
     setQaShare(true);
     let shared = 0;
     let wrote = 0;
-    const origDesc = Object.getOwnPropertyDescriptor(global, 'navigator');
-    Object.defineProperty(global, 'navigator', {
+    const origDesc = Object.getOwnPropertyDescriptor(testGlobal, 'navigator');
+    Object.defineProperty(testGlobal, 'navigator', {
       configurable: true,
       writable: true,
       value: {
@@ -15113,7 +15151,7 @@ describe('QA share flag (?qaShare=1)', () => {
       game.state = STATE.DEAD;
       Animations.deathShakeFrames = 0;
       Animations.deathAnimFrame = deathAnimFrames();
-      shareBtn.style = { display: 'block' };
+      stubElementStyle(shareBtn, { display: 'block' });
       drawGameOverScreen();
       assertEquals(shareBtn.textContent, '✓ Copied!', 'Game Over paint keeps the tap confirmation');
       assert(classes.contains('is-copied'), 'Game Over paint keeps the Copied class');
@@ -15121,7 +15159,7 @@ describe('QA share flag (?qaShare=1)', () => {
       assertEquals(shared, 0, 'the redraw must not open the share sheet');
       assertEquals(wrote, 0, 'the redraw must not write the clipboard');
     } finally {
-      if (origDesc) Object.defineProperty(global, 'navigator', origDesc);
+      if (origDesc) Object.defineProperty(testGlobal, 'navigator', origDesc);
       setReducedMotion(false);
       setQaShare(false);
       Animations.copyFlashFrames = origFlash;
@@ -15131,10 +15169,9 @@ describe('QA share flag (?qaShare=1)', () => {
 
   it('resetGame re-reads ?qaShare=1 from the page query', () => {
     const origMode = game.mode;
-    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
-    const prevLocation = global.location;
+    const restorePageQuery = savePageQuery();
     try {
-      global.location = { search: '' };
+      setPageQuery('');
       setQaShare(true);
       game.qaShareShown = true;
       game.qaShareHold = 40;
@@ -15144,7 +15181,7 @@ describe('QA share flag (?qaShare=1)', () => {
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       assertEquals(game.qaShareHold, 0, 'a visit without the flag clears the hold');
       assertEquals(game.qaShareShown, false, 'a visit without the flag clears the latch');
-      global.location = { search: '?qaShare=1' };
+      setPageQuery('?qaShare=1');
       resetGame();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       gameLoop();
@@ -15160,8 +15197,7 @@ describe('QA share flag (?qaShare=1)', () => {
       assertEquals(game.qaShareHold, QA_SHARE_HOLD, 'settled Game Over latches the hold');
       assertEquals(game.qaShareShown, true, 'settled Game Over spends the latch');
     } finally {
-      if (hadLocation) global.location = prevLocation;
-      else delete global.location;
+      restorePageQuery();
       game.mode = origMode;
       setQaShare(false);
       game.qaShareHold = 0;
@@ -15505,26 +15541,24 @@ describe('QA pace readout (?qaHz=1)', () => {
   });
 
   it('resetGame re-reads ?qaHz=1 and a normal visit clears it', () => {
-    const prevLocation = global.location;
-    const hadLocation = Object.prototype.hasOwnProperty.call(global, 'location');
+    const restorePageQuery = savePageQuery();
     const origFill = ctx.fillText;
     try {
-      global.location = { search: '?qaHz=1' };
+      setPageQuery('?qaHz=1');
       resetGame();
       cancelLoop();
       const texts = [];
       ctx.fillText = (text) => { texts.push(String(text)); };
       drawQaHz();
       assertEquals(texts[0], 'sim --  raf --', 'the query enables the label after reset');
-      global.location = { search: '' };
+      setPageQuery('');
       resetGame();
       cancelLoop();
       texts.length = 0;
       drawQaHz();
       assertEquals(texts.length, 0, 'a visit without the flag clears the readout');
     } finally {
-      if (hadLocation) global.location = prevLocation;
-      else delete global.location;
+      restorePageQuery();
       ctx.fillText = origFill;
       setQaHz(false);
       cancelLoop();
@@ -15534,7 +15568,10 @@ describe('QA pace readout (?qaHz=1)', () => {
   });
 });
 
-if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+// test-runner.html loads this file after the page's load event (so the
+// sprites are decoded), so do not wait for a load that already happened.
+if (typeof document !== 'undefined' && document.readyState !== 'complete'
+    && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {
   setTimeout(printSummary, 500);

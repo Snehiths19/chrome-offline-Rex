@@ -139,7 +139,9 @@ Custom `describe`/`it` with `assert`/`assertEquals`/`assertNotEquals`. No Jest, 
 
 The Node stubs at the top of `script.js` provide just enough of `window`, `document`, `Image`, `localStorage`, `requestAnimationFrame`, and `matchMedia` to let the rest of the file load. Canvas methods are no-ops; tests assert against `game.*` state, not pixels.
 
-To run a single block in the browser, open `tests/test-runner.html` (if present) or load `tests/game.test.js` from devtools. Console output uses ANSI/CSS styling for pass/fail.
+The same suite also runs in a real browser: `npm run serve`, then open http://localhost:8080/tests/test-runner.html and read the console (it ends with the same Test Summary). The page carries the `index.html` shell so the game finds its buttons, and loads the tests after the sprites finish loading. Console output uses CSS styling for pass/fail.
+
+Keep a new test passing in both places. A browser will not let a test replace `location`, `document.body`, `document.documentElement`, an element's `style`, or `navigator.clipboard` by plain assignment, so use the helpers at the top of `tests/game.test.js`: `setPageQuery()`/`savePageQuery()` for `?qa…` flags, `overrideDocumentProp()`, `stubElementStyle()`/`restoreElementStyle()`, and `Object.defineProperty` for other getters. Use `testGlobal`, not Node's `global`.
 
 ### Using `/tdd` in this project
 
