@@ -85,6 +85,9 @@ _Avoid_: weather, fog
 
 **Animations** — the module that owns all per-run animation countdown timers (death shake, death flash, score pop, milestone flash, new-best badge, copy flash, death score count-up). A single `Animations.reset()` call zeroes all counters at the start of each run. Handlers and draw functions read and write counters directly via `Animations.X`. In Updated and Daily the death shake is a short settle, and the score pop eases across that same window, so Game Over opens after the HUD has settled. Classic keeps the longer death shake and does not start the score pop. Under prefers-reduced-motion the death flash and the score pop keep their own shorten; the death shake values stay. In Updated and Daily the death score count-up is about three fifths of the Classic roll, so the board settles sooner, and reduced motion halves that shorter roll again. Classic keeps the full count-up.
 
+**Safe storage** — the one guarded path to browser storage (`safeStorage` in Section 2). Saved settings and scores (mode, mute, high score, daily best, tuning) are a convenience, never a requirement to play: when the browser blocks storage, a read falls back to the default and a write is ignored, and this session's values are kept in memory so the run still shows its high score. A game that does not load because storage is blocked is a Flow break before the first jump.
+_Avoid_: persistence layer, save system
+
 ## Randomness
 
 **RNG** — the seeded pseudo-random number generator used for all in-run randomness; shared between obstacle type selection and spawn gap jitter to preserve determinism. Consumed in a fixed order (type first, gap second) per spawn — swapping breaks deterministic replay. `Math.random()` is reserved for cosmetic effects only (particles, clouds, audio pitch).

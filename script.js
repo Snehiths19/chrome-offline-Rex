@@ -543,35 +543,67 @@ function cfg(key) {
   return GAME_CONFIG[key];
 }
 
+// --- Safe storage (C2) ---
+// Every localStorage call goes through safeStorage. Browsers that block
+// storage (privacy modes, sandboxed iframes, cookies off) throw on the first
+// access, and an unguarded read at module load would stop the game booting.
+// A failed read returns the fallback; a failed write is ignored by storage
+// but kept in an in-memory map, so values set this session (high score,
+// mute, daily best) still read back for the rest of the visit.
+const safeStorage = {
+  _memory: {},
+  get(key, fallback = null) {
+    // A write that failed this session (blocked storage, full quota) wins
+    // over whatever the real store still holds.
+    if (Object.prototype.hasOwnProperty.call(this._memory, key)) return this._memory[key];
+    try {
+      const v = localStorage.getItem(key);
+      return v === null || v === undefined ? fallback : v;
+    } catch { return fallback; }
+  },
+  set(key, value) {
+    const v = String(value);
+    try {
+      localStorage.setItem(key, v);
+      delete this._memory[key];
+      return true;
+    } catch {
+      this._memory[key] = v;
+      return false;
+    }
+  },
+  remove(key) {
+    delete this._memory[key];
+    try { localStorage.removeItem(key); } catch { /* storage blocked — ignore */ }
+  },
+};
+
 function loadTuning() {
   window.GAME_TUNING = window.GAME_TUNING || {};
   try {
-    const raw = localStorage.getItem('dino-tuning');
+    const raw = safeStorage.get('dino-tuning');
     if (raw) Object.assign(window.GAME_TUNING, JSON.parse(raw));
-  } catch (e) { /* malformed JSON or disabled storage — keep defaults */ }
+  } catch { /* malformed JSON — keep defaults */ }
 }
 
 function saveTuning() {
-  try {
-    localStorage.setItem('dino-tuning', JSON.stringify(window.GAME_TUNING || {}));
-    return true;
-  } catch (e) { return false; }
+  return safeStorage.set('dino-tuning', JSON.stringify(window.GAME_TUNING || {}));
 }
 
 loadTuning();
 
 const ScoreStore = {
-  loadHighScore()      { return parseInt(localStorage.getItem('dino-high-score') || '0', 10); },
-  saveHighScore(n)     { localStorage.setItem('dino-high-score', String(n)); },
+  loadHighScore()      { return parseInt(safeStorage.get('dino-high-score', '0'), 10) || 0; },
+  saveHighScore(n)     { safeStorage.set('dino-high-score', n); },
   loadDailyBest() {
-    const storedDate = parseInt(localStorage.getItem('dino-daily-date') || '0', 10);
+    const storedDate = parseInt(safeStorage.get('dino-daily-date', '0'), 10) || 0;
     if (storedDate !== dailySeed()) return 0;
-    return parseInt(localStorage.getItem('dino-daily-best') || '0', 10);
+    return parseInt(safeStorage.get('dino-daily-best', '0'), 10) || 0;
   },
   saveDailyBest(score) {
     if (score > this.loadDailyBest()) {
-      localStorage.setItem('dino-daily-date', String(dailySeed()));
-      localStorage.setItem('dino-daily-best', String(score));
+      safeStorage.set('dino-daily-date', dailySeed());
+      safeStorage.set('dino-daily-best', score);
     }
   },
 };
@@ -1718,7 +1750,7 @@ function qaBigOverride(rolledType) {
 // unavailable (Node tests, very old browsers).
 const audio = {
   ctx: null,
-  muted: localStorage.getItem('dino-muted') === '1',
+  muted: safeStorage.get('dino-muted') === '1',
   ensure() {
     if (!this.ctx) {
       const Ctx = (typeof AudioContext !== 'undefined') ? AudioContext
@@ -1734,7 +1766,7 @@ const audio = {
   },
   setMuted(v) {
     this.muted = !!v;
-    localStorage.setItem('dino-muted', this.muted ? '1' : '0');
+    safeStorage.set('dino-muted', this.muted ? '1' : '0');
   },
   // Short envelope-shaped tone. Used by jump/land/milestone.
   blip(freq, durationMs, type = 'sine', gain = 0.04) {
@@ -1836,11 +1868,11 @@ function imageReady(img) {
 const SHELL_GUTTER_X = 8;
 
 // Vertical chrome the canvas must clear. The row matches #game-wrapper
-// padding-top. Jump and share match their margin plus used height in Chrome
+// padding-top: 6px top offset + 44px touch targets + 6px gap. Jump and share match their margin plus used height in Chrome
 // (12+53 and 10+38), reserved even while share is hidden so a Daily result
 // does not push the stack under the home indicator. Keep them in sync with
 // style.css.
-const SHELL_CHROME_ROW = 44;
+const SHELL_CHROME_ROW = 56;
 const SHELL_JUMP_BLOCK = 65;
 const SHELL_SHARE_BLOCK = 48;
 
@@ -2087,7 +2119,7 @@ const MODES = Object.freeze({ CLASSIC: 'classic', UPDATED: 'updated', DAILY: 'da
 // Read the saved mode (defaults to 'updated' for first-time players). Persists
 // across reload so the user's preference is remembered.
 function loadMode() {
-  const stored = localStorage.getItem('dino-mode');
+  const stored = safeStorage.get('dino-mode');
   return stored === MODES.CLASSIC ? MODES.CLASSIC : MODES.UPDATED;
 }
 
@@ -2243,7 +2275,7 @@ const Animations = {
 
 function setMode(newMode) {
   game.mode = newMode === MODES.CLASSIC ? MODES.CLASSIC : MODES.UPDATED;
-  localStorage.setItem('dino-mode', game.mode);
+  safeStorage.set('dino-mode', game.mode);
   refreshModeToggle();
   // Restart the run cleanly so the new mode's spawn rules take effect immediately.
   cancelAnimationFrame(game.animationFrameId);
@@ -3939,7 +3971,7 @@ if (dailyBtn && dailyBtn.addEventListener) {
       game.mode = MODES.DAILY;
     } else {
       game.mode = MODES.UPDATED;
-      localStorage.setItem('dino-mode', MODES.UPDATED);
+      safeStorage.set('dino-mode', MODES.UPDATED);
     }
     refreshDailyButton();
     cancelAnimationFrame(game.animationFrameId);
@@ -3972,6 +4004,17 @@ if (typeof document !== 'undefined' && document.addEventListener) {
 }
 
 // == SECTION 8: GAME LOOP ==
+
+// The page behind the canvas follows the sky colour. Writing body.style makes
+// the browser recalculate page styles, so remember the last colour written and
+// skip the write while the sky holds still. Most of a run is one colour.
+let lastPageBackground = null;
+function setPageBackground(color) {
+  if (typeof document === 'undefined' || !document.body) return;
+  if (color === lastPageBackground) return;
+  lastPageBackground = color;
+  document.body.style.background = color;
+}
 
 function resetGame() {
   const restartAfterDeath = game.state === STATE.DEAD;
@@ -4070,7 +4113,7 @@ function resetGame() {
     ? 'Get ready. Press space or tap to start.'
     : 'Get ready.';
   announce(isDailyMode() ? ready + ' ' + dailyPreRunLine() + '.' : ready);
-  if (document.body) document.body.style.background = '';
+  setPageBackground('');
 }
 
 // Classic reads the original shake keys. Updated and Daily read the quieter
@@ -4171,7 +4214,7 @@ function handleDead() {
 function handleIdle() {
   game.animFrame++;
   drawBackground();
-  if (document.body) document.body.style.background = getBackgroundColor(game.score);
+  setPageBackground(getBackgroundColor(game.score));
   drawHills();
   drawGround();
   updateClouds();
@@ -4188,7 +4231,7 @@ function handleWaiting() {
     announce('Go!');
   }
   drawBackground();
-  if (document.body) document.body.style.background = getBackgroundColor(game.score);
+  setPageBackground(getBackgroundColor(game.score));
   drawHills();
   drawGround();
   updateClouds();
@@ -4263,7 +4306,7 @@ function handleRunning() {
   }
 
   drawBackground();
-  if (document.body) document.body.style.background = getBackgroundColor(game.score);
+  setPageBackground(getBackgroundColor(game.score));
   runFeatureUpdates();              // updateHills, updateClouds, Particles.update
   runFeatureDraws('background');    // drawHills, drawClouds
   drawGround();
@@ -4591,6 +4634,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.ctx = ctx;
   global.dino = dino;
   global.getBackgroundColor = getBackgroundColor;
+  global.setPageBackground = setPageBackground;
   global.getHillColor = getHillColor;
   global.drawBackground = drawBackground;
   global.starFadeAlpha = starFadeAlpha;
@@ -4640,6 +4684,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.MODES = MODES;
   global.setMode = setMode;
   global.loadMode = loadMode;
+  global.safeStorage = safeStorage;
   global.Particles = Particles;
   global.audio = audio;
   global.drawDeathFlash = drawDeathFlash;
