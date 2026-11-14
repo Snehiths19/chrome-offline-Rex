@@ -125,6 +125,14 @@ _Avoid_: share modal, in-run share prompt, copy banner
 **New today best** — the Game Over celebration when a Daily Challenge death beats **Daily best**, including the first run of the day. On-screen copy: "★  NEW TODAY BEST  ★" and the run score, in the same takeover as free-play new best. A miss, including a tie, keeps the THIS RUN / TODAY BEST comparison. The death-screen hint and Copy result still appear after the score count-up. Static text, no extra motion. Classic and Updated never show it. Not drawn during WAITING or RUNNING.
 _Avoid_: daily record, new daily high, today record
 
+## Platform
+
+**Offline shell** — the files a phone needs to boot the game with no connection: `index.html`, `script.js`, `style.css`, the web manifest, the six sprites in `assets/`, and the app icons. `sw.js` precaches exactly that list on first visit and then serves it cache-first. The cache is named after the deploy's commit SHA, so each deploy installs a fresh shell and deletes the old one. The new version shows on the next launch; the page is never reloaded mid-run, because that would break Flow. A file the game loads at boot that is missing from the list breaks offline play silently.
+_Avoid_: PWA cache, app cache
+
+**Installed app** — the game added to a home screen through the web manifest. It opens fullscreen, landscape first, with the dino icon, and runs the same modes, scores, and Daily Challenge as the browser tab. It shares `localStorage` with the site, so best scores carry over. Installing is a browser feature at the edges of play; the game never prompts for it mid-run.
+_Avoid_: native app, PWA mode
+
 ## Relationships
 
 - A **Daily Challenge** run uses one **Daily seed** derived from today's UTC date; that value is the run's **run seed**
