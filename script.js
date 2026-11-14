@@ -4562,6 +4562,23 @@ function gameLoop(timestamp) {
 // Game starts automatically once all assets fire onImageLoad / onImageError,
 // or after ASSET_LOAD_TIMEOUT_MS as a safety net.
 
+// Offline / installable: register sw.js (precaches the app shell, see the
+// header of sw.js). Skipped under Node and in browsers without service
+// workers or outside a secure context (file://), so the game still boots
+// there. `nav`/`win` are parameters so tests can pass fakes. Registration waits for `load` so it never competes with the sprite
+// preload for bandwidth on a phone's first visit. Returns whether it tried.
+function registerServiceWorker(nav, win) {
+  if (!nav || !('serviceWorker' in nav)) return false;
+  if (!win || win.isSecureContext === false) return false;
+  win.addEventListener('load', () => {
+    nav.serviceWorker.register('sw.js').catch(() => {
+      // Offline play is a bonus; a failed registration must not break the game.
+    });
+  });
+  return true;
+}
+if (!isNode) registerServiceWorker(typeof navigator !== 'undefined' ? navigator : undefined, window);
+
 // == SECTION 10: TEST EXPOSURE (Node only) ==
 // Tests run script.js under Node and reference game state via the `game` object
 // and functions via their module-level names. Browsers skip this block entirely.
@@ -4597,6 +4614,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.drawIdleScreen = drawIdleScreen;
   global.drawGetReadyOverlay = drawGetReadyOverlay;
   global.handleAction   = handleAction;
+  global.registerServiceWorker = registerServiceWorker;
   global.initCanvasScale = initCanvasScale;
   global.handleResize   = handleResize;
   global.computeCanvasCssWidth = computeCanvasCssWidth;

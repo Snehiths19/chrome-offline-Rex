@@ -15534,6 +15534,110 @@ describe('QA pace readout (?qaHz=1)', () => {
   });
 });
 
+describe('Installable and offline (PL1)', () => {
+  // Static checks read files from disk, so they only run under Node.
+  const fs = typeof require === 'function' ? require('fs') : null;
+  const path = typeof require === 'function' ? require('path') : null;
+  const root = path ? path.join(__dirname, '..') : '';
+  const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
+  const exists = (rel) => fs.existsSync(path.join(root, rel));
+  // sw.js is a worker script, not a module; pull PRECACHE_URLS out of its text.
+  const precacheUrls = () => {
+    const m = read('sw.js').match(/const PRECACHE_URLS = (\[[\s\S]*?\]);/);
+    return JSON.parse(m[1].replace(/'/g, '"').replace(/,\s*\]/, ']'));
+  };
+
+  it('manifest has what Add to Home Screen needs', () => {
+    if (!fs) return;
+    const m = JSON.parse(read('manifest.webmanifest'));
+    assert(m.name && m.short_name, 'name and short_name');
+    assert(m.short_name.length <= 12, 'short_name fits under a home-screen icon');
+    assert(['fullscreen', 'standalone'].includes(m.display), 'app-like display');
+    assertEquals(m.orientation, 'landscape', 'landscape preferred');
+    assertEquals(m.start_url, './', 'relative start_url works under the Pages subpath');
+    assertEquals(m.scope, './', 'relative scope');
+    assert(/^#[0-9a-f]{6}$/i.test(m.theme_color), 'theme colour');
+    const sizes = m.icons.map((i) => i.sizes);
+    assert(sizes.includes('192x192') && sizes.includes('512x512'), '192 and 512 icons');
+    assert(m.icons.some((i) => i.purpose === 'maskable'), 'a maskable icon for Android');
+    m.icons.forEach((i) => assert(exists(i.src), 'icon file exists: ' + i.src));
+  });
+
+  it('index.html links the manifest and an apple-touch-icon that exist', () => {
+    if (!fs) return;
+    const html = read('index.html');
+    const manifest = html.match(/<link rel="manifest" href="([^"]+)">/);
+    assert(manifest && exists(manifest[1]), 'manifest link');
+    const apple = html.match(/<link rel="apple-touch-icon" href="([^"]+)">/);
+    assert(apple && exists(apple[1]), 'apple-touch-icon link');
+    assert(/<meta name="theme-color"/.test(html), 'theme-color meta');
+  });
+
+  it('service worker precaches the shell, every sprite and every icon', () => {
+    if (!fs) return;
+    const urls = precacheUrls();
+    urls.filter((u) => u !== './').forEach((u) => assert(exists(u), 'precached file exists: ' + u));
+    ['./', 'index.html', 'script.js', 'style.css', 'manifest.webmanifest'].forEach((u) =>
+      assert(urls.includes(u), 'shell file precached: ' + u)
+    );
+    const sprites = (read('script.js').match(/'assets\/[^']+\.png'/g) || []).map((s) => s.slice(1, -1));
+    assertEquals(sprites.length, 6, 'script.js loads 6 sprites');
+    sprites.forEach((s) => assert(urls.includes(s), 'sprite precached: ' + s));
+    const html = read('index.html');
+    (html.match(/href="(icons\/[^"]+)"/g) || []).forEach((h) => {
+      const u = h.slice(6, -1);
+      assert(urls.includes(u), 'linked icon precached: ' + u);
+    });
+    JSON.parse(read('manifest.webmanifest')).icons.forEach((i) =>
+      assert(urls.includes(i.src), 'manifest icon precached: ' + i.src)
+    );
+  });
+
+  it('cache name carries the deploy version that pages.yml injects', () => {
+    if (!fs) return;
+    const sw = read('sw.js');
+    assert(/const CACHE_VERSION = '__VERSION__';/.test(sw), 'placeholder in sw.js');
+    assert(/CACHE_NAME = 'rex-run-' \+ CACHE_VERSION/.test(sw), 'cache name uses the version');
+    const pages = read('.github/workflows/pages.yml');
+    assert(/sed -i "s\/__VERSION__\/[^"]*" [^\n]*\bsw\.js/.test(pages), 'pages.yml rewrites sw.js');
+  });
+
+  it('registerServiceWorker registers sw.js on load in a capable browser', () => {
+    const registered = [];
+    const listeners = {};
+    const nav = {
+      serviceWorker: {
+        register: (url) => {
+          registered.push(url);
+          return Promise.resolve();
+        },
+      },
+    };
+    const win = { isSecureContext: true, addEventListener: (t, fn) => (listeners[t] = fn) };
+    assertEquals(registerServiceWorker(nav, win), true, 'tries to register');
+    assertEquals(registered.length, 0, 'waits for load, not during sprite preload');
+    listeners.load();
+    assertEquals(registered[0], 'sw.js', 'registers the relative sw.js');
+  });
+
+  it('registerServiceWorker is a no-op without support or a secure context', () => {
+    const win = { isSecureContext: true, addEventListener: () => {} };
+    assertEquals(registerServiceWorker(undefined, win), false, 'no navigator (Node)');
+    assertEquals(registerServiceWorker({}, win), false, 'no serviceWorker API');
+    const nav = { serviceWorker: { register: () => Promise.resolve() } };
+    assertEquals(registerServiceWorker(nav, { isSecureContext: false, addEventListener: () => {} }), false, 'file://');
+  });
+
+  it('a rejected registration does not throw', () => {
+    let onLoad;
+    const nav = { serviceWorker: { register: () => Promise.reject(new Error('blocked')) } };
+    const win = { isSecureContext: true, addEventListener: (t, fn) => (onLoad = fn) };
+    registerServiceWorker(nav, win);
+    onLoad();
+    assert(true, 'no synchronous throw');
+  });
+});
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {

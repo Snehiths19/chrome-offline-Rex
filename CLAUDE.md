@@ -29,6 +29,9 @@ The lint and test gates also run in CI on every push (`.github/workflows/ci.yml`
 script.js                         # game logic (single source of truth)
 index.html                        # canvas + UI buttons; cache-bust via __VERSION__
 style.css
+sw.js                             # service worker: precaches the offline shell (cache name = deploy SHA)
+manifest.webmanifest              # Add to Home Screen: name, fullscreen, landscape, icons
+icons/                            # app icons built from assets/dino-stationary.png (assets/ untouched)
 tests/game.test.js                # custom describe/it; no JSDOM; canvas/document stubbed
 .github/workflows/pages.yml       # test → cache-bust → Pages deploy
 .github/workflows/ci.yml          # tests on every push/PR
@@ -183,6 +186,8 @@ Rules that apply across all call sites. Violating these silently misbehaves rath
 **Physics/spawning/scoring read `GAME_CONFIG.X` directly — never via `cfg()`.** `cfg()` is for visual tunables only. Any physics or spawning value routed through `cfg()` would allow live-tuning overrides to perturb the determinism contract.
 
 **Sim steps are 60Hz, not the display refresh.** `gameLoop(timestamp)` accumulates rAF time and runs each state handler once per `SIM_FRAME_MS` (1/60s) slice, at most `MAX_SIM_STEPS` slices per animation frame. A frame that owes nothing does not run the handler, so a 120Hz display does not double score, speed, spawn timing, jump physics, or particle emits. `gameLoop()` with no timestamp — the test harness, and the kickoff after `resetGame()` — is exactly one slice and does not write the rAF clock. `resetGame()` clears the accumulator so a hitch cannot burst into the next run.
+
+**New boot files go in `sw.js` `PRECACHE_URLS`.** Any file the game fetches at boot (a new sprite, stylesheet, or script) must be added to the precache list, or the installed app breaks offline. The `Installable and offline (PL1)` tests check that every sprite `script.js` loads and every icon is precached. `pages.yml` rewrites `__VERSION__` in both `index.html` and `sw.js`.
 
 ## Where design history lives
 
