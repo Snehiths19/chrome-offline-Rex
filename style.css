@@ -32,18 +32,22 @@ body {
   flex-direction: column;
   align-items: center;
   width: 100%;
-  /* 44px holds mute / Daily / mode above the canvas, clear of the score.
-     8px each side is SHELL_GUTTER_X in script.js. */
-  padding: 44px 8px 0;
+  /* 56px holds the 44px mute / Daily / mode row (top 6px) with a 6px gap
+     above the canvas, clear of the score. It is SHELL_CHROME_ROW in
+     script.js. 8px each side is SHELL_GUTTER_X. */
+  padding: 56px 8px 0;
 }
 
+/* Every control in the row is at least 44x44px so a thumb can hit it. */
 #mute-btn {
   position: absolute;
-  top: 8px;
+  top: 6px;
   left: 8px;
   z-index: 2;
-  padding: 4px 8px;
-  font-size: 14px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0 10px;
+  font-size: 18px;
   line-height: 1;
   background: rgba(255, 255, 255, 0.85);
   border: 1px solid #999;
@@ -66,13 +70,15 @@ body {
 
 #daily-btn {
   position: absolute;
-  top: 8px;
-  left: 68px;
+  top: 6px;
+  left: 60px;
   z-index: 2;
-  padding: 4px 8px;
-  font-size: 13px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0 12px;
+  font-size: 14px;
   font-weight: 600;
-  line-height: 14px; /* Match the mute pill height once #N sits beside the calendar. */
+  line-height: 1;
   letter-spacing: 0.01em;
   font-variant-numeric: tabular-nums;
   white-space: nowrap; /* A wider day number stays one label, never wraps under the emoji. */
@@ -89,13 +95,13 @@ body {
    clear of Classic / Updated on a narrow phone. */
 @media (max-width: 420px) {
   #mute-btn {
-    padding: 4px 6px;
+    padding: 0 6px;
   }
 
   #daily-btn {
-    left: 46px;
-    padding: 4px 6px;
-    font-size: 12px;
+    left: 56px;
+    padding: 0 8px;
+    font-size: 13px;
     letter-spacing: 0;
   }
 }
@@ -114,13 +120,17 @@ body {
 
 #mode-toggle {
   position: absolute;
-  top: 8px;
+  top: 6px;
   right: 8px;
   z-index: 2;
   display: inline-flex;
-  padding: 2px;
+  height: 44px;
+  padding: 0;
   background: rgba(255, 255, 255, 0.85);
-  border: 1px solid #999;
+  /* Inset outline instead of a border so each button's hit area is the
+     full 44px row height. */
+  border: 0;
+  box-shadow: inset 0 0 0 1px #999;
   border-radius: 999px;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
@@ -129,21 +139,26 @@ body {
 #mode-toggle button {
   appearance: none;
   -webkit-appearance: none;
-  padding: 4px 12px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0 12px;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   background: transparent;
   color: #888;
-  border: 0;
+  /* The transparent border is part of the hit area but not of the painted
+     pill, so the pressed pill sits inset inside the group outline. */
+  border: 4px solid transparent;
+  background-clip: padding-box;
   border-radius: 999px;
   cursor: pointer;
   transition: background-color 120ms ease-out, color 120ms ease-out;
 }
 
 #mode-toggle button[aria-pressed='true'] {
-  background: #333;
+  background-color: #333; /* Not the shorthand: it would reset background-clip. */
   color: #fff;
 }
 
@@ -153,7 +168,7 @@ body {
 /* After the base toggle rules so the tighter padding wins on a narrow phone. */
 @media (max-width: 420px) {
   #mode-toggle button {
-    padding: 4px 7px;
+    padding: 0 6px;
     font-size: 11px;
     letter-spacing: 0;
   }
