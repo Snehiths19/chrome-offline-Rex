@@ -32,6 +32,10 @@ A clone of the Chrome offline dinosaur game, built with vanilla JavaScript and H
 - Respects `prefers-reduced-motion`; announces game state to screen readers
 - Falls back to simple rectangles if sprite assets fail to load
 
+## Art
+
+All sprites in `assets/` (Rex, the cactus, and the ground strip) are original to this project. They are drawn by `tools/draw-sprites.js`, a small dependency-free Node script. Run `node tools/draw-sprites.js` to redraw them.
+
 ## Modes
 
 The mode toggle above the canvas switches between two flavours:

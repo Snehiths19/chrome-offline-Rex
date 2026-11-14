@@ -77,6 +77,9 @@ _Avoid_: hit sparks, blood, explosion, land dust
 **Ground strip** — the scrolling road edge under the run, painted from the day sprite. By day it stays that day paint in every mode. In Updated and Daily, once the sky is fully night, the strip dims with the night Atmosphere so it still reads as the road edge and no longer as a bright day-gray ruler. Classic keeps the day paint even when the shared sky is night. It is not **Land dust**.
 _Avoid_: floor, terrain, ground line (as a separate feature name)
 
+**Sprite art** — the dino (Rex), cactus, and ground strip images in `assets/`. They are our own drawings, made by `tools/draw-sprites.js` from simple shapes, and are not copied from Chrome's offline game or any other game. Rex is a round, spotted baby dino with three back plates, a big eye, and a curled tail. Redraw by editing that script and running `node tools/draw-sprites.js`. The file names, sizes (dino 88×94, cactus 34×70, ground 2399×24 with the road edge on rows 8–9), and the #535353 day paint stay fixed, so draw sizes, hitboxes, and the night lift do not change.
+_Avoid_: Chrome sprites, T-rex art, borrowed art
+
 **Stars** — the static night points in the upper sky. They appear once the sky is fully night, then fade in. In Updated and Daily that fade is shorter, so the quieter whisper settles sooner and the brightening ramp does not linger over the obstacle lane. Classic keeps today's fade to the full-white field. The day sky has none. They are not **Clouds**, hills, or the **Ground strip**.
 _Avoid_: sparkle, twinkle (those pull the eye; the field should not)
 
