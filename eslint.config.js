@@ -85,6 +85,7 @@ export default [
         MODES: 'readonly',
         Particles: 'readonly',
         ScoreStore: 'readonly',
+        safeStorage: 'readonly',
         a11yLive: 'readonly',
         announce: 'readonly',
         audio: 'readonly',
