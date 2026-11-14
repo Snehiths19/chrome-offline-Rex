@@ -133,6 +133,18 @@ function overrideDocumentProp(name, value) {
   };
 }
 
+// A browser's window.localStorage is a getter, so assigning a fake to it is
+// ignored there. Shadow it with an own property instead; the returned function
+// puts the real one back. Node's global takes the same path.
+function overrideGlobalProp(name, value) {
+  const prev = Object.getOwnPropertyDescriptor(testGlobal, name);
+  Object.defineProperty(testGlobal, name, { configurable: true, writable: true, value });
+  return () => {
+    delete testGlobal[name];
+    if (prev) Object.defineProperty(testGlobal, name, prev);
+  };
+}
+
 // --- Mocking and Setup ---
 // The game script (script.js) is loaded by test-runner.html before this script
 // (in browsers) or via require() above (in Node). Tests drive the game loop
@@ -3413,7 +3425,7 @@ describe('Shell canvas width', () => {
 
 describe('Shell canvas height', () => {
   it('reserves the chrome row, jump, and share measured from the shell', () => {
-    assertEquals(SHELL_CHROME_ROW, 44,
+    assertEquals(SHELL_CHROME_ROW, 56,
       'keep this in sync with #game-wrapper padding-top');
     assertEquals(SHELL_JUMP_BLOCK, 65,
       'jump is margin-top 12 plus a 53px control');
@@ -3434,14 +3446,14 @@ describe('Shell canvas height', () => {
     const maxH = computeCanvasMaxHeight(390, 21 + SHELL_CHROME_ROW + SHELL_JUMP_BLOCK + SHELL_SHARE_BLOCK);
     const wide = fitCanvasCssSize(maxW, 0);
     const size = fitCanvasCssSize(maxW, maxH);
-    assertEquals(maxH, 212, '390px landscape minus home indicator, chrome, jump, and share');
+    assertEquals(maxH, 200, '390px landscape minus home indicator, chrome, jump, and share');
     assert(wide.cssH > maxH, 'width-first height is what clips the jump');
     assert(size.cssH <= maxH, 'fitted height stays inside the reserve');
     assert(size.cssW < maxW, 'the spare width is the letterbox');
     assert(size.cssW <= maxW, 'letterbox does not exceed the content box');
     assertEquals(size.cssW, size.cssH * 3, 'the fitted canvas stays 3:1');
-    assertEquals(size.cssH, 212);
-    assertEquals(size.cssW, 636);
+    assertEquals(size.cssH, 200);
+    assertEquals(size.cssW, 600);
   });
 
   it('initCanvasScale letterboxes a short viewport and leaves a tall phone width-first', () => {
@@ -3467,19 +3479,19 @@ describe('Shell canvas height', () => {
       window.innerWidth = 844;
       window.innerHeight = 390;
       initCanvasScale();
-      assertEquals(canvas.style.width, '699px',
+      assertEquals(canvas.style.width, '663px',
         'landscape display width letterboxes inside the 8px gutter');
-      assertEquals(canvas.style.height, '233px',
+      assertEquals(canvas.style.height, '221px',
         'landscape display height stays above jump and share');
-      assertEquals(canvas.width, 699, 'bitmap width matches the letterboxed css width at dpr 1');
-      assertEquals(canvas.height, 233, 'bitmap height stays 3:1');
+      assertEquals(canvas.width, 663, 'bitmap width matches the letterboxed css width at dpr 1');
+      assertEquals(canvas.height, 221, 'bitmap height stays 3:1');
 
       window.innerHeight = 900;
       window.visualViewport = { height: 390 };
       initCanvasScale();
-      assertEquals(canvas.style.height, '233px',
+      assertEquals(canvas.style.height, '221px',
         'the visible viewport wins over a taller layout viewport');
-      assertEquals(canvas.style.width, '699px',
+      assertEquals(canvas.style.width, '663px',
         'letterbox follows the visible height');
     } finally {
       window.getComputedStyle = origReader;
@@ -15207,7 +15219,6 @@ describe('QA share flag (?qaShare=1)', () => {
   });
 });
 
-
 describe('Sim clock (60Hz)', () => {
   function cancelLoop() {
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -15565,6 +15576,388 @@ describe('QA pace readout (?qaHz=1)', () => {
       resetGame();
       cancelLoop();
     }
+  });
+});
+
+describe('Blocked storage (C2)', () => {
+  // A browser that blocks storage throws on every localStorage access.
+  function withBlockedStorage(fn) {
+    const origMemory = safeStorage._memory;
+    safeStorage._memory = {};
+    const restoreStorage = overrideGlobalProp('localStorage', {
+      getItem() { throw new Error('SecurityError: storage blocked'); },
+      setItem() { throw new Error('SecurityError: storage blocked'); },
+      removeItem() { throw new Error('SecurityError: storage blocked'); },
+    });
+    try { fn(); } finally {
+      restoreStorage();
+      safeStorage._memory = origMemory;
+    }
+  }
+
+  it('safeStorage.get returns the fallback and set reports failure without throwing', () => {
+    withBlockedStorage(() => {
+      assertEquals(safeStorage.get('dino-mode'), null, 'missing key reads as null');
+      assertEquals(safeStorage.get('dino-high-score', '0'), '0', 'missing key reads as the fallback');
+      assertEquals(safeStorage.set('dino-mode', 'classic'), false, 'a blocked write returns false');
+      assertEquals(safeStorage.get('dino-mode'), 'classic', 'the write is kept in memory for this session');
+      safeStorage.remove('dino-mode');
+      assertEquals(safeStorage.get('dino-mode', 'x'), 'x', 'remove clears the in-memory copy');
+    });
+  });
+
+  it('safeStorage reads the real store when it works', () => {
+    const orig = localStorage.getItem('dino-muted');
+    localStorage.removeItem('dino-muted');
+    assertEquals(safeStorage.get('dino-muted', 'd'), 'd', 'missing key returns the fallback');
+    assertEquals(safeStorage.set('dino-muted', '1'), true, 'a working write returns true');
+    assertEquals(localStorage.getItem('dino-muted'), '1', 'value lands in localStorage');
+    if (orig === null) localStorage.removeItem('dino-muted');
+    else localStorage.setItem('dino-muted', orig);
+  });
+
+  it('a failed write reads back even when reads still work (full quota)', () => {
+    const origMemory = safeStorage._memory;
+    safeStorage._memory = {};
+    const restoreStorage = overrideGlobalProp('localStorage', {
+      getItem() { return null; },
+      setItem() { throw new Error('QuotaExceededError'); },
+      removeItem() {},
+    });
+    try {
+      ScoreStore.saveDailyBest(321);
+      assertEquals(ScoreStore.loadDailyBest(), 321, 'daily best reads back from memory');
+    } finally {
+      restoreStorage();
+      safeStorage._memory = origMemory;
+    }
+  });
+
+  it('mode, mute and scores keep working in memory when storage is blocked', () => {
+    const origMode = game.mode;
+    const origMuted = audio.muted;
+    withBlockedStorage(() => {
+      assertEquals(loadMode(), MODES.UPDATED, 'loadMode falls back to Updated');
+      assertEquals(ScoreStore.loadHighScore(), 0, 'no saved high score reads as 0');
+      assertEquals(ScoreStore.loadDailyBest(), 0, 'no saved daily best reads as 0');
+      audio.setMuted(true);
+      assertEquals(audio.muted, true, 'mute toggles without storage');
+      setMode(MODES.CLASSIC);
+      cancelAnimationFrame(game.animationFrameId);
+      assertEquals(loadMode(), MODES.CLASSIC, 'mode choice is remembered in memory');
+      ScoreStore.saveDailyBest(321);
+      assertEquals(ScoreStore.loadDailyBest(), 321, 'daily best is remembered in memory');
+    });
+    audio.muted = origMuted;
+    setMode(origMode === MODES.CLASSIC ? MODES.CLASSIC : MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    game.mode = origMode;
+  });
+
+  it('a run that beats the high score records it in memory when storage is blocked', () => {
+    const origHS = game.highScore;
+    withBlockedStorage(() => {
+      resetGame();
+      game.obstacles.push({ x: 50, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
+      game.state = STATE.RUNNING;
+      game.graceFrames = 0;
+      game.score = 150;
+      game.highScore = 50;
+      gameLoop();
+      cancelAnimationFrame(game.animationFrameId);
+      assertEquals(game.state, STATE.DEAD, 'the run ends normally');
+      assertEquals(game.highScore, 150, 'game.highScore updates');
+      assertEquals(ScoreStore.loadHighScore(), 150, 'ScoreStore reads the new best back from memory');
+    });
+    game.highScore = origHS;
+    resetGame();
+    cancelAnimationFrame(game.animationFrameId);
+  });
+
+  it('script.js boots in a fresh Node process where every storage access throws', () => {
+    if (typeof require !== 'function') return; // browser runner: Node-only check
+    const { execFileSync } = require('child_process');
+    const scriptPath = require.resolve('../script.js');
+    // The getter throws on every read, and the setter swallows the Node stub's
+    // assignment, so script.js sees storage exactly as a blocking browser does.
+    const code = [
+      "Object.defineProperty(global, 'localStorage', {",
+      "  configurable: true,",
+      "  get() { throw new Error('SecurityError: storage blocked'); },",
+      "  set() {},",
+      "});",
+      'require(' + JSON.stringify(scriptPath) + ');',
+      'ScoreStore.saveHighScore(4321);',
+      'process.stdout.write(JSON.stringify({',
+      '  mode: game.mode, muted: audio.muted, hi: ScoreStore.loadHighScore(),',
+      '}));',
+      'process.exit(0);',
+    ].join('\n');
+    const out = execFileSync(process.execPath, ['-e', code], { encoding: 'utf8', timeout: 10000 });
+    const result = JSON.parse(out);
+    assertEquals(result.mode, MODES.UPDATED, 'boots in the default mode');
+    assertEquals(result.muted, false, 'boots unmuted');
+    assertEquals(result.hi, 4321, 'high score is recorded in memory');
+  });
+});
+describe('Page background writes (R4)', () => {
+  function stopLoop() {
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+  }
+
+  // A fake body that counts every write to style.background.
+  // Counts every write to the page's style.background through a fake body.
+  // A browser refuses a plain object assigned to document.body, and its real
+  // style object keeps any spy defined on it, so shadow the body getter with
+  // an own property instead. Deleting that property brings back the real body
+  // (or, under Node, whatever the stub had before).
+  function installCountingBody() {
+    const writes = [];
+    let value = '';
+    const style = {};
+    Object.defineProperty(style, 'background', {
+      get: () => value,
+      set: (v) => { value = v; writes.push(v); },
+    });
+    const fake = { style };
+    const prev = Object.getOwnPropertyDescriptor(document, 'body');
+    Object.defineProperty(document, 'body', { configurable: true, get: () => fake });
+    const restore = () => {
+      delete document.body;
+      if (prev) Object.defineProperty(document, 'body', prev);
+    };
+    return { style, writes, restore };
+  }
+
+  function withBody(fn) {
+    const body = installCountingBody();
+    const orig = {
+      state: game.state,
+      score: game.score,
+      speed: game.currentSpeed,
+      obstacles: game.obstacles.slice(),
+    };
+    try {
+      setPageBackground(null); // forget whatever an earlier test wrote
+      body.writes.length = 0;
+      fn(body);
+    } finally {
+      game.state = orig.state;
+      game.score = orig.score;
+      game.currentSpeed = orig.speed;
+      game.obstacles.length = 0;
+      orig.obstacles.forEach((o) => game.obstacles.push(o));
+      setPageBackground(null);
+      body.restore();
+      stopLoop();
+      resetGame();
+      stopLoop();
+    }
+  }
+
+  function runFrames(n, scoreAt) {
+    for (let i = 0; i < n; i++) {
+      game.state = STATE.RUNNING;
+      game.obstacles.length = 0;
+      game.score = scoreAt(i);
+      STATE_HANDLERS[STATE.RUNNING]();
+    }
+  }
+
+  it('writes once while the sky colour holds over a run', () => {
+    withBody((body) => {
+      resetGame();
+      stopLoop();
+      body.writes.length = 0;
+      runFrames(120, () => 50);
+      assertEquals(body.writes.length, 1, 'one write for 120 day frames');
+      assertEquals(body.writes[0], getBackgroundColor(50), 'the write is the day sky');
+    });
+  });
+
+  it('writes only when getBackgroundColor returns something new across dusk', () => {
+    withBody((body) => {
+      resetGame();
+      stopLoop();
+      body.writes.length = 0;
+      // Let the run's own score carry the sky through dusk into night.
+      const start = GAME_CONFIG.DAY_NIGHT_START - 5;
+      const frames = Math.ceil((GAME_CONFIG.DAY_NIGHT_END + 5 - start) / GAME_CONFIG.SCORE_INCREMENT);
+      const seen = [];
+      let s = start;
+      for (let i = 0; i < frames; i++) {
+        s += GAME_CONFIG.SCORE_INCREMENT; // handleRunning scores before it paints
+        const c = getBackgroundColor(s);
+        if (seen[seen.length - 1] !== c) seen.push(c);
+      }
+      game.score = start;
+      for (let i = 0; i < frames; i++) {
+        game.state = STATE.RUNNING;
+        game.obstacles.length = 0;
+        STATE_HANDLERS[STATE.RUNNING]();
+      }
+      assertEquals(body.writes.length, seen.length, 'one write per colour change');
+      assert(body.writes.length < frames, 'fewer writes than sim frames');
+      assertEquals(body.writes.join(','), seen.join(','), 'writes follow the sky in order');
+    });
+  });
+
+  it('resetGame clears the page background once, and the next run writes again', () => {
+    withBody((body) => {
+      runFrames(5, () => GAME_CONFIG.DAY_NIGHT_END + 10);
+      resetGame();
+      stopLoop();
+      assertEquals(body.style.background, '', 'reset clears the night page');
+      const before = body.writes.length;
+      resetGame();
+      stopLoop();
+      assertEquals(body.writes.length, before, 'a second reset does not rewrite the same empty value');
+      runFrames(3, () => 0);
+      assertEquals(body.writes.length, before + 1, 'the new run writes the day sky once');
+      assertEquals(body.style.background, getBackgroundColor(0), 'page follows the day sky');
+    });
+  });
+
+  it('idle and get-ready frames share the cache', () => {
+    withBody((body) => {
+      game.score = 0;
+      for (let i = 0; i < 30; i++) STATE_HANDLERS[STATE.IDLE]();
+      assertEquals(body.writes.length, 1, 'idle writes once');
+      const origGrace = game.graceFrames;
+      game.graceFrames = 100;
+      game.state = STATE.WAITING;
+      for (let i = 0; i < 30; i++) STATE_HANDLERS[STATE.WAITING]();
+      game.graceFrames = origGrace;
+      assertEquals(body.writes.length, 1, 'get-ready at the same sky adds no write');
+    });
+  });
+});
+
+describe('Shell touch targets (S1)', () => {
+  it('the chrome row reserves a 44px touch target plus its top offset and gap', () => {
+    const TOUCH_TARGET = 44;
+    const TOP_OFFSET = 6;
+    const GAP = 6;
+    assert(SHELL_CHROME_ROW >= TOUCH_TARGET + TOP_OFFSET + GAP,
+      'a 44px row at top 6px keeps a gap above the canvas');
+    assertEquals(SHELL_CHROME_ROW, TOUCH_TARGET + TOP_OFFSET + GAP,
+      'matches #game-wrapper padding-top in style.css');
+  });
+
+  it('a phone in landscape letterboxes the canvas below the taller row', () => {
+    const maxH = computeCanvasMaxHeight(390,
+      SHELL_CHROME_ROW + SHELL_JUMP_BLOCK + SHELL_SHARE_BLOCK);
+    const size = fitCanvasCssSize(828, maxH);
+    assertEquals(maxH, 221, '390px tall minus the 56px row, jump, and share');
+    assert(size.cssH <= maxH, 'canvas never runs into the control row or jump');
+    assertEquals(size.cssW, size.cssH * 3, 'the fitted canvas stays 3:1');
+  });
+});
+describe('Installable and offline (PL1)', () => {
+  // Static checks read files from disk, so they only run under Node.
+  const fs = typeof require === 'function' ? require('fs') : null;
+  const path = typeof require === 'function' ? require('path') : null;
+  const root = path ? path.join(__dirname, '..') : '';
+  const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
+  const exists = (rel) => fs.existsSync(path.join(root, rel));
+  // sw.js is a worker script, not a module; pull PRECACHE_URLS out of its text.
+  const precacheUrls = () => {
+    const m = read('sw.js').match(/const PRECACHE_URLS = (\[[\s\S]*?\]);/);
+    return JSON.parse(m[1].replace(/'/g, '"').replace(/,\s*\]/, ']'));
+  };
+
+  it('manifest has what Add to Home Screen needs', () => {
+    if (!fs) return;
+    const m = JSON.parse(read('manifest.webmanifest'));
+    assert(m.name && m.short_name, 'name and short_name');
+    assert(m.short_name.length <= 12, 'short_name fits under a home-screen icon');
+    assert(['fullscreen', 'standalone'].includes(m.display), 'app-like display');
+    assertEquals(m.orientation, 'landscape', 'landscape preferred');
+    assertEquals(m.start_url, './', 'relative start_url works under the Pages subpath');
+    assertEquals(m.scope, './', 'relative scope');
+    assert(/^#[0-9a-f]{6}$/i.test(m.theme_color), 'theme colour');
+    const sizes = m.icons.map((i) => i.sizes);
+    assert(sizes.includes('192x192') && sizes.includes('512x512'), '192 and 512 icons');
+    assert(m.icons.some((i) => i.purpose === 'maskable'), 'a maskable icon for Android');
+    m.icons.forEach((i) => assert(exists(i.src), 'icon file exists: ' + i.src));
+  });
+
+  it('index.html links the manifest and an apple-touch-icon that exist', () => {
+    if (!fs) return;
+    const html = read('index.html');
+    const manifest = html.match(/<link rel="manifest" href="([^"]+)">/);
+    assert(manifest && exists(manifest[1]), 'manifest link');
+    const apple = html.match(/<link rel="apple-touch-icon" href="([^"]+)">/);
+    assert(apple && exists(apple[1]), 'apple-touch-icon link');
+    assert(/<meta name="theme-color"/.test(html), 'theme-color meta');
+  });
+
+  it('service worker precaches the shell, every sprite and every icon', () => {
+    if (!fs) return;
+    const urls = precacheUrls();
+    urls.filter((u) => u !== './').forEach((u) => assert(exists(u), 'precached file exists: ' + u));
+    ['./', 'index.html', 'script.js', 'style.css', 'manifest.webmanifest'].forEach((u) =>
+      assert(urls.includes(u), 'shell file precached: ' + u)
+    );
+    const sprites = (read('script.js').match(/'assets\/[^']+\.png'/g) || []).map((s) => s.slice(1, -1));
+    assertEquals(sprites.length, 6, 'script.js loads 6 sprites');
+    sprites.forEach((s) => assert(urls.includes(s), 'sprite precached: ' + s));
+    const html = read('index.html');
+    (html.match(/href="(icons\/[^"]+)"/g) || []).forEach((h) => {
+      const u = h.slice(6, -1);
+      assert(urls.includes(u), 'linked icon precached: ' + u);
+    });
+    JSON.parse(read('manifest.webmanifest')).icons.forEach((i) =>
+      assert(urls.includes(i.src), 'manifest icon precached: ' + i.src)
+    );
+  });
+
+  it('cache name carries the deploy version that pages.yml injects', () => {
+    if (!fs) return;
+    const sw = read('sw.js');
+    assert(/const CACHE_VERSION = '__VERSION__';/.test(sw), 'placeholder in sw.js');
+    assert(/CACHE_NAME = 'rex-run-' \+ CACHE_VERSION/.test(sw), 'cache name uses the version');
+    const pages = read('.github/workflows/pages.yml');
+    assert(/sed -i "s\/__VERSION__\/[^"]*" [^\n]*\bsw\.js/.test(pages), 'pages.yml rewrites sw.js');
+    // The dev-mode sentinel must survive that sed, or a deploy would think it is local.
+    const deployed = sw.replace(/__VERSION__/g, 'abc1234');
+    assert(deployed.includes("CACHE_VERSION !== '__VER' + 'SION__'"), 'sentinel survives deploy sed');
+    assert(deployed.includes("CACHE_VERSION = 'abc1234'"), 'version injected');
+  });
+
+  it('registerServiceWorker registers sw.js on load in a capable browser', () => {
+    const registered = [];
+    const listeners = {};
+    const nav = {
+      serviceWorker: {
+        register: (url) => {
+          registered.push(url);
+          return Promise.resolve();
+        },
+      },
+    };
+    const win = { isSecureContext: true, addEventListener: (t, fn) => (listeners[t] = fn) };
+    assertEquals(registerServiceWorker(nav, win), true, 'tries to register');
+    assertEquals(registered.length, 0, 'waits for load, not during sprite preload');
+    listeners.load();
+    assertEquals(registered[0], 'sw.js', 'registers the relative sw.js');
+  });
+
+  it('registerServiceWorker is a no-op without support or a secure context', () => {
+    const win = { isSecureContext: true, addEventListener: () => {} };
+    assertEquals(registerServiceWorker(undefined, win), false, 'no navigator (Node)');
+    assertEquals(registerServiceWorker({}, win), false, 'no serviceWorker API');
+    const nav = { serviceWorker: { register: () => Promise.resolve() } };
+    assertEquals(registerServiceWorker(nav, { isSecureContext: false, addEventListener: () => {} }), false, 'file://');
+  });
+
+  it('a rejected registration does not throw', () => {
+    let onLoad;
+    const nav = { serviceWorker: { register: () => Promise.reject(new Error('blocked')) } };
+    const win = { isSecureContext: true, addEventListener: (t, fn) => (onLoad = fn) };
+    registerServiceWorker(nav, win);
+    onLoad();
+    assert(true, 'no synchronous throw');
   });
 });
 

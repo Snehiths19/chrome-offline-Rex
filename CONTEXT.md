@@ -85,6 +85,9 @@ _Avoid_: weather, fog
 
 **Animations** — the module that owns all per-run animation countdown timers (death shake, death flash, score pop, milestone flash, new-best badge, copy flash, death score count-up). A single `Animations.reset()` call zeroes all counters at the start of each run. Handlers and draw functions read and write counters directly via `Animations.X`. In Updated and Daily the death shake is a short settle, and the score pop eases across that same window, so Game Over opens after the HUD has settled. Classic keeps the longer death shake and does not start the score pop. Under prefers-reduced-motion the death flash and the score pop keep their own shorten; the death shake values stay. In Updated and Daily the death score count-up is about three fifths of the Classic roll, so the board settles sooner, and reduced motion halves that shorter roll again. Classic keeps the full count-up.
 
+**Safe storage** — the one guarded path to browser storage (`safeStorage` in Section 2). Saved settings and scores (mode, mute, high score, daily best, tuning) are a convenience, never a requirement to play: when the browser blocks storage, a read falls back to the default and a write is ignored, and this session's values are kept in memory so the run still shows its high score. A game that does not load because storage is blocked is a Flow break before the first jump.
+_Avoid_: persistence layer, save system
+
 ## Randomness
 
 **RNG** — the seeded pseudo-random number generator used for all in-run randomness; shared between obstacle type selection and spawn gap jitter to preserve determinism. Consumed in a fixed order (type first, gap second) per spawn — swapping breaks deterministic replay. `Math.random()` is reserved for cosmetic effects only (particles, clouds, audio pitch).
@@ -121,6 +124,14 @@ _Avoid_: share modal, in-run share prompt, copy banner
 
 **New today best** — the Game Over celebration when a Daily Challenge death beats **Daily best**, including the first run of the day. On-screen copy: "★  NEW TODAY BEST  ★" and the run score, in the same takeover as free-play new best. A miss, including a tie, keeps the THIS RUN / TODAY BEST comparison. The death-screen hint and Copy result still appear after the score count-up. Static text, no extra motion. Classic and Updated never show it. Not drawn during WAITING or RUNNING.
 _Avoid_: daily record, new daily high, today record
+
+## Platform
+
+**Offline shell** — the files a phone needs to boot the game with no connection: `index.html`, `script.js`, `style.css`, the web manifest, the six sprites in `assets/`, and the app icons. `sw.js` precaches exactly that list on first visit and then serves it cache-first. The cache is named after the deploy's commit SHA, so each deploy installs a fresh shell and deletes the old one. The new version shows on the next launch; the page is never reloaded mid-run, because that would break Flow. A file the game loads at boot that is missing from the list breaks offline play silently.
+_Avoid_: PWA cache, app cache
+
+**Installed app** — the game added to a home screen through the web manifest. It opens fullscreen, landscape first, with the dino icon, and runs the same modes, scores, and Daily Challenge as the browser tab. It shares `localStorage` with the site, so best scores carry over. Installing is a browser feature at the edges of play; the game never prompts for it mid-run.
+_Avoid_: native app, PWA mode
 
 ## Relationships
 

@@ -29,6 +29,9 @@ The lint and test gates also run in CI on every push (`.github/workflows/ci.yml`
 script.js                         # game logic (single source of truth)
 index.html                        # canvas + UI buttons; cache-bust via __VERSION__
 style.css
+sw.js                             # service worker: precaches the offline shell (cache name = deploy SHA)
+manifest.webmanifest              # Add to Home Screen: name, fullscreen, landscape, icons
+icons/                            # app icons built from assets/dino-stationary.png (assets/ untouched)
 tests/game.test.js                # custom describe/it; no JSDOM; canvas/document stubbed
 .github/workflows/pages.yml       # test → cache-bust → Pages deploy
 .github/workflows/ci.yml          # tests on every push/PR
@@ -133,6 +136,8 @@ const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matc
 | `dino-daily-date` | YYYYMMDD integer string | `ScoreStore.saveDailyBest()` | `ScoreStore.loadDailyBest()` |
 | `dino-daily-best` | integer string | `ScoreStore.saveDailyBest()` | `ScoreStore.loadDailyBest()` |
 
+Every read and write goes through `safeStorage.get(key, fallback)` / `safeStorage.set(key, value)` in Section 2, never `localStorage` directly.
+
 ## Test harness
 
 Custom `describe`/`it` with `assert`/`assertEquals`/`assertNotEquals`. No Jest, no Mocha, no JSDOM. Tests run as a single Node script via `node tests/game.test.js`.
@@ -180,11 +185,15 @@ Rules that apply across all call sites. Violating these silently misbehaves rath
 
 **`cancelAnimationFrame` before restarting the loop.** Any code path that calls `resetGame()` + `gameLoop()` must first call `cancelAnimationFrame(game.animationFrameId)`, or a duplicate loop is created and the game runs at double speed. Current compliant sites: `setMode()`, daily-mode toggle, `handleAction()` (DEAD→restart branch). Pattern: `cancelAnimationFrame(game.animationFrameId); resetGame(); gameLoop();`
 
+**All storage goes through `safeStorage`.** Browsers that block storage throw on every `localStorage` access, and one unguarded read at module load stops the game booting. `safeStorage.get` returns the fallback when the read throws, and `safeStorage.set` keeps a failed write in memory so it still reads back this session. Never call `localStorage` directly outside `safeStorage`.
+
 **`game.rng()` is the only source of gameplay randomness.** Obstacle type, spawn-gap jitter, hill init/respawn all use `game.rng()`. `Math.random()` is reserved for purely cosmetic effects (particles, clouds, audio pitch). Swapping them breaks the daily-challenge determinism contract.
 
 **Physics/spawning/scoring read `GAME_CONFIG.X` directly — never via `cfg()`.** `cfg()` is for visual tunables only. Any physics or spawning value routed through `cfg()` would allow live-tuning overrides to perturb the determinism contract.
 
 **Sim steps are 60Hz, not the display refresh.** `gameLoop(timestamp)` accumulates rAF time and runs each state handler once per `SIM_FRAME_MS` (1/60s) slice, at most `MAX_SIM_STEPS` slices per animation frame. A frame that owes nothing does not run the handler, so a 120Hz display does not double score, speed, spawn timing, jump physics, or particle emits. `gameLoop()` with no timestamp — the test harness, and the kickoff after `resetGame()` — is exactly one slice and does not write the rAF clock. `resetGame()` clears the accumulator so a hitch cannot burst into the next run.
+
+**New boot files go in `sw.js` `PRECACHE_URLS`.** Any file the game fetches at boot (a new sprite, stylesheet, or script) must be added to the precache list, or the installed app breaks offline. The `Installable and offline (PL1)` tests check that every sprite `script.js` loads and every icon is precached. `pages.yml` rewrites `__VERSION__` in both `index.html` and `sw.js`.
 
 ## Where design history lives
 
