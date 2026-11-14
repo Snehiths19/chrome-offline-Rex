@@ -547,24 +547,30 @@ function cfg(key) {
 // Every localStorage call goes through safeStorage. Browsers that block
 // storage (privacy modes, sandboxed iframes, cookies off) throw on the first
 // access, and an unguarded read at module load would stop the game booting.
-// A failed read returns the fallback; a failed write is ignored. Writes also
-// land in an in-memory map so values set this session (high score, mute,
-// daily best) still read back when the real store throws.
+// A failed read returns the fallback; a failed write is ignored by storage
+// but kept in an in-memory map, so values set this session (high score,
+// mute, daily best) still read back for the rest of the visit.
 const safeStorage = {
   _memory: {},
   get(key, fallback = null) {
+    // A write that failed this session (blocked storage, full quota) wins
+    // over whatever the real store still holds.
+    if (Object.prototype.hasOwnProperty.call(this._memory, key)) return this._memory[key];
     try {
       const v = localStorage.getItem(key);
       return v === null || v === undefined ? fallback : v;
-    } catch {
-      // Storage blocked — fall back to what this session wrote, else the default.
-      return Object.prototype.hasOwnProperty.call(this._memory, key) ? this._memory[key] : fallback;
-    }
+    } catch { return fallback; }
   },
   set(key, value) {
     const v = String(value);
-    this._memory[key] = v;
-    try { localStorage.setItem(key, v); return true; } catch { return false; }
+    try {
+      localStorage.setItem(key, v);
+      delete this._memory[key];
+      return true;
+    } catch {
+      this._memory[key] = v;
+      return false;
+    }
   },
   remove(key) {
     delete this._memory[key];

@@ -15572,6 +15572,24 @@ describe('Blocked storage (C2)', () => {
     else localStorage.setItem('dino-muted', orig);
   });
 
+  it('a failed write reads back even when reads still work (full quota)', () => {
+    const origStorage = global.localStorage;
+    const origMemory = safeStorage._memory;
+    safeStorage._memory = {};
+    global.localStorage = {
+      getItem() { return null; },
+      setItem() { throw new Error('QuotaExceededError'); },
+      removeItem() {},
+    };
+    try {
+      ScoreStore.saveDailyBest(321);
+      assertEquals(ScoreStore.loadDailyBest(), 321, 'daily best reads back from memory');
+    } finally {
+      global.localStorage = origStorage;
+      safeStorage._memory = origMemory;
+    }
+  });
+
   it('mode, mute and scores keep working in memory when storage is blocked', () => {
     const origMode = game.mode;
     const origMuted = audio.muted;

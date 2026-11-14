@@ -180,7 +180,7 @@ Rules that apply across all call sites. Violating these silently misbehaves rath
 
 **`cancelAnimationFrame` before restarting the loop.** Any code path that calls `resetGame()` + `gameLoop()` must first call `cancelAnimationFrame(game.animationFrameId)`, or a duplicate loop is created and the game runs at double speed. Current compliant sites: `setMode()`, daily-mode toggle, `handleAction()` (DEAD→restart branch). Pattern: `cancelAnimationFrame(game.animationFrameId); resetGame(); gameLoop();`
 
-**All storage goes through `safeStorage`.** Browsers that block storage throw on every `localStorage` access, and one unguarded read at module load stops the game booting. `safeStorage.get` returns the fallback when the read throws (or this session's in-memory copy), and `safeStorage.set` ignores a failed write. Never call `localStorage` directly outside `safeStorage`.
+**All storage goes through `safeStorage`.** Browsers that block storage throw on every `localStorage` access, and one unguarded read at module load stops the game booting. `safeStorage.get` returns the fallback when the read throws, and `safeStorage.set` keeps a failed write in memory so it still reads back this session. Never call `localStorage` directly outside `safeStorage`.
 
 **`game.rng()` is the only source of gameplay randomness.** Obstacle type, spawn-gap jitter, hill init/respawn all use `game.rng()`. `Math.random()` is reserved for purely cosmetic effects (particles, clouds, audio pitch). Swapping them breaks the daily-challenge determinism contract.
 
