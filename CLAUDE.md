@@ -35,6 +35,7 @@ The lint, format and test gates also run in CI on pull requests and on pushes to
 script.js                         # game logic (single source of truth)
 index.html                        # canvas + UI buttons; cache-bust via __VERSION__
 style.css
+tune.js                           # dev-only ?tune=1 live tuning panel (loaded by script.js only with that flag; not precached)
 sw.js                             # service worker: precaches the offline shell (cache name = deploy SHA)
 manifest.webmanifest              # Add to Home Screen: name, fullscreen, landscape, icons
 icons/                            # app icons built from assets/dino-stationary.png (assets/ untouched)
@@ -77,7 +78,8 @@ Line numbers drift as the file grows, so treat them as rough. Find the current o
 
 1. Add the key to `GAME_CONFIG` near related visual config.
 2. At the call site, read via `cfg('KEY')` instead of a literal.
-3. Add a test in `describe('Live-tuning hook (PR-P3)', ...)` if behaviour-sensitive.
+3. Add the key to `TUNABLE_KEYS` (just below `cfg()` in Section 2) so the `?tune=1` panel shows it. A unit test fails until the list matches the `cfg('...')` calls.
+4. Add a test in `describe('Live-tuning hook (PR-P3)', ...)` if behaviour-sensitive.
 
 **Never** route physics/spawning/scoring/hitbox values through `cfg()`. Determinism depends on those reading `GAME_CONFIG.X` directly.
 
@@ -215,6 +217,10 @@ Merges made by the queue use the workflow token, which does not fire `push` work
 Local dev keeps `__VERSION__` literal in the URL — browsers ignore the unknown query string and serve normally.
 
 ## Live-tuning workflow
+
+The easy way: open the game with `?tune=1` (for example http://localhost:8080/?tune=1 or the live site). `tune.js` adds a panel with a slider, colour picker or text box for every key in `TUNABLE_KEYS`. Changes show on the next frame. **Save** keeps them in this browser (`dino-tuning`), **Reset** puts every key back to its default, and **Copy** copies the changed values as `GAME_CONFIG` lines. When it looks right, paste those lines into `GAME_CONFIG`, Reset the panel, and ship only the final values in a PR, instead of adding a QA flag per tweak. The panel can only reach `TUNABLE_KEYS`, which are all visual; the golden replays check that overriding every one of them leaves a run unchanged.
+
+The same thing from DevTools:
 
 ```js
 // In DevTools after the page loads:

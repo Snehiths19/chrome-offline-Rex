@@ -43,6 +43,8 @@ _Avoid_: distance, points
 **Speed** — the obstacle scroll speed in pixels per sim frame at the current score. A sim frame is one slice of the sim clock (1/60s), not a display refresh.
 _Avoid_: velocity, game speed, scroll speed
 
+**Tuning panel** — the dev-only `?tune=1` overlay (`tune.js`). It edits the visual values in `TUNABLE_KEYS` live through `GAME_TUNING`, never gameplay values, and copies the final numbers for a PR. Players never load it.
+
 **QA switchboard** — the `QA_FLAGS` table in script.js Section 2. Each row is one `?qaX=1` playtest flag (QA/debug only, never for players): its URL name, how long its overlay holds, when it may act, and what it draws. `qa.x` is whether the flag is on this run. Flags only show things; with none set a run plays exactly as it would otherwise.
 
 **Sim clock** — the fixed 60Hz step that advances score, speed, spawn timing, jump physics, the restart countdown, and frame-tied juice. Display refresh may be faster (a 120Hz phone fires animation frames twice as often). Real time from those frames accumulates and is spent in 1/60s slices, at most a few slices per animation frame, so a hitch does not fast-forward the run. A call with no timestamp (the test harness, and the kickoff that starts the loop) is one slice. Classic and Updated/Daily share this clock. DifficultyProfile and the run seed do not read it. `?qaHz=1` paints the measured sim rate and the display rate for Playtest; off, it counts nothing and draws nothing.

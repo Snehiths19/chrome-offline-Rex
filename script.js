@@ -580,6 +580,44 @@ function cfg(key) {
   return GAME_CONFIG[key];
 }
 
+// The keys cfg() is allowed to tune: every visual value read through cfg()
+// and nothing else. The ?tune=1 panel (tune.js) lists exactly these, so it
+// can never reach physics, spawning, scoring or hitboxes. A unit test checks
+// this list matches the cfg('...') calls in this file.
+const TUNABLE_KEYS = Object.freeze([
+  'COPY_FLASH_FRAMES',
+  'DEATH_FLASH_COLOR_RGB',
+  'DEATH_FLASH_FRAMES',
+  'DEATH_SHAKE_AMPLITUDE',
+  'DEATH_SHAKE_FREQ',
+  'HILL_COLOR_NIGHT',
+  'NIGHT_DINO_BRIGHTNESS',
+  'NIGHT_GROUND_ALPHA',
+  'NIGHT_LAND_DUST_COLOR',
+  'NIGHT_LAND_DUST_LIFE',
+  'NIGHT_OBSTACLE_BRIGHTNESS',
+  'NIGHT_SKY_TINT_PEAK_ALPHA',
+  'NIGHT_STAR_ALPHA',
+  'PARTICLE_EMIT_SPREAD',
+  'SCORE_FONT_FAMILY',
+  'SCORE_POP_PEAK_SCALE',
+  'SKY_TINT_COLOR_RGB',
+  'SKY_TINT_PEAK_ALPHA',
+  'STAR_FADE_FRAMES',
+  'UPDATED_DEATH_ANIM_FRAMES',
+  'UPDATED_DEATH_SHAKE_AMPLITUDE',
+  'UPDATED_DEATH_SHAKE_FRAMES',
+  'UPDATED_DEATH_SHAKE_FREQ',
+  'UPDATED_IDLE_PULSE_AMPLITUDE',
+  'UPDATED_IDLE_PULSE_BASE',
+  'UPDATED_IDLE_PULSE_RATE',
+  'UPDATED_MILESTONE_FONT_PX',
+  'UPDATED_MILESTONE_TEXT_FRAMES',
+  'UPDATED_NEW_BEST_FONT_PX',
+  'UPDATED_NEW_BEST_FRAMES',
+  'UPDATED_STAR_FADE_FRAMES',
+]);
+
 // --- Safe storage (C2) ---
 // Every localStorage call goes through safeStorage. Browsers that block
 // storage (privacy modes, sandboxed iframes, cookies off) throw on the first
@@ -4567,6 +4605,22 @@ function registerServiceWorker(nav, win) {
 if (!isNode)
   registerServiceWorker(typeof navigator !== 'undefined' ? navigator : undefined, window);
 
+// Dev only: ?tune=1 loads tune.js, a panel of sliders for TUNABLE_KEYS that
+// writes window.GAME_TUNING live and saves with saveTuning(). Players never
+// load it, and it is not precached, so it needs the network. `doc` and
+// `search` are parameters so tests can pass fakes. Returns whether it loaded.
+function loadTunePanel(doc, search) {
+  if (!doc || !doc.head || typeof doc.createElement !== 'function') return false;
+  if (new URLSearchParams(search || '').get('tune') !== '1') return false;
+  if (doc.getElementById && doc.getElementById('tune-panel-script')) return false;
+  const el = doc.createElement('script');
+  el.id = 'tune-panel-script';
+  el.src = 'tune.js';
+  doc.head.appendChild(el);
+  return true;
+}
+if (!isNode) loadTunePanel(document, location.search);
+
 // == SECTION 10: TEST EXPOSURE (Node only) ==
 // Tests run script.js under Node and reference game state via the `game` object
 // and functions via their module-level names. Browsers skip this block entirely.
@@ -4615,6 +4669,8 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.SHELL_JUMP_BLOCK = SHELL_JUMP_BLOCK;
   global.SHELL_SHARE_BLOCK = SHELL_SHARE_BLOCK;
   global.QA_FLAGS = QA_FLAGS;
+  global.TUNABLE_KEYS = TUNABLE_KEYS;
+  global.loadTunePanel = loadTunePanel;
   global.qa = qa;
   global.readQaFlag = readQaFlag;
   global.readQaFlags = readQaFlags;

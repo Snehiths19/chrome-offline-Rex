@@ -1351,6 +1351,79 @@ describe('Shell touch targets (S1)', () => {
     assertEquals(size.cssW, size.cssH * 3, 'the fitted canvas stays 3:1');
   });
 });
+describe('Live tuning panel (C7)', () => {
+  // A fake document that records what loadTunePanel appends.
+  function fakeDoc() {
+    const added = [];
+    const byId = {};
+    return {
+      added,
+      head: {
+        appendChild: (node) => {
+          added.push(node);
+          if (node.id) byId[node.id] = node;
+        },
+      },
+      createElement: (tag) => ({ tag }),
+      getElementById: (id) => byId[id] || null,
+    };
+  }
+
+  it('TUNABLE_KEYS is exactly the keys script.js reads through cfg()', () => {
+    // Node only: a browser test cannot read script.js from disk.
+    if (!IN_NODE) return;
+    const fs = require('fs');
+    const path = require('path');
+    const src = fs.readFileSync(path.join(__dirname, '..', '..', 'script.js'), 'utf8');
+    const used = [...new Set([...src.matchAll(/cfg\('([A-Z0-9_]+)'\)/g)].map((m) => m[1]))].sort();
+    assertEquals(
+      JSON.stringify([...TUNABLE_KEYS].sort()),
+      JSON.stringify(used),
+      'add a new cfg() key to TUNABLE_KEYS (and only visual keys go through cfg())'
+    );
+  });
+
+  it('TUNABLE_KEYS holds no physics, spawning, scoring or speed key', () => {
+    for (const key of [
+      'GRAVITY',
+      'JUMP_POWER',
+      'INITIAL_SPEED',
+      'SPEED_CAP',
+      'PLATEAU_SPEED',
+      'SCORE_INCREMENT',
+      'SCORE_PER_LEVEL',
+      'MIN_SPAWN_GAP',
+      'MAX_SPAWN_GAP',
+      'SPAWN_GAP_JITTER',
+      'SPAWN_GAP_SPEED_FACTOR',
+      'UPDATED_MIN_GAP_FRAMES',
+      'HILL_RESPAWN_X_RANGE',
+    ]) {
+      assert(key in GAME_CONFIG, `${key} should still exist in GAME_CONFIG`);
+      assert(!TUNABLE_KEYS.includes(key), `${key} must never be tunable`);
+    }
+    assert(Object.isFrozen(TUNABLE_KEYS), 'the list cannot be changed at runtime');
+    for (const key of TUNABLE_KEYS) assert(key in GAME_CONFIG, `${key} has a GAME_CONFIG default`);
+  });
+
+  it('loads tune.js only with ?tune=1, and only once', () => {
+    let doc = fakeDoc();
+    assertEquals(loadTunePanel(doc, ''), false, 'a normal visit loads nothing');
+    assertEquals(loadTunePanel(doc, '?tune=0'), false, 'only the value 1 counts');
+    assertEquals(loadTunePanel(doc, '?qaNight=1'), false, 'other flags do not load it');
+    assertEquals(doc.added.length, 0, 'nothing was appended');
+
+    doc = fakeDoc();
+    assertEquals(loadTunePanel(doc, '?foo=1&tune=1'), true, '?tune=1 loads the panel');
+    assertEquals(doc.added.length, 1, 'one script tag');
+    assertEquals(doc.added[0].tag, 'script', 'it is a script tag');
+    assertEquals(doc.added[0].src, 'tune.js', 'it loads tune.js');
+    assertEquals(loadTunePanel(doc, '?tune=1'), false, 'a second call does not load it again');
+    assertEquals(doc.added.length, 1, 'still one script tag');
+    assertEquals(loadTunePanel(null, '?tune=1'), false, 'no document, no panel');
+  });
+});
+
 describe('Installable and offline (PL1)', () => {
   // Static checks read files from disk, so they only run under Node.
   const fs = typeof require === 'function' ? require('fs') : null;

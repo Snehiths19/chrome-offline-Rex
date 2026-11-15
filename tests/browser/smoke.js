@@ -233,6 +233,60 @@ async function checkOffline(browser, base) {
   await context.close();
 }
 
+// --- The ?tune=1 live tuning panel (dev only) -------------------------------
+
+async function checkTunePanel(browser, base) {
+  console.log('\n?tune=1 panel (desktop)');
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  const errors = [];
+  const scripts = [];
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') errors.push(`console: ${msg.text()}`);
+  });
+  page.on('pageerror', (err) => errors.push(`page error: ${err.message}`));
+  page.on('request', (req) => scripts.push(req.url()));
+
+  // A normal visit never fetches the panel.
+  await page.goto(`${base}/index.html`);
+  await waitFor(page, "game.state === 'IDLE'");
+  check(
+    'a normal visit does not load tune.js or show the panel',
+    !scripts.some((u) => u.includes('tune.js')) && (await page.locator('#tune-panel').count()) === 0
+  );
+
+  await page.goto(`${base}/index.html?tune=1`);
+  check('?tune=1 shows the panel', await waitFor(page, "!!document.getElementById('tune-panel')"));
+  const rows = await page.locator('#tune-panel [data-key]').count();
+  const keys = await read(page, 'TUNABLE_KEYS.length');
+  check(`the panel lists every tunable key (${rows}/${keys})`, rows === keys && keys > 0);
+
+  // Typing in a box changes the value live and does not start a run.
+  const key = 'SKY_TINT_PEAK_ALPHA';
+  const box = page.locator(`#tune-panel [data-key="${key}"] input[type="number"]`);
+  await box.fill('0.3');
+  await box.press('Enter');
+  await box.press('Space');
+  check('a typed value reaches GAME_TUNING and cfg()', (await read(page, `cfg('${key}')`)) === 0.3);
+  check(
+    'typing in the panel does not make the dino jump',
+    (await read(page, 'game.state')) === 'IDLE'
+  );
+  await page.locator('#tune-panel button', { hasText: 'Save' }).click();
+  check(
+    'Save keeps the value in the browser',
+    JSON.parse((await read(page, "localStorage.getItem('dino-tuning')")) || '{}')[key] === 0.3
+  );
+  await page.locator('#tune-panel button', { hasText: 'Reset' }).click();
+  check(
+    'Reset goes back to the default',
+    (await read(page, `cfg('${key}') === GAME_CONFIG.${key}`)) === true
+  );
+  await page.screenshot({ path: path.join(SHOTS, 'desktop-tune-panel.png') });
+  check('the panel logs no errors', errors.length === 0, errors.slice(0, 5).join('\n      '));
+  await context.close();
+}
+
 // --- The unit-test page in a real browser -----------------------------------
 
 async function checkTestRunner(browser, base) {
@@ -288,6 +342,7 @@ async function checkTestRunner(browser, base) {
   try {
     for (const vp of VIEWPORTS) await playOnDevice(browser, base, vp);
     await checkOffline(browser, base);
+    await checkTunePanel(browser, base);
     await checkTestRunner(browser, base);
   } catch (err) {
     check('smoke test ran to the end', false, err.stack);
