@@ -221,6 +221,9 @@ body {
 #jump-btn {
   display: none; /* Hidden on desktop */
   margin-top: 12px;
+  /* Wide enough for the longest label (TAP TO RESTART, src/07-input.js),
+     so the label can follow the game without the button changing size. */
+  min-width: 272px;
   padding: 16px 48px;
   font-size: 18px;
   font-weight: bold;

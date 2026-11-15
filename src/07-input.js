@@ -65,6 +65,38 @@ function handleTapZone(event) {
 }
 document.addEventListener('touchstart', handleTapZone, { passive: false });
 
+// The big touch button says what a tap will do now (S3). Text is what the
+// button shows; aria is its accessible name. Every label fits the button's
+// min-width in style.css, so a change never shifts the layout.
+const JUMP_BUTTON_LABELS = Object.freeze({
+  [STATE.IDLE]: { text: 'TAP TO START', aria: 'Start' },
+  [STATE.WAITING]: { text: 'GET READY', aria: 'Get ready' },
+  [STATE.RUNNING]: { text: 'TAP TO JUMP', aria: 'Jump' },
+  [STATE.PAUSED]: { text: 'PAUSED', aria: 'Paused' },
+  [STATE.DEAD]: { text: 'TAP TO RESTART', aria: 'Restart' },
+});
+
+// After a death the countdown can be skipped, so the tap starts the run.
+function jumpButtonLabel() {
+  if (game.state === STATE.WAITING && game.countdownSkippable) {
+    return { text: 'TAP TO START', aria: 'Start' };
+  }
+  return JUMP_BUTTON_LABELS[game.state] || JUMP_BUTTON_LABELS[STATE.RUNNING];
+}
+
+// Called from drawFrame. Writes the page only when the label changes, so a
+// run does not touch the DOM every frame.
+let lastJumpButtonText = null;
+function syncJumpButtonLabel() {
+  const btn = document.getElementById('jump-btn');
+  if (!btn) return;
+  const label = jumpButtonLabel();
+  if (label.text === lastJumpButtonText) return;
+  lastJumpButtonText = label.text;
+  btn.textContent = label.text;
+  if (typeof btn.setAttribute === 'function') btn.setAttribute('aria-label', label.aria);
+}
+
 const jumpBtn = document.getElementById('jump-btn');
 if (jumpBtn) {
   jumpBtn.addEventListener(

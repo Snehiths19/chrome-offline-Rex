@@ -29,6 +29,8 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.drawDino = drawDino;
   global.checkCollision = checkCollision;
   global.jump = jump;
+  global.jumpButtonLabel = jumpButtonLabel;
+  global.syncJumpButtonLabel = syncJumpButtonLabel;
   global.handleTapZone = handleTapZone;
   global.refreshRotateHint = refreshRotateHint;
   global.markRotateHintSeen = markRotateHintSeen;

@@ -305,7 +305,14 @@ function check(label, ok, detail) {
       await page.waitForFunction("typeof window.__scene === 'function' && game.state === 'IDLE'");
       for (const scene of SCENES) {
         await page.evaluate(scene.run);
-        const png = await page.locator('#gameCanvas').screenshot({ animations: 'disabled' });
+        // The canvas's own pixels, not a crop of the page: a page crop gains
+        // or loses a row when the layout puts the canvas on a half pixel.
+        const png = Buffer.from(
+          (
+            await page.evaluate(() => document.getElementById('gameCanvas').toDataURL('image/png'))
+          ).split(',')[1],
+          'base64'
+        );
         const name = `${vp.name}-${scene.name}.png`;
         const refFile = path.join(REFS, name);
         if (UPDATE) {
