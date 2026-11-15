@@ -89,6 +89,14 @@ const SCENES = [
     },
   },
   {
+    name: 'classic-game-over',
+    run: () => {
+      window.__scene('classic', 4004);
+      window.__untilRunning();
+      window.__untilDeadAndSettled();
+    },
+  },
+  {
     name: 'game-over-miss',
     run: () => {
       window.__scene('updated', 4004);
