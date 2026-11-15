@@ -96,6 +96,9 @@ _Avoid_: random, rand
 **Run seed** — the integer actually passed to the RNG when a run starts. A Daily Challenge uses the **daily seed**. Free play uses `Date.now()` masked to 32 bits. Stored on the run so a reported free-play death can be seeded again with `replayRunSeed`.
 _Avoid_: random seed, session id
 
+**Golden run** — a stored, fully scripted run used as a regression lock: fixed **run seed**, mode and list of jump frames, plus what that run must produce (every spawned obstacle's frame, type and gap; each jump's take-off, landing and peak; the death frame; the final score). Lives in `tests/golden/`, replayed by `tests/replay.test.js` through the real game loop. Any change to physics, spawning, scoring, hitboxes or the RNG call order breaks one, so a refactor that should not change gameplay must leave them all passing. Re-recorded on purpose only, with `npm run test:replay -- --update`.
+_Avoid_: snapshot, recording, demo
+
 **Death log** — an opt-in JSON snapshot for unfairness reports: mode, score, run seed, speed, recent spawn gaps (pixels and approximate time), and obstacle types. Off unless the page is opened with `?debug=1` or DevTools calls `enableDeathLog()`. It does not change the run. Press L while it is on to copy the current snapshot.
 _Avoid_: replay, telemetry, input log
 

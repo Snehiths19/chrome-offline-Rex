@@ -16,7 +16,8 @@ Single-file vanilla-JS clone of Chrome's offline dino game. Render target is a `
 ## Quick start for a new change
 
 ```bash
-npm test                       # runs the full suite under Node
+npm test                       # runs the full suite under Node (unit tests + golden-run replays)
+npm run test:replay            # only the golden-run replays
 npm run coverage               # same suite, plus line/branch coverage of script.js
 npm run lint                   # ESLint script.js + tests
 npm run format                 # Prettier: run before committing
@@ -36,6 +37,7 @@ sw.js                             # service worker: precaches the offline shell 
 manifest.webmanifest              # Add to Home Screen: name, fullscreen, landscape, icons
 icons/                            # app icons built from assets/dino-stationary.png (assets/ untouched)
 tests/game.test.js                # custom describe/it; no JSDOM; canvas/document stubbed
+tests/replay.test.js              # golden-run replays (Node only), stored runs in tests/golden/
 .github/workflows/pages.yml       # test → cache-bust → Pages deploy
 .github/workflows/ci.yml          # lint, format check, tests on every push/PR
 .github/workflows/automerge.yml   # merge queue for PRs labelled `automerge`
@@ -146,7 +148,7 @@ Every read and write goes through `safeStorage.get(key, fallback)` / `safeStorag
 
 ## Test harness
 
-Custom `describe`/`it` with `assert`/`assertEquals`/`assertNotEquals`. No Jest, no Mocha, no JSDOM. Tests run as a single Node script via `node tests/game.test.js`.
+Custom `describe`/`it` with `assert`/`assertEquals`/`assertNotEquals`. No Jest, no Mocha, no JSDOM. Unit tests run as a single Node script via `node tests/game.test.js`; `npm test` runs it and then the golden-run replays.
 
 The Node stubs at the top of `script.js` provide just enough of `window`, `document`, `Image`, `localStorage`, `requestAnimationFrame`, and `matchMedia` to let the rest of the file load. Canvas methods are no-ops; tests assert against `game.*` state, not pixels.
 
@@ -156,7 +158,12 @@ Keep a new test passing in both places. A browser will not let a test replace `l
 
 ### Coverage
 
-`npm run coverage` runs the Node suite under `c8` and prints line, branch and function coverage for `script.js`; an HTML report with per-line detail lands in `coverage/index.html` (git-ignored). CI prints the same summary on every push and PR, in the log and on the run's summary page. It is information only: there is no threshold and it never fails the build. V8 counts comment and blank lines as covered, so read the per-function view in the HTML report, not just the headline number.
+`npm run coverage` runs `npm test` (unit tests and replays) under `c8` and prints line, branch and function coverage for `script.js`; an HTML report with per-line detail lands in `coverage/index.html` (git-ignored). CI prints the same summary on every push and PR, in the log and on the run's summary page. It is information only: there is no threshold and it never fails the build. V8 counts comment and blank lines as covered, so read the per-function view in the HTML report, not just the headline number.
+### Golden-run replays
+
+`tests/replay.test.js` (run by `npm test`, or alone with `npm run test:replay`) plays whole runs through the real `gameLoop()`, one 60Hz slice at a time, from the files in `tests/golden/`. Each file holds a mode, a fixed run seed and the frames the player jumps on, then what must happen: every obstacle's spawn frame, type and gap, each jump's take-off/landing/peak, the death frame and the final score. A mismatch prints the changed values and fails. The set covers Classic, Updated and a fixed-seed Daily, a run past the plateau (score 640+) and runs that die early. It also replays with every `cfg()` key overridden in `GAME_TUNING` and expects an identical run, which is how the determinism contract is enforced.
+
+When a gameplay change is intended, re-record with `npm run test:replay -- --update` (an autopilot re-plans the jump frames), check the golden diff in git makes sense, and commit it with the change. A refactor that is not meant to change gameplay must not need a re-record. Node only: the browser runner does not load it.
 
 ### Using `/tdd` in this project
 

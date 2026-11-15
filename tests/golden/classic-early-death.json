@@ -1,0 +1,21 @@
+{
+  "mode": "classic",
+  "seed": 777,
+  "jumps": [382,561],
+  "result": {
+    "died": true,
+    "deathFrame": 756,
+    "finalScore": 51,
+    "finalSpeed": 3.384937,
+    "obstacleCount": 3,
+    "flights": [
+      [382,431,6],
+      [561,610,6]
+    ],
+    "obstacles": [
+      {"frame":241,"type":"small","gap":588},
+      {"frame":422,"type":"small","gap":588},
+      {"frame":600,"type":"small","gap":586}
+    ]
+  }
+}

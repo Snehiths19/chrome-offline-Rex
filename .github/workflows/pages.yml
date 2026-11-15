@@ -34,7 +34,7 @@ jobs:
         run: npm run format:check
 
       - name: Run game tests
-        run: node tests/game.test.js
+        run: npm test
 
   deploy:
     needs: test

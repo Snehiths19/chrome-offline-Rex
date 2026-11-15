@@ -2704,7 +2704,10 @@ function updateHills() {
   for (const hill of hills) {
     hill.x -= game.currentSpeed * GAME_CONFIG.HILL_PARALLAX;
     if (hill.x + hill.width < 0) {
-      hill.x = GAME_CONFIG.CANVAS_W + game.rng() * cfg('HILL_RESPAWN_X_RANGE');
+      // GAME_CONFIG, not cfg(): when the next respawn happens decides when the
+      // next game.rng() rolls happen, so a tuned range would shift the Daily
+      // obstacle sequence. The replay tests (tests/replay.test.js) check this.
+      hill.x = GAME_CONFIG.CANVAS_W + game.rng() * GAME_CONFIG.HILL_RESPAWN_X_RANGE;
       hill.width = GAME_CONFIG.HILL_MIN_WIDTH + game.rng() * GAME_CONFIG.HILL_WIDTH_RANGE;
       hill.height = GAME_CONFIG.HILL_MIN_HEIGHT + game.rng() * GAME_CONFIG.HILL_HEIGHT_RANGE;
     }
