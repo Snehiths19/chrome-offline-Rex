@@ -244,7 +244,7 @@ export default [
   },
   {
     // The shared harness hands these to every area file in tests/unit/.
-    files: ['tests/harness.js', 'tests/unit.test.js', 'tests/unit/**/*.js'],
+    files: ['tests/harness.js', 'tests/unit.test.js', 'tests/unit/**/*.js', 'tests/tunable-keys.js'],
     languageOptions: {
       globals: {
         module: 'writable',

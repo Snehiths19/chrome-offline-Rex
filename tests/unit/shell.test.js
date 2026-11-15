@@ -1369,13 +1369,13 @@ describe('Live tuning panel (C7)', () => {
     };
   }
 
-  it('TUNABLE_KEYS is exactly the keys script.js reads through cfg()', () => {
+  it('TUNABLE_KEYS is exactly the keys script.js reads through cfg() or its helpers', () => {
     // Node only: a browser test cannot read script.js from disk.
     if (!IN_NODE) return;
     const fs = require('fs');
     const path = require('path');
     const src = fs.readFileSync(path.join(__dirname, '..', '..', 'script.js'), 'utf8');
-    const used = [...new Set([...src.matchAll(/cfg\('([A-Z0-9_]+)'\)/g)].map((m) => m[1]))].sort();
+    const used = require('../tunable-keys.js').cfgKeysInSource(src);
     assertEquals(
       JSON.stringify([...TUNABLE_KEYS].sort()),
       JSON.stringify(used),

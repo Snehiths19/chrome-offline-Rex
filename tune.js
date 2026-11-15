@@ -34,11 +34,11 @@
       .join('');
   const hexToRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).join(', ');
 
-  // A slider range that covers the default with room either side.
-  function rangeFor(def) {
-    if (Number.isInteger(def) && def >= 2) {
-      return { min: 0, max: Math.max(def * 3, 10), step: 1 };
-    }
+  // A slider range that covers the default with room either side. Alphas
+  // stay in 0..1; whole numbers (frames, counts, pixels) step by one.
+  function rangeFor(key, def) {
+    if (key.includes('ALPHA')) return { min: 0, max: 1, step: 0.005 };
+    if (Number.isInteger(def)) return { min: 0, max: Math.max(def * 3, 10), step: 1 };
     const max = def <= 1 ? 1 : Math.ceil(def * 3);
     return { min: 0, max, step: max / 400 };
   }
@@ -112,7 +112,7 @@
     let sync;
 
     if (typeof def === 'number') {
-      const r = rangeFor(def);
+      const r = rangeFor(key, def);
       const slider = el('input', { type: 'range', min: r.min, max: r.max, step: r.step });
       slider.setAttribute('aria-label', key);
       slider.style.flex = '1';

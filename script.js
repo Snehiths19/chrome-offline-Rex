@@ -581,19 +581,28 @@ function cfg(key) {
 }
 
 // The keys cfg() is allowed to tune: every visual value read through cfg()
-// and nothing else. The ?tune=1 panel (tune.js) lists exactly these, so it
-// can never reach physics, spawning, scoring or hitboxes. A unit test checks
-// this list matches the cfg('...') calls in this file.
+// (directly, or through a helper such as tunedUnitAlpha) and nothing else.
+// The ?tune=1 panel (tune.js) lists exactly these, so it can never reach
+// physics, spawning, scoring or hitboxes. A unit test checks this list
+// matches what script.js reads through cfg() (tests/tunable-keys.js).
 const TUNABLE_KEYS = Object.freeze([
   'COPY_FLASH_FRAMES',
+  'DAY_CLOUD_ALPHA',
+  'DAY_DEATH_FLASH_PEAK_ALPHA',
   'DEATH_FLASH_COLOR_RGB',
   'DEATH_FLASH_FRAMES',
   'DEATH_SHAKE_AMPLITUDE',
   'DEATH_SHAKE_FREQ',
   'HILL_COLOR_NIGHT',
+  'NIGHT_CLOUD_ALPHA',
+  'NIGHT_DEATH_FLASH_PEAK_ALPHA',
   'NIGHT_DINO_BRIGHTNESS',
   'NIGHT_GROUND_ALPHA',
+  'NIGHT_JUMP_DUST_ALPHA',
+  'NIGHT_JUMP_DUST_COUNT',
+  'NIGHT_LAND_DUST_ALPHA',
   'NIGHT_LAND_DUST_COLOR',
+  'NIGHT_LAND_DUST_COUNT',
   'NIGHT_LAND_DUST_LIFE',
   'NIGHT_OBSTACLE_BRIGHTNESS',
   'NIGHT_SKY_TINT_PEAK_ALPHA',
@@ -612,9 +621,11 @@ const TUNABLE_KEYS = Object.freeze([
   'UPDATED_IDLE_PULSE_BASE',
   'UPDATED_IDLE_PULSE_RATE',
   'UPDATED_MILESTONE_FONT_PX',
+  'UPDATED_MILESTONE_PEAK_ALPHA',
   'UPDATED_MILESTONE_TEXT_FRAMES',
   'UPDATED_NEW_BEST_FONT_PX',
   'UPDATED_NEW_BEST_FRAMES',
+  'UPDATED_NEW_BEST_PEAK_ALPHA',
   'UPDATED_STAR_FADE_FRAMES',
 ]);
 
