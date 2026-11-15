@@ -62,7 +62,16 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
     },
     addEventListener: () => {},
   };
-  global.Image = class { constructor() { this.onload = null; this.onerror = null; this.src = ''; this.width = 1; this.height = 1; this.complete = true; } };
+  global.Image = class {
+    constructor() {
+      this.onload = null;
+      this.onerror = null;
+      this.src = '';
+      this.width = 1;
+      this.height = 1;
+      this.complete = true;
+    }
+  };
   global.requestAnimationFrame = (cb) => {
     const id = setImmediate(() => cb(Date.now()));
     id.unref(); // don't keep Node alive after tests complete
@@ -71,9 +80,15 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.cancelAnimationFrame = (id) => clearImmediate(id);
   global.localStorage = {
     _store: {},
-    getItem(k) { return this._store[k] !== undefined ? this._store[k] : null; },
-    setItem(k, v) { this._store[k] = String(v); },
-    removeItem(k) { delete this._store[k]; },
+    getItem(k) {
+      return this._store[k] !== undefined ? this._store[k] : null;
+    },
+    setItem(k, v) {
+      this._store[k] = String(v);
+    },
+    removeItem(k) {
+      delete this._store[k];
+    },
   };
   window.document = global.document;
 }
@@ -86,63 +101,84 @@ const GAME_CONFIG = Object.freeze({
   CANVAS_H: 200,
 
   // --- Physics ---
-  JUMP_POWER:              -12,   // negative = upward impulse applied on jump
-  GRAVITY:                  0.48, // added to velocityY each frame while airborne
-  INITIAL_SPEED:            3.0,  // obstacle scroll speed at score 0
-  SPEED_CAP:               13.0,  // max scroll speed (matches Chrome T-Rex)
-  PLATEAU_SPEED:            8.0,  // sigmoid ceiling — focusable-but-demanding speed the curve approaches
-  RAMP_MIDPOINT:          300,    // score where acceleration is steepest (day/night transition)
-  RAMP_STEEPNESS:           0.01, // sigmoid slope — controls how quickly speed rises through the midpoint
-  SCORE_PER_LEVEL:        100,    // score points per level — used for milestone flash effects only
-  SCORE_INCREMENT:          0.1,  // score added per sim frame (60Hz), not per display refresh
+  JUMP_POWER: -12, // negative = upward impulse applied on jump
+  GRAVITY: 0.48, // added to velocityY each frame while airborne
+  INITIAL_SPEED: 3.0, // obstacle scroll speed at score 0
+  SPEED_CAP: 13.0, // max scroll speed (matches Chrome T-Rex)
+  PLATEAU_SPEED: 8.0, // sigmoid ceiling — focusable-but-demanding speed the curve approaches
+  RAMP_MIDPOINT: 300, // score where acceleration is steepest (day/night transition)
+  RAMP_STEEPNESS: 0.01, // sigmoid slope — controls how quickly speed rises through the midpoint
+  SCORE_PER_LEVEL: 100, // score points per level — used for milestone flash effects only
+  SCORE_INCREMENT: 0.1, // score added per sim frame (60Hz), not per display refresh
 
   // --- Hitbox forgiveness (rendering uses full sprite; collision uses shrunken box) ---
-  DINO_PAD_X:               8,
-  DINO_PAD_Y_TOP:           8,
-  DINO_PAD_Y_BOT:           2,
-  OBS_PAD_X:                3,
-  OBS_PAD_Y:                2,
+  DINO_PAD_X: 8,
+  DINO_PAD_Y_TOP: 8,
+  DINO_PAD_Y_BOT: 2,
+  OBS_PAD_X: 3,
+  OBS_PAD_Y: 2,
 
   // --- Spawning ---
-  GRACE_FRAMES:           240,    // ~4 s at 60 fps before first obstacle appears
-  MAX_SPAWN_GAP:          600,    // gap (px) between obstacles at INITIAL_SPEED
-  MIN_SPAWN_GAP:          340,    // classic floor (px). Updated/Daily never go below this either.
-  SPAWN_GAP_SPEED_FACTOR:  50,    // classic gap shrinks by this much per +1 speed above INITIAL_SPEED
-  SPAWN_GAP_JITTER:         0.3,  // ±30% in Updated/Daily; classic skips jitter
+  GRACE_FRAMES: 240, // ~4 s at 60 fps before first obstacle appears
+  MAX_SPAWN_GAP: 600, // gap (px) between obstacles at INITIAL_SPEED
+  MIN_SPAWN_GAP: 340, // classic floor (px). Updated/Daily never go below this either.
+  SPAWN_GAP_SPEED_FACTOR: 50, // classic gap shrinks by this much per +1 speed above INITIAL_SPEED
+  SPAWN_GAP_JITTER: 0.3, // ±30% in Updated/Daily; classic skips jitter
   // Worst-case frames between Updated/Daily obstacles once the shrinking curve
   // would leave less than one focused jump. A jump is 49 frames at the current
   // JUMP_POWER/GRAVITY; 72 also covers a cluster's width plus a short read.
   // The base gap sits at this / (1 - JITTER), so ±30% rarely piles onto the floor.
-  UPDATED_MIN_GAP_FRAMES:  72,
+  UPDATED_MIN_GAP_FRAMES: 72,
 
   // --- Obstacle sprite (small cactus — baseline) ---
-  OBS_WIDTH:               20,
-  OBS_HEIGHT:              40,
+  OBS_WIDTH: 20,
+  OBS_HEIGHT: 40,
 
   // --- Obstacle types ---
   // Each type unlocks at a score threshold and contributes its `weight` to the
   // weighted random pick once unlocked. `render` controls how drawObstacles()
   // paints it from the single cactus sprite.
   OBSTACLE_TYPES: Object.freeze([
-    Object.freeze({ id: 'small',   width: 20, height: 40, unlockScore:   0, weight: 50, render: 'single' }),
-    Object.freeze({ id: 'big',     width: 30, height: 55, unlockScore: 100, weight: 30, render: 'single' }),
-    Object.freeze({ id: 'cluster', width: 50, height: 40, unlockScore: 250, weight: 20, render: 'double' }),
+    Object.freeze({
+      id: 'small',
+      width: 20,
+      height: 40,
+      unlockScore: 0,
+      weight: 50,
+      render: 'single',
+    }),
+    Object.freeze({
+      id: 'big',
+      width: 30,
+      height: 55,
+      unlockScore: 100,
+      weight: 30,
+      render: 'single',
+    }),
+    Object.freeze({
+      id: 'cluster',
+      width: 50,
+      height: 40,
+      unlockScore: 250,
+      weight: 20,
+      render: 'double',
+    }),
   ]),
 
   // --- Dino sprite ---
-  DINO_X:                  50,
-  DINO_WIDTH:              40,
-  DINO_HEIGHT:             50,
+  DINO_X: 50,
+  DINO_WIDTH: 40,
+  DINO_HEIGHT: 50,
 
   // --- Clouds ---
-  CLOUD_COUNT:              3,
-  CLOUD_MIN_Y:             10,
-  CLOUD_Y_RANGE:           40,
-  CLOUD_MIN_SPEED:          0.3,
-  CLOUD_SPEED_RANGE:        0.3,
-  CLOUD_WIDTH:             60,    // used for offscreen detection
-  CLOUD_RESPAWN_OFFSET:    20,    // x-offset past right edge when respawning
-  CLOUD_COLOR:             '#e8e8e8',
+  CLOUD_COUNT: 3,
+  CLOUD_MIN_Y: 10,
+  CLOUD_Y_RANGE: 40,
+  CLOUD_MIN_SPEED: 0.3,
+  CLOUD_SPEED_RANGE: 0.3,
+  CLOUD_WIDTH: 60, // used for offscreen detection
+  CLOUD_RESPAWN_OFFSET: 20, // x-offset past right edge when respawning
+  CLOUD_COLOR: '#e8e8e8',
   // Visual only. Peak opacity of Updated/Daily clouds while the sky is
   // still day. The puff is #e8e8e8. On the day sky (#ffffff) full opacity
   // is 23 levels darker than the sky — three shapes about 60px wide in the
@@ -157,7 +193,7 @@ const GAME_CONFIG = Object.freeze({
   // holds this peak until DAY_NIGHT_END, then snaps to the night dim. The
   // puffs are already painted on GET READY and the opening run, so playtest
   // does not need a query flag. Read through cfg().
-  DAY_CLOUD_ALPHA:          0.6,
+  DAY_CLOUD_ALPHA: 0.6,
   // Visual only. Opacity of Updated/Daily clouds once the sky is fully night.
   // The puff is still #e8e8e8. Three circles, about 60px wide, sit in the
   // upper sky. On the night sky (#1a1a2e) the old 0.35 dim sat about 72, 72,
@@ -172,25 +208,26 @@ const GAME_CONFIG = Object.freeze({
   // DAY_NIGHT_END. Reduced motion skips that ease and snaps to this at
   // DAY_NIGHT_END. Playtest with ?qaNight=1. Read through cfg(). Physics
   // does not read this.
-  NIGHT_CLOUD_ALPHA:        0.21,
-  CLOUD_CIRCLES: Object.freeze([  // three circles forming a puffy cloud shape
-    Object.freeze([  0, 0, 18]),
+  NIGHT_CLOUD_ALPHA: 0.21,
+  CLOUD_CIRCLES: Object.freeze([
+    // three circles forming a puffy cloud shape
+    Object.freeze([0, 0, 18]),
     Object.freeze([-18, 8, 14]),
-    Object.freeze([ 18, 8, 14]),
+    Object.freeze([18, 8, 14]),
   ]),
 
   // --- Day / Night ---
-  DAY_NIGHT_START:        300,
-  DAY_NIGHT_END:          400,
-  STAR_COUNT:              12,
-  STAR_SIZE:                2,
-  STAR_Y_RANGE:           100,
-  STAR_COLOR:              '#ffffff',
+  DAY_NIGHT_START: 300,
+  DAY_NIGHT_END: 400,
+  STAR_COUNT: 12,
+  STAR_SIZE: 2,
+  STAR_Y_RANGE: 100,
+  STAR_COLOR: '#ffffff',
   // Visual only. Running frames Classic stars take to ramp from invisible
   // to full white once night is complete (~0.8 s at 60 fps). Updated and
   // Daily use UPDATED_STAR_FADE_FRAMES. Read through cfg(). A non-positive
   // tune means show them immediately.
-  STAR_FADE_FRAMES:        48,
+  STAR_FADE_FRAMES: 48,
   // Visual only. Running frames Updated and Daily stars take to ramp from
   // invisible to the night whisper once night is complete. Half of
   // STAR_FADE_FRAMES (~0.4 s at 60 fps), so the brightening ramp settles
@@ -215,7 +252,7 @@ const GAME_CONFIG = Object.freeze({
   // read this. Classic keeps full white after STAR_FADE_FRAMES. Day never
   // paints stars. Reduced motion still skips star init. Playtest with
   // ?qaNight=1. Read through cfg(). Physics does not read this.
-  NIGHT_STAR_ALPHA:         0.35,
+  NIGHT_STAR_ALPHA: 0.35,
   // Visual only. CSS brightness applied to cactus sprites once the sky is
   // fully night, in Updated and Daily. The day sprite is #535353; night hills
   // are #2d2d46, and a partial lift during the fade lands on the hill. 1.65
@@ -246,7 +283,7 @@ const GAME_CONFIG = Object.freeze({
   // the shorter life. Classic does not read this. Eases with the sky from
   // DAY_NIGHT_START to DAY_NIGHT_END. Reduced motion skips that ease and
   // snaps to this at DAY_NIGHT_END. Read through cfg().
-  NIGHT_LAND_DUST_COLOR:    '#6a686e',
+  NIGHT_LAND_DUST_COLOR: '#6a686e',
   // Visual only. Peak opacity of Updated/Daily jump foot dust once the sky
   // is fully night. The mote stays #6a686e. The day takeoff is alpha 0.5:
   // on the night ground (the #535353 strip at 0.42, about 50, 50, and 62)
@@ -261,7 +298,7 @@ const GAME_CONFIG = Object.freeze({
   // night instead of solid ink, and halves it under reduced motion.
   // Playtest with ?qaDust=1&qaNight=1. Read through cfg(). Physics does
   // not read this.
-  NIGHT_JUMP_DUST_ALPHA:    0.42,
+  NIGHT_JUMP_DUST_ALPHA: 0.42,
   // Visual only. Peak opacity of Updated/Daily land foot dust once the sky
   // is fully night. The mote stays #6a686e. The day landing is alpha 0.4,
   // softer than the takeoff so the extra motes do not stack into a cloud.
@@ -272,7 +309,7 @@ const GAME_CONFIG = Object.freeze({
   // Classic does not read this. Eases with the sky the same way as
   // NIGHT_JUMP_DUST_ALPHA. Reduced motion snaps at DAY_NIGHT_END. Read
   // through cfg(). Physics does not read this.
-  NIGHT_LAND_DUST_ALPHA:    0.36,
+  NIGHT_LAND_DUST_ALPHA: 0.36,
   // Visual only. How many jump and land motes Updated/Daily emit once the
   // sky is fully night. Day stays 3 and 5. Two and three still make a
   // landing heavier than a takeoff, with fewer motes so they do not stack
@@ -280,15 +317,15 @@ const GAME_CONFIG = Object.freeze({
   // keeps the day counts. Reduced motion then quarters this count, same
   // as the day burst. Classic does not read this. Read through cfg().
   // Physics does not read this.
-  NIGHT_JUMP_DUST_COUNT:    2,
-  NIGHT_LAND_DUST_COUNT:    3,
+  NIGHT_JUMP_DUST_COUNT: 2,
+  NIGHT_LAND_DUST_COUNT: 3,
   // Visual only. Frames a night jump or land mote lives. Day stays 8.
   // Six is enough for the puff to read at the ankle and short enough that
   // it dies at the foot. The day spreads still apply, so a full life stays
   // inside the day reach. Snaps at DAY_NIGHT_END. Reduced motion then
   // halves it. Classic does not read this. Read through cfg(). Physics
   // does not read this.
-  NIGHT_LAND_DUST_LIFE:     6,
+  NIGHT_LAND_DUST_LIFE: 6,
   // Visual only. Opacity of the Updated/Daily ground strip once the sky is
   // fully night. The strip is the day sprite (#535353), the road edge under
   // the run. On the night sky (#1a1a2e) the old 0.55 line sat about 31, 31,
@@ -302,16 +339,16 @@ const GAME_CONFIG = Object.freeze({
   // opaque. Eases with the sky from DAY_NIGHT_START to DAY_NIGHT_END.
   // Reduced motion skips that ease and snaps to this at DAY_NIGHT_END.
   // Playtest with ?qaNight=1. Read through cfg(). Physics does not read this.
-  NIGHT_GROUND_ALPHA:       0.42,
+  NIGHT_GROUND_ALPHA: 0.42,
 
   // --- Ambient depth (PR-D, updated mode only) ---
-  HILL_COUNT:               3,    // mid-ground silhouette mounds
-  HILL_PARALLAX:            0.2,  // fraction of obstacle speed at which hills scroll
-  HILL_MIN_WIDTH:         120,
-  HILL_WIDTH_RANGE:        80,
-  HILL_MIN_HEIGHT:         40,
-  HILL_HEIGHT_RANGE:       30,
-  HILL_RESPAWN_X_RANGE:    50,    // px of jitter past the right edge when a hill respawns
+  HILL_COUNT: 3, // mid-ground silhouette mounds
+  HILL_PARALLAX: 0.2, // fraction of obstacle speed at which hills scroll
+  HILL_MIN_WIDTH: 120,
+  HILL_WIDTH_RANGE: 80,
+  HILL_MIN_HEIGHT: 40,
+  HILL_HEIGHT_RANGE: 30,
+  HILL_RESPAWN_X_RANGE: 50, // px of jitter past the right edge when a hill respawns
   // Visual only. Fill of Updated/Daily hills while the sky is still day.
   // Three ellipses, 120–200px wide and 40–70px tall, sit on the ground
   // line and rise into the jump band behind the dino. #cdcdcd is 50
@@ -325,7 +362,7 @@ const GAME_CONFIG = Object.freeze({
   // ease and holds this colour until DAY_NIGHT_END, then snaps. Classic
   // does not draw hills. The mounds are already on GET READY, so
   // playtest does not need a query flag. Physics does not read this.
-  HILL_COLOR_DAY:          '#e1e1e1',
+  HILL_COLOR_DAY: '#e1e1e1',
   // Visual only. Fill of Updated/Daily hills once the sky is fully night.
   // Same three ellipses as the day fill, on the ground line behind the dino.
   // #3a3a55 sits 32, 32, and 39 levels off the night sky (#1a1a2e) — a blue
@@ -338,7 +375,7 @@ const GAME_CONFIG = Object.freeze({
   // DAY_NIGHT_START to DAY_NIGHT_END. Reduced motion skips that ease and
   // snaps to this at DAY_NIGHT_END. Classic does not draw hills. Playtest
   // with ?qaNight=1. Read through cfg(). Physics does not read this.
-  HILL_COLOR_NIGHT:        '#2d2d46',
+  HILL_COLOR_NIGHT: '#2d2d46',
   CLOUD_SPEED_FACTOR_UPDATED: 1.5, // multiply cloud speed in updated mode for stronger parallax
   // Visual only. Peak alpha of the gold milestone sky-flash by day, in
   // Updated and Daily. One full-canvas fill, painted after the cacti, so
@@ -347,8 +384,8 @@ const GAME_CONFIG = Object.freeze({
   // 0.06 is half that peak: a gold breath. The LEVEL text and the confetti
   // still carry the level. Classic does not draw the tint. Night uses its
   // own peak and the twilight ease still steps down to it. Read through cfg().
-  SKY_TINT_PEAK_ALPHA:      0.06,
-  SKY_TINT_COLOR_RGB:      '255, 215, 0',   // gold sky-flash colour (rgb triplet, alpha applied at draw)
+  SKY_TINT_PEAK_ALPHA: 0.06,
+  SKY_TINT_COLOR_RGB: '255, 215, 0', // gold sky-flash colour (rgb triplet, alpha applied at draw)
   // Visual only. Peak alpha of the gold milestone sky-flash once the sky is
   // fully night, in Updated and Daily. One full-canvas fill of gold
   // (255, 215, 0), painted after the cacti, so it sits on the obstacle
@@ -366,10 +403,10 @@ const GAME_CONFIG = Object.freeze({
   // under reduced motion. Playtest with ?qaLevel=1&qaNight=1. Read
   // through cfg(). Physics does not read this.
   NIGHT_SKY_TINT_PEAK_ALPHA: 0.024,
-  PARTICLE_EMIT_SPREAD:     4,    // px width of the cosmetic xy jitter on every particle emit
+  PARTICLE_EMIT_SPREAD: 4, // px width of the cosmetic xy jitter on every particle emit
 
   // --- Effects ---
-  DEATH_ANIM_FRAMES:       30,    // frames for the Classic score count-up after shake ends
+  DEATH_ANIM_FRAMES: 30, // frames for the Classic score count-up after shake ends
   // Visual only. Updated and Daily Game Over score count-up. Classic keeps
   // DEATH_ANIM_FRAMES (30). 18 frames is about 0.3s at 60fps, about three
   // fifths of that roll, so the board settles and the death-screen hint
@@ -381,9 +418,9 @@ const GAME_CONFIG = Object.freeze({
   // cfg(). Physics, scoring, and daily best do not read this. Playtest
   // with ?qaCountUp=1.
   UPDATED_DEATH_ANIM_FRAMES: 18,
-  DEATH_SHAKE_FRAMES:      12,
-  DEATH_SHAKE_AMPLITUDE:    4,
-  DEATH_SHAKE_FREQ:         1.5,  // multiplier on the sin oscillation that drives the shake transform
+  DEATH_SHAKE_FRAMES: 12,
+  DEATH_SHAKE_AMPLITUDE: 4,
+  DEATH_SHAKE_FREQ: 1.5, // multiplier on the sin oscillation that drives the shake transform
   // Visual only. Updated and Daily death nudge, round 2. Classic keeps
   // DEATH_SHAKE_FRAMES (12), DEATH_SHAKE_AMPLITUDE (4), and
   // DEATH_SHAKE_FREQ (1.5). Round 1 was still those 12 frames, at 1.5px
@@ -396,11 +433,11 @@ const GAME_CONFIG = Object.freeze({
   // Reduced motion keeps these values; the flash and the score pop keep
   // their own shorten. Read through cfg(). A tune outside 1..12 frames,
   // or past the Classic amplitude or frequency, falls back.
-  UPDATED_DEATH_SHAKE_FRAMES:    8,
+  UPDATED_DEATH_SHAKE_FRAMES: 8,
   UPDATED_DEATH_SHAKE_AMPLITUDE: 1,
-  UPDATED_DEATH_SHAKE_FREQ:      Math.PI / 8,
-  DEATH_FLASH_FRAMES:       6,    // PR-C: white-flash overlay length on collision
-  DEATH_FLASH_COLOR_RGB:   '255, 255, 255', // death-flash overlay colour (rgb triplet, alpha applied at draw)
+  UPDATED_DEATH_SHAKE_FREQ: Math.PI / 8,
+  DEATH_FLASH_FRAMES: 6, // PR-C: white-flash overlay length on collision
+  DEATH_FLASH_COLOR_RGB: '255, 255, 255', // death-flash overlay colour (rgb triplet, alpha applied at draw)
   // Visual only. Peak scale of the white death-flash on the day sky, in
   // Updated and Daily. The first frame multiplies this by
   // deathFlashFrames / DEATH_FLASH_FRAMES, which starts at 1. The overlay
@@ -424,7 +461,7 @@ const GAME_CONFIG = Object.freeze({
   // DAY_NIGHT_END. Reduced motion skips that ease and snaps to this at
   // DAY_NIGHT_END. Playtest with ?qaFlash=1&qaNight=1. Read through cfg().
   NIGHT_DEATH_FLASH_PEAK_ALPHA: 0.2,
-  SCORE_POP_FRAMES:        12,    // classic-length count; Updated pop uses the shake frames
+  SCORE_POP_FRAMES: 12, // classic-length count; Updated pop uses the shake frames
   // Visual only. Peak scale of the Updated/Daily score on the first
   // death-pop frame. It eases from this back to 1 across the Updated
   // death-shake frames (UPDATED_DEATH_SHAKE_FRAMES), the same window as
@@ -437,8 +474,8 @@ const GAME_CONFIG = Object.freeze({
   // does not start the pop. Reduced motion still skips it. A tune outside
   // 1..1.4 falls back, so a typo cannot slap harder than the old peak or
   // shrink the score. Playtest with ?qaScorePop=1. Read through cfg().
-  SCORE_POP_PEAK_SCALE:     1.12,
-  MILESTONE_FRAMES:        90,
+  SCORE_POP_PEAK_SCALE: 1.12,
+  MILESTONE_FRAMES: 90,
   // Visual only. Updated and Daily center LEVEL label. Classic keeps
   // bold 22px for every one of these 90 frames, alpha =
   // frames / MILESTONE_FRAMES, black by day and white from
@@ -456,10 +493,10 @@ const GAME_CONFIG = Object.freeze({
   // with ?qaLevel=1, which also holds the quiet peak; that hold is
   // half as long and half as strong under reduced motion. Read
   // through cfg().
-  UPDATED_MILESTONE_FONT_PX:     16,
+  UPDATED_MILESTONE_FONT_PX: 16,
   UPDATED_MILESTONE_TEXT_FRAMES: 45,
-  UPDATED_MILESTONE_PEAK_ALPHA:  0.5,
-  NEW_BEST_FRAMES:        120,
+  UPDATED_MILESTONE_PEAK_ALPHA: 0.5,
+  NEW_BEST_FRAMES: 120,
   // Visual only. Updated and Daily corner NEW BEST badge. Classic keeps
   // bold 14px for all NEW_BEST_FRAMES, gold #ffd700, alpha =
   // frames / NEW_BEST_FRAMES. The badge sits under the score for that
@@ -475,9 +512,9 @@ const GAME_CONFIG = Object.freeze({
   // word. Playtest with ?qaNewBest=1, which holds the quiet peak; that
   // hold is half as long and half as strong under reduced motion. Read
   // through cfg(). Classic does not read these keys.
-  UPDATED_NEW_BEST_FONT_PX:     11,
-  UPDATED_NEW_BEST_FRAMES:      60,
-  UPDATED_NEW_BEST_PEAK_ALPHA:  0.65,
+  UPDATED_NEW_BEST_FONT_PX: 11,
+  UPDATED_NEW_BEST_FRAMES: 60,
+  UPDATED_NEW_BEST_PEAK_ALPHA: 0.65,
   // Visual only. Daily Share result confirmation on the Copy result
   // button. The old flash held ✓ Copied! for 90 frames (~1.5 s), long
   // enough to nag after the clipboard tap. 45 frames (~0.75 s) is half
@@ -489,25 +526,25 @@ const GAME_CONFIG = Object.freeze({
   // ?qaCopy=1, which holds the Copied label; that hold is half as long
   // and quieter under reduced motion. ?qaShare=1 holds the same label
   // without opening the system share sheet. Read through cfg().
-  COPY_FLASH_FRAMES:        45,
+  COPY_FLASH_FRAMES: 45,
   // Soft ceiling for the once-per-run plateau cue. The speed curve approaches
   // PLATEAU_SPEED but never reaches it; 0.98 is about score 641. Visual only —
   // speed, gaps, and scoring still read the curve directly, not this ratio.
-  PLATEAU_REACH_RATIO:      0.98,
+  PLATEAU_REACH_RATIO: 0.98,
   // Heel-trail whisper starts a little before that cue. 0.96 of plateau
   // speed is still late-run, on the night sky (about score 568). Visual
   // only — speed, gaps, and scoring do not read this ratio. ?qaTrail=1
   // emits the same whisper without waiting for it.
-  TRAIL_SPEED_RATIO:        0.96,
+  TRAIL_SPEED_RATIO: 0.96,
 
   // --- HUD ---
-  SCORE_X_OFFSET:         150,    // pixels from right edge for the current-score label
-  SCORE_Y:                 30,
-  SCORE_HI_X_OFFSET:      110,    // additional px left of SCORE_X_OFFSET for the HI label
-  SCORE_FONT_FAMILY:      "'Courier New', Courier, monospace",
+  SCORE_X_OFFSET: 150, // pixels from right edge for the current-score label
+  SCORE_Y: 30,
+  SCORE_HI_X_OFFSET: 110, // additional px left of SCORE_X_OFFSET for the HI label
+  SCORE_FONT_FAMILY: "'Courier New', Courier, monospace",
 
   // --- Animation ---
-  RUN_FRAME_PERIOD:        10,    // swap run-cycle sprite every N frames (~167 ms @ 60 fps)
+  RUN_FRAME_PERIOD: 10, // swap run-cycle sprite every N frames (~167 ms @ 60 fps)
   // Visual only. Updated and Daily idle invite, the line under REX RUN.
   // Classic keeps 0.3 + 0.4 × (0.5 + 0.5 × sin(frame × 0.08)), a swing
   // from 0.3 to 0.7. This breath is smaller and a little slower: base
@@ -518,12 +555,12 @@ const GAME_CONFIG = Object.freeze({
   // band, swing wider than 0.4, or pulse faster than 0.08 falls back, so
   // a typo cannot flash harder than Classic. Read through cfg(). Physics,
   // scoring, and spawning do not read these. Playtest with ?qaIdle=1.
-  UPDATED_IDLE_PULSE_BASE:       0.4,
-  UPDATED_IDLE_PULSE_AMPLITUDE:  0.15,
-  UPDATED_IDLE_PULSE_RATE:       0.05,
+  UPDATED_IDLE_PULSE_BASE: 0.4,
+  UPDATED_IDLE_PULSE_AMPLITUDE: 0.15,
+  UPDATED_IDLE_PULSE_RATE: 0.05,
 
   // --- Asset loading ---
-  ASSET_LOAD_TIMEOUT_MS: 5000,    // force WAITING state even if assets never finish loading
+  ASSET_LOAD_TIMEOUT_MS: 5000, // force WAITING state even if assets never finish loading
 });
 
 // --- Live-tuning hook (visual-only) -----------------------------------
@@ -559,7 +596,9 @@ const safeStorage = {
     try {
       const v = localStorage.getItem(key);
       return v === null || v === undefined ? fallback : v;
-    } catch { return fallback; }
+    } catch {
+      return fallback;
+    }
   },
   set(key, value) {
     const v = String(value);
@@ -574,7 +613,11 @@ const safeStorage = {
   },
   remove(key) {
     delete this._memory[key];
-    try { localStorage.removeItem(key); } catch { /* storage blocked — ignore */ }
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      /* storage blocked — ignore */
+    }
   },
 };
 
@@ -583,7 +626,9 @@ function loadTuning() {
   try {
     const raw = safeStorage.get('dino-tuning');
     if (raw) Object.assign(window.GAME_TUNING, JSON.parse(raw));
-  } catch { /* malformed JSON — keep defaults */ }
+  } catch {
+    /* malformed JSON — keep defaults */
+  }
 }
 
 function saveTuning() {
@@ -593,8 +638,12 @@ function saveTuning() {
 loadTuning();
 
 const ScoreStore = {
-  loadHighScore()      { return parseInt(safeStorage.get('dino-high-score', '0'), 10) || 0; },
-  saveHighScore(n)     { safeStorage.set('dino-high-score', n); },
+  loadHighScore() {
+    return parseInt(safeStorage.get('dino-high-score', '0'), 10) || 0;
+  },
+  saveHighScore(n) {
+    safeStorage.set('dino-high-score', n);
+  },
   loadDailyBest() {
     const storedDate = parseInt(safeStorage.get('dino-daily-date', '0'), 10) || 0;
     if (storedDate !== dailySeed()) return 0;
@@ -610,17 +659,19 @@ const ScoreStore = {
 
 const STATE = Object.freeze({
   LOADING: 'LOADING',
-  IDLE:    'IDLE',
+  IDLE: 'IDLE',
   WAITING: 'WAITING',
   RUNNING: 'RUNNING',
-  DEAD:    'DEAD',
+  DEAD: 'DEAD',
 });
 
 // Respect the user's OS-level reduce-motion preference. Read once at startup —
 // ambient motion is suppressed when true. Hill respawn still consumes game.rng()
 // (see updateHills) so a Daily seed yields the same obstacle sequence either way.
 // Tests flip the flag through setReducedMotion(); players do not.
-let reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+let reducedMotion = !!(
+  window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+);
 
 function setReducedMotion(enabled) {
   reducedMotion = !!enabled;
@@ -648,11 +699,12 @@ const QA_PLATEAU_OFFSETS = Object.freeze([
 ]);
 
 function readQaPlateauFlag(search) {
-  const query = search !== undefined
-    ? search
-    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
-      ? location.search
-      : '');
+  const query =
+    search !== undefined
+      ? search
+      : typeof location !== 'undefined' && location && typeof location.search === 'string'
+        ? location.search
+        : '';
   if (!query) return false;
   return new URLSearchParams(query).get('qaPlateau') === '1';
 }
@@ -669,11 +721,12 @@ function setQaPlateau(enabled) {
 // picks keep their RNG order. Classic never takes the override. Re-read in
 // resetGame() like ?qaPlateau=1. Tests flip it through setQaCluster().
 function readQaClusterFlag(search) {
-  const query = search !== undefined
-    ? search
-    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
-      ? location.search
-      : '');
+  const query =
+    search !== undefined
+      ? search
+      : typeof location !== 'undefined' && location && typeof location.search === 'string'
+        ? location.search
+        : '';
   if (!query) return false;
   return new URLSearchParams(query).get('qaCluster') === '1';
 }
@@ -690,11 +743,12 @@ function setQaCluster(enabled) {
 // later picks keep their RNG order. Classic never takes the override.
 // Re-read in resetGame() like ?qaCluster=1. Tests flip it through setQaBig().
 function readQaBigFlag(search) {
-  const query = search !== undefined
-    ? search
-    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
-      ? location.search
-      : '');
+  const query =
+    search !== undefined
+      ? search
+      : typeof location !== 'undefined' && location && typeof location.search === 'string'
+        ? location.search
+        : '';
   if (!query) return false;
   return new URLSearchParams(query).get('qaBig') === '1';
 }
@@ -717,11 +771,12 @@ function setQaBig(enabled) {
 // like the other QA flags. Tests flip it through setQaNight(); a normal
 // visit leaves this false.
 function readQaNightFlag(search) {
-  const query = search !== undefined
-    ? search
-    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
-      ? location.search
-      : '');
+  const query =
+    search !== undefined
+      ? search
+      : typeof location !== 'undefined' && location && typeof location.search === 'string'
+        ? location.search
+        : '';
   if (!query) return false;
   return new URLSearchParams(query).get('qaNight') === '1';
 }
@@ -746,11 +801,12 @@ function setQaNight(enabled) {
 // false.
 const QA_LEVEL_HOLD = 180;
 function readQaLevelFlag(search) {
-  const query = search !== undefined
-    ? search
-    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
-      ? location.search
-      : '');
+  const query =
+    search !== undefined
+      ? search
+      : typeof location !== 'undefined' && location && typeof location.search === 'string'
+        ? location.search
+        : '';
   if (!query) return false;
   return new URLSearchParams(query).get('qaLevel') === '1';
 }
@@ -774,11 +830,12 @@ function qaLevelHoldFrames() {
 // like the other QA flags. Tests flip it through setQaTrail(); a normal
 // visit leaves this false.
 function readQaTrailFlag(search) {
-  const query = search !== undefined
-    ? search
-    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
-      ? location.search
-      : '');
+  const query =
+    search !== undefined
+      ? search
+      : typeof location !== 'undefined' && location && typeof location.search === 'string'
+        ? location.search
+        : '';
   if (!query) return false;
   return new URLSearchParams(query).get('qaTrail') === '1';
 }
@@ -805,11 +862,12 @@ const QA_CONFETTI_BLOCK_H = 36;
 const QA_CONFETTI_COLOR = '#b45309';
 const QA_CONFETTI_RIM = '#3f2a12';
 function readQaConfettiFlag(search) {
-  const query = search !== undefined
-    ? search
-    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
-      ? location.search
-      : '');
+  const query =
+    search !== undefined
+      ? search
+      : typeof location !== 'undefined' && location && typeof location.search === 'string'
+        ? location.search
+        : '';
   if (!query) return false;
   return new URLSearchParams(query).get('qaConfetti') === '1';
 }
@@ -857,11 +915,12 @@ const QA_DUST_OFFSETS = Object.freeze([
   Object.freeze([1, -8]),
 ]);
 function readQaDustFlag(search) {
-  const query = search !== undefined
-    ? search
-    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
-      ? location.search
-      : '');
+  const query =
+    search !== undefined
+      ? search
+      : typeof location !== 'undefined' && location && typeof location.search === 'string'
+        ? location.search
+        : '';
   if (!query) return false;
   return new URLSearchParams(query).get('qaDust') === '1';
 }
@@ -953,8 +1012,8 @@ function qaDustPaintAlpha() {
   let alpha = 1;
   if (s >= GAME_CONFIG.DAY_NIGHT_END) alpha = night;
   else if (s > GAME_CONFIG.DAY_NIGHT_START && !reducedMotion) {
-    const t = (s - GAME_CONFIG.DAY_NIGHT_START) /
-              (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
+    const t =
+      (s - GAME_CONFIG.DAY_NIGHT_START) / (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
     alpha = 1 + (night - 1) * t;
   }
   if (reducedMotion && s >= GAME_CONFIG.DAY_NIGHT_END) return alpha * 0.5;
@@ -1014,11 +1073,12 @@ const QA_COLLISION_OFFSETS = Object.freeze([
 ]);
 
 function readQaCollisionFlag(search) {
-  const query = search !== undefined
-    ? search
-    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
-      ? location.search
-      : '');
+  const query =
+    search !== undefined
+      ? search
+      : typeof location !== 'undefined' && location && typeof location.search === 'string'
+        ? location.search
+        : '';
   if (!query) return false;
   return new URLSearchParams(query).get('qaCollision') === '1';
 }
@@ -1102,11 +1162,12 @@ function drawQaCollision() {
 const QA_FLASH_HOLD = 180;
 
 function readQaFlashFlag(search) {
-  const query = search !== undefined
-    ? search
-    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
-      ? location.search
-      : '');
+  const query =
+    search !== undefined
+      ? search
+      : typeof location !== 'undefined' && location && typeof location.search === 'string'
+        ? location.search
+        : '';
   if (!query) return false;
   return new URLSearchParams(query).get('qaFlash') === '1';
 }
@@ -1169,11 +1230,12 @@ function drawQaFlash() {
 const QA_SCORE_POP_HOLD = 180;
 
 function readQaScorePopFlag(search) {
-  const query = search !== undefined
-    ? search
-    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
-      ? location.search
-      : '');
+  const query =
+    search !== undefined
+      ? search
+      : typeof location !== 'undefined' && location && typeof location.search === 'string'
+        ? location.search
+        : '';
   if (!query) return false;
   return new URLSearchParams(query).get('qaScorePop') === '1';
 }
@@ -1256,11 +1318,12 @@ function drawQaScorePop() {
 const QA_SHAKE_HOLD = 180;
 
 function readQaShakeFlag(search) {
-  const query = search !== undefined
-    ? search
-    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
-      ? location.search
-      : '');
+  const query =
+    search !== undefined
+      ? search
+      : typeof location !== 'undefined' && location && typeof location.search === 'string'
+        ? location.search
+        : '';
   if (!query) return false;
   return new URLSearchParams(query).get('qaShake') === '1';
 }
@@ -1320,11 +1383,12 @@ function endQaShake(active) {
 const QA_NEW_BEST_HOLD = 180;
 
 function readQaNewBestFlag(search) {
-  const query = search !== undefined
-    ? search
-    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
-      ? location.search
-      : '');
+  const query =
+    search !== undefined
+      ? search
+      : typeof location !== 'undefined' && location && typeof location.search === 'string'
+        ? location.search
+        : '';
   if (!query) return false;
   return new URLSearchParams(query).get('qaNewBest') === '1';
 }
@@ -1362,11 +1426,12 @@ function advanceQaNewBest() {
 const QA_COPY_HOLD = 180;
 
 function readQaCopyFlag(search) {
-  const query = search !== undefined
-    ? search
-    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
-      ? location.search
-      : '');
+  const query =
+    search !== undefined
+      ? search
+      : typeof location !== 'undefined' && location && typeof location.search === 'string'
+        ? location.search
+        : '';
   if (!query) return false;
   return new URLSearchParams(query).get('qaCopy') === '1';
 }
@@ -1384,9 +1449,8 @@ function qaCopyHoldFrames() {
 
 function advanceQaCopy() {
   if (!isDailyMode()) return;
-  const visible = game.state === STATE.WAITING
-    || game.state === STATE.RUNNING
-    || game.state === STATE.DEAD;
+  const visible =
+    game.state === STATE.WAITING || game.state === STATE.RUNNING || game.state === STATE.DEAD;
   if (!visible) return;
   if (qaCopy && !game.qaCopyShown) {
     game.qaCopyShown = true;
@@ -1406,10 +1470,11 @@ function applyQaCopyButton() {
     return;
   }
   if (!game.qaCopyShown && !game.qaShareShown) return;
-  const settledDailyDeath = isDailyMode()
-    && game.state === STATE.DEAD
-    && Animations.deathShakeFrames <= 0
-    && Animations.deathAnimFrame >= deathAnimFrames();
+  const settledDailyDeath =
+    isDailyMode() &&
+    game.state === STATE.DEAD &&
+    Animations.deathShakeFrames <= 0 &&
+    Animations.deathAnimFrame >= deathAnimFrames();
   if (settledDailyDeath) return;
   if (btn.style) btn.style.display = 'none';
   if (Animations.copyFlashFrames <= 0) {
@@ -1437,11 +1502,12 @@ function applyQaCopyButton() {
 const QA_SHARE_HOLD = 180;
 
 function readQaShareFlag(search) {
-  const query = search !== undefined
-    ? search
-    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
-      ? location.search
-      : '');
+  const query =
+    search !== undefined
+      ? search
+      : typeof location !== 'undefined' && location && typeof location.search === 'string'
+        ? location.search
+        : '';
   if (!query) return false;
   return new URLSearchParams(query).get('qaShare') === '1';
 }
@@ -1492,11 +1558,12 @@ const QA_COUNT_UP_HOLD = 180;
 const QA_COUNT_UP_SCORE = 100;
 
 function readQaCountUpFlag(search) {
-  const query = search !== undefined
-    ? search
-    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
-      ? location.search
-      : '');
+  const query =
+    search !== undefined
+      ? search
+      : typeof location !== 'undefined' && location && typeof location.search === 'string'
+        ? location.search
+        : '';
   if (!query) return false;
   return new URLSearchParams(query).get('qaCountUp') === '1';
 }
@@ -1531,11 +1598,12 @@ function qaCountUpPaintFrame() {
 const QA_IDLE_HOLD = 180;
 
 function readQaIdleFlag(search) {
-  const query = search !== undefined
-    ? search
-    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
-      ? location.search
-      : '');
+  const query =
+    search !== undefined
+      ? search
+      : typeof location !== 'undefined' && location && typeof location.search === 'string'
+        ? location.search
+        : '';
   if (!query) return false;
   return new URLSearchParams(query).get('qaIdle') === '1';
 }
@@ -1559,11 +1627,12 @@ function qaIdleHoldFrames() {
 // shorten. Re-read in resetGame() like the other QA flags. Tests flip it
 // through setQaSafe(); a normal visit leaves this false.
 function readQaSafeFlag(search) {
-  const query = search !== undefined
-    ? search
-    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
-      ? location.search
-      : '');
+  const query =
+    search !== undefined
+      ? search
+      : typeof location !== 'undefined' && location && typeof location.search === 'string'
+        ? location.search
+        : '';
   if (!query) return false;
   return new URLSearchParams(query).get('qaSafe') === '1';
 }
@@ -1588,11 +1657,12 @@ function applyQaSafeShell() {
 // shake, so reduced motion has no hold to shorten. Re-read in resetGame().
 // Tests flip it through setQaHz(); a normal visit leaves this false.
 function readQaHzFlag(search) {
-  const query = search !== undefined
-    ? search
-    : (typeof location !== 'undefined' && location && typeof location.search === 'string'
-      ? location.search
-      : '');
+  const query =
+    search !== undefined
+      ? search
+      : typeof location !== 'undefined' && location && typeof location.search === 'string'
+        ? location.search
+        : '';
   if (!query) return false;
   return new URLSearchParams(query).get('qaHz') === '1';
 }
@@ -1605,10 +1675,11 @@ function setQaHz(enabled) {
 }
 
 function advanceQaIdle() {
-  const visible = game.state === STATE.IDLE
-    || game.state === STATE.WAITING
-    || game.state === STATE.RUNNING
-    || game.state === STATE.DEAD;
+  const visible =
+    game.state === STATE.IDLE ||
+    game.state === STATE.WAITING ||
+    game.state === STATE.RUNNING ||
+    game.state === STATE.DEAD;
   if (!visible) return;
   if (qaIdle && !game.qaIdleShown) {
     game.qaIdleShown = true;
@@ -1622,10 +1693,11 @@ function advanceQaIdle() {
 }
 
 function advanceQaCountUp() {
-  const visible = game.state === STATE.IDLE
-    || game.state === STATE.WAITING
-    || game.state === STATE.RUNNING
-    || game.state === STATE.DEAD;
+  const visible =
+    game.state === STATE.IDLE ||
+    game.state === STATE.WAITING ||
+    game.state === STATE.RUNNING ||
+    game.state === STATE.DEAD;
   if (!visible) return;
   if (qaCountUp && !game.qaCountUpShown) {
     game.qaCountUpShown = true;
@@ -1643,10 +1715,11 @@ function clearQaCountUpShare() {
   game.qaCountUpShareCleared = true;
   const btn = document.getElementById('share-btn');
   if (!btn || !btn.style) return;
-  const settled = isDailyMode()
-    && game.state === STATE.DEAD
-    && Animations.deathShakeFrames <= 0
-    && Animations.deathAnimFrame >= deathAnimFrames();
+  const settled =
+    isDailyMode() &&
+    game.state === STATE.DEAD &&
+    Animations.deathShakeFrames <= 0 &&
+    Animations.deathAnimFrame >= deathAnimFrames();
   if (settled) return;
   btn.style.display = 'none';
 }
@@ -1728,7 +1801,7 @@ function scoreForNightSky(score) {
 // is on. Updated and Daily only. Does not call game.rng().
 function qaClusterOverride(rolledType) {
   if (!qaCluster || game.qaClusterShown || !isUpdatedMode()) return rolledType;
-  const cluster = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'cluster');
+  const cluster = GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'cluster');
   if (!cluster) return rolledType;
   game.qaClusterShown = true;
   return cluster;
@@ -1738,7 +1811,7 @@ function qaClusterOverride(rolledType) {
 // is on. Updated and Daily only. Does not call game.rng().
 function qaBigOverride(rolledType) {
   if (!qaBig || game.qaBigShown || !isUpdatedMode()) return rolledType;
-  const big = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'big');
+  const big = GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'big');
   if (!big) return rolledType;
   game.qaBigShown = true;
   return big;
@@ -1753,14 +1826,23 @@ const audio = {
   muted: safeStorage.get('dino-muted') === '1',
   ensure() {
     if (!this.ctx) {
-      const Ctx = (typeof AudioContext !== 'undefined') ? AudioContext
-                : (typeof webkitAudioContext !== 'undefined') ? webkitAudioContext
-                : null;
+      const Ctx =
+        typeof AudioContext !== 'undefined'
+          ? AudioContext
+          : typeof webkitAudioContext !== 'undefined'
+            ? webkitAudioContext
+            : null;
       if (!Ctx) return null;
-      try { this.ctx = new Ctx(); } catch { this.ctx = null; }
+      try {
+        this.ctx = new Ctx();
+      } catch {
+        this.ctx = null;
+      }
     }
     if (this.ctx && this.ctx.state === 'suspended' && typeof this.ctx.resume === 'function') {
-      this.ctx.resume().catch(() => { /* swallow autoplay-block etc. */ });
+      this.ctx.resume().catch(() => {
+        /* swallow autoplay-block etc. */
+      });
     }
     return this.ctx;
   },
@@ -1784,8 +1866,12 @@ const audio = {
     osc.start(now);
     osc.stop(now + durationMs / 1000);
   },
-  jump()      { this.blip(420 + (Math.random() - 0.5) * 40, 80, 'sine', 0.04); },
-  land()      { this.blip(140, 60, 'sine', 0.05); },
+  jump() {
+    this.blip(420 + (Math.random() - 0.5) * 40, 80, 'sine', 0.04);
+  },
+  land() {
+    this.blip(140, 60, 'sine', 0.05);
+  },
   milestone() {
     this.blip(880, 120, 'triangle', 0.05);
     setTimeout(() => this.blip(1320, 120, 'triangle', 0.05), 80);
@@ -1892,12 +1978,15 @@ function computeCanvasCssWidth(viewportWidth, horizontalInset) {
 function readPaddingPx(el, side) {
   if (!el) return 0;
   let raw = '';
-  const reader = window && typeof window.getComputedStyle === 'function'
-    ? window.getComputedStyle
-    : null;
+  const reader =
+    window && typeof window.getComputedStyle === 'function' ? window.getComputedStyle : null;
   if (reader) {
     let cs = null;
-    try { cs = reader(el); } catch { cs = null; }
+    try {
+      cs = reader(el);
+    } catch {
+      cs = null;
+    }
     if (cs) raw = cs['padding' + side] || '';
   }
   if (!raw && el.style) raw = el.style['padding' + side] || '';
@@ -2086,7 +2175,7 @@ function computeNextSpawnGap(rng, currentSpeed, mode) {
 // is ever returned — matches the original Chrome T-Rex's spartan look.
 function pickObstacleType(rng, score, mode) {
   if (mode === 'classic') return GAME_CONFIG.OBSTACLE_TYPES[0]; // small cactus
-  const eligible = GAME_CONFIG.OBSTACLE_TYPES.filter(t => score >= t.unlockScore);
+  const eligible = GAME_CONFIG.OBSTACLE_TYPES.filter((t) => score >= t.unlockScore);
   const totalWeight = eligible.reduce((sum, t) => sum + t.weight, 0);
   let roll = rng() * totalWeight;
   for (const t of eligible) {
@@ -2099,8 +2188,11 @@ function pickObstacleType(rng, score, mode) {
 const DifficultyProfile = {
   speedAtScore(score) {
     const { INITIAL_SPEED, PLATEAU_SPEED, RAMP_STEEPNESS, RAMP_MIDPOINT } = GAME_CONFIG;
-    return INITIAL_SPEED + (PLATEAU_SPEED - INITIAL_SPEED) *
-      (1 / (1 + Math.exp(-RAMP_STEEPNESS * (score - RAMP_MIDPOINT))));
+    return (
+      INITIAL_SPEED +
+      (PLATEAU_SPEED - INITIAL_SPEED) *
+        (1 / (1 + Math.exp(-RAMP_STEEPNESS * (score - RAMP_MIDPOINT))))
+    );
   },
   nextObstacle(score, mode, rng) {
     const speed = this.speedAtScore(score);
@@ -2163,94 +2255,94 @@ const DAILY_DEATH_HINT = 'Share TODAY BEST with Copy result';
 // One clock read so the stored run seed is the same integer the RNG was built from.
 const bootSeed = Date.now() >>> 0;
 const game = {
-  state:            STATE.LOADING,
-  obstacles:        [],
-  currentSpeed:     GAME_CONFIG.INITIAL_SPEED,
-  lastObstacleX:    -300,
-  nextSpawnGap:     GAME_CONFIG.MAX_SPAWN_GAP,
-  graceFrames:      GAME_CONFIG.GRACE_FRAMES,
+  state: STATE.LOADING,
+  obstacles: [],
+  currentSpeed: GAME_CONFIG.INITIAL_SPEED,
+  lastObstacleX: -300,
+  nextSpawnGap: GAME_CONFIG.MAX_SPAWN_GAP,
+  graceFrames: GAME_CONFIG.GRACE_FRAMES,
   animationFrameId: undefined,
-  score:            0,
-  highScore:        ScoreStore.loadHighScore(),
-  animFrame:        0,
-  groundX:          0,
-  clouds:           [],
-  stars:            [],
+  score: 0,
+  highScore: ScoreStore.loadHighScore(),
+  animFrame: 0,
+  groundX: 0,
+  clouds: [],
+  stars: [],
   starsInitialised: false,
   // Running frames since stars appeared. 0 until night init; caps at the fade length.
-  starFadeFrames:   0,
-  hills:            [],
-  milestoneText:    '',
-  newBestShown:     false,
-  plateauCueShown:  false,
+  starFadeFrames: 0,
+  hills: [],
+  milestoneText: '',
+  newBestShown: false,
+  plateauCueShown: false,
   // QA/debug only. Latches after ?qaCluster=1 spends its one early cluster.
-  qaClusterShown:   false,
+  qaClusterShown: false,
   // QA/debug only. Latches after ?qaBig=1 spends its one early big cactus.
-  qaBigShown:       false,
+  qaBigShown: false,
   // QA/debug only. Latches after ?qaLevel=1 spends its one early milestone flash.
-  qaLevelShown:     false,
+  qaLevelShown: false,
   // QA/debug only. Frames left on the ?qaLevel=1 quiet LEVEL label.
-  qaLevelHold:      0,
+  qaLevelHold: 0,
   // QA/debug only. Latches after ?qaConfetti=1 spends its one early gold puff.
-  qaConfettiShown:  false,
-  qaConfettiHold:   0,
+  qaConfettiShown: false,
+  qaConfettiHold: 0,
   // QA/debug only. Latches after ?qaDust=1 spends its one held foot cluster.
-  qaDustShown:      false,
-  qaDustHold:       0,
+  qaDustShown: false,
+  qaDustHold: 0,
   // QA/debug only. Latches after ?qaCollision=1 spends its one held death puff.
   qaCollisionShown: false,
-  qaCollisionHold:  0,
+  qaCollisionHold: 0,
   // QA/debug only. Frames left on the ?qaPlateau=1 heel cluster.
-  qaPlateauHold:    0,
+  qaPlateauHold: 0,
   // QA/debug only. Latches after ?qaFlash=1 spends its one early death blink.
-  qaFlashShown:     false,
-  qaFlashHold:      0,
+  qaFlashShown: false,
+  qaFlashHold: 0,
   // QA/debug only. Latches after ?qaScorePop=1 spends its one early score swell.
-  qaScorePopShown:  false,
-  qaScorePopHold:   0,
+  qaScorePopShown: false,
+  qaScorePopHold: 0,
   // QA/debug only. Latches after ?qaShake=1 spends its one early death nudge.
-  qaShakeShown:     false,
-  qaShakeHold:      0,
+  qaShakeShown: false,
+  qaShakeHold: 0,
   // QA/debug only. Latches after ?qaNewBest=1 spends its one early badge.
-  qaNewBestShown:   false,
+  qaNewBestShown: false,
   // QA/debug only. Frames left on the ?qaNewBest=1 quiet NEW BEST badge.
-  qaNewBestHold:    0,
+  qaNewBestHold: 0,
   // QA/debug only. Latches after ?qaCopy=1 spends its one Copied hold.
-  qaCopyShown:      false,
+  qaCopyShown: false,
   // QA/debug only. Frames left on the ?qaCopy=1 Copied label.
-  qaCopyHold:       0,
+  qaCopyHold: 0,
   // QA/debug only. Latches after ?qaShare=1 spends its one Copied hold.
-  qaShareShown:     false,
+  qaShareShown: false,
   // QA/debug only. Frames left on the ?qaShare=1 Copied label.
-  qaShareHold:      0,
+  qaShareHold: 0,
   // QA/debug only. Latches after ?qaCountUp=1 spends its Game Over card.
-  qaCountUpShown:   false,
+  qaCountUpShown: false,
   // QA/debug only. Frames left on the ?qaCountUp=1 Game Over card.
-  qaCountUpHold:    0,
+  qaCountUpHold: 0,
   // QA/debug only. The share button was put back after that card.
   qaCountUpShareCleared: false,
   // QA/debug only. Latches after ?qaIdle=1 spends its idle-card hold.
-  qaIdleShown:      false,
+  qaIdleShown: false,
   // QA/debug only. Frames left on the ?qaIdle=1 invite. Idle does not tick
   // this down, so a capture can wait on the title card.
-  qaIdleHold:       0,
-  isNewBest:         false,
+  qaIdleHold: 0,
+  isNewBest: false,
   previousHighScore: 0,
   // Set on a Daily death before today best is saved. Mirrors isNewBest:
   // true when this run beats today, including the first run of the day.
-  isNewTodayBest:    false,
+  isNewTodayBest: false,
   previousDailyBest: 0,
   // Boot seed matches the RNG created below. resetGame() replaces it with
   // the daily seed or a fresh clock seed before the next run.
-  runSeed:           bootSeed,
-  seedOverride:      null,
-  lastGaps:          [],
+  runSeed: bootSeed,
+  seedOverride: null,
+  lastGaps: [],
   lastObstacleTypes: [],
-  lastJumpFrame:     null,
-  deathLog:          null,
-  rng:               mulberry32(bootSeed),
-  mode:             loadMode(),
-  dailyBest:        ScoreStore.loadDailyBest(),
+  lastJumpFrame: null,
+  deathLog: null,
+  rng: mulberry32(bootSeed),
+  mode: loadMode(),
+  dailyBest: ScoreStore.loadDailyBest(),
   // False until the player has died once this session. First IDLE → WAITING
   // keeps the full countdown; restarts after death can skip it.
   countdownSkippable: false,
@@ -2259,16 +2351,16 @@ const game = {
 // All per-run animation countdown timers. Kept separate from the game object
 // so reset() is a single call and adding a new timer has exactly one place.
 const Animations = {
-  deathAnimFrame:   0,
+  deathAnimFrame: 0,
   deathShakeFrames: 0,
   deathFlashFrames: 0,
-  scorePopFrames:   0,
-  milestoneFrames:  0,
-  newBestFrames:    0,
-  copyFlashFrames:  0,
+  scorePopFrames: 0,
+  milestoneFrames: 0,
+  newBestFrames: 0,
+  copyFlashFrames: 0,
   reset() {
     this.deathAnimFrame = this.deathShakeFrames = this.deathFlashFrames = 0;
-    this.scorePopFrames = this.milestoneFrames  = this.newBestFrames    = 0;
+    this.scorePopFrames = this.milestoneFrames = this.newBestFrames = 0;
     this.copyFlashFrames = 0;
   },
 };
@@ -2315,13 +2407,16 @@ function isShareQuietFailure(err) {
 }
 
 function writeDailyShareClipboard(text) {
-  if (typeof navigator === 'undefined' || !navigator.clipboard || !navigator.clipboard.writeText) return;
+  if (typeof navigator === 'undefined' || !navigator.clipboard || !navigator.clipboard.writeText)
+    return;
   // writeText can throw synchronously when the clipboard is blocked.
   // That must not escape: the Copied flash is independent of the write.
   try {
     const pending = navigator.clipboard.writeText(text);
     if (pending && typeof pending.catch === 'function') pending.catch(() => {});
-  } catch { /* clipboard blocked */ }
+  } catch {
+    /* clipboard blocked */
+  }
 }
 
 // Build the daily result string. Copies it when the system share sheet is
@@ -2376,15 +2471,18 @@ function takeRunSeed() {
     game.seedOverride = null;
     return seed;
   }
-  return isDailyMode() ? dailySeed() : (Date.now() >>> 0);
+  return isDailyMode() ? dailySeed() : Date.now() >>> 0;
 }
 
 function copyText(text) {
-  if (typeof navigator === 'undefined' || !navigator.clipboard || !navigator.clipboard.writeText) return;
+  if (typeof navigator === 'undefined' || !navigator.clipboard || !navigator.clipboard.writeText)
+    return;
   try {
     const pending = navigator.clipboard.writeText(text);
     if (pending && typeof pending.catch === 'function') pending.catch(() => {});
-  } catch { /* clipboard unavailable or blocked */ }
+  } catch {
+    /* clipboard unavailable or blocked */
+  }
 }
 
 function noteSpawnForDeathLog(gapPx, typeId, speed) {
@@ -2393,7 +2491,7 @@ function noteSpawnForDeathLog(gapPx, typeId, speed) {
   game.lastGaps.push({
     px: gapPx,
     framesApprox,
-    msApprox: Math.round(framesApprox * 1000 / 60),
+    msApprox: Math.round((framesApprox * 1000) / 60),
   });
   game.lastObstacleTypes.push(typeId);
   if (game.lastGaps.length > DEATH_LOG_HISTORY) game.lastGaps.shift();
@@ -2408,7 +2506,11 @@ function buildRunSnapshot(reason) {
     seed: game.runSeed,
     speed: Math.round(game.currentSpeed * 100) / 100,
     nextSpawnGap: game.nextSpawnGap,
-    lastGaps: game.lastGaps.map(g => ({ px: g.px, framesApprox: g.framesApprox, msApprox: g.msApprox })),
+    lastGaps: game.lastGaps.map((g) => ({
+      px: g.px,
+      framesApprox: g.framesApprox,
+      msApprox: g.msApprox,
+    })),
     lastObstacleTypes: game.lastObstacleTypes.slice(),
     diedAtFrame: reason === 'death' ? game.animFrame : null,
     framesSinceJump: game.lastJumpFrame == null ? null : game.animFrame - game.lastJumpFrame,
@@ -2431,7 +2533,8 @@ function dumpRun() {
 
 function copyDeathLog() {
   if (!runDebug) return null;
-  const snapshot = (game.state === STATE.DEAD && game.deathLog) ? game.deathLog : buildRunSnapshot('key');
+  const snapshot =
+    game.state === STATE.DEAD && game.deathLog ? game.deathLog : buildRunSnapshot('key');
   const text = JSON.stringify(snapshot, null, 2);
   copyText(text);
   return text;
@@ -2449,10 +2552,17 @@ function handleDebugKey(event) {
 function drawDebugHud() {
   if (!runDebug) return;
   const speed = (Math.round(game.currentSpeed * 100) / 100).toFixed(2);
-  const line = 'dbg ' + game.mode + ' ' + Math.floor(game.score)
-    + ' spd ' + speed
-    + ' gap ' + game.nextSpawnGap
-    + ' seed ' + game.runSeed;
+  const line =
+    'dbg ' +
+    game.mode +
+    ' ' +
+    Math.floor(game.score) +
+    ' spd ' +
+    speed +
+    ' gap ' +
+    game.nextSpawnGap +
+    ' seed ' +
+    game.runSeed;
   ctx.save();
   ctx.globalAlpha = 0.55;
   ctx.fillStyle = game.score >= GAME_CONFIG.DAY_NIGHT_START ? '#c8c8c8' : '#6a6a6a';
@@ -2476,11 +2586,12 @@ function getBackgroundColor(s) {
   if (s < GAME_CONFIG.DAY_NIGHT_START) return '#ffffff';
   if (s >= GAME_CONFIG.DAY_NIGHT_END) return '#1a1a2e';
   if (reducedMotion) return '#ffffff'; // no smooth interpolation — snap at end
-  const t = (s - GAME_CONFIG.DAY_NIGHT_START) / (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
+  const t =
+    (s - GAME_CONFIG.DAY_NIGHT_START) / (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
   const r = Math.round(255 + (26 - 255) * t);
   const g = Math.round(255 + (26 - 255) * t);
   const b = Math.round(255 + (46 - 255) * t);
-  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+  return '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('');
 }
 
 // Updated and Daily ramp across the shorter length so the brightening
@@ -2516,9 +2627,8 @@ function starPaintAlpha() {
   const ramp = starFadeAlpha();
   if (!isUpdatedMode()) return ramp;
   const tuned = cfg('NIGHT_STAR_ALPHA');
-  const peak = typeof tuned === 'number' && tuned >= 0 && tuned <= 1
-    ? tuned
-    : GAME_CONFIG.NIGHT_STAR_ALPHA;
+  const peak =
+    typeof tuned === 'number' && tuned >= 0 && tuned <= 1 ? tuned : GAME_CONFIG.NIGHT_STAR_ALPHA;
   return ramp * peak;
 }
 
@@ -2530,7 +2640,7 @@ function drawBackground() {
     const previousAlpha = ctx.globalAlpha;
     ctx.globalAlpha = previousAlpha * starPaintAlpha();
     ctx.fillStyle = GAME_CONFIG.STAR_COLOR;
-    game.stars.forEach(s => ctx.fillRect(s.x, s.y, GAME_CONFIG.STAR_SIZE, GAME_CONFIG.STAR_SIZE));
+    game.stars.forEach((s) => ctx.fillRect(s.x, s.y, GAME_CONFIG.STAR_SIZE, GAME_CONFIG.STAR_SIZE));
     ctx.globalAlpha = previousAlpha;
   }
 }
@@ -2550,7 +2660,7 @@ function updateClouds() {
   if (reducedMotion) return;
   // PR-D: stronger parallax in Updated mode so the world feels less static.
   const speedFactor = isUpdatedMode() ? GAME_CONFIG.CLOUD_SPEED_FACTOR_UPDATED : 1;
-  game.clouds.forEach(c => {
+  game.clouds.forEach((c) => {
     c.x -= c.speed * speedFactor;
     if (c.x + GAME_CONFIG.CLOUD_WIDTH < 0) {
       c.x = GAME_CONFIG.CANVAS_W + GAME_CONFIG.CLOUD_RESPAWN_OFFSET;
@@ -2572,8 +2682,8 @@ function initHills() {
   const slot = GAME_CONFIG.CANVAS_W / GAME_CONFIG.HILL_COUNT;
   for (let i = 0; i < GAME_CONFIG.HILL_COUNT; i++) {
     game.hills.push({
-      x:      i * slot + game.rng() * (slot - GAME_CONFIG.HILL_MIN_WIDTH),
-      width:  GAME_CONFIG.HILL_MIN_WIDTH + game.rng() * GAME_CONFIG.HILL_WIDTH_RANGE,
+      x: i * slot + game.rng() * (slot - GAME_CONFIG.HILL_MIN_WIDTH),
+      width: GAME_CONFIG.HILL_MIN_WIDTH + game.rng() * GAME_CONFIG.HILL_WIDTH_RANGE,
       height: GAME_CONFIG.HILL_MIN_HEIGHT + game.rng() * GAME_CONFIG.HILL_HEIGHT_RANGE,
     });
   }
@@ -2587,7 +2697,7 @@ function updateHills() {
   let hills = game.hills;
   if (reducedMotion) {
     if (!hillLayout) {
-      hillLayout = game.hills.map(h => ({ x: h.x, width: h.width, height: h.height }));
+      hillLayout = game.hills.map((h) => ({ x: h.x, width: h.width, height: h.height }));
     }
     hills = hillLayout;
   }
@@ -2602,29 +2712,29 @@ function updateHills() {
 }
 
 function hillNightHex() {
-  const tuned = hexChannels(cfg('HILL_COLOR_NIGHT'))
-    || hexChannels(GAME_CONFIG.HILL_COLOR_NIGHT);
-  return '#' + tuned.map(v => v.toString(16).padStart(2, '0')).join('');
+  const tuned = hexChannels(cfg('HILL_COLOR_NIGHT')) || hexChannels(GAME_CONFIG.HILL_COLOR_NIGHT);
+  return '#' + tuned.map((v) => v.toString(16).padStart(2, '0')).join('');
 }
 
 function getHillColor(score) {
   score = scoreForNightSky(score);
   if (score < GAME_CONFIG.DAY_NIGHT_START) return GAME_CONFIG.HILL_COLOR_DAY;
-  if (score >= GAME_CONFIG.DAY_NIGHT_END)  return hillNightHex();
+  if (score >= GAME_CONFIG.DAY_NIGHT_END) return hillNightHex();
   if (reducedMotion) return GAME_CONFIG.HILL_COLOR_DAY; // snap — stays day until DAY_NIGHT_END
-  const t = (score - GAME_CONFIG.DAY_NIGHT_START) /
-            (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
-  const parseHex = hex => [
+  const t =
+    (score - GAME_CONFIG.DAY_NIGHT_START) /
+    (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
+  const parseHex = (hex) => [
     parseInt(hex.slice(1, 3), 16),
     parseInt(hex.slice(3, 5), 16),
     parseInt(hex.slice(5, 7), 16),
   ];
-  const day   = parseHex(GAME_CONFIG.HILL_COLOR_DAY);
+  const day = parseHex(GAME_CONFIG.HILL_COLOR_DAY);
   const night = parseHex(hillNightHex());
   const r = Math.round(day[0] + (night[0] - day[0]) * t);
   const g = Math.round(day[1] + (night[1] - day[1]) * t);
   const b = Math.round(day[2] + (night[2] - day[2]) * t);
-  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+  return '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('');
 }
 
 function drawHills() {
@@ -2660,13 +2770,14 @@ function skyTintPeakAlpha() {
   const s = scoreForNightSky(game.score);
   if (s < GAME_CONFIG.DAY_NIGHT_START) return day;
   const tuned = cfg('NIGHT_SKY_TINT_PEAK_ALPHA');
-  const night = typeof tuned === 'number' && tuned >= 0 && tuned <= 1
-    ? tuned
-    : GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA;
+  const night =
+    typeof tuned === 'number' && tuned >= 0 && tuned <= 1
+      ? tuned
+      : GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA;
   if (s >= GAME_CONFIG.DAY_NIGHT_END) return night;
   if (reducedMotion) return day;
-  const t = (s - GAME_CONFIG.DAY_NIGHT_START) /
-            (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
+  const t =
+    (s - GAME_CONFIG.DAY_NIGHT_START) / (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
   return day + (night - day) * t;
 }
 
@@ -2696,8 +2807,8 @@ function cloudPaintAlpha() {
   const dim = tunedUnitAlpha('NIGHT_CLOUD_ALPHA', GAME_CONFIG.NIGHT_CLOUD_ALPHA);
   if (s >= GAME_CONFIG.DAY_NIGHT_END) return dim;
   if (reducedMotion) return day;
-  const t = (s - GAME_CONFIG.DAY_NIGHT_START) /
-            (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
+  const t =
+    (s - GAME_CONFIG.DAY_NIGHT_START) / (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
   return day + (dim - day) * t;
 }
 
@@ -2707,7 +2818,7 @@ function drawClouds() {
   ctx.globalAlpha = previousAlpha * alpha;
   ctx.fillStyle = GAME_CONFIG.CLOUD_COLOR;
   try {
-    game.clouds.forEach(c => {
+    game.clouds.forEach((c) => {
       // One fill for the whole puff. Separate fills would stack the night
       // alpha where the circles overlap and light the center back up.
       ctx.beginPath();
@@ -2731,13 +2842,12 @@ function groundPaintAlpha() {
   const s = scoreForNightSky(game.score);
   if (s < GAME_CONFIG.DAY_NIGHT_START) return 1;
   const tuned = cfg('NIGHT_GROUND_ALPHA');
-  const dim = typeof tuned === 'number' && tuned >= 0 && tuned <= 1
-    ? tuned
-    : GAME_CONFIG.NIGHT_GROUND_ALPHA;
+  const dim =
+    typeof tuned === 'number' && tuned >= 0 && tuned <= 1 ? tuned : GAME_CONFIG.NIGHT_GROUND_ALPHA;
   if (s >= GAME_CONFIG.DAY_NIGHT_END) return dim;
   if (reducedMotion) return 1;
-  const t = (s - GAME_CONFIG.DAY_NIGHT_START) /
-            (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
+  const t =
+    (s - GAME_CONFIG.DAY_NIGHT_START) / (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
   return 1 + (dim - 1) * t;
 }
 
@@ -2754,7 +2864,13 @@ function drawGround() {
     }
     const groundY = GAME_CONFIG.CANVAS_H - groundImage.height;
     ctx.drawImage(groundImage, game.groundX, groundY, groundImage.width, groundImage.height);
-    ctx.drawImage(groundImage, game.groundX + groundImage.width, groundY, groundImage.width, groundImage.height);
+    ctx.drawImage(
+      groundImage,
+      game.groundX + groundImage.width,
+      groundY,
+      groundImage.width,
+      groundImage.height
+    );
   } finally {
     ctx.globalAlpha = previousAlpha;
   }
@@ -2808,7 +2924,7 @@ function cactusSpritePixels() {
 function bigCactusPaint(obstacle) {
   const sprite = cactusSpritePixels();
   const h = obstacle.height;
-  const w = Math.max(1, Math.round(h * sprite.w / sprite.h));
+  const w = Math.max(1, Math.round((h * sprite.w) / sprite.h));
   const x = obstacle.x + Math.floor((obstacle.width - w) / 2);
   return { x: x, y: obstacle.y, w: w, h: h };
 }
@@ -2854,15 +2970,15 @@ function drawObstacles() {
   const previousFilter = ctx.filter;
   if (brightness > 1) ctx.filter = 'brightness(' + brightness.toFixed(2) + ')';
   try {
-    game.obstacles.forEach(obstacle => {
+    game.obstacles.forEach((obstacle) => {
       if (obstacle.render === 'double') {
         const slots = clusterSpriteSlots(obstacle);
         if (!imageReady(obstacleImage)) {
           ctx.fillStyle = '#2d7a2d';
-          slots.forEach(slot => ctx.fillRect(slot.x, slot.y, slot.w, slot.h));
+          slots.forEach((slot) => ctx.fillRect(slot.x, slot.y, slot.w, slot.h));
           return;
         }
-        slots.forEach(slot => ctx.drawImage(obstacleImage, slot.x, slot.y, slot.w, slot.h));
+        slots.forEach((slot) => ctx.drawImage(obstacleImage, slot.x, slot.y, slot.w, slot.h));
         return;
       }
       drawSingleObstacle(obstacle);
@@ -2979,11 +3095,14 @@ function deathFlashPeakAlpha() {
   const day = tunedUnitAlpha('DAY_DEATH_FLASH_PEAK_ALPHA', GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA);
   const s = scoreForNightSky(game.score);
   if (s < GAME_CONFIG.DAY_NIGHT_START) return day;
-  const night = tunedUnitAlpha('NIGHT_DEATH_FLASH_PEAK_ALPHA', GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA);
+  const night = tunedUnitAlpha(
+    'NIGHT_DEATH_FLASH_PEAK_ALPHA',
+    GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA
+  );
   if (s >= GAME_CONFIG.DAY_NIGHT_END) return night;
   if (reducedMotion) return day;
-  const t = (s - GAME_CONFIG.DAY_NIGHT_START) /
-            (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
+  const t =
+    (s - GAME_CONFIG.DAY_NIGHT_START) / (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
   return day + (night - day) * t;
 }
 
@@ -3014,16 +3133,19 @@ function updatedIdlePulseTuning() {
   let base = cfg('UPDATED_IDLE_PULSE_BASE');
   let amplitude = cfg('UPDATED_IDLE_PULSE_AMPLITUDE');
   let rate = cfg('UPDATED_IDLE_PULSE_RATE');
-  const baseOk = typeof base === 'number' && Number.isFinite(base)
-    && base >= classicMin && base <= classicMax;
-  const ampOk = typeof amplitude === 'number' && Number.isFinite(amplitude)
-    && amplitude >= 0 && amplitude <= classicAmp;
+  const baseOk =
+    typeof base === 'number' && Number.isFinite(base) && base >= classicMin && base <= classicMax;
+  const ampOk =
+    typeof amplitude === 'number' &&
+    Number.isFinite(amplitude) &&
+    amplitude >= 0 &&
+    amplitude <= classicAmp;
   if (!baseOk || !ampOk || base + amplitude > classicMax) {
     base = GAME_CONFIG.UPDATED_IDLE_PULSE_BASE;
     amplitude = GAME_CONFIG.UPDATED_IDLE_PULSE_AMPLITUDE;
   }
-  const rateOk = typeof rate === 'number' && Number.isFinite(rate)
-    && rate > 0 && rate <= classicRate;
+  const rateOk =
+    typeof rate === 'number' && Number.isFinite(rate) && rate > 0 && rate <= classicRate;
   if (!rateOk) rate = GAME_CONFIG.UPDATED_IDLE_PULSE_RATE;
   return { base: base, amplitude: amplitude, rate: rate };
 }
@@ -3059,7 +3181,11 @@ function drawIdleScreen() {
   const pulseAlpha = idleStartPulseAlpha(game.animFrame);
   ctx.fillStyle = 'rgba(255, 255, 255, ' + pulseAlpha.toFixed(3) + ')';
   ctx.font = '13px ' + font;
-  ctx.fillText('TAP / PRESS SPACE TO START', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 12);
+  ctx.fillText(
+    'TAP / PRESS SPACE TO START',
+    GAME_CONFIG.CANVAS_W / 2,
+    GAME_CONFIG.CANVAS_H / 2 + 12
+  );
 }
 
 function drawGetReadyOverlay() {
@@ -3072,7 +3198,11 @@ function drawGetReadyOverlay() {
     // After death the same input skips straight into the run.
     if (game.countdownSkippable) {
       ctx.font = '14px ' + cfg('SCORE_FONT_FAMILY');
-      ctx.fillText('Press Space / Tap to start', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 16);
+      ctx.fillText(
+        'Press Space / Tap to start',
+        GAME_CONFIG.CANVAS_W / 2,
+        GAME_CONFIG.CANVAS_H / 2 + 16
+      );
     }
   } else {
     const step = Math.ceil(GAME_CONFIG.GRACE_FRAMES / 9);
@@ -3109,20 +3239,32 @@ function drawGameOverScreen() {
       // it doesn't land on the title. Static text — no pulse.
       ctx.fillStyle = 'rgba(255, 140, 0, 0.9)';
       ctx.font = '13px ' + font;
-      ctx.fillText('📅 DAILY #' + dailyNumber(), GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 70);
+      ctx.fillText(
+        '📅 DAILY #' + dailyNumber(),
+        GAME_CONFIG.CANVAS_W / 2,
+        GAME_CONFIG.CANVAS_H / 2 - 70
+      );
 
       ctx.fillStyle = 'white';
       ctx.font = '15px ' + font;
       ctx.fillText('★  NEW TODAY BEST  ★', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 36);
 
       ctx.font = '42px ' + font;
-      ctx.fillText(String(displayScore).padStart(5, '0'), GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 4);
+      ctx.fillText(
+        String(displayScore).padStart(5, '0'),
+        GAME_CONFIG.CANVAS_W / 2,
+        GAME_CONFIG.CANVAS_H / 2 - 4
+      );
 
       if (game.previousDailyBest > 0) {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
         ctx.font = '13px ' + font;
         const improvement = displayScore - game.previousDailyBest;
-        ctx.fillText('+' + improvement + ' over your previous best', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 28);
+        ctx.fillText(
+          '+' + improvement + ' over your previous best',
+          GAME_CONFIG.CANVAS_W / 2,
+          GAME_CONFIG.CANVAS_H / 2 + 28
+        );
       }
     } else {
       // Daily challenge death screen — THIS RUN vs TODAY BEST, no all-time comparison
@@ -3131,19 +3273,31 @@ function drawGameOverScreen() {
 
       ctx.fillStyle = 'rgba(255, 140, 0, 0.9)';
       ctx.font = '13px ' + font;
-      ctx.fillText('📅 DAILY #' + dailyNumber(), GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 48);
+      ctx.fillText(
+        '📅 DAILY #' + dailyNumber(),
+        GAME_CONFIG.CANVAS_W / 2,
+        GAME_CONFIG.CANVAS_H / 2 - 48
+      );
 
       ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
       ctx.font = '12px ' + font;
       ctx.fillText('THIS RUN', GAME_CONFIG.CANVAS_W * 0.2, GAME_CONFIG.CANVAS_H / 2 - 14);
       ctx.fillStyle = 'white';
       ctx.font = '28px ' + font;
-      ctx.fillText(String(displayScore).padStart(5, '0'), GAME_CONFIG.CANVAS_W * 0.2, GAME_CONFIG.CANVAS_H / 2 + 14);
+      ctx.fillText(
+        String(displayScore).padStart(5, '0'),
+        GAME_CONFIG.CANVAS_W * 0.2,
+        GAME_CONFIG.CANVAS_H / 2 + 14
+      );
 
       if (todayBest > 0) {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
         ctx.font = '16px ' + font;
-        ctx.fillText(delta > 0 ? '← +' + delta + ' →' : '← best →', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 10);
+        ctx.fillText(
+          delta > 0 ? '← +' + delta + ' →' : '← best →',
+          GAME_CONFIG.CANVAS_W / 2,
+          GAME_CONFIG.CANVAS_H / 2 - 10
+        );
         ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
         ctx.font = '11px ' + font;
         ctx.fillText('today best', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 10);
@@ -3153,7 +3307,11 @@ function drawGameOverScreen() {
         ctx.fillText('TODAY BEST', GAME_CONFIG.CANVAS_W * 0.8, GAME_CONFIG.CANVAS_H / 2 - 14);
         ctx.fillStyle = 'white';
         ctx.font = '28px ' + font;
-        ctx.fillText(String(todayBest).padStart(5, '0'), GAME_CONFIG.CANVAS_W * 0.8, GAME_CONFIG.CANVAS_H / 2 + 14);
+        ctx.fillText(
+          String(todayBest).padStart(5, '0'),
+          GAME_CONFIG.CANVAS_W * 0.8,
+          GAME_CONFIG.CANVAS_H / 2 + 14
+        );
       }
     }
 
@@ -3183,26 +3341,34 @@ function drawGameOverScreen() {
       ctx.fillText('★  NEW BEST  ★', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 36);
 
       ctx.font = '42px ' + font;
-      ctx.fillText(String(displayScore).padStart(5, '0'), GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 4);
+      ctx.fillText(
+        String(displayScore).padStart(5, '0'),
+        GAME_CONFIG.CANVAS_W / 2,
+        GAME_CONFIG.CANVAS_H / 2 - 4
+      );
 
       if (game.previousHighScore > 0) {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
         ctx.font = '13px ' + font;
         const improvement = displayScore - game.previousHighScore;
-        ctx.fillText('+' + improvement + ' over your previous best', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 28);
+        ctx.fillText(
+          '+' + improvement + ' over your previous best',
+          GAME_CONFIG.CANVAS_W / 2,
+          GAME_CONFIG.CANVAS_H / 2 + 28
+        );
       }
     } else {
       // Normal death — side-by-side comparison
-      const delta    = game.highScore - Math.floor(game.score);
+      const delta = game.highScore - Math.floor(game.score);
       const scoreStr = String(displayScore).padStart(5, '0');
-      const bestStr  = String(game.highScore).padStart(5, '0');
+      const bestStr = String(game.highScore).padStart(5, '0');
 
       ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
       ctx.font = '12px ' + font;
-      ctx.fillText('THIS RUN',  GAME_CONFIG.CANVAS_W * 0.2, GAME_CONFIG.CANVAS_H / 2 - 14);
+      ctx.fillText('THIS RUN', GAME_CONFIG.CANVAS_W * 0.2, GAME_CONFIG.CANVAS_H / 2 - 14);
       ctx.fillStyle = 'white';
       ctx.font = '28px ' + font;
-      ctx.fillText(scoreStr,   GAME_CONFIG.CANVAS_W * 0.2, GAME_CONFIG.CANVAS_H / 2 + 14);
+      ctx.fillText(scoreStr, GAME_CONFIG.CANVAS_W * 0.2, GAME_CONFIG.CANVAS_H / 2 + 14);
 
       ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
       ctx.font = '16px ' + font;
@@ -3216,12 +3382,16 @@ function drawGameOverScreen() {
       ctx.fillText('YOUR BEST', GAME_CONFIG.CANVAS_W * 0.8, GAME_CONFIG.CANVAS_H / 2 - 14);
       ctx.fillStyle = 'white';
       ctx.font = '28px ' + font;
-      ctx.fillText(bestStr,    GAME_CONFIG.CANVAS_W * 0.8, GAME_CONFIG.CANVAS_H / 2 + 14);
+      ctx.fillText(bestStr, GAME_CONFIG.CANVAS_W * 0.8, GAME_CONFIG.CANVAS_H / 2 + 14);
     }
 
     ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
     ctx.font = '13px ' + font;
-    ctx.fillText('Tap / Press Space to Restart', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H - 16);
+    ctx.fillText(
+      'Tap / Press Space to Restart',
+      GAME_CONFIG.CANVAS_W / 2,
+      GAME_CONFIG.CANVAS_H - 16
+    );
   }
   drawDebugHud();
 }
@@ -3247,9 +3417,10 @@ function milestoneFontPx() {
 function milestoneTextFrames() {
   const tuned = cfg('UPDATED_MILESTONE_TEXT_FRAMES');
   const fallback = GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES;
-  let frames = typeof tuned === 'number' && tuned >= 1 && tuned <= GAME_CONFIG.MILESTONE_FRAMES
-    ? Math.round(tuned)
-    : fallback;
+  let frames =
+    typeof tuned === 'number' && tuned >= 1 && tuned <= GAME_CONFIG.MILESTONE_FRAMES
+      ? Math.round(tuned)
+      : fallback;
   if (reducedMotion) frames = Math.max(2, Math.round(frames * 0.5));
   return frames;
 }
@@ -3330,9 +3501,10 @@ function newBestFontPx() {
 function newBestTextFrames() {
   const tuned = cfg('UPDATED_NEW_BEST_FRAMES');
   const fallback = GAME_CONFIG.UPDATED_NEW_BEST_FRAMES;
-  let frames = typeof tuned === 'number' && tuned >= 1 && tuned <= GAME_CONFIG.NEW_BEST_FRAMES
-    ? Math.round(tuned)
-    : fallback;
+  let frames =
+    typeof tuned === 'number' && tuned >= 1 && tuned <= GAME_CONFIG.NEW_BEST_FRAMES
+      ? Math.round(tuned)
+      : fallback;
   if (reducedMotion) frames = Math.max(2, Math.round(frames * 0.5));
   return frames;
 }
@@ -3417,8 +3589,12 @@ function drawQaNewBest() {
 // Cosmetic only: uses Math.random() instead of game.rng so it can't perturb
 // gameplay determinism (spawn jitter / obstacle picks stay reproducible).
 
-function isDailyMode()   { return game.mode === MODES.DAILY; }
-function isUpdatedMode() { return game.mode === MODES.UPDATED || game.mode === MODES.DAILY; }
+function isDailyMode() {
+  return game.mode === MODES.DAILY;
+}
+function isUpdatedMode() {
+  return game.mode === MODES.UPDATED || game.mode === MODES.DAILY;
+}
 
 function hexChannels(hex) {
   if (typeof hex !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(hex)) return null;
@@ -3434,20 +3610,20 @@ function hexChannels(hex) {
 // the day brown. Reduced motion snaps at full night, same as the sky.
 function landDustColor(dayColor) {
   if (!isUpdatedMode()) return dayColor;
-  const nightChannels = hexChannels(cfg('NIGHT_LAND_DUST_COLOR'))
-    || hexChannels(GAME_CONFIG.NIGHT_LAND_DUST_COLOR);
+  const nightChannels =
+    hexChannels(cfg('NIGHT_LAND_DUST_COLOR')) || hexChannels(GAME_CONFIG.NIGHT_LAND_DUST_COLOR);
   const s = scoreForNightSky(game.score);
   if (s < GAME_CONFIG.DAY_NIGHT_START) return dayColor;
   if (s >= GAME_CONFIG.DAY_NIGHT_END) {
-    return '#' + nightChannels.map(v => v.toString(16).padStart(2, '0')).join('');
+    return '#' + nightChannels.map((v) => v.toString(16).padStart(2, '0')).join('');
   }
   if (reducedMotion) return dayColor;
   const dayChannels = hexChannels(dayColor);
   if (!dayChannels) return dayColor;
-  const t = (s - GAME_CONFIG.DAY_NIGHT_START) /
-            (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
+  const t =
+    (s - GAME_CONFIG.DAY_NIGHT_START) / (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
   const mixed = dayChannels.map((c, i) => Math.round(c + (nightChannels[i] - c) * t));
-  return '#' + mixed.map(v => v.toString(16).padStart(2, '0')).join('');
+  return '#' + mixed.map((v) => v.toString(16).padStart(2, '0')).join('');
 }
 
 // Day peaks stay on the jump and land kinds. In Updated and Daily the
@@ -3463,8 +3639,8 @@ function landDustAlpha(kind) {
   if (s < GAME_CONFIG.DAY_NIGHT_START) return day;
   if (s >= GAME_CONFIG.DAY_NIGHT_END) return night;
   if (reducedMotion) return day;
-  const t = (s - GAME_CONFIG.DAY_NIGHT_START) /
-            (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
+  const t =
+    (s - GAME_CONFIG.DAY_NIGHT_START) / (GAME_CONFIG.DAY_NIGHT_END - GAME_CONFIG.DAY_NIGHT_START);
   return day + (night - day) * t;
 }
 
@@ -3513,7 +3689,17 @@ const Particles = (() => {
     // count, and life come from the night dust keys. Reduced motion still
     // applies REDUCED_FACTOR and half life on top of that. Classic never
     // emits.
-    jump:      { count:  3, color: '#9c8770', size: 3, life:  8, alpha: 0.5, vyMin: -1.2, vyMax: -0.4, vxSpread: 0.6, gravity: 0.10 },
+    jump: {
+      count: 3,
+      color: '#9c8770',
+      size: 3,
+      life: 8,
+      alpha: 0.5,
+      vyMin: -1.2,
+      vyMax: -0.4,
+      vxSpread: 0.6,
+      gravity: 0.1,
+    },
     // Landing whisper. The old burst was 9 motes living 14 frames and flung
     // ±2.5px, about 39px toward the next cactus. 5 motes is still more than
     // a takeoff, so the contact reads, but life 8 and vxSpread 0.7 hold it
@@ -3523,7 +3709,17 @@ const Particles = (() => {
     // same night recolor, and the same night peak, count, and life once
     // the sky is fully night. Same reduced-motion damping. Classic never
     // emits.
-    land:      { count:  5, color: '#9c8770', size: 3, life:  8, alpha: 0.4, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.7, gravity: 0.12 },
+    land: {
+      count: 5,
+      color: '#9c8770',
+      size: 3,
+      life: 8,
+      alpha: 0.4,
+      vyMin: -0.9,
+      vyMax: -0.4,
+      vxSpread: 0.7,
+      gravity: 0.12,
+    },
     // Late-run heel whisper in Updated and Daily. One grey mote per frame
     // once speed is near the plateau, at the heel, off the obstacle lane.
     // The old mote was rgba alpha 0.55 for 10 frames and drifted ±0.4px,
@@ -3533,7 +3729,16 @@ const Particles = (() => {
     // Size stays 2 so the speck is still visible on the night sky. The
     // grey stays 150,150,150. Reduced motion still applies REDUCED_FACTOR
     // and half life. Classic never emits.
-    trail:     { count:  1, color: 'rgba(150,150,150,0.28)', size: 2, life:  6, vyMin: -0.1, vyMax:  0.1, vxSpread: 0.2, gravity: 0    },
+    trail: {
+      count: 1,
+      color: 'rgba(150,150,150,0.28)',
+      size: 2,
+      life: 6,
+      vyMin: -0.1,
+      vyMax: 0.1,
+      vxSpread: 0.2,
+      gravity: 0,
+    },
     // Death puff in Updated and Daily. Classic never emits. The old burst
     // was 22 motes living 24 frames and flung ±4px/frame, so a mote could
     // leave the 40px dino and land on the cactus. Round 1 cut that to 8
@@ -3548,7 +3753,16 @@ const Particles = (() => {
     // #d04a2a. Reduced motion still applies REDUCED_FACTOR and half life.
     // The ?qaCollision=1 hold paints this quieter cluster; it does not
     // restyle this kind.
-    collision: { count:  5, color: '#d04a2a',                size: 3, life:  8, vyMin: -1.2, vyMax:  0.4, vxSpread: 0.7, gravity: 0.10 },
+    collision: {
+      count: 5,
+      color: '#d04a2a',
+      size: 3,
+      life: 8,
+      vyMin: -1.2,
+      vyMax: 0.4,
+      vxSpread: 0.7,
+      gravity: 0.1,
+    },
     // Level gold at the score in Updated and Daily. Classic never emits.
     // The old burst was 20 motes living 40 frames and flung ±3px/frame,
     // a 120px spray toward the lane. Round 1 cut that to 10 motes, life
@@ -3564,7 +3778,17 @@ const Particles = (() => {
     // applies REDUCED_FACTOR and half life. The ?qaConfetti=1 hold paints
     // a dark block and does not restyle this kind. Reduced motion halves
     // that hold and its ink.
-    confetti:  { count:  6, color: '#ffd700', size: 3, life: 12, alpha: 0.7, vyMin: -1.6, vyMax: -0.5, vxSpread: 0.7, gravity: 0.10 },
+    confetti: {
+      count: 6,
+      color: '#ffd700',
+      size: 3,
+      life: 12,
+      alpha: 0.7,
+      vyMin: -1.6,
+      vyMax: -0.5,
+      vxSpread: 0.7,
+      gravity: 0.1,
+    },
     // Once-per-run plateau cue in Updated and Daily. The old puff was 8
     // motes living 24 frames and flung ±0.6px. Gravity 0.02 never caught
     // the -1 rise, so a mote was still climbing at the end: about 18px up
@@ -3576,18 +3800,48 @@ const Particles = (() => {
     // cool pale speck, louder than the grey trail, and it stays at the
     // feet. Size stays 2. Color stays #c5d4e4. Reduced motion still
     // applies REDUCED_FACTOR and half life. Classic never emits.
-    plateau:   { count:  4, color: '#c5d4e4', size: 2, life: 12, alpha: 0.45, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.3, gravity: 0.06 },
+    plateau: {
+      count: 4,
+      color: '#c5d4e4',
+      size: 2,
+      life: 12,
+      alpha: 0.45,
+      vyMin: -0.9,
+      vyMax: -0.4,
+      vxSpread: 0.3,
+      gravity: 0.06,
+    },
     // QA/debug only — not for players. Dark so it reads on the white day
     // sky, and slow so a 40-frame life stays at the heel instead of walking
     // the old ±1.4 spread up the lane. Production keeps `plateau`. The
     // ?qaPlateau=1 paint is the hold, not this emit: a full pool or the
     // short night life cannot hide the cluster.
-    plateauQa: { count:  4, color: '#3d4f63', size: 2, life: 40, vyMin: -0.2, vyMax: -0.08, vxSpread: 0.08, gravity: 0.002 },
+    plateauQa: {
+      count: 4,
+      color: '#3d4f63',
+      size: 2,
+      life: 40,
+      vyMin: -0.2,
+      vyMax: -0.08,
+      vxSpread: 0.08,
+      gravity: 0.002,
+    },
   });
   const REDUCED_FACTOR = 0.25;
   const pool = [];
   for (let i = 0; i < POOL_SIZE; i++) {
-    pool.push({ x: 0, y: 0, vx: 0, vy: 0, life: 0, maxLife: 1, size: 0, color: '', gravity: 0, alpha: 1 });
+    pool.push({
+      x: 0,
+      y: 0,
+      vx: 0,
+      vy: 0,
+      life: 0,
+      maxLife: 1,
+      size: 0,
+      color: '',
+      gravity: 0,
+      alpha: 1,
+    });
   }
   return {
     POOL_SIZE,
@@ -3615,7 +3869,7 @@ const Particles = (() => {
         p.size = config.size;
         p.color = foot ? landDustColor(config.color) : config.color;
         p.gravity = config.gravity;
-        p.alpha = foot ? landDustAlpha(kind) : (typeof config.alpha === 'number' ? config.alpha : 1);
+        p.alpha = foot ? landDustAlpha(kind) : typeof config.alpha === 'number' ? config.alpha : 1;
         emitted++;
       }
       return emitted;
@@ -3657,10 +3911,10 @@ const Particles = (() => {
 // different subset and would only get a per-feature skip-flag if forced
 // through here.
 const FEATURES = Object.freeze([
-  { id: 'hills',     layer: 'background', update: updateHills,     draw: drawHills     },
-  { id: 'clouds',    layer: 'background', update: updateClouds,    draw: drawClouds    },
+  { id: 'hills', layer: 'background', update: updateHills, draw: drawHills },
+  { id: 'clouds', layer: 'background', update: updateClouds, draw: drawClouds },
   { id: 'particles', layer: 'foreground', update: Particles.update, draw: Particles.draw },
-  { id: 'skyTint',   layer: 'overlay',    update: null,            draw: drawSkyTint   },
+  { id: 'skyTint', layer: 'overlay', update: null, draw: drawSkyTint },
 ]);
 
 function runFeatureUpdates() {
@@ -3711,14 +3965,20 @@ function updateObstacles() {
 }
 
 function checkCollision(dino, obstacle) {
-  const dx = GAME_CONFIG.DINO_PAD_X,  dyt = GAME_CONFIG.DINO_PAD_Y_TOP,
-        dyb = GAME_CONFIG.DINO_PAD_Y_BOT;
-  const ox = GAME_CONFIG.OBS_PAD_X,   oy = GAME_CONFIG.OBS_PAD_Y;
+  const dx = GAME_CONFIG.DINO_PAD_X,
+    dyt = GAME_CONFIG.DINO_PAD_Y_TOP,
+    dyb = GAME_CONFIG.DINO_PAD_Y_BOT;
+  const ox = GAME_CONFIG.OBS_PAD_X,
+    oy = GAME_CONFIG.OBS_PAD_Y;
 
-  const dl = dino.x + dx,        dr = dino.x + dino.width - dx;
-  const dt = dino.y + dyt,       db = dino.y + dino.height - dyb;
-  const ol = obstacle.x + ox,    or_ = obstacle.x + obstacle.width - ox;
-  const ot = obstacle.y + oy,    ob = obstacle.y + obstacle.height;
+  const dl = dino.x + dx,
+    dr = dino.x + dino.width - dx;
+  const dt = dino.y + dyt,
+    db = dino.y + dino.height - dyb;
+  const ol = obstacle.x + ox,
+    or_ = obstacle.x + obstacle.width - ox;
+  const ot = obstacle.y + oy,
+    ob = obstacle.y + obstacle.height;
 
   return dl < or_ && dr > ol && dt < ob && db > ot;
 }
@@ -3726,9 +3986,7 @@ function checkCollision(dino, obstacle) {
 function computeRunResult(finalScore, currentHighScore) {
   const isNewBest = finalScore > currentHighScore || currentHighScore === 0;
   const previousHighScore = currentHighScore;
-  const delta = isNewBest
-    ? finalScore - previousHighScore
-    : currentHighScore - finalScore;
+  const delta = isNewBest ? finalScore - previousHighScore : currentHighScore - finalScore;
   return { isNewBest, previousHighScore, delta };
 }
 
@@ -3748,7 +4006,7 @@ function jump() {
 function handleAction() {
   audio.ensure(); // unlock AudioContext on first user gesture (Chrome autoplay policy)
   if (game.state === STATE.IDLE) {
-    game.state       = STATE.WAITING;
+    game.state = STATE.WAITING;
     game.graceFrames = GAME_CONFIG.GRACE_FRAMES;
   } else if (game.state === STATE.WAITING) {
     // First visit of the session keeps the full countdown. After a death,
@@ -3784,17 +4042,25 @@ document.addEventListener('keydown', (event) => {
 
 canvas.addEventListener('click', handleAction);
 
-canvas.addEventListener('touchstart', (event) => {
-  event.preventDefault();
-  handleAction();
-}, { passive: false });
+canvas.addEventListener(
+  'touchstart',
+  (event) => {
+    event.preventDefault();
+    handleAction();
+  },
+  { passive: false }
+);
 
 const jumpBtn = document.getElementById('jump-btn');
 if (jumpBtn) {
-  jumpBtn.addEventListener('touchstart', (event) => {
-    event.preventDefault();
-    handleAction();
-  }, { passive: false });
+  jumpBtn.addEventListener(
+    'touchstart',
+    (event) => {
+      event.preventDefault();
+      handleAction();
+    },
+    { passive: false }
+  );
   jumpBtn.addEventListener('click', handleAction);
 }
 
@@ -3803,7 +4069,7 @@ const modeToggle = document.getElementById('mode-toggle');
 function refreshModeToggle() {
   if (!modeToggle || !modeToggle.querySelectorAll) return;
   const buttons = modeToggle.querySelectorAll('button');
-  buttons.forEach(btn => {
+  buttons.forEach((btn) => {
     const pressed = btn.dataset && btn.dataset.mode === game.mode;
     btn.setAttribute('aria-pressed', String(pressed));
   });
@@ -3820,13 +4086,17 @@ if (modeToggle && modeToggle.addEventListener) {
     announce(game.mode === MODES.CLASSIC ? 'Classic mode' : 'Updated mode');
   };
   modeToggle.addEventListener('click', onModeTap);
-  modeToggle.addEventListener('touchstart', (event) => {
-    if (event.target && event.target.dataset && event.target.dataset.mode) {
-      event.preventDefault();
-      event.stopPropagation();
-      onModeTap(event);
-    }
-  }, { passive: false });
+  modeToggle.addEventListener(
+    'touchstart',
+    (event) => {
+      if (event.target && event.target.dataset && event.target.dataset.mode) {
+        event.preventDefault();
+        event.stopPropagation();
+        onModeTap(event);
+      }
+    },
+    { passive: false }
+  );
   refreshModeToggle();
 }
 
@@ -3847,11 +4117,15 @@ if (muteBtn && muteBtn.addEventListener) {
     announce(audio.muted ? 'Sound muted' : 'Sound on');
   };
   muteBtn.addEventListener('click', onMuteTap);
-  muteBtn.addEventListener('touchstart', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    onMuteTap(event);
-  }, { passive: false });
+  muteBtn.addEventListener(
+    'touchstart',
+    (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onMuteTap(event);
+    },
+    { passive: false }
+  );
   refreshMuteButton();
 }
 
@@ -3922,22 +4196,28 @@ if (shareBtn && shareBtn.addEventListener) {
         fallbackCopyDaily(shareBtn, text);
         return;
       }
-      return pending.then(() => {
-        flashShareCopied(shareBtn);
-      }).catch((err) => {
-        if (isShareQuietFailure(err)) return;
-        fallbackCopyDaily(shareBtn, text);
-      });
+      return pending
+        .then(() => {
+          flashShareCopied(shareBtn);
+        })
+        .catch((err) => {
+          if (isShareQuietFailure(err)) return;
+          fallbackCopyDaily(shareBtn, text);
+        });
     }
     flashShareCopied(shareBtn);
     shareDailyResult();
   };
   shareBtn.addEventListener('click', onShareTap);
-  shareBtn.addEventListener('touchstart', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    onShareTap(event);
-  }, { passive: false });
+  shareBtn.addEventListener(
+    'touchstart',
+    (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onShareTap(event);
+    },
+    { passive: false }
+  );
 }
 
 // Daily challenge button — activates MODES.DAILY (locks Updated behaviour)
@@ -3977,16 +4257,20 @@ if (dailyBtn && dailyBtn.addEventListener) {
     cancelAnimationFrame(game.animationFrameId);
     resetGame();
     gameLoop();
-    announce(entering
-      ? `Daily challenge #${dailyNumber()}. ${dailyPreRunLine()}.`
-      : 'Updated mode');
+    announce(
+      entering ? `Daily challenge #${dailyNumber()}. ${dailyPreRunLine()}.` : 'Updated mode'
+    );
   };
   dailyBtn.addEventListener('click', onDailyTap);
-  dailyBtn.addEventListener('touchstart', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    onDailyTap(event);
-  }, { passive: false });
+  dailyBtn.addEventListener(
+    'touchstart',
+    (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onDailyTap(event);
+    },
+    { passive: false }
+  );
   refreshDailyButton();
 }
 
@@ -3995,9 +4279,12 @@ if (dailyBtn && dailyBtn.addEventListener) {
 // on tab-switch even though no error is thrown.
 if (typeof document !== 'undefined' && document.addEventListener) {
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && audio.ctx
-        && audio.ctx.state === 'suspended'
-        && typeof audio.ctx.resume === 'function') {
+    if (
+      document.visibilityState === 'visible' &&
+      audio.ctx &&
+      audio.ctx.state === 'suspended' &&
+      typeof audio.ctx.resume === 'function'
+    ) {
       audio.ctx.resume().catch(() => {});
     }
   });
@@ -4041,36 +4328,36 @@ function resetGame() {
   game.starsInitialised = false;
   game.starFadeFrames = 0;
   Animations.reset();
-  game.newBestShown      = false;
-  game.plateauCueShown   = false;
-  game.qaClusterShown    = false;
-  game.qaBigShown        = false;
-  game.qaLevelShown      = false;
-  game.qaLevelHold       = 0;
-  game.qaConfettiShown   = false;
-  game.qaConfettiHold    = 0;
-  game.qaDustShown       = false;
-  game.qaDustHold        = 0;
-  game.qaCollisionShown  = false;
-  game.qaCollisionHold   = 0;
-  game.qaPlateauHold     = 0;
-  game.qaFlashShown      = false;
-  game.qaFlashHold       = 0;
-  game.qaScorePopShown   = false;
-  game.qaScorePopHold    = 0;
-  game.qaShakeShown      = false;
-  game.qaShakeHold       = 0;
-  game.qaNewBestShown    = false;
-  game.qaNewBestHold     = 0;
-  game.qaCopyShown       = false;
-  game.qaCopyHold        = 0;
-  game.qaShareShown      = false;
-  game.qaShareHold       = 0;
-  game.qaCountUpShown    = false;
-  game.qaCountUpHold     = 0;
+  game.newBestShown = false;
+  game.plateauCueShown = false;
+  game.qaClusterShown = false;
+  game.qaBigShown = false;
+  game.qaLevelShown = false;
+  game.qaLevelHold = 0;
+  game.qaConfettiShown = false;
+  game.qaConfettiHold = 0;
+  game.qaDustShown = false;
+  game.qaDustHold = 0;
+  game.qaCollisionShown = false;
+  game.qaCollisionHold = 0;
+  game.qaPlateauHold = 0;
+  game.qaFlashShown = false;
+  game.qaFlashHold = 0;
+  game.qaScorePopShown = false;
+  game.qaScorePopHold = 0;
+  game.qaShakeShown = false;
+  game.qaShakeHold = 0;
+  game.qaNewBestShown = false;
+  game.qaNewBestHold = 0;
+  game.qaCopyShown = false;
+  game.qaCopyHold = 0;
+  game.qaShareShown = false;
+  game.qaShareHold = 0;
+  game.qaCountUpShown = false;
+  game.qaCountUpHold = 0;
   game.qaCountUpShareCleared = false;
-  game.qaIdleShown       = false;
-  game.qaIdleHold        = 0;
+  game.qaIdleShown = false;
+  game.qaIdleHold = 0;
   // QA/debug only. Re-read so a mode toggle still honors the page query.
   qaPlateau = readQaPlateauFlag();
   qaCluster = readQaClusterFlag();
@@ -4092,9 +4379,9 @@ function resetGame() {
   qaSafe = readQaSafeFlag();
   qaHz = readQaHzFlag();
   applyQaSafeShell();
-  game.isNewBest         = false;
+  game.isNewBest = false;
   game.previousHighScore = 0;
-  game.isNewTodayBest    = false;
+  game.isNewTodayBest = false;
   game.previousDailyBest = 0;
   game.lastGaps = [];
   game.lastObstacleTypes = [];
@@ -4106,12 +4393,14 @@ function resetGame() {
   const shareBtnEl = document.getElementById('share-btn');
   if (shareBtnEl && shareBtnEl.style) shareBtnEl.style.display = 'none';
   markShareCopied(shareBtnEl, false, false);
-  game.nextSpawnGap = computeNextSpawnGap(game.rng, DifficultyProfile.speedAtScore(game.score), game.mode);
+  game.nextSpawnGap = computeNextSpawnGap(
+    game.rng,
+    DifficultyProfile.speedAtScore(game.score),
+    game.mode
+  );
   initClouds();
   initHills();
-  const ready = game.countdownSkippable
-    ? 'Get ready. Press space or tap to start.'
-    : 'Get ready.';
+  const ready = game.countdownSkippable ? 'Get ready. Press space or tap to start.' : 'Get ready.';
   announce(isDailyMode() ? ready + ' ' + dailyPreRunLine() + '.' : ready);
   setPageBackground('');
 }
@@ -4255,7 +4544,11 @@ function handleRunning() {
     game.milestoneText = 'LEVEL ' + (level + 1);
     Animations.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
     audio.milestone();
-    Particles.emit('confetti', GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30, GAME_CONFIG.SCORE_Y);
+    Particles.emit(
+      'confetti',
+      GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30,
+      GAME_CONFIG.SCORE_Y
+    );
   } else if (qaLevel && isUpdatedMode() && !game.qaLevelShown) {
     // QA/debug only. Same wash as the first real level, once, while the
     // score is still near zero. The hold keeps the quiet word up after
@@ -4264,7 +4557,11 @@ function handleRunning() {
     game.milestoneText = 'LEVEL 2';
     Animations.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
     audio.milestone();
-    Particles.emit('confetti', GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30, GAME_CONFIG.SCORE_Y);
+    Particles.emit(
+      'confetti',
+      GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30,
+      GAME_CONFIG.SCORE_Y
+    );
     game.qaLevelHold = qaLevelHoldFrames();
     latchedQaLevel = true;
   }
@@ -4294,9 +4591,16 @@ function handleRunning() {
   // does not linger over the obstacle lane. Classic uses STAR_FADE_FRAMES
   // and holds full white. Positions stay Math.random() — cosmetic, and
   // this block does not touch game.rng().
-  if (!reducedMotion && scoreForNightSky(game.score) >= GAME_CONFIG.DAY_NIGHT_END && !game.starsInitialised) {
+  if (
+    !reducedMotion &&
+    scoreForNightSky(game.score) >= GAME_CONFIG.DAY_NIGHT_END &&
+    !game.starsInitialised
+  ) {
     for (let i = 0; i < GAME_CONFIG.STAR_COUNT; i++) {
-      game.stars.push({ x: Math.random() * GAME_CONFIG.CANVAS_W, y: Math.random() * GAME_CONFIG.STAR_Y_RANGE });
+      game.stars.push({
+        x: Math.random() * GAME_CONFIG.CANVAS_W,
+        y: Math.random() * GAME_CONFIG.STAR_Y_RANGE,
+      });
     }
     game.starsInitialised = true;
     game.starFadeFrames = 0;
@@ -4307,8 +4611,8 @@ function handleRunning() {
 
   drawBackground();
   setPageBackground(getBackgroundColor(game.score));
-  runFeatureUpdates();              // updateHills, updateClouds, Particles.update
-  runFeatureDraws('background');    // drawHills, drawClouds
+  runFeatureUpdates(); // updateHills, updateClouds, Particles.update
+  runFeatureDraws('background'); // drawHills, drawClouds
   drawGround();
   updateObstacles();
 
@@ -4347,8 +4651,8 @@ function handleRunning() {
   // see it on the night sky. Classic never enters. Particles.emit uses
   // Math.random(), not game.rng(). The flag does not change speed, gaps,
   // or scoring.
-  const trailOn = qaTrail
-    || game.currentSpeed >= GAME_CONFIG.PLATEAU_SPEED * GAME_CONFIG.TRAIL_SPEED_RATIO;
+  const trailOn =
+    qaTrail || game.currentSpeed >= GAME_CONFIG.PLATEAU_SPEED * GAME_CONFIG.TRAIL_SPEED_RATIO;
   if (isUpdatedMode() && trailOn) {
     Particles.emit('trail', dino.x + 4, dino.y + dino.height - 4);
   }
@@ -4368,7 +4672,7 @@ function handleRunning() {
   }
 
   drawObstacles();
-  runFeatureDraws('foreground');    // Particles.draw
+  runFeatureDraws('foreground'); // Particles.draw
 
   // Collision detection.
   for (let i = 0; i < game.obstacles.length; i++) {
@@ -4385,7 +4689,7 @@ function handleRunning() {
       audio.death();
       const finalScore = Math.floor(game.score);
       const runResult = computeRunResult(finalScore, game.highScore);
-      game.isNewBest         = runResult.isNewBest;
+      game.isNewBest = runResult.isNewBest;
       game.previousHighScore = runResult.previousHighScore;
       if (finalScore > game.highScore) {
         game.highScore = finalScore;
@@ -4404,9 +4708,22 @@ function handleRunning() {
         game.previousDailyBest = 0;
       }
       const todayLine = game.isNewTodayBest ? 'New today best ' : 'Today best ';
-      announce(isDailyMode()
-        ? 'Game over. Score ' + finalScore + '. ' + todayLine + game.dailyBest + '. ' + DAILY_DEATH_HINT + '. Press space to restart.'
-        : 'Game over. Score ' + finalScore + '. High score ' + game.highScore + '. Press space to restart.');
+      announce(
+        isDailyMode()
+          ? 'Game over. Score ' +
+              finalScore +
+              '. ' +
+              todayLine +
+              game.dailyBest +
+              '. ' +
+              DAILY_DEATH_HINT +
+              '. Press space to restart.'
+          : 'Game over. Score ' +
+              finalScore +
+              '. High score ' +
+              game.highScore +
+              '. Press space to restart.'
+      );
       if (runDebug) publishRunSnapshot(buildRunSnapshot('death'));
       return;
     }
@@ -4437,16 +4754,16 @@ function handleRunning() {
 
   drawDino();
   drawScore();
-  runFeatureDraws('overlay');       // drawSkyTint
+  runFeatureDraws('overlay'); // drawSkyTint
   drawMilestoneFlash();
   drawNewBestBadge();
 }
 
 const STATE_HANDLERS = {
-  [STATE.IDLE]:    handleIdle,
+  [STATE.IDLE]: handleIdle,
   [STATE.WAITING]: handleWaiting,
   [STATE.RUNNING]: handleRunning,
-  [STATE.DEAD]:    handleDead,
+  [STATE.DEAD]: handleDead,
 };
 
 // One sim step is the historical 60Hz frame. Score, speed, spawn gaps,
@@ -4529,8 +4846,8 @@ function noteQaHzFrame(steps, timestamp) {
   const elapsed = timestamp - qaHzMeter.anchor;
   // A summed 60Hz second can land a hair under 1000. That is still one second.
   if (elapsed + 1e-3 < 1000) return;
-  qaHzMeter.rafHz = Math.round(qaHzMeter.raf * 1000 / elapsed);
-  qaHzMeter.simHz = Math.round(qaHzMeter.sim * 1000 / elapsed);
+  qaHzMeter.rafHz = Math.round((qaHzMeter.raf * 1000) / elapsed);
+  qaHzMeter.simHz = Math.round((qaHzMeter.sim * 1000) / elapsed);
   qaHzMeter.raf = 0;
   qaHzMeter.sim = 0;
   qaHzMeter.anchor = timestamp;
@@ -4620,7 +4937,8 @@ function registerServiceWorker(nav, win) {
   });
   return true;
 }
-if (!isNode) registerServiceWorker(typeof navigator !== 'undefined' ? navigator : undefined, window);
+if (!isNode)
+  registerServiceWorker(typeof navigator !== 'undefined' ? navigator : undefined, window);
 
 // == SECTION 10: TEST EXPOSURE (Node only) ==
 // Tests run script.js under Node and reference game state via the `game` object
@@ -4657,10 +4975,10 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.computeRunResult = computeRunResult;
   global.drawIdleScreen = drawIdleScreen;
   global.drawGetReadyOverlay = drawGetReadyOverlay;
-  global.handleAction   = handleAction;
+  global.handleAction = handleAction;
   global.registerServiceWorker = registerServiceWorker;
   global.initCanvasScale = initCanvasScale;
-  global.handleResize   = handleResize;
+  global.handleResize = handleResize;
   global.computeCanvasCssWidth = computeCanvasCssWidth;
   global.measureCanvasCssWidth = measureCanvasCssWidth;
   global.fitCanvasCssSize = fitCanvasCssSize;

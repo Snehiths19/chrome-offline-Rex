@@ -18,10 +18,12 @@ Single-file vanilla-JS clone of Chrome's offline dino game. Render target is a `
 ```bash
 npm test                       # runs the full suite under Node
 npm run lint                   # ESLint script.js + tests
+npm run format                 # Prettier: run before committing
+npm run format:check           # what CI checks
 npm run serve                  # local server on :8080
 ```
 
-The lint and test gates also run in CI on pull requests and on pushes to any branch except `master` (`.github/workflows/ci.yml`) and as a deploy gate on `pages.yml`.
+The lint, format and test gates also run in CI on pull requests and on pushes to any branch except `master` (`.github/workflows/ci.yml`) and as a deploy gate on `pages.yml`.
 
 ## File map
 

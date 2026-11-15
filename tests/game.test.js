@@ -53,7 +53,7 @@ function it(description, testFn) {
   }
 }
 
-function assert(condition, message = "Assertion failed") {
+function assert(condition, message = 'Assertion failed') {
   if (!condition) {
     throw new Error(message);
   }
@@ -152,7 +152,7 @@ function overrideGlobalProp(name, value) {
 
 // Prevent game from auto-starting if it did so on image load.
 if (typeof cancelAnimationFrame === 'function' && game && game.animationFrameId) {
-    cancelAnimationFrame(game.animationFrameId);
+  cancelAnimationFrame(game.animationFrameId);
 }
 game.state = STATE.DEAD; // keep loop halted until tests explicitly advance state
 
@@ -179,12 +179,19 @@ describe('Dinosaur Jump', () => {
     };
 
     stepPhysics();
-    assert(dino.y < initialY, `Dino Y (${dino.y}) should be less than initial Y (${initialY}) after 1st frame`);
+    assert(
+      dino.y < initialY,
+      `Dino Y (${dino.y}) should be less than initial Y (${initialY}) after 1st frame`
+    );
 
     let frames = 0;
     while (dino.isJumping && frames++ < 100) stepPhysics();
     assert(!dino.isJumping, 'Dino should eventually land');
-    assertEquals(dino.y, GAME_CONFIG.CANVAS_H - dino.height, 'Dino should be back on the ground after landing');
+    assertEquals(
+      dino.y,
+      GAME_CONFIG.CANVAS_H - dino.height,
+      'Dino should be back on the ground after landing'
+    );
   });
 
   it('should have a peak jump height of ~144px', () => {
@@ -199,12 +206,18 @@ describe('Dinosaur Jump', () => {
       dino.velocityY += dino.gravity;
       dino.y += dino.velocityY;
       if (dino.y < minY) minY = dino.y;
-      if (dino.y >= groundY) { dino.y = groundY; dino.isJumping = false; break; }
+      if (dino.y >= groundY) {
+        dino.y = groundY;
+        dino.isJumping = false;
+        break;
+      }
     }
     const actualPeak = groundY - minY;
-    assert(Math.abs(actualPeak - expectedPeak) <= 5,
+    assert(
+      Math.abs(actualPeak - expectedPeak) <= 5,
       `Peak height ${actualPeak.toFixed(1)}px should be ~${expectedPeak}px. ` +
-      `If this passes before changing constants, the test is wrong — rewrite it.`);
+        `If this passes before changing constants, the test is wrong — rewrite it.`
+    );
   });
 
   it('should ignore jump() when state is not RUNNING', () => {
@@ -224,7 +237,11 @@ describe('Obstacle Spawning & Movement', () => {
     assertEquals(game.obstacles.length, 0, 'Obstacles array should be initially empty');
     spawnObstacle();
     assertEquals(game.obstacles.length, 1, 'Obstacle should be added to array');
-    assertEquals(game.obstacles[0].x, GAME_CONFIG.CANVAS_W, 'Obstacle should spawn at the right edge');
+    assertEquals(
+      game.obstacles[0].x,
+      GAME_CONFIG.CANVAS_W,
+      'Obstacle should spawn at the right edge'
+    );
   });
 
   it('should decrease obstacle X position after a game loop update', () => {
@@ -237,8 +254,10 @@ describe('Obstacle Spawning & Movement', () => {
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
     assert(game.obstacles.length > 0, 'Obstacle should still exist');
-    assert(game.obstacles[0].x < initialObstacleX,
-      `Obstacle X (${game.obstacles[0].x}) should be less than initial X (${initialObstacleX})`);
+    assert(
+      game.obstacles[0].x < initialObstacleX,
+      `Obstacle X (${game.obstacles[0].x}) should be less than initial X (${initialObstacleX})`
+    );
   });
 });
 
@@ -254,10 +273,13 @@ describe('Collision Detection', () => {
       x: 50,
       y: GAME_CONFIG.CANVAS_H - 40,
       width: 20,
-      height: 40
+      height: 40,
     };
     game.obstacles.push(collidingObstacle);
-    assert(checkCollision(dino, game.obstacles[0]), 'checkCollision should return true for colliding objects');
+    assert(
+      checkCollision(dino, game.obstacles[0]),
+      'checkCollision should return true for colliding objects'
+    );
   });
 
   it('should return false when dino and obstacle are not colliding', () => {
@@ -271,10 +293,13 @@ describe('Collision Detection', () => {
       x: 200,
       y: GAME_CONFIG.CANVAS_H - 40,
       width: 20,
-      height: 40
+      height: 40,
     };
     game.obstacles.push(nonCollidingObstacle);
-    assert(!checkCollision(dino, game.obstacles[0]), 'checkCollision should return false for non-colliding objects');
+    assert(
+      !checkCollision(dino, game.obstacles[0]),
+      'checkCollision should return false for non-colliding objects'
+    );
   });
 });
 
@@ -292,7 +317,10 @@ describe('Scoring', () => {
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
 
-    assert(game.score > initialScore, `Score (${game.score}) should be greater than initial score (${initialScore})`);
+    assert(
+      game.score > initialScore,
+      `Score (${game.score}) should be greater than initial score (${initialScore})`
+    );
   });
 });
 
@@ -314,14 +342,23 @@ describe('Obstacle Gap Enforcement', () => {
     // At rng=0.5 jitter is zero, so gap = round(MAX_SPAWN_GAP - (speed - INITIAL_SPEED) * FACTOR).
     const expectedGap = Math.round(
       GAME_CONFIG.MAX_SPAWN_GAP -
-      (DifficultyProfile.speedAtScore(0) - GAME_CONFIG.INITIAL_SPEED) * GAME_CONFIG.SPAWN_GAP_SPEED_FACTOR
+        (DifficultyProfile.speedAtScore(0) - GAME_CONFIG.INITIAL_SPEED) *
+          GAME_CONFIG.SPAWN_GAP_SPEED_FACTOR
     );
-    assertEquals(game.nextSpawnGap, expectedGap, `Next gap should be ${expectedGap} at speedAtScore(0) with zero jitter`);
+    assertEquals(
+      game.nextSpawnGap,
+      expectedGap,
+      `Next gap should be ${expectedGap} at speedAtScore(0) with zero jitter`
+    );
 
     // Frame 2: obstacle hasn't drifted far enough yet — not a spawn frame.
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
-    assertEquals(game.obstacles.length, 1, `Should still be 1 obstacle — ${expectedGap}px gap not met`);
+    assertEquals(
+      game.obstacles.length,
+      1,
+      `Should still be 1 obstacle — ${expectedGap}px gap not met`
+    );
 
     // Force obstacle just past the threshold
     game.obstacles[0].x = GAME_CONFIG.CANVAS_W - (game.nextSpawnGap + 1);
@@ -337,11 +374,12 @@ describe('Spawn Gap Jitter', () => {
   it('nextObstacle gap stays within [MIN_SPAWN_GAP, baseGap * (1 + JITTER)]', () => {
     // Late-game Updated gaps are speed-scaled; see 'Late-game spawn gap'.
     const scores = [0, 200];
-    scores.forEach(score => {
+    scores.forEach((score) => {
       const speed = DifficultyProfile.speedAtScore(score);
       const baseGap = Math.max(
         GAME_CONFIG.MIN_SPAWN_GAP,
-        GAME_CONFIG.MAX_SPAWN_GAP - (speed - GAME_CONFIG.INITIAL_SPEED) * GAME_CONFIG.SPAWN_GAP_SPEED_FACTOR
+        GAME_CONFIG.MAX_SPAWN_GAP -
+          (speed - GAME_CONFIG.INITIAL_SPEED) * GAME_CONFIG.SPAWN_GAP_SPEED_FACTOR
       );
       const upperBound = Math.round(baseGap * (1 + GAME_CONFIG.SPAWN_GAP_JITTER));
       const rng = mulberry32(12345);
@@ -358,16 +396,22 @@ describe('Spawn Gap Jitter', () => {
   it('produces different gaps across spawns (breaks the metronome)', () => {
     const rng = mulberry32(7);
     const gaps = new Set();
-    for (let i = 0; i < 50; i++) gaps.add(DifficultyProfile.nextObstacle(100, MODES.UPDATED, rng).gap);
-    assert(gaps.size >= 5, `Expected gap variety; got ${gaps.size} distinct values across 50 draws`);
+    for (let i = 0; i < 50; i++)
+      gaps.add(DifficultyProfile.nextObstacle(100, MODES.UPDATED, rng).gap);
+    assert(
+      gaps.size >= 5,
+      `Expected gap variety; got ${gaps.size} distinct values across 50 draws`
+    );
   });
 
   it('smallest achievable gap is still at least MIN_SPAWN_GAP (always clearable)', () => {
     // Force rng to 0 → maximum negative jitter on the gap roll.
     const worstCaseRng = () => 0;
     const { gap } = DifficultyProfile.nextObstacle(500, MODES.UPDATED, worstCaseRng);
-    assert(gap >= GAME_CONFIG.MIN_SPAWN_GAP,
-      `At max negative jitter + near-plateau speed, gap ${gap} must be >= MIN_SPAWN_GAP ${GAME_CONFIG.MIN_SPAWN_GAP}`);
+    assert(
+      gap >= GAME_CONFIG.MIN_SPAWN_GAP,
+      `At max negative jitter + near-plateau speed, gap ${gap} must be >= MIN_SPAWN_GAP ${GAME_CONFIG.MIN_SPAWN_GAP}`
+    );
   });
 
   it('mulberry32 is deterministic given same seed', () => {
@@ -405,7 +449,7 @@ describe('Late-game spawn gap (Updated/Daily)', () => {
 
   function focusedJumpFrames(score) {
     const speed = DifficultyProfile.speedAtScore(score);
-    const cluster = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'cluster');
+    const cluster = GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'cluster');
     // One jump, plus the frames a cluster occupies at this speed, plus a short read.
     return jumpAirtimeFrames() + cluster.width / speed + 12;
   }
@@ -413,17 +457,22 @@ describe('Late-game spawn gap (Updated/Daily)', () => {
   it('updated zero-jitter gap grows with speed from 450 to 640', () => {
     const g450 = zeroJitterGap(450, MODES.UPDATED);
     const g640 = zeroJitterGap(640, MODES.UPDATED);
-    assert(g640 > g450,
-      `Gap at 640 (${g640}) should exceed gap at 450 (${g450}) so time-between holds as speed rises`);
+    assert(
+      g640 > g450,
+      `Gap at 640 (${g640}) should exceed gap at 450 (${g450}) so time-between holds as speed rises`
+    );
   });
 
   it('updated zero-jitter time between obstacles holds from 450 through 640', () => {
-    const timeAt = (score) => zeroJitterGap(score, MODES.UPDATED) / DifficultyProfile.speedAtScore(score);
+    const timeAt = (score) =>
+      zeroJitterGap(score, MODES.UPDATED) / DifficultyProfile.speedAtScore(score);
     const t450 = timeAt(450);
     const t640 = timeAt(640);
     const ratio = t640 / t450;
-    assert(ratio > 0.95 && ratio < 1.05,
-      `Time-between should stay level as speed rises; 450=${t450.toFixed(1)}f 640=${t640.toFixed(1)}f ratio=${ratio.toFixed(3)}`);
+    assert(
+      ratio > 0.95 && ratio < 1.05,
+      `Time-between should stay level as speed rises; 450=${t450.toFixed(1)}f 640=${t640.toFixed(1)}f ratio=${ratio.toFixed(3)}`
+    );
   });
 
   it('updated worst-case gap stays above one focused jump from 300 through 640', () => {
@@ -431,10 +480,14 @@ describe('Late-game spawn gap (Updated/Daily)', () => {
       const speed = DifficultyProfile.speedAtScore(score);
       const frames = worstGap(score, MODES.UPDATED) / speed;
       const minFrames = focusedJumpFrames(score);
-      assert(frames >= minFrames,
-        `Score ${score}: worst gap ${frames.toFixed(1)}f should be >= ${minFrames.toFixed(1)}f`);
-      assert(frames + 1e-6 >= GAME_CONFIG.UPDATED_MIN_GAP_FRAMES,
-        `Score ${score}: worst gap ${frames.toFixed(1)}f should hold UPDATED_MIN_GAP_FRAMES (${GAME_CONFIG.UPDATED_MIN_GAP_FRAMES})`);
+      assert(
+        frames >= minFrames,
+        `Score ${score}: worst gap ${frames.toFixed(1)}f should be >= ${minFrames.toFixed(1)}f`
+      );
+      assert(
+        frames + 1e-6 >= GAME_CONFIG.UPDATED_MIN_GAP_FRAMES,
+        `Score ${score}: worst gap ${frames.toFixed(1)}f should hold UPDATED_MIN_GAP_FRAMES (${GAME_CONFIG.UPDATED_MIN_GAP_FRAMES})`
+      );
     }
   });
 
@@ -451,8 +504,10 @@ describe('Late-game spawn gap (Updated/Daily)', () => {
   it('a gap wider than the screen still spawns the next obstacle', () => {
     const speed = DifficultyProfile.speedAtScore(640);
     const wide = DifficultyProfile.nextObstacle(640, MODES.UPDATED, () => 1).gap;
-    assert(wide > 900,
-      `Max jitter at score 640 (${wide}) should pass the old 900px spawn sentinel`);
+    assert(
+      wide > 900,
+      `Max jitter at score 640 (${wide}) should pass the old 900px spawn sentinel`
+    );
 
     const orig = {
       mode: game.mode,
@@ -472,9 +527,14 @@ describe('Late-game spawn gap (Updated/Daily)', () => {
 
     const frame = framesUntilNextSpawn(400);
     const expected = wide / speed;
-    assert(frame !== null, `A ${wide}px gap must still produce another obstacle after the sprite leaves`);
-    assert(Math.abs(frame - expected) <= 2,
-      `Spawn landed on frame ${frame}; a ${wide}px gap at speed ${speed.toFixed(2)} should take about ${expected.toFixed(1)} frames, not the screen-exit clip`);
+    assert(
+      frame !== null,
+      `A ${wide}px gap must still produce another obstacle after the sprite leaves`
+    );
+    assert(
+      Math.abs(frame - expected) <= 2,
+      `Spawn landed on frame ${frame}; a ${wide}px gap at speed ${speed.toFixed(2)} should take about ${expected.toFixed(1)} frames, not the screen-exit clip`
+    );
 
     game.mode = orig.mode;
     game.state = orig.state;
@@ -488,8 +548,10 @@ describe('Late-game spawn gap (Updated/Daily)', () => {
     for (const score of [300, 450]) {
       const updated = zeroJitterGap(score, MODES.UPDATED);
       const classic = zeroJitterGap(score, MODES.CLASSIC);
-      assert(updated > classic,
-        `Score ${score}: updated gap ${updated} should be wider than classic ${classic}`);
+      assert(
+        updated > classic,
+        `Score ${score}: updated gap ${updated} should be wider than classic ${classic}`
+      );
     }
   });
 
@@ -509,7 +571,7 @@ describe('Late-game spawn gap (Updated/Daily)', () => {
       GAME_CONFIG.MIN_SPAWN_GAP,
       Math.round(
         GAME_CONFIG.MAX_SPAWN_GAP -
-        (speed - GAME_CONFIG.INITIAL_SPEED) * GAME_CONFIG.SPAWN_GAP_SPEED_FACTOR
+          (speed - GAME_CONFIG.INITIAL_SPEED) * GAME_CONFIG.SPAWN_GAP_SPEED_FACTOR
       )
     );
     const classic = DifficultyProfile.nextObstacle(450, MODES.CLASSIC, () => 0).gap;
@@ -539,7 +601,8 @@ describe('Late-game spawn gap (Updated/Daily)', () => {
     const seq = (seed) => {
       const rng = mulberry32(seed);
       const gaps = [];
-      for (let i = 0; i < 20; i++) gaps.push(DifficultyProfile.nextObstacle(450, MODES.UPDATED, rng).gap);
+      for (let i = 0; i < 20; i++)
+        gaps.push(DifficultyProfile.nextObstacle(450, MODES.UPDATED, rng).gap);
       return gaps.join(',');
     };
     assertEquals(seq(20260927), seq(20260927), 'Same seed must replay the same gaps');
@@ -549,7 +612,11 @@ describe('Late-game spawn gap (Updated/Daily)', () => {
   it('updated gaps are whole pixels, including the speed-scaled floor', () => {
     for (const score of [0, 300, 400, 450, 640]) {
       const gap = worstGap(score, MODES.UPDATED);
-      assertEquals(gap, Math.round(gap), `Worst gap at score ${score} should be an integer, got ${gap}`);
+      assertEquals(
+        gap,
+        Math.round(gap),
+        `Worst gap at score ${score} should be an integer, got ${gap}`
+      );
       assertEquals(
         zeroJitterGap(score, MODES.UPDATED),
         Math.round(zeroJitterGap(score, MODES.UPDATED)),
@@ -561,15 +628,20 @@ describe('Late-game spawn gap (Updated/Daily)', () => {
   it('updated jitter at score 450 does not pile up on MIN_SPAWN_GAP', () => {
     const rng = mulberry32(99);
     const gaps = [];
-    for (let i = 0; i < 400; i++) gaps.push(DifficultyProfile.nextObstacle(450, MODES.UPDATED, rng).gap);
-    const slammed = gaps.filter(g => g <= GAME_CONFIG.MIN_SPAWN_GAP + 1).length / gaps.length;
-    assert(slammed < 0.05,
-      `Only ${(slammed * 100).toFixed(1)}% of gaps should sit on MIN_SPAWN_GAP; got a floor pile-up`);
+    for (let i = 0; i < 400; i++)
+      gaps.push(DifficultyProfile.nextObstacle(450, MODES.UPDATED, rng).gap);
+    const slammed = gaps.filter((g) => g <= GAME_CONFIG.MIN_SPAWN_GAP + 1).length / gaps.length;
+    assert(
+      slammed < 0.05,
+      `Only ${(slammed * 100).toFixed(1)}% of gaps should sit on MIN_SPAWN_GAP; got a floor pile-up`
+    );
     gaps.sort((a, b) => a - b);
     const tightest = gaps[0];
     const median = gaps[Math.floor(gaps.length / 2)];
-    assert(median >= tightest * 1.1,
-      `Median gap ${median} should sit above the tightest gap ${tightest}`);
+    assert(
+      median >= tightest * 1.1,
+      `Median gap ${median} should sit above the tightest gap ${tightest}`
+    );
   });
 });
 
@@ -580,7 +652,7 @@ describe('Ambient depth + confetti (PR-D)', () => {
     // Pin the RNG to a deterministic sequence.
     game.rng = mulberry32(42);
     initHills();
-    const snapshot1 = game.hills.map(h => ({ x: h.x, w: h.width, h: h.height }));
+    const snapshot1 = game.hills.map((h) => ({ x: h.x, w: h.width, h: h.height }));
     assertEquals(game.hills.length, GAME_CONFIG.HILL_COUNT, 'Hills count should match config');
 
     // Re-seed identically and re-init — same hills.
@@ -624,7 +696,10 @@ describe('Ambient depth + confetti (PR-D)', () => {
     hill.x = -hill.width - 1; // already past left edge
     game.currentSpeed = 6;
     updateHills();
-    assert(hill.x >= GAME_CONFIG.CANVAS_W, `Respawned hill x (${hill.x}) should be at/past right edge (${GAME_CONFIG.CANVAS_W})`);
+    assert(
+      hill.x >= GAME_CONFIG.CANVAS_W,
+      `Respawned hill x (${hill.x}) should be at/past right edge (${GAME_CONFIG.CANVAS_W})`
+    );
   });
 
   it('confetti is a registered particle kind', () => {
@@ -643,7 +718,7 @@ describe('Ambient depth + confetti (PR-D)', () => {
     game.score = GAME_CONFIG.SCORE_PER_LEVEL - 0.05; // next gameLoop tick crosses
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
-    const live = Particles.particles.filter(p => p.life > 0 && p.color === '#ffd700').length;
+    const live = Particles.particles.filter((p) => p.life > 0 && p.color === '#ffd700').length;
     assert(live > 0, `Should have emitted at least one gold confetti particle, got ${live}`);
   });
 
@@ -657,7 +732,7 @@ describe('Ambient depth + confetti (PR-D)', () => {
     game.score = GAME_CONFIG.SCORE_PER_LEVEL - 0.05;
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
-    const gold = Particles.particles.filter(p => p.life > 0 && p.color === '#ffd700').length;
+    const gold = Particles.particles.filter((p) => p.life > 0 && p.color === '#ffd700').length;
     assertEquals(gold, 0, 'Classic mode should not spawn confetti');
     setMode(MODES.UPDATED);
     cancelAnimationFrame(game.animationFrameId);
@@ -676,8 +751,11 @@ describe('Death flash + score pop (PR-C)', () => {
     cancelAnimationFrame(game.animationFrameId);
     assertEquals(game.state, STATE.DEAD, 'should be dead');
     assertEquals(Animations.deathFlashFrames, GAME_CONFIG.DEATH_FLASH_FRAMES, 'flash counter set');
-    assertEquals(Animations.scorePopFrames, GAME_CONFIG.UPDATED_DEATH_SHAKE_FRAMES,
-      'score pop counter matches the quieter shake');
+    assertEquals(
+      Animations.scorePopFrames,
+      GAME_CONFIG.UPDATED_DEATH_SHAKE_FRAMES,
+      'score pop counter matches the quieter shake'
+    );
   });
 
   it('classic mode collision leaves deathFlashFrames + scorePopFrames at 0', () => {
@@ -730,7 +808,9 @@ describe('Audio (PR-B)', () => {
     const names = ['AudioContext', 'webkitAudioContext'];
     const saved = names.map((n) => Object.getOwnPropertyDescriptor(testGlobal, n));
     const origCtx = audio.ctx;
-    names.forEach((n) => { testGlobal[n] = undefined; });
+    names.forEach((n) => {
+      testGlobal[n] = undefined;
+    });
     audio.ctx = null;
     let result;
     try {
@@ -771,7 +851,10 @@ describe('Audio (PR-B)', () => {
     audio.setMuted(false);
     let ensureCalls = 0;
     const originalEnsure = audio.ensure;
-    audio.ensure = function () { ensureCalls++; return null; };
+    audio.ensure = function () {
+      ensureCalls++;
+      return null;
+    };
     audio.jump();
     audio.land();
     audio.death();
@@ -787,7 +870,10 @@ describe('Audio (PR-B)', () => {
     audio.setMuted(true);
     let ensureCalls = 0;
     const originalEnsure = audio.ensure;
-    audio.ensure = function () { ensureCalls++; return null; };
+    audio.ensure = function () {
+      ensureCalls++;
+      return null;
+    };
     audio.jump();
     audio.ensure = originalEnsure;
     assertEquals(ensureCalls, 0, 'Muted should short-circuit before ensure()');
@@ -800,7 +886,10 @@ describe('Audio (PR-B)', () => {
     audio.setMuted(false);
     let ensureCalls = 0;
     const originalEnsure = audio.ensure;
-    audio.ensure = function () { ensureCalls++; return null; };
+    audio.ensure = function () {
+      ensureCalls++;
+      return null;
+    };
     audio.land();
     audio.ensure = originalEnsure;
     assertEquals(ensureCalls, 0, 'Classic mode: land() should not reach ensure()');
@@ -814,7 +903,10 @@ describe('Audio (PR-B)', () => {
     audio.setMuted(true);
     let ensureCalls = 0;
     const originalEnsure = audio.ensure;
-    audio.ensure = function () { ensureCalls++; return null; };
+    audio.ensure = function () {
+      ensureCalls++;
+      return null;
+    };
     audio.land();
     audio.ensure = originalEnsure;
     assertEquals(ensureCalls, 0, 'Muted: land() should not reach ensure()');
@@ -827,7 +919,10 @@ describe('Audio (PR-B)', () => {
     audio.setMuted(false);
     let ensureCalls = 0;
     const originalEnsure = audio.ensure;
-    audio.ensure = function () { ensureCalls++; return null; };
+    audio.ensure = function () {
+      ensureCalls++;
+      return null;
+    };
     audio.death();
     audio.ensure = originalEnsure;
     assertEquals(ensureCalls, 0, 'Classic mode: death() should not reach ensure()');
@@ -841,7 +936,10 @@ describe('Audio (PR-B)', () => {
     audio.setMuted(true);
     let ensureCalls = 0;
     const originalEnsure = audio.ensure;
-    audio.ensure = function () { ensureCalls++; return null; };
+    audio.ensure = function () {
+      ensureCalls++;
+      return null;
+    };
     audio.death();
     audio.ensure = originalEnsure;
     assertEquals(ensureCalls, 0, 'Muted: death() should not reach ensure()');
@@ -850,7 +948,9 @@ describe('Audio (PR-B)', () => {
 });
 
 describe('Particles (PR-A)', () => {
-  function clearParticles() { Particles.reset(); }
+  function clearParticles() {
+    Particles.reset();
+  }
 
   it('emits 0 particles in classic mode', () => {
     clearParticles();
@@ -865,7 +965,11 @@ describe('Particles (PR-A)', () => {
     setMode(MODES.UPDATED);
     cancelAnimationFrame(game.animationFrameId);
     const n = Particles.emit('jump', 100, 100);
-    assertEquals(n, Particles.KINDS.jump.count, `jump should emit ${Particles.KINDS.jump.count} particles`);
+    assertEquals(
+      n,
+      Particles.KINDS.jump.count,
+      `jump should emit ${Particles.KINDS.jump.count} particles`
+    );
   });
 
   it('emits 0 for an unknown kind without throwing', () => {
@@ -883,7 +987,7 @@ describe('Particles (PR-A)', () => {
     // Fire a bunch of bursts; pool size shouldn't grow.
     for (let i = 0; i < 20; i++) Particles.emit('collision', 100, 100);
     assertEquals(Particles.particles.length, Particles.POOL_SIZE, 'Pool length must stay fixed');
-    const live = Particles.particles.filter(p => p.life > 0).length;
+    const live = Particles.particles.filter((p) => p.life > 0).length;
     assert(live <= Particles.POOL_SIZE, `Live particles (${live}) should not exceed pool`);
   });
 
@@ -892,7 +996,7 @@ describe('Particles (PR-A)', () => {
     setMode(MODES.UPDATED);
     cancelAnimationFrame(game.animationFrameId);
     Particles.emit('jump', 100, 100);
-    const live = () => Particles.particles.filter(p => p.life > 0).length;
+    const live = () => Particles.particles.filter((p) => p.life > 0).length;
     const initial = live();
     assert(initial > 0, 'Should have live particles after emit');
     for (let i = 0; i < Particles.KINDS.jump.life + 1; i++) Particles.update();
@@ -903,10 +1007,16 @@ describe('Particles (PR-A)', () => {
     setMode(MODES.UPDATED);
     cancelAnimationFrame(game.animationFrameId);
     Particles.emit('collision', 100, 100);
-    assert(Particles.particles.some(p => p.life > 0), 'Should have live particles before reset');
+    assert(
+      Particles.particles.some((p) => p.life > 0),
+      'Should have live particles before reset'
+    );
     resetGame();
     cancelAnimationFrame(game.animationFrameId);
-    assert(Particles.particles.every(p => p.life === 0), 'All particles should be dead after reset');
+    assert(
+      Particles.particles.every((p) => p.life === 0),
+      'All particles should be dead after reset'
+    );
   });
 });
 
@@ -937,14 +1047,17 @@ describe('Mode Toggle', () => {
     const a = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng).gap;
     const b = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng).gap;
     assertEquals(a, b, 'Classic gap should not vary');
-    assert(a >= GAME_CONFIG.MIN_SPAWN_GAP && a <= GAME_CONFIG.MAX_SPAWN_GAP,
-      `Classic gap at score 0 (${a}) should be within [MIN_SPAWN_GAP, MAX_SPAWN_GAP]`);
+    assert(
+      a >= GAME_CONFIG.MIN_SPAWN_GAP && a <= GAME_CONFIG.MAX_SPAWN_GAP,
+      `Classic gap at score 0 (${a}) should be within [MIN_SPAWN_GAP, MAX_SPAWN_GAP]`
+    );
   });
 
   it('updated mode still produces variety', () => {
     const rng = mulberry32(11);
     const gaps = new Set();
-    for (let i = 0; i < 30; i++) gaps.add(DifficultyProfile.nextObstacle(200, MODES.UPDATED, rng).gap);
+    for (let i = 0; i < 30; i++)
+      gaps.add(DifficultyProfile.nextObstacle(200, MODES.UPDATED, rng).gap);
     assert(gaps.size >= 5, `Updated mode should jitter; got ${gaps.size} distinct values`);
   });
 
@@ -971,35 +1084,45 @@ describe('Obstacle Types', () => {
   it('can return big cactus at score 100+ but never cluster before 250', () => {
     const rng = mulberry32(2);
     const seen = new Set();
-    for (let i = 0; i < 500; i++) seen.add(DifficultyProfile.nextObstacle(150, MODES.UPDATED, rng).type.id);
-    assert(seen.has('small') && seen.has('big'), `Expected small+big at score 150, saw ${[...seen]}`);
+    for (let i = 0; i < 500; i++)
+      seen.add(DifficultyProfile.nextObstacle(150, MODES.UPDATED, rng).type.id);
+    assert(
+      seen.has('small') && seen.has('big'),
+      `Expected small+big at score 150, saw ${[...seen]}`
+    );
     assert(!seen.has('cluster'), `Cluster should not appear before score 250, saw ${[...seen]}`);
   });
 
   it('can return all three types at score 250+', () => {
     const rng = mulberry32(3);
     const seen = new Set();
-    for (let i = 0; i < 2000; i++) seen.add(DifficultyProfile.nextObstacle(300, MODES.UPDATED, rng).type.id);
-    assert(seen.has('small') && seen.has('big') && seen.has('cluster'),
-      `Expected all 3 types at score 300, saw ${[...seen]}`);
+    for (let i = 0; i < 2000; i++)
+      seen.add(DifficultyProfile.nextObstacle(300, MODES.UPDATED, rng).type.id);
+    assert(
+      seen.has('small') && seen.has('big') && seen.has('cluster'),
+      `Expected all 3 types at score 300, saw ${[...seen]}`
+    );
   });
 
   it('weighted distribution at score 300 is within 5% of declared weights', () => {
     const rng = mulberry32(4);
     const counts = { small: 0, big: 0, cluster: 0 };
     const total = 20000;
-    for (let i = 0; i < total; i++) counts[DifficultyProfile.nextObstacle(300, MODES.UPDATED, rng).type.id]++;
+    for (let i = 0; i < total; i++)
+      counts[DifficultyProfile.nextObstacle(300, MODES.UPDATED, rng).type.id]++;
     const expected = { small: 0.5, big: 0.3, cluster: 0.2 };
-    Object.keys(expected).forEach(id => {
+    Object.keys(expected).forEach((id) => {
       const observed = counts[id] / total;
-      assert(Math.abs(observed - expected[id]) < 0.05,
-        `${id}: expected ~${expected[id]}, got ${observed.toFixed(3)}`);
+      assert(
+        Math.abs(observed - expected[id]) < 0.05,
+        `${id}: expected ~${expected[id]}, got ${observed.toFixed(3)}`
+      );
     });
   });
 
   it('spawnObstacle(type) respects the given type dimensions', () => {
     resetGame();
-    const big = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'big');
+    const big = GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'big');
     spawnObstacle(big);
     assertEquals(game.obstacles[0].width, big.width, 'Big cactus width');
     assertEquals(game.obstacles[0].height, big.height, 'Big cactus height');
@@ -1022,26 +1145,35 @@ describe('Obstacle Types', () => {
     game.rng = () => 0.99; // last eligible type in updated mode is cluster
     game.obstacles.length = 0;
     spawnObstacle();
-    assertEquals(game.obstacles[0].type, 'small',
-      'Classic bare spawnObstacle() must not roll cluster');
+    assertEquals(
+      game.obstacles[0].type,
+      'small',
+      'Classic bare spawnObstacle() must not roll cluster'
+    );
     game.mode = origMode;
     resetGame();
   });
 
   it('cluster draws two full small sprites with a visible gap', () => {
     resetGame();
-    const cluster = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'cluster');
-    const small = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'small');
+    const cluster = GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'cluster');
+    const small = GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'small');
     // Draw-only change: hitbox, unlock, and weight stay on GAME_CONFIG.
     assertEquals(cluster.width, 50, 'cluster hitbox width stays 50');
     assertEquals(cluster.height, 40, 'cluster hitbox height stays 40');
     assertEquals(cluster.unlockScore, 250, 'cluster still unlocks at 250');
     assertEquals(cluster.weight, 20, 'cluster weight stays 20');
 
-    game.obstacles = [{
-      x: 100, y: 160, width: cluster.width, height: cluster.height,
-      render: cluster.render, type: cluster.id,
-    }];
+    game.obstacles = [
+      {
+        x: 100,
+        y: 160,
+        width: cluster.width,
+        height: cluster.height,
+        render: cluster.render,
+        type: cluster.id,
+      },
+    ];
 
     const placed = game.obstacles[0];
     const calls = [];
@@ -1065,29 +1197,43 @@ describe('Obstacle Types', () => {
     // hitbox is only ~10px, which still reads as one bar at the speed a first
     // cluster appears (~score 250). One small cactus of sky splits that bar.
     const gap = second[1] - (first[1] + first[3]);
-    assertEquals(gap, small.width,
-      'Sky between the two cacti is one small cactus wide');
-    assert(gap < GAME_CONFIG.DINO_WIDTH,
-      'The gap stays narrower than the dino, so it is not a lane to thread');
+    assertEquals(gap, small.width, 'Sky between the two cacti is one small cactus wide');
+    assert(
+      gap < GAME_CONFIG.DINO_WIDTH,
+      'The gap stays narrower than the dino, so it is not a lane to thread'
+    );
 
     const hitLeft = 100;
     const hitRight = 100 + cluster.width;
     const overhangLeft = hitLeft - first[1];
-    const overhangRight = (second[1] + second[3]) - hitRight;
-    assert(overhangLeft > 0 && overhangRight > 0,
-      'The pair is wider than the hitbox so the gap can open without shrinking either sprite');
-    assertEquals(overhangLeft, overhangRight,
-      'The pair overhangs the hitbox equally on both sides');
-    assert(first[1] + first[3] >= hitLeft && second[1] <= hitRight,
-      'The sky between the cacti sits inside the hitbox, so it is not a sneak-through');
+    const overhangRight = second[1] + second[3] - hitRight;
+    assert(
+      overhangLeft > 0 && overhangRight > 0,
+      'The pair is wider than the hitbox so the gap can open without shrinking either sprite'
+    );
+    assertEquals(
+      overhangLeft,
+      overhangRight,
+      'The pair overhangs the hitbox equally on both sides'
+    );
+    assert(
+      first[1] + first[3] >= hitLeft && second[1] <= hitRight,
+      'The sky between the cacti sits inside the hitbox, so it is not a sneak-through'
+    );
   });
 
   it('a single cactus still draws once at its own size', () => {
-    const small = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'small');
-    game.obstacles = [{
-      x: 40, y: 160, width: small.width, height: small.height,
-      render: small.render, type: small.id,
-    }];
+    const small = GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'small');
+    game.obstacles = [
+      {
+        x: 40,
+        y: 160,
+        width: small.width,
+        height: small.height,
+        render: small.render,
+        type: small.id,
+      },
+    ];
     const calls = [];
     const origDrawImage = ctx.drawImage;
     ctx.drawImage = (...args) => calls.push(args);
@@ -1101,8 +1247,8 @@ describe('Obstacle Types', () => {
   });
 
   it('big cactus paints a crisp tall sprite and leaves the hitbox alone', () => {
-    const big = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'big');
-    const small = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'small');
+    const big = GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'big');
+    const small = GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'small');
     // Draw-only change: hitbox, unlock, and weight stay on GAME_CONFIG.
     assertEquals(big.width, 30, 'big hitbox width stays 30');
     assertEquals(big.height, 55, 'big hitbox height stays 55');
@@ -1114,17 +1260,25 @@ describe('Obstacle Types', () => {
     // matches. Width follows that cell, so the first tall cactus is not a
     // wide stretch of the small sprite into the 30×55 box.
     const paintH = big.height;
-    const paintW = Math.round(paintH * 34 / 70);
+    const paintW = Math.round((paintH * 34) / 70);
     const paintX = 80 + Math.floor((big.width - paintW) / 2);
 
     game.obstacles = [
       {
-        x: 80, y: 120, width: big.width, height: big.height,
-        render: big.render, type: big.id,
+        x: 80,
+        y: 120,
+        width: big.width,
+        height: big.height,
+        render: big.render,
+        type: big.id,
       },
       {
-        x: 200, y: 140, width: small.width, height: small.height,
-        render: small.render, type: small.id,
+        x: 200,
+        y: 140,
+        width: small.width,
+        height: small.height,
+        render: small.render,
+        type: small.id,
       },
     ];
     const calls = [];
@@ -1155,11 +1309,23 @@ describe('Obstacle Types', () => {
     assertEquals(placed.width, 30, 'Drawing does not resize the hitbox width');
     assertEquals(placed.height, 55, 'Drawing does not resize the hitbox height');
     assertEquals(calls.length, 2, 'Big and small each paint once');
-    assertEquals(smoothing[0], false, 'The tall cactus uses nearest-neighbor so the arms stay sharp');
+    assertEquals(
+      smoothing[0],
+      false,
+      'The tall cactus uses nearest-neighbor so the arms stay sharp'
+    );
     assertEquals(calls[0][1], paintX, 'The tall cactus is centered on its hitbox');
     assertEquals(calls[0][2], 120, 'The tall cactus top stays on the hitbox top');
-    assertEquals(calls[0][3], paintW, 'Paint width follows the cactus sprite, not the wider hitbox');
-    assertEquals(calls[0][4], paintH, 'Paint height matches the hitbox so the jump line stays honest');
+    assertEquals(
+      calls[0][3],
+      paintW,
+      'Paint width follows the cactus sprite, not the wider hitbox'
+    );
+    assertEquals(
+      calls[0][4],
+      paintH,
+      'Paint height matches the hitbox so the jump line stays honest'
+    );
     assert(paintW < big.width, 'The tall cactus is not stretched out to the hitbox width');
     assert(paintH > small.height, 'The tall cactus is visibly taller than the small one');
     assertEquals(smoothing[1], true, 'A nearby small cactus keeps the normal smooth scale');
@@ -1179,17 +1345,23 @@ describe('Difficulty Curve', () => {
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
 
-    assert(game.currentSpeed <= GAME_CONFIG.PLATEAU_SPEED,
-      `currentSpeed at score 2000 (${game.currentSpeed}) must not exceed PLATEAU_SPEED (${GAME_CONFIG.PLATEAU_SPEED})`);
-    assert(game.currentSpeed > GAME_CONFIG.PLATEAU_SPEED - 0.1,
-      `currentSpeed at score 2000 (${game.currentSpeed}) should be very close to PLATEAU_SPEED — sigmoid has converged`);
+    assert(
+      game.currentSpeed <= GAME_CONFIG.PLATEAU_SPEED,
+      `currentSpeed at score 2000 (${game.currentSpeed}) must not exceed PLATEAU_SPEED (${GAME_CONFIG.PLATEAU_SPEED})`
+    );
+    assert(
+      game.currentSpeed > GAME_CONFIG.PLATEAU_SPEED - 0.1,
+      `currentSpeed at score 2000 (${game.currentSpeed}) should be very close to PLATEAU_SPEED — sigmoid has converged`
+    );
   });
 
   it('should not set a .speed property on spawned obstacles', () => {
     resetGame();
     spawnObstacle();
-    assert(game.obstacles[0].speed === undefined,
-      `Obstacle should not have .speed (got: ${game.obstacles[0].speed}).`);
+    assert(
+      game.obstacles[0].speed === undefined,
+      `Obstacle should not have .speed (got: ${game.obstacles[0].speed}).`
+    );
   });
 });
 
@@ -1208,7 +1380,10 @@ describe('Clouds', () => {
     resetGame();
     game.clouds[0].x = 300;
     updateClouds();
-    assert(game.clouds[0].x < 300, `Cloud x (${game.clouds[0].x}) should be < 300 after updateClouds`);
+    assert(
+      game.clouds[0].x < 300,
+      `Cloud x (${game.clouds[0].x}) should be < 300 after updateClouds`
+    );
   });
 
   it('respawns a cloud past the right edge when it exits the left', () => {
@@ -1228,23 +1403,35 @@ describe('Clouds', () => {
 
 describe('Day/Night Cycle', () => {
   it('should return #ffffff at score 0', () => {
-    assertEquals(getBackgroundColor(0), '#ffffff',
-      `Expected #ffffff at score 0, got ${getBackgroundColor(0)}`);
+    assertEquals(
+      getBackgroundColor(0),
+      '#ffffff',
+      `Expected #ffffff at score 0, got ${getBackgroundColor(0)}`
+    );
   });
 
   it('should return #1a1a2e at score 400', () => {
-    assertEquals(getBackgroundColor(400), '#1a1a2e',
-      `Expected #1a1a2e at score 400, got ${getBackgroundColor(400)}`);
+    assertEquals(
+      getBackgroundColor(400),
+      '#1a1a2e',
+      `Expected #1a1a2e at score 400, got ${getBackgroundColor(400)}`
+    );
   });
 
   it('should return the correct interpolated color at score 350', () => {
-    assertEquals(getBackgroundColor(350), '#8d8d97',
-      `Score 350 (t=0.5) should produce midpoint color #8d8d97`);
+    assertEquals(
+      getBackgroundColor(350),
+      '#8d8d97',
+      `Score 350 (t=0.5) should produce midpoint color #8d8d97`
+    );
   });
 
   it('returns #ffffff at DAY_NIGHT_START (score 300, t=0 boundary)', () => {
-    assertEquals(getBackgroundColor(300), '#ffffff',
-      'Score 300 is the first frame of the interpolation window — t=0 still produces white');
+    assertEquals(
+      getBackgroundColor(300),
+      '#ffffff',
+      'Score 300 is the first frame of the interpolation window — t=0 still produces white'
+    );
   });
 
   it('should initialise stars once at score 400 and not re-init on second call', () => {
@@ -1305,7 +1492,10 @@ describe('Day/Night Cycle', () => {
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
     runRunningFrames(1);
-    assert(game.score < GAME_CONFIG.DAY_NIGHT_END, 'one frame from 399 must still be day-side of night');
+    assert(
+      game.score < GAME_CONFIG.DAY_NIGHT_END,
+      'one frame from 399 must still be day-side of night'
+    );
     assert(!game.starsInitialised, 'stars wait until night is full');
     assertEquals(game.starFadeFrames, 0, 'the fade clock stays at 0 before night');
     assertEquals(starPaintAlphas().length, 0, 'no star pixels before night');
@@ -1357,7 +1547,11 @@ describe('Day/Night Cycle', () => {
       const positions = game.stars.map((s) => s.x + ',' + s.y).join('|');
       runRunningFrames(3);
       assertEquals(game.starFadeFrames, total, 'the fade holds at full instead of restarting');
-      assertEquals(game.stars.length, GAME_CONFIG.STAR_COUNT, 'stars are not re-seeded after the fade');
+      assertEquals(
+        game.stars.length,
+        GAME_CONFIG.STAR_COUNT,
+        'stars are not re-seeded after the fade'
+      );
       assertEquals(
         game.stars.map((s) => s.x + ',' + s.y).join('|'),
         positions,
@@ -1383,16 +1577,25 @@ describe('Day/Night Cycle', () => {
       );
       assert(game.starsInitialised, 'Classic keeps the night stars');
       assertEquals(game.stars.length, GAME_CONFIG.STAR_COUNT);
-      assertEquals(game.starFadeFrames, 1, 'Classic still starts the fade on the first night frame');
+      assertEquals(
+        game.starFadeFrames,
+        1,
+        'Classic still starts the fade on the first night frame'
+      );
       assert(
         Math.abs(starFadeAlpha() - 1 / GAME_CONFIG.STAR_FADE_FRAMES) < 1e-9,
         'Classic still steps through the original 48-frame fade'
       );
       runRunningFrames(GAME_CONFIG.UPDATED_STAR_FADE_FRAMES - 1);
-      assertEquals(game.starFadeFrames, GAME_CONFIG.UPDATED_STAR_FADE_FRAMES,
-        'Classic keeps counting after Updated would have settled');
+      assertEquals(
+        game.starFadeFrames,
+        GAME_CONFIG.UPDATED_STAR_FADE_FRAMES,
+        'Classic keeps counting after Updated would have settled'
+      );
       assert(
-        Math.abs(starFadeAlpha() - GAME_CONFIG.UPDATED_STAR_FADE_FRAMES / GAME_CONFIG.STAR_FADE_FRAMES) < 1e-9,
+        Math.abs(
+          starFadeAlpha() - GAME_CONFIG.UPDATED_STAR_FADE_FRAMES / GAME_CONFIG.STAR_FADE_FRAMES
+        ) < 1e-9,
         'when Updated has settled, Classic is only halfway to full white'
       );
       assert(starPaintAlpha() < 1, 'Classic has not reached full white on the shorter clock');
@@ -1439,7 +1642,11 @@ describe('Soft night stars', () => {
   function withTuning(overrides, fn) {
     const orig = window.GAME_TUNING;
     window.GAME_TUNING = overrides;
-    try { fn(); } finally { window.GAME_TUNING = orig; }
+    try {
+      fn();
+    } finally {
+      window.GAME_TUNING = orig;
+    }
   }
 
   function runRunningFrames(n) {
@@ -1511,20 +1718,31 @@ describe('Soft night stars', () => {
     assertEquals(GAME_CONFIG.STAR_COUNT, 12, 'the field stays the usual twelve');
     assertEquals(GAME_CONFIG.STAR_COLOR, '#ffffff', 'the ink stays white; the quiet is opacity');
     assertEquals(GAME_CONFIG.STAR_FADE_FRAMES, 48, 'Classic still fades across the original beat');
-    assertEquals(GAME_CONFIG.UPDATED_STAR_FADE_FRAMES, 24, 'Updated and Daily settle in half that beat');
-    assertEquals(GAME_CONFIG.UPDATED_STAR_FADE_FRAMES * 2, GAME_CONFIG.STAR_FADE_FRAMES,
-      'the quieter fade is half of Classic');
+    assertEquals(
+      GAME_CONFIG.UPDATED_STAR_FADE_FRAMES,
+      24,
+      'Updated and Daily settle in half that beat'
+    );
+    assertEquals(
+      GAME_CONFIG.UPDATED_STAR_FADE_FRAMES * 2,
+      GAME_CONFIG.STAR_FADE_FRAMES,
+      'the quieter fade is half of Classic'
+    );
     assert(now < threeFifths, 'a full three-fifths of white still outruns the night cactus');
-    assert(sum(starLifts(threeFifths)) > sum(cactusLifts),
-      'three-fifths of full white is still brighter than night cacti');
-    assert(sum(nowLifts) > sum(dinoLifts),
-      'the softer night dino stays under this star whisper');
-    assert(sum(nowLifts) < sum(cactusLifts),
-      'the whisper stays under night cacti');
-    assert(sum(nowLifts) > sum(cloudLifts(GAME_CONFIG.NIGHT_CLOUD_ALPHA)),
-      'white at this peak stays a step above the soft night clouds');
-    assert(sum(nowLifts) < sum(fullLifts) * 0.5,
-      'the field loses a real share of the full-white sparkle');
+    assert(
+      sum(starLifts(threeFifths)) > sum(cactusLifts),
+      'three-fifths of full white is still brighter than night cacti'
+    );
+    assert(sum(nowLifts) > sum(dinoLifts), 'the softer night dino stays under this star whisper');
+    assert(sum(nowLifts) < sum(cactusLifts), 'the whisper stays under night cacti');
+    assert(
+      sum(nowLifts) > sum(cloudLifts(GAME_CONFIG.NIGHT_CLOUD_ALPHA)),
+      'white at this peak stays a step above the soft night clouds'
+    );
+    assert(
+      sum(nowLifts) < sum(fullLifts) * 0.5,
+      'the field loses a real share of the full-white sparkle'
+    );
     assert(now > 0, 'the points still read against the night sky');
   });
 
@@ -1547,18 +1765,28 @@ describe('Soft night stars', () => {
       game.mode = MODES.UPDATED;
       runRunningFrames(GAME_CONFIG.STAR_FADE_FRAMES);
       assertEquals(starFadeAlpha(), 1, 'the shared fade ramp still finishes');
-      assertEquals(starPaintAlpha(), GAME_CONFIG.NIGHT_STAR_ALPHA,
-        'Updated night holds the quiet peak');
+      assertEquals(
+        starPaintAlpha(),
+        GAME_CONFIG.NIGHT_STAR_ALPHA,
+        'Updated night holds the quiet peak'
+      );
       let paints = starPaints();
       assertEquals(paints.length, GAME_CONFIG.STAR_COUNT, 'every Updated star still paints');
-      assert(paints.every((p) => Math.abs(p.alpha - GAME_CONFIG.NIGHT_STAR_ALPHA) < 1e-9),
-        'Updated paint uses the quiet peak');
-      assert(paints.every((p) => p.w === GAME_CONFIG.STAR_SIZE && p.h === GAME_CONFIG.STAR_SIZE),
-        'Updated stars stay the same size');
+      assert(
+        paints.every((p) => Math.abs(p.alpha - GAME_CONFIG.NIGHT_STAR_ALPHA) < 1e-9),
+        'Updated paint uses the quiet peak'
+      );
+      assert(
+        paints.every((p) => p.w === GAME_CONFIG.STAR_SIZE && p.h === GAME_CONFIG.STAR_SIZE),
+        'Updated stars stay the same size'
+      );
 
       game.mode = MODES.DAILY;
-      assertEquals(starPaintAlpha(), GAME_CONFIG.NIGHT_STAR_ALPHA,
-        'Daily shares the Updated whisper');
+      assertEquals(
+        starPaintAlpha(),
+        GAME_CONFIG.NIGHT_STAR_ALPHA,
+        'Daily shares the Updated whisper'
+      );
 
       game.mode = MODES.CLASSIC;
       enterNightRun();
@@ -1571,8 +1799,14 @@ describe('Soft night stars', () => {
       assertEquals(starPaintAlpha(), 1, 'Classic night still reaches full white');
       paints = starPaints();
       assertEquals(paints.length, GAME_CONFIG.STAR_COUNT, 'Classic still paints the field');
-      assert(paints.every((p) => p.alpha === 1), 'Classic paint stays full white');
-      assert(paints.every((p) => p.w === GAME_CONFIG.STAR_SIZE), 'Classic size stays 2');
+      assert(
+        paints.every((p) => p.alpha === 1),
+        'Classic paint stays full white'
+      );
+      assert(
+        paints.every((p) => p.w === GAME_CONFIG.STAR_SIZE),
+        'Classic size stays 2'
+      );
     } finally {
       game.mode = origMode;
       game.score = origScore;
@@ -1597,19 +1831,30 @@ describe('Soft night stars', () => {
       setQaNight(true);
       runRunningFrames(1);
       assert(game.score < 1, 'the whisper must not jump the score to night');
-      assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
-        'speed still follows the real score');
+      assertEquals(
+        game.currentSpeed,
+        DifficultyProfile.speedAtScore(game.score),
+        'speed still follows the real score'
+      );
       assert(game.starsInitialised, 'the existing night QA flag starts the field');
       assert(
-        Math.abs(starPaintAlpha() - GAME_CONFIG.NIGHT_STAR_ALPHA / GAME_CONFIG.UPDATED_STAR_FADE_FRAMES) < 1e-9,
+        Math.abs(
+          starPaintAlpha() - GAME_CONFIG.NIGHT_STAR_ALPHA / GAME_CONFIG.UPDATED_STAR_FADE_FRAMES
+        ) < 1e-9,
         'the first QA frame is the first step of the shorter quiet fade'
       );
       game.starFadeFrames = GAME_CONFIG.STAR_FADE_FRAMES;
-      assertEquals(starPaintAlpha(), GAME_CONFIG.NIGHT_STAR_ALPHA,
-        'a settled QA night holds the quiet peak');
+      assertEquals(
+        starPaintAlpha(),
+        GAME_CONFIG.NIGHT_STAR_ALPHA,
+        'a settled QA night holds the quiet peak'
+      );
       assert(game.score < 1, 'settling the fade must not write the score');
-      assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
-        'settling the fade must not invent a speed');
+      assertEquals(
+        game.currentSpeed,
+        DifficultyProfile.speedAtScore(game.score),
+        'settling the fade must not invent a speed'
+      );
 
       game.mode = MODES.CLASSIC;
       assertEquals(starPaintAlpha(), 1, 'QA night still leaves Classic stars full white');
@@ -1637,11 +1882,17 @@ describe('Soft night stars', () => {
       game.mode = MODES.UPDATED;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       withTuning({ NIGHT_STAR_ALPHA: 0.2 }, () => {
-        assertEquals(starPaintAlpha(), 0.2,
-          'a visual override should quiet night stars by the tuned amount');
+        assertEquals(
+          starPaintAlpha(),
+          0.2,
+          'a visual override should quiet night stars by the tuned amount'
+        );
       });
-      assertEquals(starPaintAlpha(), GAME_CONFIG.NIGHT_STAR_ALPHA,
-        'clearing the override returns the configured whisper');
+      assertEquals(
+        starPaintAlpha(),
+        GAME_CONFIG.NIGHT_STAR_ALPHA,
+        'clearing the override returns the configured whisper'
+      );
       game.mode = MODES.DAILY;
       withTuning({ NIGHT_STAR_ALPHA: 0.2 }, () => {
         assertEquals(starPaintAlpha(), 0.2, 'Daily reads the same visual override');
@@ -1652,12 +1903,18 @@ describe('Soft night stars', () => {
       });
       game.mode = MODES.UPDATED;
       withTuning({ NIGHT_STAR_ALPHA: 'soft' }, () => {
-        assertEquals(starPaintAlpha(), GAME_CONFIG.NIGHT_STAR_ALPHA,
-          'a non-numeric override falls back to the configured whisper');
+        assertEquals(
+          starPaintAlpha(),
+          GAME_CONFIG.NIGHT_STAR_ALPHA,
+          'a non-numeric override falls back to the configured whisper'
+        );
       });
       withTuning({ NIGHT_STAR_ALPHA: 1.4 }, () => {
-        assertEquals(starPaintAlpha(), GAME_CONFIG.NIGHT_STAR_ALPHA,
-          'a peak above 1 falls back so a typo cannot restore the sparkle');
+        assertEquals(
+          starPaintAlpha(),
+          GAME_CONFIG.NIGHT_STAR_ALPHA,
+          'a peak above 1 falls back so a typo cannot restore the sparkle'
+        );
       });
     } finally {
       game.mode = origMode;
@@ -1679,32 +1936,50 @@ describe('Soft night stars', () => {
     const origFade = game.starFadeFrames;
     const origRng = game.rng;
     let rngCalls = 0;
-    game.rng = () => { rngCalls++; return origRng(); };
+    game.rng = () => {
+      rngCalls++;
+      return origRng();
+    };
     const randoms = [];
     const origRandom = Math.random;
-    Math.random = () => { randoms.push(1); return origRandom(); };
+    Math.random = () => {
+      randoms.push(1);
+      return origRandom();
+    };
     try {
       setQaNight(false);
       setReducedMotion(false);
       game.mode = MODES.UPDATED;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       game.starsInitialised = true;
-      game.stars = [{ x: 20, y: 30 }, { x: 40, y: 10 }];
+      game.stars = [
+        { x: 20, y: 30 },
+        { x: 40, y: 10 },
+      ];
       game.starFadeFrames = GAME_CONFIG.STAR_FADE_FRAMES;
       ctx.globalAlpha = 0.8;
       const paints = starPaints();
       assertEquals(paints.length, 2, 'both stars paint');
-      assert(paints.every((p) => Math.abs(p.alpha - 0.8 * GAME_CONFIG.NIGHT_STAR_ALPHA) < 1e-9),
-        'night paint multiplies the existing alpha by the whisper');
+      assert(
+        paints.every((p) => Math.abs(p.alpha - 0.8 * GAME_CONFIG.NIGHT_STAR_ALPHA) < 1e-9),
+        'night paint multiplies the existing alpha by the whisper'
+      );
       assertEquals(ctx.globalAlpha, 0.8, 'the whisper must not leak onto the dino or cacti');
       assertEquals(rngCalls, 0, 'painting stars does not consume the run seed');
       assertEquals(randoms.length, 0, 'painting settled stars does not re-roll positions');
-      assertEquals(game.score, GAME_CONFIG.DAY_NIGHT_END, 'painting stars does not change the score');
+      assertEquals(
+        game.score,
+        GAME_CONFIG.DAY_NIGHT_END,
+        'painting stars does not change the score'
+      );
 
       game.mode = MODES.CLASSIC;
       ctx.globalAlpha = 1;
       const classic = starPaints();
-      assert(classic.every((p) => p.alpha === 1), 'Classic night paint stays full white');
+      assert(
+        classic.every((p) => p.alpha === 1),
+        'Classic night paint stays full white'
+      );
       assertEquals(ctx.globalAlpha, 1, 'Classic paint leaves the lane alone');
       assertEquals(rngCalls, 0, 'Classic star paint does not consume the run seed');
     } finally {
@@ -1730,10 +2005,7 @@ describe('Soft night stars', () => {
       enterNightRun();
       const total = GAME_CONFIG.UPDATED_STAR_FADE_FRAMES;
       runRunningFrames(1);
-      assert(
-        Math.abs(starFadeAlpha() - 1 / total) < 1e-9,
-        'Daily starts the shorter fade'
-      );
+      assert(Math.abs(starFadeAlpha() - 1 / total) < 1e-9, 'Daily starts the shorter fade');
       assert(
         Math.abs(starPaintAlpha() - GAME_CONFIG.NIGHT_STAR_ALPHA / total) < 1e-9,
         'Daily paint is the quiet peak times the shorter ramp'
@@ -1751,8 +2023,11 @@ describe('Soft night stars', () => {
         runRunningFrames(10);
         assertEquals(game.starFadeFrames, 4, 'the clock stops at the tuned Updated length');
         assertEquals(starFadeAlpha(), 1, 'the tuned length is what the ramp finishes on');
-        assertEquals(starPaintAlpha(), GAME_CONFIG.NIGHT_STAR_ALPHA,
-          'a shorter tune still settles on the quiet peak');
+        assertEquals(
+          starPaintAlpha(),
+          GAME_CONFIG.NIGHT_STAR_ALPHA,
+          'a shorter tune still settles on the quiet peak'
+        );
       });
     } finally {
       game.mode = origMode;
@@ -1868,12 +2143,17 @@ describe('PR-P1 bug fixes', () => {
 
     let calls = 0;
     const inner = mulberry32(456);
-    game.rng = () => { calls++; return inner(); };
+    game.rng = () => {
+      calls++;
+      return inner();
+    };
     updateHills();
 
     assertEquals(calls, 3, 'Respawn must consume exactly 3 game.rng() draws');
-    assert(game.hills[0].x >= GAME_CONFIG.CANVAS_W,
-      'Respawned x must land at or past canvas width');
+    assert(
+      game.hills[0].x >= GAME_CONFIG.CANVAS_W,
+      'Respawned x must land at or past canvas width'
+    );
   });
 
   it('hill respawn x is bounded by HILL_RESPAWN_X_RANGE', () => {
@@ -1895,7 +2175,13 @@ describe('PR-P1 bug fixes', () => {
   it('audio.ensure resumes a suspended context', () => {
     let resumed = 0;
     const prev = audio.ctx;
-    audio.ctx = { state: 'suspended', resume: () => { resumed++; return Promise.resolve(); } };
+    audio.ctx = {
+      state: 'suspended',
+      resume: () => {
+        resumed++;
+        return Promise.resolve();
+      },
+    };
     audio.ensure();
     assertEquals(resumed, 1, 'ensure() must call resume() on suspended ctx');
     audio.ctx = prev;
@@ -1904,7 +2190,13 @@ describe('PR-P1 bug fixes', () => {
   it('audio.ensure does not call resume on running context', () => {
     let resumed = 0;
     const prev = audio.ctx;
-    audio.ctx = { state: 'running', resume: () => { resumed++; return Promise.resolve(); } };
+    audio.ctx = {
+      state: 'running',
+      resume: () => {
+        resumed++;
+        return Promise.resolve();
+      },
+    };
     audio.ensure();
     assertEquals(resumed, 0, 'ensure() must not resume an already-running ctx');
     audio.ctx = prev;
@@ -1925,8 +2217,10 @@ describe('PR-P1 bug fixes', () => {
     drawNewBestBadge();
     const offsetY = calls[calls.length - 1].y;
 
-    assert(offsetY > baseY,
-      `NEW BEST y should drop when milestone active (base ${baseY}, offset ${offsetY})`);
+    assert(
+      offsetY > baseY,
+      `NEW BEST y should drop when milestone active (base ${baseY}, offset ${offsetY})`
+    );
     assertEquals(offsetY - baseY, 30, 'Stagger should be exactly 30px');
 
     ctx.fillText = origFill;
@@ -1942,31 +2236,33 @@ describe('Feature registry (PR-P2)', () => {
   });
 
   it('registry id ordering is the documented contract', () => {
-    const ids = FEATURES.map(f => f.id);
-    assertEquals(ids[0], 'hills',     'hills must be first (background layer)');
-    assertEquals(ids[1], 'clouds',    'clouds must follow hills (background layer)');
+    const ids = FEATURES.map((f) => f.id);
+    assertEquals(ids[0], 'hills', 'hills must be first (background layer)');
+    assertEquals(ids[1], 'clouds', 'clouds must follow hills (background layer)');
     assertEquals(ids[2], 'particles', 'particles must be foreground');
-    assertEquals(ids[3], 'skyTint',   'skyTint must be overlay (last layer)');
+    assertEquals(ids[3], 'skyTint', 'skyTint must be overlay (last layer)');
   });
 
   it('every feature has at least one of update or draw', () => {
     for (const f of FEATURES) {
       const hasUpdate = typeof f.update === 'function';
       const hasDraw = typeof f.draw === 'function';
-      assert(hasUpdate || hasDraw,
-        `Feature ${f.id} must define update or draw`);
+      assert(hasUpdate || hasDraw, `Feature ${f.id} must define update or draw`);
     }
   });
 
   it('layer partition matches pre-refactor draw order', () => {
-    const bg = FEATURES.filter(f => f.layer === 'background').map(f => f.id);
-    assertEquals(bg.join(','), 'hills,clouds',
-      'background layer must be hills,clouds in that order');
+    const bg = FEATURES.filter((f) => f.layer === 'background').map((f) => f.id);
+    assertEquals(
+      bg.join(','),
+      'hills,clouds',
+      'background layer must be hills,clouds in that order'
+    );
 
-    const fg = FEATURES.filter(f => f.layer === 'foreground').map(f => f.id);
+    const fg = FEATURES.filter((f) => f.layer === 'foreground').map((f) => f.id);
     assertEquals(fg.join(','), 'particles');
 
-    const ov = FEATURES.filter(f => f.layer === 'overlay').map(f => f.id);
+    const ov = FEATURES.filter((f) => f.layer === 'overlay').map((f) => f.id);
     assertEquals(ov.join(','), 'skyTint');
   });
 
@@ -1978,11 +2274,14 @@ describe('Feature registry (PR-P2)', () => {
     const beforeX = game.hills[0] && game.hills[0].x;
     game.currentSpeed = 6;
 
-    const hillsFeature = FEATURES.find(f => f.id === 'hills');
+    const hillsFeature = FEATURES.find((f) => f.id === 'hills');
     hillsFeature.update();
 
-    assertEquals(game.hills[0] && game.hills[0].x, beforeX,
-      'updateHills via registry must respect classic-mode self-gate');
+    assertEquals(
+      game.hills[0] && game.hills[0].x,
+      beforeX,
+      'updateHills via registry must respect classic-mode self-gate'
+    );
 
     setMode(MODES.UPDATED);
     cancelAnimationFrame(game.animationFrameId);
@@ -1990,7 +2289,7 @@ describe('Feature registry (PR-P2)', () => {
 
   it('runFeatureDraws dispatches by layer in registry order', () => {
     const order = [];
-    const originals = FEATURES.map(f => f.draw);
+    const originals = FEATURES.map((f) => f.draw);
     // Mutate entries — array is frozen but its entries are not.
     FEATURES.forEach((f, i) => {
       if (!f.draw) return;
@@ -2002,10 +2301,15 @@ describe('Feature registry (PR-P2)', () => {
     runFeatureDraws('overlay');
 
     // Restore so subsequent tests / live game keep working.
-    FEATURES.forEach((f, i) => { f.draw = originals[i]; });
+    FEATURES.forEach((f, i) => {
+      f.draw = originals[i];
+    });
 
-    assertEquals(order.join(','), 'hills,clouds,particles,skyTint',
-      'Layer dispatch must produce the canonical draw order');
+    assertEquals(
+      order.join(','),
+      'hills,clouds,particles,skyTint',
+      'Layer dispatch must produce the canonical draw order'
+    );
   });
 });
 
@@ -2014,7 +2318,11 @@ describe('Live-tuning hook (PR-P3)', () => {
   function withTuning(overrides, fn) {
     const orig = window.GAME_TUNING;
     window.GAME_TUNING = overrides;
-    try { fn(); } finally { window.GAME_TUNING = orig; }
+    try {
+      fn();
+    } finally {
+      window.GAME_TUNING = orig;
+    }
   }
 
   it('cfg returns GAME_CONFIG value when no override is set', () => {
@@ -2038,8 +2346,11 @@ describe('Live-tuning hook (PR-P3)', () => {
     // Simulate a polluted prototype; cfg uses hasOwnProperty to skip it.
     const polluted = Object.create({ JUMP_POWER: 999 });
     withTuning(polluted, () => {
-      assertEquals(cfg('JUMP_POWER'), GAME_CONFIG.JUMP_POWER,
-        'Prototype keys must not leak through cfg');
+      assertEquals(
+        cfg('JUMP_POWER'),
+        GAME_CONFIG.JUMP_POWER,
+        'Prototype keys must not leak through cfg'
+      );
     });
   });
 
@@ -2070,8 +2381,11 @@ describe('Live-tuning hook (PR-P3)', () => {
     });
     withTuning({}, () => {
       loadTuning();
-      assertEquals(cfg('SKY_TINT_PEAK_ALPHA'), 0.42,
-        'Override must survive a save/clear/load cycle');
+      assertEquals(
+        cfg('SKY_TINT_PEAK_ALPHA'),
+        0.42,
+        'Override must survive a save/clear/load cycle'
+      );
     });
     localStorage.removeItem('dino-tuning');
   });
@@ -2080,8 +2394,10 @@ describe('Live-tuning hook (PR-P3)', () => {
     localStorage.setItem('dino-tuning', '{not json');
     withTuning({}, () => {
       loadTuning(); // must not throw
-      assert(typeof window.GAME_TUNING === 'object',
-        'GAME_TUNING must remain an object after malformed load');
+      assert(
+        typeof window.GAME_TUNING === 'object',
+        'GAME_TUNING must remain an object after malformed load'
+      );
     });
     localStorage.removeItem('dino-tuning');
   });
@@ -2099,8 +2415,13 @@ describe('Live-tuning hook (PR-P3)', () => {
     let captured = '';
     Object.defineProperty(ctx, 'fillStyle', {
       configurable: true,
-      get() { return captured; },
-      set(v) { captured = v; fillStyles.push(v); },
+      get() {
+        return captured;
+      },
+      set(v) {
+        captured = v;
+        fillStyles.push(v);
+      },
     });
 
     withTuning({ SKY_TINT_COLOR_RGB: '0, 0, 255' }, () => {
@@ -2110,8 +2431,13 @@ describe('Live-tuning hook (PR-P3)', () => {
     // Restore: just delete our own property so the prototype value re-shows.
     delete ctx.fillStyle;
 
-    const blueish = fillStyles.find(s => typeof s === 'string' && s.indexOf('rgba(0, 0, 255') === 0);
-    assert(blueish, `Expected a fillStyle starting with 'rgba(0, 0, 255' but got: ${JSON.stringify(fillStyles)}`);
+    const blueish = fillStyles.find(
+      (s) => typeof s === 'string' && s.indexOf('rgba(0, 0, 255') === 0
+    );
+    assert(
+      blueish,
+      `Expected a fillStyle starting with 'rgba(0, 0, 255' but got: ${JSON.stringify(fillStyles)}`
+    );
 
     Animations.milestoneFrames = 0;
   });
@@ -2123,11 +2449,17 @@ describe('Live-tuning hook (PR-P3)', () => {
     game.score = GAME_CONFIG.DAY_NIGHT_END;
     try {
       withTuning({ NIGHT_OBSTACLE_BRIGHTNESS: 1.4 }, () => {
-        assertEquals(obstacleNightBrightness(), 1.4,
-          'a visual override should brighten night cacti by the tuned amount');
+        assertEquals(
+          obstacleNightBrightness(),
+          1.4,
+          'a visual override should brighten night cacti by the tuned amount'
+        );
       });
-      assertEquals(obstacleNightBrightness(), GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
-        'clearing the override returns the configured night lift');
+      assertEquals(
+        obstacleNightBrightness(),
+        GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
+        'clearing the override returns the configured night lift'
+      );
     } finally {
       game.mode = origMode;
       game.score = origScore;
@@ -2141,11 +2473,17 @@ describe('Live-tuning hook (PR-P3)', () => {
     game.score = GAME_CONFIG.DAY_NIGHT_END;
     try {
       withTuning({ NIGHT_DINO_BRIGHTNESS: 1.5 }, () => {
-        assertEquals(dinoNightBrightness(), 1.5,
-          'a visual override should brighten the night dino by the tuned amount');
+        assertEquals(
+          dinoNightBrightness(),
+          1.5,
+          'a visual override should brighten the night dino by the tuned amount'
+        );
       });
-      assertEquals(dinoNightBrightness(), GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
-        'clearing the override returns the configured dino lift');
+      assertEquals(
+        dinoNightBrightness(),
+        GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
+        'clearing the override returns the configured dino lift'
+      );
     } finally {
       game.mode = origMode;
       game.score = origScore;
@@ -2185,10 +2523,18 @@ describe('Live-tuning hook (PR-P3)', () => {
       });
       game.mode = MODES.CLASSIC;
       withTuning({ STAR_FADE_FRAMES: 0 }, () => {
-        assertEquals(starFadeAlpha(), 1, 'a non-positive Classic tune still shows the field immediately');
+        assertEquals(
+          starFadeAlpha(),
+          1,
+          'a non-positive Classic tune still shows the field immediately'
+        );
       });
       withTuning({ STAR_FADE_FRAMES: -2 }, () => {
-        assertEquals(starFadeAlpha(), 1, 'a negative Classic tune still shows the field immediately');
+        assertEquals(
+          starFadeAlpha(),
+          1,
+          'a negative Classic tune still shows the field immediately'
+        );
       });
     } finally {
       game.mode = origMode;
@@ -2210,8 +2556,11 @@ describe('Live-tuning hook (PR-P3)', () => {
       game.mode = MODES.UPDATED;
       withTuning({ UPDATED_STAR_FADE_FRAMES: 4 }, () => {
         assertEquals(starFadeAlpha(), 0.5, 'halfway through an overridden Updated fade');
-        assertEquals(starPaintAlpha(), 0.5 * GAME_CONFIG.NIGHT_STAR_ALPHA,
-          'the quiet peak still scales the shorter ramp');
+        assertEquals(
+          starPaintAlpha(),
+          0.5 * GAME_CONFIG.NIGHT_STAR_ALPHA,
+          'the quiet peak still scales the shorter ramp'
+        );
       });
       assert(
         Math.abs(starFadeAlpha() - 2 / GAME_CONFIG.UPDATED_STAR_FADE_FRAMES) < 1e-9,
@@ -2227,8 +2576,11 @@ describe('Live-tuning hook (PR-P3)', () => {
           Math.abs(starFadeAlpha() - 2 / GAME_CONFIG.STAR_FADE_FRAMES) < 1e-9,
           'Classic ignores the Updated fade length'
         );
-        assertEquals(starPaintAlpha(), 2 / GAME_CONFIG.STAR_FADE_FRAMES,
-          'Classic stays on the full-white ramp');
+        assertEquals(
+          starPaintAlpha(),
+          2 / GAME_CONFIG.STAR_FADE_FRAMES,
+          'Classic stays on the full-white ramp'
+        );
       });
       game.mode = MODES.UPDATED;
       withTuning({ UPDATED_STAR_FADE_FRAMES: 90 }, () => {
@@ -2262,8 +2614,11 @@ describe('Live-tuning hook (PR-P3)', () => {
         );
       });
       withTuning({ UPDATED_STAR_FADE_FRAMES: GAME_CONFIG.STAR_FADE_FRAMES }, () => {
-        assertEquals(starFadeAlpha(), 2 / GAME_CONFIG.STAR_FADE_FRAMES,
-          'a length equal to Classic is still allowed');
+        assertEquals(
+          starFadeAlpha(),
+          2 / GAME_CONFIG.STAR_FADE_FRAMES,
+          'a length equal to Classic is still allowed'
+        );
       });
     } finally {
       game.mode = origMode;
@@ -2290,10 +2645,14 @@ describe('HUD score format (polish pass)', () => {
     game.score = origScore;
     Animations.scorePopFrames = origPop;
     game.highScore = origHS;
-    assert(calls.some(t => t === '00042'),
-      `Expected '00042' in HUD calls, got: ${JSON.stringify(calls)}`);
-    assert(!calls.some(t => t.includes('Score:')),
-      `Expected no 'Score:' prefix, got: ${JSON.stringify(calls)}`);
+    assert(
+      calls.some((t) => t === '00042'),
+      `Expected '00042' in HUD calls, got: ${JSON.stringify(calls)}`
+    );
+    assert(
+      !calls.some((t) => t.includes('Score:')),
+      `Expected no 'Score:' prefix, got: ${JSON.stringify(calls)}`
+    );
   });
 
   it('HI label appears in HUD when highScore > 0', () => {
@@ -2311,8 +2670,10 @@ describe('HUD score format (polish pass)', () => {
     game.highScore = origHS;
     game.score = origScore;
     Animations.scorePopFrames = origPop;
-    assert(calls.some(t => t.startsWith('HI ')),
-      `Expected 'HI ...' label in HUD, got: ${JSON.stringify(calls)}`);
+    assert(
+      calls.some((t) => t.startsWith('HI ')),
+      `Expected 'HI ...' label in HUD, got: ${JSON.stringify(calls)}`
+    );
   });
 
   it('HI label absent when highScore is 0', () => {
@@ -2330,8 +2691,10 @@ describe('HUD score format (polish pass)', () => {
     game.highScore = origHS;
     game.score = origScore;
     Animations.scorePopFrames = origPop;
-    assert(!calls.some(t => t.startsWith('HI ')),
-      `Expected no 'HI ...' label when highScore is 0, got: ${JSON.stringify(calls)}`);
+    assert(
+      !calls.some((t) => t.startsWith('HI ')),
+      `Expected no 'HI ...' label when highScore is 0, got: ${JSON.stringify(calls)}`
+    );
   });
 
   it('in-run HUD omits the Daily TODAY label; game over still shows TODAY BEST', () => {
@@ -2368,76 +2731,90 @@ describe('HUD score format (polish pass)', () => {
     Animations.scorePopFrames = origPop;
     Animations.deathAnimFrame = origAnim;
 
-    assert(!hud.some(t => t.indexOf('TODAY') !== -1),
-      `In-run HUD must not show TODAY, got: ${JSON.stringify(hud)}`);
-    assert(over.some(t => t === 'TODAY BEST'),
-      `Game over must still show TODAY BEST, got: ${JSON.stringify(over)}`);
+    assert(
+      !hud.some((t) => t.indexOf('TODAY') !== -1),
+      `In-run HUD must not show TODAY, got: ${JSON.stringify(hud)}`
+    );
+    assert(
+      over.some((t) => t === 'TODAY BEST'),
+      `Game over must still show TODAY BEST, got: ${JSON.stringify(over)}`
+    );
   });
 });
 
 describe('Game over screen (polish pass)', () => {
   it('score on game over screen is zero-padded without "Score:" prefix', () => {
     const calls = [];
-    const origFill      = ctx.fillText;
-    const origScore     = game.score;
+    const origFill = ctx.fillText;
+    const origScore = game.score;
     const origAnimFrame = Animations.deathAnimFrame;
     ctx.fillText = (text) => calls.push(String(text));
-    game.score          = 87;
+    game.score = 87;
     Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
     drawGameOverScreen();
-    ctx.fillText        = origFill;
-    game.score          = origScore;
+    ctx.fillText = origFill;
+    game.score = origScore;
     Animations.deathAnimFrame = origAnimFrame;
-    assert(calls.some(t => t === '00087'),
-      `Expected '00087' on game over screen, got: ${JSON.stringify(calls)}`);
-    assert(!calls.some(t => t.includes('Score:')),
-      `Expected no 'Score:' prefix on game over screen, got: ${JSON.stringify(calls)}`);
+    assert(
+      calls.some((t) => t === '00087'),
+      `Expected '00087' on game over screen, got: ${JSON.stringify(calls)}`
+    );
+    assert(
+      !calls.some((t) => t.includes('Score:')),
+      `Expected no 'Score:' prefix on game over screen, got: ${JSON.stringify(calls)}`
+    );
   });
 
   it('Best line hidden when highScore is 0 (first run: new record screen, no YOUR BEST)', () => {
     const calls = [];
-    const origFill      = ctx.fillText;
-    const origNewBest   = game.isNewBest;
-    const origPrevHS    = game.previousHighScore;
-    const origHS        = game.highScore;
-    const origScore     = game.score;
+    const origFill = ctx.fillText;
+    const origNewBest = game.isNewBest;
+    const origPrevHS = game.previousHighScore;
+    const origHS = game.highScore;
+    const origScore = game.score;
     const origAnimFrame = Animations.deathAnimFrame;
     ctx.fillText = (text) => calls.push(String(text));
-    game.isNewBest         = true;
+    game.isNewBest = true;
     game.previousHighScore = 0;
-    game.highScore         = 0;
-    game.score             = 500;
-    Animations.deathAnimFrame    = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    game.highScore = 0;
+    game.score = 500;
+    Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
     drawGameOverScreen();
-    ctx.fillText           = origFill;
-    game.isNewBest         = origNewBest;
+    ctx.fillText = origFill;
+    game.isNewBest = origNewBest;
     game.previousHighScore = origPrevHS;
-    game.highScore         = origHS;
-    game.score             = origScore;
-    Animations.deathAnimFrame    = origAnimFrame;
-    assert(!calls.some(t => t === 'YOUR BEST'),
-      `Expected no 'YOUR BEST' on first-run new record screen, got: ${JSON.stringify(calls)}`);
-    assert(!calls.some(t => t.includes('over your previous best')),
-      `Expected no delta line on first run (previousHighScore=0), got: ${JSON.stringify(calls)}`);
+    game.highScore = origHS;
+    game.score = origScore;
+    Animations.deathAnimFrame = origAnimFrame;
+    assert(
+      !calls.some((t) => t === 'YOUR BEST'),
+      `Expected no 'YOUR BEST' on first-run new record screen, got: ${JSON.stringify(calls)}`
+    );
+    assert(
+      !calls.some((t) => t.includes('over your previous best')),
+      `Expected no delta line on first run (previousHighScore=0), got: ${JSON.stringify(calls)}`
+    );
   });
 
   it('Best line shown when highScore > 0 (normal death side-by-side)', () => {
     const calls = [];
-    const origFill      = ctx.fillText;
-    const origNewBest   = game.isNewBest;
-    const origHS        = game.highScore;
+    const origFill = ctx.fillText;
+    const origNewBest = game.isNewBest;
+    const origHS = game.highScore;
     const origAnimFrame = Animations.deathAnimFrame;
     ctx.fillText = (text) => calls.push(String(text));
-    game.isNewBest      = false;
-    game.highScore      = 250;
+    game.isNewBest = false;
+    game.highScore = 250;
     Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
     drawGameOverScreen();
-    ctx.fillText        = origFill;
-    game.isNewBest      = origNewBest;
-    game.highScore      = origHS;
+    ctx.fillText = origFill;
+    game.isNewBest = origNewBest;
+    game.highScore = origHS;
     Animations.deathAnimFrame = origAnimFrame;
-    assert(calls.some(t => t === 'YOUR BEST'),
-      `Expected 'YOUR BEST' in normal death side-by-side, got: ${JSON.stringify(calls)}`);
+    assert(
+      calls.some((t) => t === 'YOUR BEST'),
+      `Expected 'YOUR BEST' in normal death side-by-side, got: ${JSON.stringify(calls)}`
+    );
   });
 });
 
@@ -2445,16 +2822,18 @@ describe('announce() accessibility helper', () => {
   it('sets a11yLive.textContent to the announced message', () => {
     a11yLive.textContent = '';
     announce('hello');
-    assertEquals(a11yLive.textContent, 'hello',
-      'announce should write message to a11y live region');
+    assertEquals(
+      a11yLive.textContent,
+      'hello',
+      'announce should write message to a11y live region'
+    );
   });
 
   it('overwrites textContent on repeated calls', () => {
     a11yLive.textContent = '';
     announce('first');
     announce('second');
-    assertEquals(a11yLive.textContent, 'second',
-      'second announce should overwrite the first');
+    assertEquals(a11yLive.textContent, 'second', 'second announce should overwrite the first');
   });
 });
 
@@ -2490,61 +2869,68 @@ describe('Death screen', () => {
   // --- game state fields + death handler ---
 
   it('death handler sets isNewBest and previousHighScore before updating highScore', () => {
-    const origHS        = game.highScore;
-    const origScore     = game.score;
-    const origState     = game.state;
+    const origHS = game.highScore;
+    const origScore = game.score;
+    const origState = game.state;
     const origObstacles = game.obstacles;
-    const origLastObs   = game.lastObstacleX;
-    const origNewBest   = game.isNewBest;
-    const origPrevHS    = game.previousHighScore;
+    const origLastObs = game.lastObstacleX;
+    const origNewBest = game.isNewBest;
+    const origPrevHS = game.previousHighScore;
     const origGraceFrames = game.graceFrames;
 
-    game.highScore         = 1000;
-    game.score             = 1200;
-    game.state             = STATE.RUNNING;
-    game.graceFrames       = 0;
-    game.lastObstacleX     = canvas.width; // prevent an extra spawn firing
+    game.highScore = 1000;
+    game.score = 1200;
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    game.lastObstacleX = canvas.width; // prevent an extra spawn firing
     // Place obstacle exactly at the dino — guaranteed collision regardless of hitbox padding.
-    game.obstacles = [{ x: GAME_CONFIG.DINO_X, y: dino.y, width: GAME_CONFIG.DINO_WIDTH, height: GAME_CONFIG.DINO_HEIGHT }];
+    game.obstacles = [
+      {
+        x: GAME_CONFIG.DINO_X,
+        y: dino.y,
+        width: GAME_CONFIG.DINO_WIDTH,
+        height: GAME_CONFIG.DINO_HEIGHT,
+      },
+    ];
 
     gameLoop();
     cancelAnimationFrame(game.animationFrameId);
 
-    assertEquals(game.state,             STATE.DEAD, 'collision should set DEAD');
-    assertEquals(game.isNewBest,         true,       'score 1200 > highScore 1000 → new best');
-    assertEquals(game.previousHighScore, 1000,       'previousHighScore should be pre-death highScore');
-    assertEquals(game.highScore,         1200,       'highScore should be updated to 1200');
+    assertEquals(game.state, STATE.DEAD, 'collision should set DEAD');
+    assertEquals(game.isNewBest, true, 'score 1200 > highScore 1000 → new best');
+    assertEquals(game.previousHighScore, 1000, 'previousHighScore should be pre-death highScore');
+    assertEquals(game.highScore, 1200, 'highScore should be updated to 1200');
 
-    game.highScore         = origHS;
-    game.score             = origScore;
-    game.state             = origState;
-    game.obstacles         = origObstacles;
-    game.lastObstacleX     = origLastObs;
-    game.isNewBest         = origNewBest;
+    game.highScore = origHS;
+    game.score = origScore;
+    game.state = origState;
+    game.obstacles = origObstacles;
+    game.lastObstacleX = origLastObs;
+    game.isNewBest = origNewBest;
     game.previousHighScore = origPrevHS;
-    game.graceFrames       = origGraceFrames;
+    game.graceFrames = origGraceFrames;
   });
 
   it('resetGame resets isNewBest to false and previousHighScore to 0', () => {
-    game.isNewBest         = true;
+    game.isNewBest = true;
     game.previousHighScore = 999;
     resetGame();
     cancelAnimationFrame(game.animationFrameId);
-    assertEquals(game.isNewBest,         false, 'isNewBest should be false after resetGame');
-    assertEquals(game.previousHighScore, 0,     'previousHighScore should be 0 after resetGame');
+    assertEquals(game.isNewBest, false, 'isNewBest should be false after resetGame');
+    assertEquals(game.previousHighScore, 0, 'previousHighScore should be 0 after resetGame');
   });
 
   // --- drawGameOverScreen ---
 
   it('drawGameOverScreen normal state renders THIS RUN label', () => {
-    const origNewBest   = game.isNewBest;
-    const origHS        = game.highScore;
-    const origScore     = game.score;
+    const origNewBest = game.isNewBest;
+    const origHS = game.highScore;
+    const origScore = game.score;
     const origAnimFrame = Animations.deathAnimFrame;
 
-    game.isNewBest      = false;
-    game.highScore      = 1050;
-    game.score          = 847;
+    game.isNewBest = false;
+    game.highScore = 1050;
+    game.score = 847;
     Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
 
     const calls = [];
@@ -2553,24 +2939,26 @@ describe('Death screen', () => {
     drawGameOverScreen();
     ctx.fillText = origFill;
 
-    game.isNewBest      = origNewBest;
-    game.highScore      = origHS;
-    game.score          = origScore;
+    game.isNewBest = origNewBest;
+    game.highScore = origHS;
+    game.score = origScore;
     Animations.deathAnimFrame = origAnimFrame;
 
-    assert(calls.some(t => t === 'THIS RUN'),
-      `Expected 'THIS RUN' in drawGameOverScreen calls, got: ${JSON.stringify(calls)}`);
+    assert(
+      calls.some((t) => t === 'THIS RUN'),
+      `Expected 'THIS RUN' in drawGameOverScreen calls, got: ${JSON.stringify(calls)}`
+    );
   });
 
   it('drawGameOverScreen normal state renders gap delta value', () => {
-    const origNewBest   = game.isNewBest;
-    const origHS        = game.highScore;
-    const origScore     = game.score;
+    const origNewBest = game.isNewBest;
+    const origHS = game.highScore;
+    const origScore = game.score;
     const origAnimFrame = Animations.deathAnimFrame;
 
-    game.isNewBest      = false;
-    game.highScore      = 1050;
-    game.score          = 847;
+    game.isNewBest = false;
+    game.highScore = 1050;
+    game.score = 847;
     Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
 
     const calls = [];
@@ -2579,25 +2967,27 @@ describe('Death screen', () => {
     drawGameOverScreen();
     ctx.fillText = origFill;
 
-    game.isNewBest      = origNewBest;
-    game.highScore      = origHS;
-    game.score          = origScore;
+    game.isNewBest = origNewBest;
+    game.highScore = origHS;
+    game.score = origScore;
     Animations.deathAnimFrame = origAnimFrame;
 
-    assert(calls.some(t => t.includes('203')),
-      `Expected a call containing '203' (the gap delta), got: ${JSON.stringify(calls)}`);
+    assert(
+      calls.some((t) => t.includes('203')),
+      `Expected a call containing '203' (the gap delta), got: ${JSON.stringify(calls)}`
+    );
   });
 
   it('drawGameOverScreen new record state renders NEW BEST header', () => {
-    const origNewBest   = game.isNewBest;
-    const origPrevHS    = game.previousHighScore;
-    const origScore     = game.score;
+    const origNewBest = game.isNewBest;
+    const origPrevHS = game.previousHighScore;
+    const origScore = game.score;
     const origAnimFrame = Animations.deathAnimFrame;
 
-    game.isNewBest         = true;
+    game.isNewBest = true;
     game.previousHighScore = 1050;
-    game.score             = 1253;
-    Animations.deathAnimFrame    = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    game.score = 1253;
+    Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
 
     const calls = [];
     const origFill = ctx.fillText;
@@ -2605,13 +2995,15 @@ describe('Death screen', () => {
     drawGameOverScreen();
     ctx.fillText = origFill;
 
-    game.isNewBest         = origNewBest;
+    game.isNewBest = origNewBest;
     game.previousHighScore = origPrevHS;
-    game.score             = origScore;
-    Animations.deathAnimFrame    = origAnimFrame;
+    game.score = origScore;
+    Animations.deathAnimFrame = origAnimFrame;
 
-    assert(calls.some(t => t.includes('NEW BEST')),
-      `Expected a call containing 'NEW BEST', got: ${JSON.stringify(calls)}`);
+    assert(
+      calls.some((t) => t.includes('NEW BEST')),
+      `Expected a call containing 'NEW BEST', got: ${JSON.stringify(calls)}`
+    );
   });
 });
 
@@ -2646,20 +3038,20 @@ describe('Dino animation in WAITING state (polish pass)', () => {
 
 describe('Hill colour interpolation (polish pass)', () => {
   it('returns HILL_COLOR_DAY below DAY_NIGHT_START', () => {
-    assertEquals(getHillColor(0),   GAME_CONFIG.HILL_COLOR_DAY, 'score 0 → day colour');
+    assertEquals(getHillColor(0), GAME_CONFIG.HILL_COLOR_DAY, 'score 0 → day colour');
     assertEquals(getHillColor(299), GAME_CONFIG.HILL_COLOR_DAY, 'score 299 → day colour');
   });
 
   it('returns HILL_COLOR_NIGHT at or above DAY_NIGHT_END', () => {
-    assertEquals(getHillColor(400),  GAME_CONFIG.HILL_COLOR_NIGHT, 'score 400 → night colour');
+    assertEquals(getHillColor(400), GAME_CONFIG.HILL_COLOR_NIGHT, 'score 400 → night colour');
     assertEquals(getHillColor(1000), GAME_CONFIG.HILL_COLOR_NIGHT, 'score 1000 → night colour');
   });
 
   it('returns a valid interpolated hex colour in the transition window', () => {
     const mid = getHillColor(350); // midpoint between 300 and 400
-    assert(mid !== GAME_CONFIG.HILL_COLOR_DAY,   'midpoint should not be day colour');
-    assert(mid !== GAME_CONFIG.HILL_COLOR_NIGHT,  'midpoint should not be night colour');
-    assert(/^#[0-9a-f]{6}$/.test(mid),           'must be a valid lowercase 6-digit hex colour');
+    assert(mid !== GAME_CONFIG.HILL_COLOR_DAY, 'midpoint should not be day colour');
+    assert(mid !== GAME_CONFIG.HILL_COLOR_NIGHT, 'midpoint should not be night colour');
+    assert(/^#[0-9a-f]{6}$/.test(mid), 'must be a valid lowercase 6-digit hex colour');
   });
 });
 
@@ -2684,7 +3076,9 @@ describe('Soft day hills', () => {
     };
     return {
       seen,
-      restore() { ctx.ellipse = orig; },
+      restore() {
+        ctx.ellipse = orig;
+      },
     };
   }
 
@@ -2699,12 +3093,13 @@ describe('Soft day hills', () => {
     const oldInk = 0xff - 0xcd;
     const laneInk = 0xff - 0x53;
     assert(/^#[0-9a-f]{6}$/.test(day), 'day hills stay a 6-digit hex colour');
-    assert(channels[0] === channels[1] && channels[1] === channels[2],
-      'day hills stay a neutral gray silhouette');
+    assert(
+      channels[0] === channels[1] && channels[1] === channels[2],
+      'day hills stay a neutral gray silhouette'
+    );
     assert(ink < oldInk * 0.75, 'day hills lose a real share of the old #cdcdcd contrast');
     assert(ink > 20, 'the mounds still sit more than twenty levels off the white sky');
-    assert(ink > dayCloudInk() * 2,
-      'the mounds still read in front of the day cloud whisper');
+    assert(ink > dayCloudInk() * 2, 'the mounds still read in front of the day cloud whisper');
     assert(ink < laneInk / 4, 'day hills stay much softer than the dino and the ground');
   });
 
@@ -2713,21 +3108,36 @@ describe('Soft day hills', () => {
       setReducedMotion(false);
       setQaNight(false);
       assertEquals(getHillColor(0), GAME_CONFIG.HILL_COLOR_DAY, 'opening run is the day fill');
-      assertEquals(getHillColor(GAME_CONFIG.DAY_NIGHT_START - 1), GAME_CONFIG.HILL_COLOR_DAY,
-        'the ease starts with the sky');
+      assertEquals(
+        getHillColor(GAME_CONFIG.DAY_NIGHT_START - 1),
+        GAME_CONFIG.HILL_COLOR_DAY,
+        'the ease starts with the sky'
+      );
       const mid = getHillColor(350);
       assert(mid !== GAME_CONFIG.HILL_COLOR_DAY, 'mid-twilight has left the day fill');
       assert(mid !== GAME_CONFIG.HILL_COLOR_NIGHT, 'mid-twilight has not snapped to night');
-      assertEquals(getHillColor(GAME_CONFIG.DAY_NIGHT_END), GAME_CONFIG.HILL_COLOR_NIGHT,
-        'full night holds the night hill colour');
+      assertEquals(
+        getHillColor(GAME_CONFIG.DAY_NIGHT_END),
+        GAME_CONFIG.HILL_COLOR_NIGHT,
+        'full night holds the night hill colour'
+      );
 
       setReducedMotion(true);
-      assertEquals(getHillColor(350), GAME_CONFIG.HILL_COLOR_DAY,
-        'reduced motion skips the twilight ease');
-      assertEquals(getHillColor(GAME_CONFIG.DAY_NIGHT_END - 1), GAME_CONFIG.HILL_COLOR_DAY,
-        'reduced motion stays on the day fill until night is complete');
-      assertEquals(getHillColor(GAME_CONFIG.DAY_NIGHT_END), GAME_CONFIG.HILL_COLOR_NIGHT,
-        'reduced motion still snaps to the night hill colour');
+      assertEquals(
+        getHillColor(350),
+        GAME_CONFIG.HILL_COLOR_DAY,
+        'reduced motion skips the twilight ease'
+      );
+      assertEquals(
+        getHillColor(GAME_CONFIG.DAY_NIGHT_END - 1),
+        GAME_CONFIG.HILL_COLOR_DAY,
+        'reduced motion stays on the day fill until night is complete'
+      );
+      assertEquals(
+        getHillColor(GAME_CONFIG.DAY_NIGHT_END),
+        GAME_CONFIG.HILL_COLOR_NIGHT,
+        'reduced motion still snaps to the night hill colour'
+      );
     } finally {
       setReducedMotion(false);
       setQaNight(false);
@@ -2757,15 +3167,23 @@ describe('Soft day hills', () => {
       assert(game.state === STATE.WAITING, 'one opening frame stays on GET READY');
       assertEquals(game.score, 0, 'painting the opening hills must not write the score');
       assertEquals(paint.seen.length, GAME_CONFIG.HILL_COUNT, 'GET READY draws every mound');
-      assert(paint.seen.every(style => style === GAME_CONFIG.HILL_COLOR_DAY),
-        'the opening screen uses the quieter day fill');
+      assert(
+        paint.seen.every((style) => style === GAME_CONFIG.HILL_COLOR_DAY),
+        'the opening screen uses the quieter day fill'
+      );
 
       paint.seen.length = 0;
       game.mode = MODES.DAILY;
       drawHills();
-      assertEquals(paint.seen.length, GAME_CONFIG.HILL_COUNT, 'Daily shares the Updated day mounds');
-      assert(paint.seen.every(style => style === GAME_CONFIG.HILL_COLOR_DAY),
-        'Daily opening hills use the same quieter day fill');
+      assertEquals(
+        paint.seen.length,
+        GAME_CONFIG.HILL_COUNT,
+        'Daily shares the Updated day mounds'
+      );
+      assert(
+        paint.seen.every((style) => style === GAME_CONFIG.HILL_COLOR_DAY),
+        'Daily opening hills use the same quieter day fill'
+      );
 
       paint.seen.length = 0;
       game.mode = MODES.CLASSIC;
@@ -2799,8 +3217,10 @@ describe('Soft day hills', () => {
       setQaNight(true);
       drawHills();
       assertEquals(paint.seen.length, GAME_CONFIG.HILL_COUNT, 'QA night still draws the mounds');
-      assert(paint.seen.every(style => style === GAME_CONFIG.HILL_COLOR_NIGHT),
-        'the existing night flag is enough to see the night hills');
+      assert(
+        paint.seen.every((style) => style === GAME_CONFIG.HILL_COLOR_NIGHT),
+        'the existing night flag is enough to see the night hills'
+      );
       assertEquals(game.score, 0, 'the night hill colour must not write the score');
 
       paint.seen.length = 0;
@@ -2843,10 +3263,18 @@ describe('Soft night hills', () => {
     assertEquals(night, '#2d2d46', 'night hills use the quieter mound');
     assert(/^#[0-9a-f]{6}$/.test(night), 'night hills stay a 6-digit hex colour');
     assert(now.channels[0] === now.channels[1], 'red and green stay matched, like the night sky');
-    assert(now.channels[2] > now.channels[0], 'blue stays a step above, so the mound is still night');
-    assert(now.lifts.every(n => n > 0), 'the mounds still sit off the night sky');
-    assert(Math.abs(now.mean - old.mean * 0.6) < 0.5,
-      'the quieter mound keeps about three-fifths of the old #3a3a55 lift');
+    assert(
+      now.channels[2] > now.channels[0],
+      'blue stays a step above, so the mound is still night'
+    );
+    assert(
+      now.lifts.every((n) => n > 0),
+      'the mounds still sit off the night sky'
+    );
+    assert(
+      Math.abs(now.mean - old.mean * 0.6) < 0.5,
+      'the quieter mound keeps about three-fifths of the old #3a3a55 lift'
+    );
     assert(now.mean < old.mean * 0.75, 'night hills lose a real share of the old band');
     assert(now.channels[0] < ground, 'night hills stay darker than the night ground line');
     assert(now.channels[0] < dino / 2, 'night hills stay well behind the night dino');
@@ -2865,8 +3293,11 @@ describe('Soft night hills', () => {
       assertEquals(getHillColor(GAME_CONFIG.DAY_NIGHT_END), '#112233', 'full night reads the tune');
       assertEquals(getHillColor(1000), '#112233', 'later night keeps the tune');
       window.GAME_TUNING = { HILL_COLOR_NIGHT: 'nope' };
-      assertEquals(getHillColor(GAME_CONFIG.DAY_NIGHT_END), GAME_CONFIG.HILL_COLOR_NIGHT,
-        'a bad tune falls back to the shipped night fill');
+      assertEquals(
+        getHillColor(GAME_CONFIG.DAY_NIGHT_END),
+        GAME_CONFIG.HILL_COLOR_NIGHT,
+        'a bad tune falls back to the shipped night fill'
+      );
       assertEquals(game.score, origScore, 'tuning the night fill must not write the score');
     } finally {
       window.GAME_TUNING = origTuning;
@@ -2878,84 +3309,106 @@ describe('Soft night hills', () => {
 
 describe('DifficultyProfile', () => {
   it('speedAtScore returns exactly the midpoint speed at RAMP_MIDPOINT', () => {
-    const expected = GAME_CONFIG.INITIAL_SPEED +
-      (GAME_CONFIG.PLATEAU_SPEED - GAME_CONFIG.INITIAL_SPEED) / 2;
+    const expected =
+      GAME_CONFIG.INITIAL_SPEED + (GAME_CONFIG.PLATEAU_SPEED - GAME_CONFIG.INITIAL_SPEED) / 2;
     assertEquals(
-      DifficultyProfile.speedAtScore(GAME_CONFIG.RAMP_MIDPOINT), expected,
+      DifficultyProfile.speedAtScore(GAME_CONFIG.RAMP_MIDPOINT),
+      expected,
       'At RAMP_MIDPOINT the sigmoid is exactly 0.5, so speed must be the midpoint between INITIAL and PLATEAU'
     );
   });
 
   it('speedAtScore is slightly above INITIAL_SPEED at score 0 — curve starts gently', () => {
     const speed = DifficultyProfile.speedAtScore(0);
-    assert(speed > GAME_CONFIG.INITIAL_SPEED,
-      `Score 0 speed ${speed} should be above INITIAL_SPEED ${GAME_CONFIG.INITIAL_SPEED}`);
-    assert(speed < GAME_CONFIG.INITIAL_SPEED + 0.5,
-      `Score 0 speed ${speed} should still be close to INITIAL_SPEED — gentle start`);
+    assert(
+      speed > GAME_CONFIG.INITIAL_SPEED,
+      `Score 0 speed ${speed} should be above INITIAL_SPEED ${GAME_CONFIG.INITIAL_SPEED}`
+    );
+    assert(
+      speed < GAME_CONFIG.INITIAL_SPEED + 0.5,
+      `Score 0 speed ${speed} should still be close to INITIAL_SPEED — gentle start`
+    );
   });
 
   it('speedAtScore never exceeds PLATEAU_SPEED', () => {
     for (const score of [500, 1000, 5000]) {
       const speed = DifficultyProfile.speedAtScore(score);
-      assert(speed <= GAME_CONFIG.PLATEAU_SPEED,
-        `Score ${score} speed ${speed} must not exceed PLATEAU_SPEED ${GAME_CONFIG.PLATEAU_SPEED}`);
+      assert(
+        speed <= GAME_CONFIG.PLATEAU_SPEED,
+        `Score ${score} speed ${speed} must not exceed PLATEAU_SPEED ${GAME_CONFIG.PLATEAU_SPEED}`
+      );
     }
   });
 
   it('speedAtScore is monotonically increasing', () => {
-    const s0   = DifficultyProfile.speedAtScore(0);
+    const s0 = DifficultyProfile.speedAtScore(0);
     const s100 = DifficultyProfile.speedAtScore(100);
     const s300 = DifficultyProfile.speedAtScore(300);
     const s600 = DifficultyProfile.speedAtScore(600);
-    assert(s0 < s100 && s100 < s300 && s300 < s600,
-      `Speed must strictly increase: ${s0} < ${s100} < ${s300} < ${s600}`);
+    assert(
+      s0 < s100 && s100 < s300 && s300 < s600,
+      `Speed must strictly increase: ${s0} < ${s100} < ${s300} < ${s600}`
+    );
   });
 
   it('nextObstacle returns an object with a numeric gap and a typed obstacle', () => {
     const rng = mulberry32(42);
     const params = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng);
-    assert(typeof params.gap === 'number',
-      'gap must be a number');
-    assert(params.type && typeof params.type.id === 'string',
-      'type must be an obstacle-type object with an id string');
+    assert(typeof params.gap === 'number', 'gap must be a number');
+    assert(
+      params.type && typeof params.type.id === 'string',
+      'type must be an obstacle-type object with an id string'
+    );
   });
 
   it('nextObstacle classic mode: gap shrinks as score rises', () => {
     const rng = mulberry32(42); // not consumed in classic mode — safe to reuse
-    const paramsLow  = DifficultyProfile.nextObstacle(0,   MODES.CLASSIC, rng);
+    const paramsLow = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng);
     const paramsHigh = DifficultyProfile.nextObstacle(500, MODES.CLASSIC, rng);
-    assert(paramsHigh.gap < paramsLow.gap,
-      `Gap at score 500 (${paramsHigh.gap}) should be less than gap at score 0 (${paramsLow.gap}) — higher speed means shorter gap`);
+    assert(
+      paramsHigh.gap < paramsLow.gap,
+      `Gap at score 500 (${paramsHigh.gap}) should be less than gap at score 0 (${paramsLow.gap}) — higher speed means shorter gap`
+    );
   });
 
   it('nextObstacle classic mode: type is always small cactus', () => {
     const rng = mulberry32(42);
     const params = DifficultyProfile.nextObstacle(500, MODES.CLASSIC, rng);
-    assertEquals(params.type.id, 'small',
-      'Classic mode must always return the small cactus');
+    assertEquals(params.type.id, 'small', 'Classic mode must always return the small cactus');
   });
 
   it('nextObstacle updated mode: gap is within valid range at score 0', () => {
     const rng = mulberry32(42);
     const params = DifficultyProfile.nextObstacle(0, MODES.UPDATED, rng);
-    assert(params.gap >= GAME_CONFIG.MIN_SPAWN_GAP,
-      `Gap (${params.gap}) must be at least MIN_SPAWN_GAP (${GAME_CONFIG.MIN_SPAWN_GAP})`);
-    assert(params.gap <= Math.round(GAME_CONFIG.MAX_SPAWN_GAP * (1 + GAME_CONFIG.SPAWN_GAP_JITTER)),
-      `Gap (${params.gap}) must not exceed MAX_SPAWN_GAP with max jitter (${GAME_CONFIG.MAX_SPAWN_GAP} * ${1 + GAME_CONFIG.SPAWN_GAP_JITTER})`);
+    assert(
+      params.gap >= GAME_CONFIG.MIN_SPAWN_GAP,
+      `Gap (${params.gap}) must be at least MIN_SPAWN_GAP (${GAME_CONFIG.MIN_SPAWN_GAP})`
+    );
+    assert(
+      params.gap <= Math.round(GAME_CONFIG.MAX_SPAWN_GAP * (1 + GAME_CONFIG.SPAWN_GAP_JITTER)),
+      `Gap (${params.gap}) must not exceed MAX_SPAWN_GAP with max jitter (${GAME_CONFIG.MAX_SPAWN_GAP} * ${1 + GAME_CONFIG.SPAWN_GAP_JITTER})`
+    );
   });
 
   it('nextObstacle updated mode: cluster cactus returned at score 250 with max roll', () => {
     const rng = () => 0.99; // constant roll — pushes weighted pick to last eligible type
     const params = DifficultyProfile.nextObstacle(250, MODES.UPDATED, rng);
-    assertEquals(params.type.id, 'cluster',
-      'At score 250 with max rng roll, all three types eligible and cluster wins the weighted draw');
+    assertEquals(
+      params.type.id,
+      'cluster',
+      'At score 250 with max rng roll, all three types eligible and cluster wins the weighted draw'
+    );
   });
 });
 
 describe('Idle screen', () => {
   it('drawIdleScreen does not throw', () => {
     let threw = false;
-    try { drawIdleScreen(); } catch { threw = true; }
+    try {
+      drawIdleScreen();
+    } catch {
+      threw = true;
+    }
     assert(!threw, 'drawIdleScreen should not throw');
   });
 
@@ -2965,8 +3418,10 @@ describe('Idle screen', () => {
     ctx.fillText = (text) => calls.push(String(text));
     drawIdleScreen();
     ctx.fillText = origFill;
-    assert(calls.some(t => t === 'REX RUN'),
-      `Expected 'REX RUN' in drawIdleScreen calls, got: ${JSON.stringify(calls)}`);
+    assert(
+      calls.some((t) => t === 'REX RUN'),
+      `Expected 'REX RUN' in drawIdleScreen calls, got: ${JSON.stringify(calls)}`
+    );
   });
 
   it('drawIdleScreen renders start prompt', () => {
@@ -2975,12 +3430,14 @@ describe('Idle screen', () => {
     ctx.fillText = (text) => calls.push(String(text));
     drawIdleScreen();
     ctx.fillText = origFill;
-    assert(calls.some(t => t === 'TAP / PRESS SPACE TO START'),
-      `Expected 'TAP / PRESS SPACE TO START' in drawIdleScreen calls, got: ${JSON.stringify(calls)}`);
+    assert(
+      calls.some((t) => t === 'TAP / PRESS SPACE TO START'),
+      `Expected 'TAP / PRESS SPACE TO START' in drawIdleScreen calls, got: ${JSON.stringify(calls)}`
+    );
   });
 
   it('handleAction in STATE.IDLE transitions to STATE.WAITING and sets graceFrames', () => {
-    const origState       = game.state;
+    const origState = game.state;
     const origGraceFrames = game.graceFrames;
 
     game.state = STATE.IDLE;
@@ -2989,219 +3446,241 @@ describe('Idle screen', () => {
     const newState = game.state;
     const newGrace = game.graceFrames;
 
-    game.state       = origState;
+    game.state = origState;
     game.graceFrames = origGraceFrames;
 
-    assertEquals(newState, STATE.WAITING,
-      'handleAction in IDLE should transition to STATE.WAITING');
-    assertEquals(newGrace, GAME_CONFIG.GRACE_FRAMES,
-      'handleAction in IDLE should set graceFrames to GAME_CONFIG.GRACE_FRAMES');
+    assertEquals(
+      newState,
+      STATE.WAITING,
+      'handleAction in IDLE should transition to STATE.WAITING'
+    );
+    assertEquals(
+      newGrace,
+      GAME_CONFIG.GRACE_FRAMES,
+      'handleAction in IDLE should set graceFrames to GAME_CONFIG.GRACE_FRAMES'
+    );
   });
 });
 
 describe('Canvas scaling', () => {
   it('GAME_CONFIG defines CANVAS_W=600 and CANVAS_H=200', () => {
-    assertEquals(GAME_CONFIG.CANVAS_W, 600,
-      'GAME_CONFIG.CANVAS_W should be 600');
-    assertEquals(GAME_CONFIG.CANVAS_H, 200,
-      'GAME_CONFIG.CANVAS_H should be 200');
+    assertEquals(GAME_CONFIG.CANVAS_W, 600, 'GAME_CONFIG.CANVAS_W should be 600');
+    assertEquals(GAME_CONFIG.CANVAS_H, 200, 'GAME_CONFIG.CANVAS_H should be 200');
   });
 
   it('initCanvasScale sets bitmap width to the content-box css width times dpr', () => {
     const origInnerWidth = window.innerWidth;
-    const origDpr        = window.devicePixelRatio;
-    const origWidth      = canvas.width;
-    const origHeight     = canvas.height;
+    const origDpr = window.devicePixelRatio;
+    const origWidth = canvas.width;
+    const origHeight = canvas.height;
     // 390px phone minus the 8px shell gutter on each side. The bitmap stays 3:1.
     const cssW = 374;
 
-    window.innerWidth       = 390;
+    window.innerWidth = 390;
     window.devicePixelRatio = 2;
     initCanvasScale();
 
     const bitmapW = canvas.width;
     const bitmapH = canvas.height;
 
-    window.innerWidth       = origInnerWidth;
+    window.innerWidth = origInnerWidth;
     window.devicePixelRatio = origDpr;
-    canvas.width            = origWidth;
-    canvas.height           = origHeight;
+    canvas.width = origWidth;
+    canvas.height = origHeight;
 
-    assertEquals(bitmapW, Math.round(cssW * 2),
-      'canvas.width should be Math.round(374 * 2) = 748');
-    assertEquals(bitmapH, Math.round(bitmapW / 3),
-      'canvas.height should stay 3:1 with the bitmap width');
+    assertEquals(bitmapW, Math.round(cssW * 2), 'canvas.width should be Math.round(374 * 2) = 748');
+    assertEquals(
+      bitmapH,
+      Math.round(bitmapW / 3),
+      'canvas.height should stay 3:1 with the bitmap width'
+    );
     assertEquals(GAME_CONFIG.CANVAS_W, 600, 'logical board width stays 600');
     assertEquals(GAME_CONFIG.CANVAS_H, 200, 'logical board height stays 200');
   });
 
   it('initCanvasScale sets CSS display size to the padded content box', () => {
-    const origInnerWidth  = window.innerWidth;
-    const origDpr         = window.devicePixelRatio;
-    const origWidth       = canvas.width;
-    const origHeight      = canvas.height;
-    const origStyleWidth  = canvas.style.width;
+    const origInnerWidth = window.innerWidth;
+    const origDpr = window.devicePixelRatio;
+    const origWidth = canvas.width;
+    const origHeight = canvas.height;
+    const origStyleWidth = canvas.style.width;
     const origStyleHeight = canvas.style.height;
 
-    window.innerWidth       = 390;
+    window.innerWidth = 390;
     window.devicePixelRatio = 2;
     initCanvasScale();
 
     const styleW = canvas.style.width;
     const styleH = canvas.style.height;
 
-    window.innerWidth       = origInnerWidth;
+    window.innerWidth = origInnerWidth;
     window.devicePixelRatio = origDpr;
-    canvas.width            = origWidth;
-    canvas.height           = origHeight;
-    canvas.style.width      = origStyleWidth;
-    canvas.style.height     = origStyleHeight;
+    canvas.width = origWidth;
+    canvas.height = origHeight;
+    canvas.style.width = origStyleWidth;
+    canvas.style.height = origStyleHeight;
 
-    assertEquals(styleW, '374px',
-      'canvas.style.width should be the 390px viewport minus the 16px shell gutter');
-    assertEquals(styleH, '125px',
-      'canvas.style.height should be Math.round(374/3) = 125');
+    assertEquals(
+      styleW,
+      '374px',
+      'canvas.style.width should be the 390px viewport minus the 16px shell gutter'
+    );
+    assertEquals(styleH, '125px', 'canvas.style.height should be Math.round(374/3) = 125');
   });
 });
 
 describe('Orientation resize', () => {
   it('handleResize does not throw in any game state', () => {
-    const origState  = game.state;
-    const origWidth  = canvas.width;
+    const origState = game.state;
+    const origWidth = canvas.width;
     const origHeight = canvas.height;
 
-    [STATE.IDLE, STATE.WAITING, STATE.RUNNING, STATE.DEAD].forEach(state => {
+    [STATE.IDLE, STATE.WAITING, STATE.RUNNING, STATE.DEAD].forEach((state) => {
       game.state = state;
       let threw = false;
-      try { handleResize(); } catch { threw = true; }
+      try {
+        handleResize();
+      } catch {
+        threw = true;
+      }
       assert(!threw, `handleResize should not throw in STATE.${state}`);
     });
 
-    game.state    = origState;
-    canvas.width  = origWidth;
+    game.state = origState;
+    canvas.width = origWidth;
     canvas.height = origHeight;
   });
 
   it('handleResize updates canvas.style.width when innerWidth changes', () => {
-    const origInnerWidth  = window.innerWidth;
-    const origDpr         = window.devicePixelRatio;
-    const origWidth       = canvas.width;
-    const origHeight      = canvas.height;
-    const origStyleWidth  = canvas.style.width;
+    const origInnerWidth = window.innerWidth;
+    const origDpr = window.devicePixelRatio;
+    const origWidth = canvas.width;
+    const origHeight = canvas.height;
+    const origStyleWidth = canvas.style.width;
     const origStyleHeight = canvas.style.height;
 
-    window.innerWidth       = 320;
+    window.innerWidth = 320;
     window.devicePixelRatio = 1;
     handleResize();
 
     const styleW = canvas.style.width;
 
-    window.innerWidth       = origInnerWidth;
+    window.innerWidth = origInnerWidth;
     window.devicePixelRatio = origDpr;
-    canvas.width            = origWidth;
-    canvas.height           = origHeight;
-    canvas.style.width      = origStyleWidth;
-    canvas.style.height     = origStyleHeight;
+    canvas.width = origWidth;
+    canvas.height = origHeight;
+    canvas.style.width = origStyleWidth;
+    canvas.style.height = origStyleHeight;
 
-    assertEquals(styleW, '304px',
-      'canvas.style.width should be "304px" after resize to innerWidth 320 (minus the shell gutter)');
+    assertEquals(
+      styleW,
+      '304px',
+      'canvas.style.width should be "304px" after resize to innerWidth 320 (minus the shell gutter)'
+    );
   });
 
   it('handleResize updates canvas.width when innerWidth changes', () => {
     const origInnerWidth = window.innerWidth;
-    const origDpr        = window.devicePixelRatio;
-    const origWidth      = canvas.width;
-    const origHeight     = canvas.height;
+    const origDpr = window.devicePixelRatio;
+    const origWidth = canvas.width;
+    const origHeight = canvas.height;
 
-    window.innerWidth       = 320;
+    window.innerWidth = 320;
     window.devicePixelRatio = 1;
     handleResize();
 
     const bitmapW = canvas.width;
 
-    window.innerWidth       = origInnerWidth;
+    window.innerWidth = origInnerWidth;
     window.devicePixelRatio = origDpr;
-    canvas.width            = origWidth;
-    canvas.height           = origHeight;
+    canvas.width = origWidth;
+    canvas.height = origHeight;
 
-    assertEquals(bitmapW, 304,
-      'canvas.width should be 304 after resize to innerWidth 320 (dpr 1, minus the shell gutter)');
+    assertEquals(
+      bitmapW,
+      304,
+      'canvas.width should be 304 after resize to innerWidth 320 (dpr 1, minus the shell gutter)'
+    );
   });
 });
 
 describe('Score count-up animation', () => {
   it('resetGame resets deathAnimFrame to 0', () => {
-    const origState      = game.state;
-    const origAnimFrame  = Animations.deathAnimFrame;
+    const origState = game.state;
+    const origAnimFrame = Animations.deathAnimFrame;
 
     Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
     resetGame();
 
     const resetFrame = Animations.deathAnimFrame;
 
-    game.state          = origState;
+    game.state = origState;
     Animations.deathAnimFrame = origAnimFrame;
 
-    assertEquals(resetFrame, 0,
-      'resetGame should reset deathAnimFrame to 0');
+    assertEquals(resetFrame, 0, 'resetGame should reset deathAnimFrame to 0');
   });
 
   it('handleAction in DEAD restarts game when animation is complete', () => {
-    const origState      = game.state;
-    const origAnimFrame  = Animations.deathAnimFrame;
+    const origState = game.state;
+    const origAnimFrame = Animations.deathAnimFrame;
 
-    game.state          = STATE.DEAD;
+    game.state = STATE.DEAD;
     Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
 
     handleAction();
 
     const newState = game.state;
 
-    game.state          = origState;
+    game.state = origState;
     Animations.deathAnimFrame = origAnimFrame;
 
-    assertEquals(newState, STATE.WAITING,
-      'handleAction after animation completes should transition to STATE.WAITING (via resetGame)');
+    assertEquals(
+      newState,
+      STATE.WAITING,
+      'handleAction after animation completes should transition to STATE.WAITING (via resetGame)'
+    );
   });
 
   it('handleAction in DEAD snaps the Updated count-up to 18 frames when it is still rolling', () => {
-    const origState      = game.state;
-    const origAnimFrame  = Animations.deathAnimFrame;
-    const origScore      = game.score;
-    const origMode       = game.mode;
+    const origState = game.state;
+    const origAnimFrame = Animations.deathAnimFrame;
+    const origScore = game.score;
+    const origMode = game.mode;
 
     setReducedMotion(false);
-    game.mode           = MODES.UPDATED;
-    game.state          = STATE.DEAD;
+    game.mode = MODES.UPDATED;
+    game.state = STATE.DEAD;
     Animations.deathAnimFrame = 10;
-    game.score          = 500;
+    game.score = 500;
 
     handleAction();
 
     const snappedFrame = Animations.deathAnimFrame;
     const stayedDead = game.state;
 
-    game.state          = origState;
+    game.state = origState;
     Animations.deathAnimFrame = origAnimFrame;
-    game.score          = origScore;
-    game.mode           = origMode;
+    game.score = origScore;
+    game.mode = origMode;
     setReducedMotion(false);
 
-    assertEquals(snappedFrame, 18,
-      'Updated skip should finish the shorter count-up, not the Classic 30');
-    assertEquals(stayedDead, STATE.DEAD,
-      'skipping the count-up should not restart the run');
+    assertEquals(
+      snappedFrame,
+      18,
+      'Updated skip should finish the shorter count-up, not the Classic 30'
+    );
+    assertEquals(stayedDead, STATE.DEAD, 'skipping the count-up should not restart the run');
   });
 
   it('drawGameOverScreen renders full score when deathAnimFrame equals DEATH_ANIM_FRAMES', () => {
-    const origScore      = game.score;
-    const origNewBest    = game.isNewBest;
-    const origHS         = game.highScore;
-    const origAnimFrame  = Animations.deathAnimFrame;
+    const origScore = game.score;
+    const origNewBest = game.isNewBest;
+    const origHS = game.highScore;
+    const origAnimFrame = Animations.deathAnimFrame;
 
-    game.score          = 500;
-    game.isNewBest      = false;
-    game.highScore      = 1000;
+    game.score = 500;
+    game.isNewBest = false;
+    game.highScore = 1000;
     Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
 
     const calls = [];
@@ -3210,24 +3689,26 @@ describe('Score count-up animation', () => {
     drawGameOverScreen();
     ctx.fillText = origFill;
 
-    game.score         = origScore;
-    game.isNewBest     = origNewBest;
-    game.highScore     = origHS;
+    game.score = origScore;
+    game.isNewBest = origNewBest;
+    game.highScore = origHS;
     Animations.deathAnimFrame = origAnimFrame;
 
-    assert(calls.some(t => t === '00500'),
-      `Expected '00500' (full score at final frame), got: ${JSON.stringify(calls)}`);
+    assert(
+      calls.some((t) => t === '00500'),
+      `Expected '00500' (full score at final frame), got: ${JSON.stringify(calls)}`
+    );
   });
 
   it('drawGameOverScreen renders 00000 when deathAnimFrame is 0', () => {
-    const origScore      = game.score;
-    const origNewBest    = game.isNewBest;
-    const origHS         = game.highScore;
-    const origAnimFrame  = Animations.deathAnimFrame;
+    const origScore = game.score;
+    const origNewBest = game.isNewBest;
+    const origHS = game.highScore;
+    const origAnimFrame = Animations.deathAnimFrame;
 
-    game.score         = 500;
-    game.isNewBest     = false;
-    game.highScore     = 1000;
+    game.score = 500;
+    game.isNewBest = false;
+    game.highScore = 1000;
     Animations.deathAnimFrame = 0;
 
     const calls = [];
@@ -3236,22 +3717,24 @@ describe('Score count-up animation', () => {
     drawGameOverScreen();
     ctx.fillText = origFill;
 
-    game.score         = origScore;
-    game.isNewBest     = origNewBest;
-    game.highScore     = origHS;
+    game.score = origScore;
+    game.isNewBest = origNewBest;
+    game.highScore = origHS;
     Animations.deathAnimFrame = origAnimFrame;
 
-    assert(calls.some(t => t === '00000'),
-      `Expected '00000' (score at frame 0), got: ${JSON.stringify(calls)}`);
+    assert(
+      calls.some((t) => t === '00000'),
+      `Expected '00000' (score at frame 0), got: ${JSON.stringify(calls)}`
+    );
   });
 });
 
 describe('Idle screen pulse animation', () => {
   it('drawIdleScreen renders prompt with different fillStyle alpha at different animFrames', () => {
     const origAnimFrame = game.animFrame;
-    const promptStyles  = [];
+    const promptStyles = [];
 
-    [0, 40].forEach(frame => {
+    [0, 40].forEach((frame) => {
       game.animFrame = frame;
       let capturedStyle;
       const origFillText = ctx.fillText;
@@ -3265,55 +3748,73 @@ describe('Idle screen pulse animation', () => {
 
     game.animFrame = origAnimFrame;
 
-    assert(promptStyles[0] !== promptStyles[1],
-      `Expected prompt fillStyle to differ between frame 0 and frame 40, got: ${JSON.stringify(promptStyles)}`);
+    assert(
+      promptStyles[0] !== promptStyles[1],
+      `Expected prompt fillStyle to differ between frame 0 and frame 40, got: ${JSON.stringify(promptStyles)}`
+    );
   });
 });
 
 describe('Tablet width cap removed', () => {
   it('initCanvasScale fills the content box when wider than 600px', () => {
     const origInnerWidth = window.innerWidth;
-    const origDpr        = window.devicePixelRatio;
-    const origWidth      = canvas.width;
-    const origHeight     = canvas.height;
+    const origDpr = window.devicePixelRatio;
+    const origWidth = canvas.width;
+    const origHeight = canvas.height;
 
-    window.innerWidth       = 900;
+    window.innerWidth = 900;
     window.devicePixelRatio = 1;
     initCanvasScale();
 
     const bitmapW = canvas.width;
 
-    window.innerWidth       = origInnerWidth;
+    window.innerWidth = origInnerWidth;
     window.devicePixelRatio = origDpr;
-    canvas.width            = origWidth;
-    canvas.height           = origHeight;
+    canvas.width = origWidth;
+    canvas.height = origHeight;
 
-    assertEquals(bitmapW, 884,
-      'canvas.width should be 884 when innerWidth=900 and dpr=1 (no 600px cap, minus the shell gutter)');
+    assertEquals(
+      bitmapW,
+      884,
+      'canvas.width should be 884 when innerWidth=900 and dpr=1 (no 600px cap, minus the shell gutter)'
+    );
   });
 });
 
 describe('Shell canvas width', () => {
   it('computeCanvasCssWidth subtracts horizontal inset and floors so the canvas cannot overflow', () => {
-    assertEquals(computeCanvasCssWidth(390, 16), 374,
-      'a 390px phone with 8px gutter each side fits 374px');
-    assertEquals(computeCanvasCssWidth(390, 16 + 47 + 47), 280,
-      'side safe-area insets come off the same width');
-    assertEquals(computeCanvasCssWidth(390.9, 16.2), 374,
-      'fractional inset floors instead of rounding up into the padding');
-    assertEquals(computeCanvasCssWidth(390, 0), 390,
-      'a zero inset keeps the full viewport');
-    assertEquals(computeCanvasCssWidth(390, -4), 390,
-      'a negative inset is ignored');
-    assertEquals(computeCanvasCssWidth(10, 80), 1,
-      'the width never goes non-positive');
+    assertEquals(
+      computeCanvasCssWidth(390, 16),
+      374,
+      'a 390px phone with 8px gutter each side fits 374px'
+    );
+    assertEquals(
+      computeCanvasCssWidth(390, 16 + 47 + 47),
+      280,
+      'side safe-area insets come off the same width'
+    );
+    assertEquals(
+      computeCanvasCssWidth(390.9, 16.2),
+      374,
+      'fractional inset floors instead of rounding up into the padding'
+    );
+    assertEquals(computeCanvasCssWidth(390, 0), 390, 'a zero inset keeps the full viewport');
+    assertEquals(computeCanvasCssWidth(390, -4), 390, 'a negative inset is ignored');
+    assertEquals(computeCanvasCssWidth(10, 80), 1, 'the width never goes non-positive');
     assertEquals(computeCanvasCssWidth(0, 0), 1, 'a zero viewport still returns a drawable width');
-    assertEquals(computeCanvasCssWidth(NaN, 16), 1, 'a non-numeric viewport still returns a drawable width');
+    assertEquals(
+      computeCanvasCssWidth(NaN, 16),
+      1,
+      'a non-numeric viewport still returns a drawable width'
+    );
   });
 
   it('SHELL_GUTTER_X matches the 8px wrapper padding', () => {
-    assertEquals(SHELL_GUTTER_X, 8,
-      'keep this in sync with #game-wrapper horizontal padding in style.css');
+    assertEquals(
+      SHELL_GUTTER_X,
+      8,
+      'keep this in sync with #game-wrapper horizontal padding in style.css'
+    );
   });
 
   it('measureCanvasCssWidth reserves the shell gutter when layout padding is unread', () => {
@@ -3321,8 +3822,11 @@ describe('Shell canvas width', () => {
     window.getComputedStyle = undefined;
     const width = measureCanvasCssWidth({}, 390);
     window.getComputedStyle = origReader;
-    assertEquals(width, 390 - SHELL_GUTTER_X * 2,
-      'unread padding still keeps the canvas inside the 8px gutter');
+    assertEquals(
+      width,
+      390 - SHELL_GUTTER_X * 2,
+      'unread padding still keeps the canvas inside the 8px gutter'
+    );
   });
 
   it('measureCanvasCssWidth uses the laid-out wrapper content box, not the viewport', () => {
@@ -3338,8 +3842,7 @@ describe('Shell canvas width', () => {
     } finally {
       window.getComputedStyle = origReader;
     }
-    assertEquals(width, 342,
-      'content box is clientWidth minus horizontal padding');
+    assertEquals(width, 342, 'content box is clientWidth minus horizontal padding');
   });
 
   it('measureCanvasCssWidth adds the gutter on top of body safe-area when the wrapper is not laid out', () => {
@@ -3357,8 +3860,11 @@ describe('Shell canvas width', () => {
       window.getComputedStyle = origReader;
       restoreBody();
     }
-    assertEquals(width, 390 - 47 - 47 - SHELL_GUTTER_X * 2,
-      'fallback width is viewport minus safe-area minus the shell gutter');
+    assertEquals(
+      width,
+      390 - 47 - 47 - SHELL_GUTTER_X * 2,
+      'fallback width is viewport minus safe-area minus the shell gutter'
+    );
   });
 
   it('measureCanvasCssWidth does not subtract body insets already inside clientWidth', () => {
@@ -3378,8 +3884,11 @@ describe('Shell canvas width', () => {
       window.getComputedStyle = origReader;
       restoreBody();
     }
-    assertEquals(width, 264,
-      'clientWidth already sits inside the body safe-area, so only the wrapper gutter comes off');
+    assertEquals(
+      width,
+      264,
+      'clientWidth already sits inside the body safe-area, so only the wrapper gutter comes off'
+    );
   });
 
   it('initCanvasScale prefers a laid-out wrapper over window.innerWidth', () => {
@@ -3393,7 +3902,11 @@ describe('Shell canvas width', () => {
     const origStyleHeight = canvas.style.height;
     const origReader = window.getComputedStyle;
     // A real element's clientWidth is a getter, so shadow it to fake a layout.
-    Object.defineProperty(wrapper, 'clientWidth', { configurable: true, writable: true, value: 358 });
+    Object.defineProperty(wrapper, 'clientWidth', {
+      configurable: true,
+      writable: true,
+      value: 358,
+    });
     window.innerWidth = 390;
     window.devicePixelRatio = 2;
     window.getComputedStyle = (el) => {
@@ -3402,10 +3915,8 @@ describe('Shell canvas width', () => {
     };
     try {
       initCanvasScale();
-      assertEquals(canvas.style.width, '342px',
-        'display width follows the wrapper content box');
-      assertEquals(canvas.style.height, '114px',
-        'display height stays Math.round(cssW / 3)');
+      assertEquals(canvas.style.width, '342px', 'display width follows the wrapper content box');
+      assertEquals(canvas.style.height, '114px', 'display height stays Math.round(cssW / 3)');
       assertEquals(canvas.width, 684, 'bitmap width is cssW * dpr');
       assertEquals(canvas.height, 228, 'bitmap height stays 3:1');
     } finally {
@@ -3424,25 +3935,28 @@ describe('Shell canvas width', () => {
 
 describe('Shell canvas height', () => {
   it('reserves the chrome row, jump, and share measured from the shell', () => {
-    assertEquals(SHELL_CHROME_ROW, 56,
-      'keep this in sync with #game-wrapper padding-top');
-    assertEquals(SHELL_JUMP_BLOCK, 65,
-      'jump is margin-top 12 plus a 53px control');
-    assertEquals(SHELL_SHARE_BLOCK, 48,
-      'share is margin-top 10 plus a 38px control');
+    assertEquals(SHELL_CHROME_ROW, 56, 'keep this in sync with #game-wrapper padding-top');
+    assertEquals(SHELL_JUMP_BLOCK, 65, 'jump is margin-top 12 plus a 53px control');
+    assertEquals(SHELL_SHARE_BLOCK, 48, 'share is margin-top 10 plus a 38px control');
   });
 
   it('fitCanvasCssSize keeps the width-first 3:1 size when the height has room', () => {
     const size = fitCanvasCssSize(374, 687);
     assertEquals(size.cssW, 374, 'portrait stays on the content-box width');
     assertEquals(size.cssH, 125, 'height stays Math.round(374 / 3)');
-    assertEquals(fitCanvasCssSize(374, 0).cssH, 125,
-      'a missing viewport height does not letterbox');
+    assertEquals(
+      fitCanvasCssSize(374, 0).cssH,
+      125,
+      'a missing viewport height does not letterbox'
+    );
   });
 
   it('fitCanvasCssSize letterboxes when the 3:1 height would pass the jump', () => {
     const maxW = 734;
-    const maxH = computeCanvasMaxHeight(390, 21 + SHELL_CHROME_ROW + SHELL_JUMP_BLOCK + SHELL_SHARE_BLOCK);
+    const maxH = computeCanvasMaxHeight(
+      390,
+      21 + SHELL_CHROME_ROW + SHELL_JUMP_BLOCK + SHELL_SHARE_BLOCK
+    );
     const wide = fitCanvasCssSize(maxW, 0);
     const size = fitCanvasCssSize(maxW, maxH);
     assertEquals(maxH, 200, '390px landscape minus home indicator, chrome, jump, and share');
@@ -3478,20 +3992,28 @@ describe('Shell canvas height', () => {
       window.innerWidth = 844;
       window.innerHeight = 390;
       initCanvasScale();
-      assertEquals(canvas.style.width, '663px',
-        'landscape display width letterboxes inside the 8px gutter');
-      assertEquals(canvas.style.height, '221px',
-        'landscape display height stays above jump and share');
+      assertEquals(
+        canvas.style.width,
+        '663px',
+        'landscape display width letterboxes inside the 8px gutter'
+      );
+      assertEquals(
+        canvas.style.height,
+        '221px',
+        'landscape display height stays above jump and share'
+      );
       assertEquals(canvas.width, 663, 'bitmap width matches the letterboxed css width at dpr 1');
       assertEquals(canvas.height, 221, 'bitmap height stays 3:1');
 
       window.innerHeight = 900;
       window.visualViewport = { height: 390 };
       initCanvasScale();
-      assertEquals(canvas.style.height, '221px',
-        'the visible viewport wins over a taller layout viewport');
-      assertEquals(canvas.style.width, '663px',
-        'letterbox follows the visible height');
+      assertEquals(
+        canvas.style.height,
+        '221px',
+        'the visible viewport wins over a taller layout viewport'
+      );
+      assertEquals(canvas.style.width, '663px', 'letterbox follows the visible height');
     } finally {
       window.getComputedStyle = origReader;
       window.innerWidth = origInner;
@@ -3511,16 +4033,25 @@ describe('Shell canvas height', () => {
 function qaSafeClassList() {
   const names = new Set();
   return {
-    add(name) { names.add(name); },
-    remove(name) { names.delete(name); },
-    contains(name) { return names.has(name); },
+    add(name) {
+      names.add(name);
+    },
+    remove(name) {
+      names.delete(name);
+    },
+    contains(name) {
+      return names.has(name);
+    },
   };
 }
 
 describe('QA safe shell (?qaSafe=1)', () => {
   it('?qaSafe=1 is off for any value other than 1', () => {
     assert(readQaSafeFlag('?qaSafe=1') === true, '?qaSafe=1 should paint the stand-in insets');
-    assert(readQaSafeFlag('?qaNight=1&qaSafe=1') === true, 'the flag should work beside other params');
+    assert(
+      readQaSafeFlag('?qaNight=1&qaSafe=1') === true,
+      'the flag should work beside other params'
+    );
     assert(readQaSafeFlag('?qaSafe=1&qaCopy=1') === true, 'param order should not matter');
     assert(readQaSafeFlag('?qaSafe=0') === false, 'only the value 1 enables the flag');
     assert(readQaSafeFlag('?qaSafe=12') === false, 'qaSafe=12 must not count as the flag');
@@ -3540,7 +4071,10 @@ describe('QA safe shell (?qaSafe=1)', () => {
       assert(root.classList.contains('qa-safe') === false, 'off leaves the shell unmarked');
       setQaSafe(true);
       applyQaSafeShell();
-      assert(root.classList.contains('qa-safe') === true, 'on marks the shell for the stand-in insets');
+      assert(
+        root.classList.contains('qa-safe') === true,
+        'on marks the shell for the stand-in insets'
+      );
       assertEquals(game.score, origScore, 'the flag must not change the score');
       assertEquals(game.mode, origMode, 'the flag must not change the mode');
       assert(game.rng === origRng, 'the flag must not reseed the run');
@@ -3578,7 +4112,10 @@ describe('QA safe shell (?qaSafe=1)', () => {
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       resetGame();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
-      assert(root.classList.contains('qa-safe') === false, 'a visit without the flag clears the mark');
+      assert(
+        root.classList.contains('qa-safe') === false,
+        'a visit without the flag clears the mark'
+      );
 
       setPageQuery('?qaSafe=1');
       setQaSafe(false);
@@ -3613,14 +4150,19 @@ describe('Share result', () => {
     const origDailyBest = game.dailyBest;
     game.dailyBest = 0;
     let threw = false;
-    try { shareDailyResult(); } catch { threw = true; }
+    try {
+      shareDailyResult();
+    } catch {
+      threw = true;
+    }
     assert(!threw, 'shareDailyResult() should not throw even with no clipboard');
     game.dailyBest = origDailyBest;
   });
 
   function withClipboard(writeText, run) {
     const shareBtn = document.getElementById('share-btn');
-    const handler = shareBtn._listeners && shareBtn._listeners.click && shareBtn._listeners.click[0];
+    const handler =
+      shareBtn._listeners && shareBtn._listeners.click && shareBtn._listeners.click[0];
     assert(typeof handler === 'function', 'share button must register a click handler');
     const origDesc = Object.getOwnPropertyDescriptor(testGlobal, 'navigator');
     const origFlash = Animations.copyFlashFrames;
@@ -3647,19 +4189,27 @@ describe('Share result', () => {
   }
 
   it('Copy result still flashes when clipboard writeText throws', () => {
-    withClipboard(() => { throw new Error('clipboard blocked'); }, ({ threw, flash, label }) => {
-      assert(!threw, 'a blocked clipboard must not abort the share tap');
-      assert(flash > 0, 'copy flash should start even when writeText throws');
-      assertEquals(label, '✓ Copied!', 'the button should say Copied before the next frame');
-    });
+    withClipboard(
+      () => {
+        throw new Error('clipboard blocked');
+      },
+      ({ threw, flash, label }) => {
+        assert(!threw, 'a blocked clipboard must not abort the share tap');
+        assert(flash > 0, 'copy flash should start even when writeText throws');
+        assertEquals(label, '✓ Copied!', 'the button should say Copied before the next frame');
+      }
+    );
   });
 
   it('Copy result still flashes when clipboard writeText rejects', () => {
-    withClipboard(() => Promise.reject(new Error('clipboard denied')), ({ threw, flash, label }) => {
-      assert(!threw, 'a rejected clipboard write must not abort the share tap');
-      assert(flash > 0, 'copy flash should start even when writeText rejects');
-      assertEquals(label, '✓ Copied!', 'the button should say Copied before the next frame');
-    });
+    withClipboard(
+      () => Promise.reject(new Error('clipboard denied')),
+      ({ threw, flash, label }) => {
+        assert(!threw, 'a rejected clipboard write must not abort the share tap');
+        assert(flash > 0, 'copy flash should start even when writeText rejects');
+        assertEquals(label, '✓ Copied!', 'the button should say Copied before the next frame');
+      }
+    );
   });
 });
 
@@ -3668,7 +4218,7 @@ describe('Daily obstacle sequence vs reduced motion', () => {
     game.mode = MODES.DAILY;
     resetGame();
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
-    const startX = game.hills.map(h => h.x);
+    const startX = game.hills.map((h) => h.x);
     const seq = [];
     for (let i = 0; i < 4000; i++) {
       game.score += GAME_CONFIG.SCORE_INCREMENT;
@@ -3683,7 +4233,7 @@ describe('Daily obstacle sequence vs reduced motion', () => {
         game.nextSpawnGap = params.gap;
       }
     }
-    return { seq, startX, endX: game.hills.map(h => h.x) };
+    return { seq, startX, endX: game.hills.map((h) => h.x) };
   }
 
   it('same daily seed keeps the obstacle sequence when hills do not scroll', () => {
@@ -3696,20 +4246,29 @@ describe('Daily obstacle sequence vs reduced motion', () => {
       setReducedMotion(false);
       const skipped = collectDailySpawns(false);
 
-      assert(moving.endX.some((x, i) => x !== moving.startX[i]),
-        'Scrolling run must move hills so respawn draws are actually exercised');
-      assert(reduced.endX.every((x, i) => x === reduced.startX[i]),
-        'Reduced motion must leave drawn hill positions unchanged');
-      assertNotEquals(moving.seq.join('|'), skipped.seq.join('|'),
-        'Skipping hill updates must be able to change later obstacle rolls');
+      assert(
+        moving.endX.some((x, i) => x !== moving.startX[i]),
+        'Scrolling run must move hills so respawn draws are actually exercised'
+      );
+      assert(
+        reduced.endX.every((x, i) => x === reduced.startX[i]),
+        'Reduced motion must leave drawn hill positions unchanged'
+      );
+      assertNotEquals(
+        moving.seq.join('|'),
+        skipped.seq.join('|'),
+        'Skipping hill updates must be able to change later obstacle rolls'
+      );
 
       const movingKey = moving.seq.join('|');
       const reducedKey = reduced.seq.join('|');
       if (movingKey !== reducedKey) {
         let i = 0;
         while (i < moving.seq.length && reduced.seq[i] === moving.seq[i]) i++;
-        assert(false,
-          `Daily obstacle sequence diverged at spawn ${i}: moving=${moving.seq[i]} reduced=${reduced.seq[i]}`);
+        assert(
+          false,
+          `Daily obstacle sequence diverged at spawn ${i}: moving=${moving.seq[i]} reduced=${reduced.seq[i]}`
+        );
       }
     } finally {
       setReducedMotion(false);
@@ -3743,8 +4302,11 @@ describe('Restart cancels the animation frame first', () => {
       if (game.animationFrameId) origCancel(game.animationFrameId);
     }
     assert(scoreAtCancel !== null, 'restart path must call cancelAnimationFrame');
-    assertEquals(scoreAtCancel, 77,
-      'cancelAnimationFrame must run before resetGame clears the score');
+    assertEquals(
+      scoreAtCancel,
+      77,
+      'cancelAnimationFrame must run before resetGame clears the score'
+    );
     assertEquals(scoreAtLoop, 0, 'gameLoop must run after resetGame');
   }
 
@@ -3838,8 +4400,12 @@ describe('Daily best persistence', () => {
     localStorage.setItem('dino-daily-date', '19990101');
     localStorage.setItem('dino-daily-best', '999');
     assertEquals(ScoreStore.loadDailyBest(), 0, 'Should return 0 on stale date');
-    origDate !== null ? localStorage.setItem('dino-daily-date', origDate) : localStorage.removeItem('dino-daily-date');
-    origBest !== null ? localStorage.setItem('dino-daily-best', origBest) : localStorage.removeItem('dino-daily-best');
+    origDate !== null
+      ? localStorage.setItem('dino-daily-date', origDate)
+      : localStorage.removeItem('dino-daily-date');
+    origBest !== null
+      ? localStorage.setItem('dino-daily-best', origBest)
+      : localStorage.removeItem('dino-daily-best');
   });
 
   it('ScoreStore.loadDailyBest() returns stored value when date matches today', () => {
@@ -3848,8 +4414,12 @@ describe('Daily best persistence', () => {
     localStorage.setItem('dino-daily-date', String(dailySeed()));
     localStorage.setItem('dino-daily-best', '847');
     assertEquals(ScoreStore.loadDailyBest(), 847, 'Should return 847 when date matches');
-    origDate !== null ? localStorage.setItem('dino-daily-date', origDate) : localStorage.removeItem('dino-daily-date');
-    origBest !== null ? localStorage.setItem('dino-daily-best', origBest) : localStorage.removeItem('dino-daily-best');
+    origDate !== null
+      ? localStorage.setItem('dino-daily-date', origDate)
+      : localStorage.removeItem('dino-daily-date');
+    origBest !== null
+      ? localStorage.setItem('dino-daily-best', origBest)
+      : localStorage.removeItem('dino-daily-best');
   });
 
   it('ScoreStore.saveDailyBest() persists score; lower score does not overwrite', () => {
@@ -3864,8 +4434,12 @@ describe('Daily best persistence', () => {
     ScoreStore.saveDailyBest(200);
     assertEquals(ScoreStore.loadDailyBest(), 500, 'Lower score must not overwrite stored best');
 
-    origDate !== null ? localStorage.setItem('dino-daily-date', origDate) : localStorage.removeItem('dino-daily-date');
-    origBest !== null ? localStorage.setItem('dino-daily-best', origBest) : localStorage.removeItem('dino-daily-best');
+    origDate !== null
+      ? localStorage.setItem('dino-daily-date', origDate)
+      : localStorage.removeItem('dino-daily-date');
+    origBest !== null
+      ? localStorage.setItem('dino-daily-best', origBest)
+      : localStorage.removeItem('dino-daily-best');
   });
 });
 
@@ -3953,7 +4527,11 @@ describe('Daily UTC calendar', () => {
     const utcSeed = 20260929;
     const localSeed = 20260928;
     withSplitClock(utcMs, -8 * 60, () => {
-      assertEquals(wallCalendarSeed(new Date()), localSeed, 'fixture local day must disagree with UTC');
+      assertEquals(
+        wallCalendarSeed(new Date()),
+        localSeed,
+        'fixture local day must disagree with UTC'
+      );
       assertEquals(utcCalendarSeed(utcMs), utcSeed, 'fixture UTC day');
       const seed = dailySeed();
       assertEquals(seed, utcSeed, 'daily seed follows the UTC calendar day');
@@ -3963,7 +4541,11 @@ describe('Daily UTC calendar', () => {
         'daily number counts UTC days from the project epoch'
       );
       const numberDayMs = DAILY_EPOCH_MS_TEST + (dailyNumber() - 1) * 86400000;
-      assertEquals(utcCalendarSeed(numberDayMs), seed, 'daily number and daily seed name the same UTC day');
+      assertEquals(
+        utcCalendarSeed(numberDayMs),
+        seed,
+        'daily number and daily seed name the same UTC day'
+      );
       withDailyStorage(() => {
         ScoreStore.saveDailyBest(120);
         assertEquals(
@@ -3974,7 +4556,11 @@ describe('Daily UTC calendar', () => {
         assertEquals(ScoreStore.loadDailyBest(), 120, 'best loads on that same UTC day');
         localStorage.setItem('dino-daily-date', String(localSeed));
         localStorage.setItem('dino-daily-best', '999');
-        assertEquals(ScoreStore.loadDailyBest(), 0, 'a local-calendar key is stale once the UTC day has flipped');
+        assertEquals(
+          ScoreStore.loadDailyBest(),
+          0,
+          'a local-calendar key is stale once the UTC day has flipped'
+        );
       });
     });
   });
@@ -3985,7 +4571,11 @@ describe('Daily UTC calendar', () => {
     const utcSeed = 20260928;
     const localSeed = 20260929;
     withSplitClock(utcMs, 9 * 60, () => {
-      assertEquals(wallCalendarSeed(new Date()), localSeed, 'fixture local day must disagree with UTC');
+      assertEquals(
+        wallCalendarSeed(new Date()),
+        localSeed,
+        'fixture local day must disagree with UTC'
+      );
       const seed = dailySeed();
       assertEquals(seed, utcSeed, 'daily seed follows the UTC calendar day');
       assertEquals(
@@ -3994,7 +4584,11 @@ describe('Daily UTC calendar', () => {
         'daily number counts UTC days from the project epoch'
       );
       const numberDayMs = DAILY_EPOCH_MS_TEST + (dailyNumber() - 1) * 86400000;
-      assertEquals(utcCalendarSeed(numberDayMs), seed, 'daily number and daily seed name the same UTC day');
+      assertEquals(
+        utcCalendarSeed(numberDayMs),
+        seed,
+        'daily number and daily seed name the same UTC day'
+      );
       withDailyStorage(() => {
         ScoreStore.saveDailyBest(80);
         assertEquals(
@@ -4043,12 +4637,21 @@ describe('Restart countdown', () => {
     game.graceFrames = origGrace;
     game.countdownSkippable = origSkip;
 
-    assertEquals(graceAfterEnter, GAME_CONFIG.GRACE_FRAMES,
-      'first visit should arm the full countdown');
-    assertEquals(stateAfter, STATE.WAITING,
-      'Space/Tap during the first countdown should leave the game in WAITING');
-    assertEquals(graceAfter, graceAfterEnter,
-      'Space/Tap during the first countdown should not consume grace frames');
+    assertEquals(
+      graceAfterEnter,
+      GAME_CONFIG.GRACE_FRAMES,
+      'first visit should arm the full countdown'
+    );
+    assertEquals(
+      stateAfter,
+      STATE.WAITING,
+      'Space/Tap during the first countdown should leave the game in WAITING'
+    );
+    assertEquals(
+      graceAfter,
+      graceAfterEnter,
+      'Space/Tap during the first countdown should not consume grace frames'
+    );
   });
 
   it('post-death WAITING skips to RUNNING on Space or Tap', () => {
@@ -4082,16 +4685,22 @@ describe('Restart countdown', () => {
     Animations.deathAnimFrame = origAnim;
     dino.isJumping = origJumping;
 
-    assertEquals(stateAfterRestart, STATE.WAITING,
-      'restart after death should land in GET READY');
-    assert(graceAfterRestart > 0,
-      'restart after death should still show a countdown until the player skips');
-    assertEquals(skipAfterRestart, true,
-      'restart after death should mark the countdown skippable');
-    assertEquals(stateAfterSkip, STATE.RUNNING,
-      'Space/Tap during post-death GET READY should start the run immediately');
-    assertEquals(jumpingAfterSkip, false,
-      'the skip press should start the run without also jumping');
+    assertEquals(stateAfterRestart, STATE.WAITING, 'restart after death should land in GET READY');
+    assert(
+      graceAfterRestart > 0,
+      'restart after death should still show a countdown until the player skips'
+    );
+    assertEquals(skipAfterRestart, true, 'restart after death should mark the countdown skippable');
+    assertEquals(
+      stateAfterSkip,
+      STATE.RUNNING,
+      'Space/Tap during post-death GET READY should start the run immediately'
+    );
+    assertEquals(
+      jumpingAfterSkip,
+      false,
+      'the skip press should start the run without also jumping'
+    );
   });
 
   it('post-death skip works in Classic mode', () => {
@@ -4119,8 +4728,11 @@ describe('Restart countdown', () => {
     game.mode = origMode;
     Animations.deathAnimFrame = origAnim;
 
-    assertEquals(stateAfterSkip, STATE.RUNNING,
-      'Classic mode should skip GET READY after death the same way Updated does');
+    assertEquals(
+      stateAfterSkip,
+      STATE.RUNNING,
+      'Classic mode should skip GET READY after death the same way Updated does'
+    );
   });
 
   it('first-run overlay does not promise a jump', () => {
@@ -4134,12 +4746,18 @@ describe('Restart countdown', () => {
     game.graceFrames = origGrace;
     game.countdownSkippable = origSkip;
 
-    assert(calls.some(t => t === 'GET READY'),
-      `Expected 'GET READY', got: ${JSON.stringify(calls)}`);
-    assert(!calls.some(t => t === 'Press Space / Tap to jump'),
-      'first-run overlay must not say Press Space / Tap to jump');
-    assert(!calls.some(t => /space|tap/i.test(t)),
-      `first-run overlay must not mention Space or Tap, got: ${JSON.stringify(calls)}`);
+    assert(
+      calls.some((t) => t === 'GET READY'),
+      `Expected 'GET READY', got: ${JSON.stringify(calls)}`
+    );
+    assert(
+      !calls.some((t) => t === 'Press Space / Tap to jump'),
+      'first-run overlay must not say Press Space / Tap to jump'
+    );
+    assert(
+      !calls.some((t) => /space|tap/i.test(t)),
+      `first-run overlay must not mention Space or Tap, got: ${JSON.stringify(calls)}`
+    );
   });
 
   it('post-death overlay says Space or Tap starts the run', () => {
@@ -4153,12 +4771,18 @@ describe('Restart countdown', () => {
     game.graceFrames = origGrace;
     game.countdownSkippable = origSkip;
 
-    assert(calls.some(t => t === 'GET READY'),
-      `Expected 'GET READY', got: ${JSON.stringify(calls)}`);
-    assert(calls.some(t => t === 'Press Space / Tap to start'),
-      `Expected 'Press Space / Tap to start', got: ${JSON.stringify(calls)}`);
-    assert(!calls.some(t => t === 'Press Space / Tap to jump'),
-      'post-death overlay must not tell the player to jump');
+    assert(
+      calls.some((t) => t === 'GET READY'),
+      `Expected 'GET READY', got: ${JSON.stringify(calls)}`
+    );
+    assert(
+      calls.some((t) => t === 'Press Space / Tap to start'),
+      `Expected 'Press Space / Tap to start', got: ${JSON.stringify(calls)}`
+    );
+    assert(
+      !calls.some((t) => t === 'Press Space / Tap to jump'),
+      'post-death overlay must not tell the player to jump'
+    );
   });
 
   it('screen reader prompt matches whether the countdown can be skipped', () => {
@@ -4180,10 +4804,11 @@ describe('Restart countdown', () => {
     game.countdownSkippable = origSkip;
     a11yLive.textContent = origText;
 
-    assert(!/jump/i.test(firstRun),
-      `first countdown must not announce a jump, got: ${firstRun}`);
-    assert(/space or tap to start/i.test(afterDeath),
-      `post-death countdown should announce space or tap to start, got: ${afterDeath}`);
+    assert(!/jump/i.test(firstRun), `first countdown must not announce a jump, got: ${firstRun}`);
+    assert(
+      /space or tap to start/i.test(afterDeath),
+      `post-death countdown should announce space or tap to start, got: ${afterDeath}`
+    );
   });
 });
 
@@ -4225,12 +4850,18 @@ describe('Daily HUD', () => {
 
     [running, waiting].forEach((calls, i) => {
       const when = i === 0 ? 'RUNNING' : 'WAITING';
-      assert(calls.some(t => t === '00042'),
-        `${when} daily HUD should show the current score, got: ${JSON.stringify(calls)}`);
-      assert(!calls.some(t => t.includes('TODAY')),
-        `${when} daily HUD must not show TODAY, got: ${JSON.stringify(calls)}`);
-      assert(!calls.some(t => t.startsWith('HI ')),
-        `${when} daily HUD must not show HI, got: ${JSON.stringify(calls)}`);
+      assert(
+        calls.some((t) => t === '00042'),
+        `${when} daily HUD should show the current score, got: ${JSON.stringify(calls)}`
+      );
+      assert(
+        !calls.some((t) => t.includes('TODAY')),
+        `${when} daily HUD must not show TODAY, got: ${JSON.stringify(calls)}`
+      );
+      assert(
+        !calls.some((t) => t.startsWith('HI ')),
+        `${when} daily HUD must not show HI, got: ${JSON.stringify(calls)}`
+      );
     });
   });
 
@@ -4252,10 +4883,14 @@ describe('Daily HUD', () => {
     game.score = origScore;
     Animations.deathAnimFrame = origAnim;
 
-    assert(calls.some(t => t === 'TODAY BEST'),
-      `Game Over must keep TODAY BEST, got: ${JSON.stringify(calls)}`);
-    assert(calls.some(t => t === '00500'),
-      `Game Over must show today's best score, got: ${JSON.stringify(calls)}`);
+    assert(
+      calls.some((t) => t === 'TODAY BEST'),
+      `Game Over must keep TODAY BEST, got: ${JSON.stringify(calls)}`
+    );
+    assert(
+      calls.some((t) => t === '00500'),
+      `Game Over must show today's best score, got: ${JSON.stringify(calls)}`
+    );
     assert(shared.includes('500'), 'Share result must still include the daily best');
   });
 });
@@ -4591,7 +5226,8 @@ describe('Plateau cue', () => {
   function plateauCrossScore() {
     const { INITIAL_SPEED, PLATEAU_SPEED, RAMP_STEEPNESS, RAMP_MIDPOINT, PLATEAU_REACH_RATIO } =
       GAME_CONFIG;
-    const sig = (PLATEAU_REACH_RATIO * PLATEAU_SPEED - INITIAL_SPEED) / (PLATEAU_SPEED - INITIAL_SPEED);
+    const sig =
+      (PLATEAU_REACH_RATIO * PLATEAU_SPEED - INITIAL_SPEED) / (PLATEAU_SPEED - INITIAL_SPEED);
     return RAMP_MIDPOINT - Math.log(1 / sig - 1) / RAMP_STEEPNESS;
   }
 
@@ -4796,9 +5432,16 @@ describe('Plateau cue', () => {
         burst.every((p) => p.maxLife < kind.life),
         'reduced motion should also shorten the puff'
       );
-      assert(game.plateauCueShown === true, 'the damped puff still counts as the one cue for the run');
+      assert(
+        game.plateauCueShown === true,
+        'the damped puff still counts as the one cue for the run'
+      );
       tick();
-      assertEquals(plateauParticles().length, burst.length, 'reduced motion must not repeat the cue');
+      assertEquals(
+        plateauParticles().length,
+        burst.length,
+        'reduced motion must not repeat the cue'
+      );
     } finally {
       setReducedMotion(false);
       game.mode = origMode;
@@ -4809,11 +5452,17 @@ describe('Plateau cue', () => {
 
   it('recognizes only ?qaPlateau=1', () => {
     assert(readQaPlateauFlag('?qaPlateau=1') === true, '?qaPlateau=1 should enable the QA cue');
-    assert(readQaPlateauFlag('?foo=1&qaPlateau=1') === true, 'the flag should work alongside other params');
+    assert(
+      readQaPlateauFlag('?foo=1&qaPlateau=1') === true,
+      'the flag should work alongside other params'
+    );
     assert(readQaPlateauFlag('') === false, 'a normal visit should leave the QA cue off');
     assert(readQaPlateauFlag('?qaPlateau=0') === false, 'only the value 1 enables the QA cue');
     assert(readQaPlateauFlag('?qaPlateau=12') === false, 'qaPlateau=12 must not count as the flag');
-    assert(readQaPlateauFlag('?other=1') === false, 'an unrelated param must not enable the QA cue');
+    assert(
+      readQaPlateauFlag('?other=1') === false,
+      'an unrelated param must not enable the QA cue'
+    );
   });
 
   it('with ?qaPlateau=1 fires a darker puff once as soon as the run starts', () => {
@@ -4837,14 +5486,24 @@ describe('Plateau cue', () => {
 
       const burst = qaPlateauParticles();
       assertEquals(burst.length, kind.count, 'QA flag should emit the visible day puff');
-      assert(burst.every((p) => p.size === kind.size), 'QA specks should use the larger size');
-      assert(burst.every((p) => p.x < dino.x), 'QA puff should sit just behind the sprite, not under it');
+      assert(
+        burst.every((p) => p.size === kind.size),
+        'QA specks should use the larger size'
+      );
+      assert(
+        burst.every((p) => p.x < dino.x),
+        'QA puff should sit just behind the sprite, not under it'
+      );
       assertEquals(plateauParticles().length, 0, 'QA should not also emit the pale night puff');
       assert(game.plateauCueShown === true, 'QA cue still latches after the first puff');
       assert(game.score <= QA_PLATEAU_SCORE + 0.2, 'QA cue should fire at the start of the run');
 
       tick();
-      assertEquals(qaPlateauParticles().length, burst.length, 'QA cue must not repeat later in the run');
+      assertEquals(
+        qaPlateauParticles().length,
+        burst.length,
+        'QA cue must not repeat later in the run'
+      );
     } finally {
       setQaPlateau(false);
       setReducedMotion(false);
@@ -4864,7 +5523,11 @@ describe('Plateau cue', () => {
       tick();
       tick();
       assertEquals(plateauParticles().length, 0, 'Classic should ignore the QA flag');
-      assertEquals(qaPlateauParticles().length, 0, 'Classic should not show the day QA puff either');
+      assertEquals(
+        qaPlateauParticles().length,
+        0,
+        'Classic should not show the day QA puff either'
+      );
       assert(!game.plateauCueShown, 'Classic should not latch a QA cue it did not show');
     } finally {
       setQaPlateau(false);
@@ -4884,7 +5547,11 @@ describe('Plateau cue', () => {
       game.score = QA_PLATEAU_SCORE - GAME_CONFIG.SCORE_INCREMENT;
       tick();
       assert(qaPlateauParticles().length > 0, 'Daily should show the early QA puff');
-      assertEquals(plateauParticles().length, 0, 'Daily QA should use the day puff, not the night one');
+      assertEquals(
+        plateauParticles().length,
+        0,
+        'Daily QA should use the day puff, not the night one'
+      );
       assert(game.plateauCueShown === true, 'Daily QA cue should still latch');
     } finally {
       setQaPlateau(false);
@@ -4913,7 +5580,10 @@ describe('Plateau cue', () => {
       dino.y = GAME_CONFIG.CANVAS_H - dino.height;
       dino.isJumping = false;
       tick();
-      assert(qaPlateauParticles().length > 0, 'resetGame should arm the QA puff from location.search');
+      assert(
+        qaPlateauParticles().length > 0,
+        'resetGame should arm the QA puff from location.search'
+      );
       assert(game.plateauCueShown === true, 'the re-read flag should still latch after one puff');
     } finally {
       restorePageQuery();
@@ -4932,8 +5602,16 @@ describe('Plateau cue', () => {
       setQaPlateau(false);
       game.score = QA_PLATEAU_SCORE - GAME_CONFIG.SCORE_INCREMENT;
       tick();
-      assertEquals(plateauParticles().length, 0, 'production timing should still wait for the plateau');
-      assertEquals(qaPlateauParticles().length, 0, 'a normal visit should not show the day QA puff');
+      assertEquals(
+        plateauParticles().length,
+        0,
+        'production timing should still wait for the plateau'
+      );
+      assertEquals(
+        qaPlateauParticles().length,
+        0,
+        'a normal visit should not show the day QA puff'
+      );
       assert(!game.plateauCueShown, 'an early production frame must not consume the cue');
     } finally {
       setQaPlateau(false);
@@ -4973,11 +5651,59 @@ describe('Quiet plateau cue', () => {
     gravity: 0.002,
   };
   const UNCHANGED_KINDS = {
-    jump:      { count: 3,  color: '#9c8770', size: 3, life: 8, alpha: 0.5, vyMin: -1.2, vyMax: -0.4, vxSpread: 0.6, gravity: 0.10 },
-    land:      { count: 5,  color: '#9c8770', size: 3, life: 8, alpha: 0.4, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.7, gravity: 0.12 },
-    trail:     { count: 1,  color: 'rgba(150,150,150,0.28)', size: 2, life: 6, vyMin: -0.1, vyMax: 0.1, vxSpread: 0.2, gravity: 0 },
-    collision: { count: 5,  color: '#d04a2a', size: 3, life: 8, vyMin: -1.2, vyMax: 0.4, vxSpread: 0.7, gravity: 0.10 },
-    confetti:  { count: 6, color: '#ffd700', size: 3, life: 12, alpha: 0.7, vyMin: -1.6, vyMax: -0.5, vxSpread: 0.7, gravity: 0.10 },
+    jump: {
+      count: 3,
+      color: '#9c8770',
+      size: 3,
+      life: 8,
+      alpha: 0.5,
+      vyMin: -1.2,
+      vyMax: -0.4,
+      vxSpread: 0.6,
+      gravity: 0.1,
+    },
+    land: {
+      count: 5,
+      color: '#9c8770',
+      size: 3,
+      life: 8,
+      alpha: 0.4,
+      vyMin: -0.9,
+      vyMax: -0.4,
+      vxSpread: 0.7,
+      gravity: 0.12,
+    },
+    trail: {
+      count: 1,
+      color: 'rgba(150,150,150,0.28)',
+      size: 2,
+      life: 6,
+      vyMin: -0.1,
+      vyMax: 0.1,
+      vxSpread: 0.2,
+      gravity: 0,
+    },
+    collision: {
+      count: 5,
+      color: '#d04a2a',
+      size: 3,
+      life: 8,
+      vyMin: -1.2,
+      vyMax: 0.4,
+      vxSpread: 0.7,
+      gravity: 0.1,
+    },
+    confetti: {
+      count: 6,
+      color: '#ffd700',
+      size: 3,
+      life: 12,
+      alpha: 0.7,
+      vyMin: -1.6,
+      vyMax: -0.5,
+      vxSpread: 0.7,
+      gravity: 0.1,
+    },
   };
 
   function stepPath(vy0, kind) {
@@ -5027,7 +5753,9 @@ describe('Quiet plateau cue', () => {
     };
     return {
       calls: calls,
-      restore() { ctx.fillRect = orig; },
+      restore() {
+        ctx.fillRect = orig;
+      },
     };
   }
 
@@ -5084,11 +5812,16 @@ describe('Quiet plateau cue', () => {
       });
       const alphas = [];
       const orig = ctx.fillRect;
-      ctx.fillRect = () => { alphas.push(ctx.globalAlpha); };
+      ctx.fillRect = () => {
+        alphas.push(ctx.globalAlpha);
+      };
       Particles.draw();
       ctx.fillRect = orig;
       assertEquals(alphas.length, PUFF.count, 'every mote paints');
-      assert(alphas.every((a) => a === PUFF.alpha), 'the first frame paints the soft peak, not solid ink');
+      assert(
+        alphas.every((a) => a === PUFF.alpha),
+        'the first frame paints the soft peak, not solid ink'
+      );
     } finally {
       game.mode = origMode;
       setReducedMotion(false);
@@ -5158,8 +5891,15 @@ describe('Quiet plateau cue', () => {
       const spy = spyRects();
       drawQaPlateau();
       const fills = spy.calls.filter((c) => c.style === PUFF.color);
-      assertEquals(fills.length, qaPlateauMarks().length, 'night capture paints the pale heel cluster');
-      assert(fills.every((fill) => fill.x < dino.x), 'the pale cluster stays behind the sprite');
+      assertEquals(
+        fills.length,
+        qaPlateauMarks().length,
+        'night capture paints the pale heel cluster'
+      );
+      assert(
+        fills.every((fill) => fill.x < dino.x),
+        'the pale cluster stays behind the sprite'
+      );
       spy.restore();
     } finally {
       setQaPlateau(false);
@@ -5213,18 +5953,48 @@ describe('Quiet plateau cue', () => {
         const motes = Particles.particles.filter((p) => p.life > 0 && p.color === color);
         const expectedCount = Math.max(1, Math.round(kind.count * 0.25));
         const expectedLife = Math.max(2, Math.round(kind.life * 0.5));
-        assertEquals(motes.length, expectedCount, (night ? 'night' : 'day') + ' reduced motion still quarters the puff');
-        assert(expectedCount < kind.count, (night ? 'night' : 'day') + ' damped puff is fewer motes');
-        assert(motes.every((p) => p.maxLife === expectedLife), (night ? 'night' : 'day') + ' reduced motion still halves life');
-        assertEquals(game.qaPlateauHold, qaPlateauHoldFrames(), (night ? 'night' : 'day') + ' hold uses the shorter window');
-        assert(game.qaPlateauHold < QA_PLATEAU_HOLD, (night ? 'night' : 'day') + ' hold is shorter than the full capture');
+        assertEquals(
+          motes.length,
+          expectedCount,
+          (night ? 'night' : 'day') + ' reduced motion still quarters the puff'
+        );
+        assert(
+          expectedCount < kind.count,
+          (night ? 'night' : 'day') + ' damped puff is fewer motes'
+        );
+        assert(
+          motes.every((p) => p.maxLife === expectedLife),
+          (night ? 'night' : 'day') + ' reduced motion still halves life'
+        );
+        assertEquals(
+          game.qaPlateauHold,
+          qaPlateauHoldFrames(),
+          (night ? 'night' : 'day') + ' hold uses the shorter window'
+        );
+        assert(
+          game.qaPlateauHold < QA_PLATEAU_HOLD,
+          (night ? 'night' : 'day') + ' hold is shorter than the full capture'
+        );
         const spy = spyRects();
         drawQaPlateau();
         const fills = spy.calls.filter((c) => c.style === color);
-        assertEquals(fills.length, qaPlateauMarks().length, (night ? 'night' : 'day') + ' hold paints the damped speck count');
-        assert(fills.length < fullMarks, (night ? 'night' : 'day') + ' hold is not the full cluster');
-        assert(fills.every((fill) => fill.alpha === PUFF.alpha), (night ? 'night' : 'day') + ' hold ink is softer than solid');
-        assert(fills.every((fill) => fill.alpha < 1), (night ? 'night' : 'day') + ' hold is not full ink');
+        assertEquals(
+          fills.length,
+          qaPlateauMarks().length,
+          (night ? 'night' : 'day') + ' hold paints the damped speck count'
+        );
+        assert(
+          fills.length < fullMarks,
+          (night ? 'night' : 'day') + ' hold is not the full cluster'
+        );
+        assert(
+          fills.every((fill) => fill.alpha === PUFF.alpha),
+          (night ? 'night' : 'day') + ' hold ink is softer than solid'
+        );
+        assert(
+          fills.every((fill) => fill.alpha < 1),
+          (night ? 'night' : 'day') + ' hold is not full ink'
+        );
         spy.restore();
       }
     } finally {
@@ -5245,7 +6015,8 @@ describe('Daily pre-run framing', () => {
   function captureFillText(draw) {
     const calls = [];
     const origFill = ctx.fillText;
-    ctx.fillText = (text, x, y) => calls.push({ text: String(text), x, y, font: ctx.font, fillStyle: ctx.fillStyle });
+    ctx.fillText = (text, x, y) =>
+      calls.push({ text: String(text), x, y, font: ctx.font, fillStyle: ctx.fillStyle });
     draw();
     ctx.fillText = origFill;
     return calls;
@@ -5280,13 +6051,28 @@ describe('Daily pre-run framing', () => {
   it('Daily GET READY shows a short shared-course line', () => {
     const calls = withDailyWaiting(GAME_CONFIG.GRACE_FRAMES, overlayCalls);
     const line = calls.find((c) => c.text === preRunLine());
-    assert(line, `Daily WAITING should show the shared-run line, got: ${JSON.stringify(calls.map((c) => c.text))}`);
-    assertEquals(line.text, STEM + ' · #' + dailyNumber(),
-      'the shared-course line should name today’s daily number');
+    assert(
+      line,
+      `Daily WAITING should show the shared-run line, got: ${JSON.stringify(calls.map((c) => c.text))}`
+    );
+    assertEquals(
+      line.text,
+      STEM + ' · #' + dailyNumber(),
+      'the shared-course line should name today’s daily number'
+    );
     assert(!line.text.includes('📅'), 'the pre-run line stays quiet, without the Game Over badge');
-    assert(calls.some((c) => c.text === 'GET READY'), 'GET READY should stay on the overlay');
-    assert(line.y > GAME_CONFIG.SCORE_Y, 'the line should sit with the overlay, not in the score HUD');
-    assert(line.y < GAME_CONFIG.CANVAS_H - GAME_CONFIG.DINO_HEIGHT, 'the line should stay above the dino');
+    assert(
+      calls.some((c) => c.text === 'GET READY'),
+      'GET READY should stay on the overlay'
+    );
+    assert(
+      line.y > GAME_CONFIG.SCORE_Y,
+      'the line should sit with the overlay, not in the score HUD'
+    );
+    assert(
+      line.y < GAME_CONFIG.CANVAS_H - GAME_CONFIG.DINO_HEIGHT,
+      'the line should stay above the dino'
+    );
   });
 
   it('Daily countdown still shows the line, and the text does not pulse', () => {
@@ -5297,10 +6083,16 @@ describe('Daily pre-run framing', () => {
     });
     const earlyLine = early.find((c) => c.text === preRunLine());
     const lateLine = late.find((c) => c.text === preRunLine());
-    assert(late.some((c) => c.text !== 'GET READY' && c.text !== preRunLine()),
-      `countdown phase should still draw a count, got: ${JSON.stringify(late.map((c) => c.text))}`);
+    assert(
+      late.some((c) => c.text !== 'GET READY' && c.text !== preRunLine()),
+      `countdown phase should still draw a count, got: ${JSON.stringify(late.map((c) => c.text))}`
+    );
     assert(lateLine, 'the shared-run line should stay through the countdown');
-    assertEquals(lateLine.fillStyle, earlyLine.fillStyle, 'the line should stay static when frames advance');
+    assertEquals(
+      lateLine.fillStyle,
+      earlyLine.fillStyle,
+      'the line should stay static when frames advance'
+    );
     assertEquals(lateLine.font, earlyLine.font, 'the line should not scale or pulse');
   });
 
@@ -5322,12 +6114,22 @@ describe('Daily pre-run framing', () => {
     game.state = orig.state;
     game.graceFrames = orig.grace;
 
-    assert(!classic.some((c) => c.text === preRunLine() || c.text.includes(STEM)),
-      `Classic must not show Daily framing, got: ${JSON.stringify(classic.map((c) => c.text))}`);
-    assert(!updated.some((c) => c.text === preRunLine() || c.text.includes(STEM)),
-      `Updated must not show Daily framing, got: ${JSON.stringify(updated.map((c) => c.text))}`);
-    assert(classic.some((c) => c.text === 'GET READY'), 'Classic GET READY should be unchanged');
-    assert(updated.some((c) => c.text === 'GET READY'), 'Updated GET READY should be unchanged');
+    assert(
+      !classic.some((c) => c.text === preRunLine() || c.text.includes(STEM)),
+      `Classic must not show Daily framing, got: ${JSON.stringify(classic.map((c) => c.text))}`
+    );
+    assert(
+      !updated.some((c) => c.text === preRunLine() || c.text.includes(STEM)),
+      `Updated must not show Daily framing, got: ${JSON.stringify(updated.map((c) => c.text))}`
+    );
+    assert(
+      classic.some((c) => c.text === 'GET READY'),
+      'Classic GET READY should be unchanged'
+    );
+    assert(
+      updated.some((c) => c.text === 'GET READY'),
+      'Updated GET READY should be unchanged'
+    );
   });
 
   it('a Daily RUNNING frame does not paint the line, and Game Over keeps TODAY BEST', () => {
@@ -5376,13 +6178,27 @@ describe('Daily pre-run framing', () => {
     game.obstacles.length = 0;
     orig.obstacles.forEach((o) => game.obstacles.push(o));
 
-    assert(!running.some((c) => c.text === preRunLine()),
-      `RUNNING must not show the shared-run line, got: ${JSON.stringify(running.map((c) => c.text))}`);
-    assert(!running.some((c) => c.text.includes('TODAY') || c.text.includes('#' + dailyNumber()) || c.text.includes('DAILY')),
-      `RUNNING must not grow a Daily #N or TODAY HUD, got: ${JSON.stringify(running.map((c) => c.text))}`);
-    assert(!over.some((c) => c.text === preRunLine()),
-      `Game Over should keep its own result screen, got: ${JSON.stringify(over.map((c) => c.text))}`);
-    assert(over.some((c) => c.text === 'TODAY BEST'), 'Game Over should still show TODAY BEST');
+    assert(
+      !running.some((c) => c.text === preRunLine()),
+      `RUNNING must not show the shared-run line, got: ${JSON.stringify(running.map((c) => c.text))}`
+    );
+    assert(
+      !running.some(
+        (c) =>
+          c.text.includes('TODAY') ||
+          c.text.includes('#' + dailyNumber()) ||
+          c.text.includes('DAILY')
+      ),
+      `RUNNING must not grow a Daily #N or TODAY HUD, got: ${JSON.stringify(running.map((c) => c.text))}`
+    );
+    assert(
+      !over.some((c) => c.text === preRunLine()),
+      `Game Over should keep its own result screen, got: ${JSON.stringify(over.map((c) => c.text))}`
+    );
+    assert(
+      over.some((c) => c.text === 'TODAY BEST'),
+      'Game Over should still show TODAY BEST'
+    );
   });
 
   it('the screen reader hears the line only when a Daily countdown starts', () => {
@@ -5413,9 +6229,18 @@ describe('Daily pre-run framing', () => {
     a11yLive.textContent = orig.text;
 
     assert(!updated.includes(STEM), `Updated countdown must stay quiet, got: ${updated}`);
-    assert(!updated.includes('#' + dailyNumber()), `Updated countdown must not announce a daily number, got: ${updated}`);
-    assert(daily.includes('Get ready'), `Daily countdown should still say get ready, got: ${daily}`);
-    assert(daily.includes(preRunLine()), `Daily countdown should mention the shared course and #N, got: ${daily}`);
+    assert(
+      !updated.includes('#' + dailyNumber()),
+      `Updated countdown must not announce a daily number, got: ${updated}`
+    );
+    assert(
+      daily.includes('Get ready'),
+      `Daily countdown should still say get ready, got: ${daily}`
+    );
+    assert(
+      daily.includes(preRunLine()),
+      `Daily countdown should mention the shared course and #N, got: ${daily}`
+    );
   });
 
   it('the Daily button announces the shared course, and leaving does not', () => {
@@ -5445,12 +6270,24 @@ describe('Daily pre-run framing', () => {
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     a11yLive.textContent = origText;
 
-    assert(/Daily challenge #\d+/.test(entered), `entering Daily should name the challenge, got: ${entered}`);
-    assert(entered.includes(preRunLine()), `entering Daily should mention the shared course and #N, got: ${entered}`);
+    assert(
+      /Daily challenge #\d+/.test(entered),
+      `entering Daily should name the challenge, got: ${entered}`
+    );
+    assert(
+      entered.includes(preRunLine()),
+      `entering Daily should mention the shared course and #N, got: ${entered}`
+    );
     assert(!left.includes(STEM), `leaving Daily must drop the shared-course line, got: ${left}`);
-    assert(left.includes('Updated mode'), `leaving Daily should announce Updated mode, got: ${left}`);
-    assertEquals(btn.textContent, '📅 #' + dailyNumber(),
-      'the Daily button keeps the calendar and today #N');
+    assert(
+      left.includes('Updated mode'),
+      `leaving Daily should announce Updated mode, got: ${left}`
+    );
+    assertEquals(
+      btn.textContent,
+      '📅 #' + dailyNumber(),
+      'the Daily button keeps the calendar and today #N'
+    );
     assertEquals(
       ariaLabels.join('|'),
       'Leave daily challenge #' + dailyNumber() + '|Daily challenge #' + dailyNumber(),
@@ -5473,7 +6310,9 @@ describe('Daily button shows today number', () => {
     };
     return {
       seen,
-      restore() { btn.setAttribute = origSet; },
+      restore() {
+        btn.setAttribute = origSet;
+      },
     };
   }
 
@@ -5486,8 +6325,10 @@ describe('Daily button shows today number', () => {
       refreshDailyButton();
       assertEquals(btn.textContent, face(), 'Classic shows today #N on the Daily button');
       assert(spy.seen.includes('aria-pressed=false'), 'Classic leaves the Daily button unpressed');
-      assert(spy.seen.includes('aria-label=Daily challenge #' + dailyNumber()),
-        'Classic names the challenge and today #N, got: ' + spy.seen.join('|'));
+      assert(
+        spy.seen.includes('aria-label=Daily challenge #' + dailyNumber()),
+        'Classic names the challenge and today #N, got: ' + spy.seen.join('|')
+      );
 
       spy.seen.length = 0;
       game.mode = MODES.UPDATED;
@@ -5525,13 +6366,14 @@ describe('Daily death-screen hint', () => {
   function captureFillText(draw) {
     const calls = [];
     const origFill = ctx.fillText;
-    ctx.fillText = (text, x, y) => calls.push({
-      text: String(text),
-      x,
-      y,
-      font: ctx.font,
-      fillStyle: ctx.fillStyle,
-    });
+    ctx.fillText = (text, x, y) =>
+      calls.push({
+        text: String(text),
+        x,
+        y,
+        font: ctx.font,
+        fillStyle: ctx.fillStyle,
+      });
     draw();
     ctx.fillText = origFill;
     return calls;
@@ -5590,39 +6432,75 @@ describe('Daily death-screen hint', () => {
 
   it('settled Daily Game Over points at TODAY BEST and Copy result', () => {
     let shared = '';
-    const { calls, button } = withGameOver(MODES.DAILY, () => {
-      Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
-    }, () => {
-      const drawn = captureFillText(drawGameOverScreen);
-      shared = shareDailyResult();
-      return drawn;
-    });
+    const { calls, button } = withGameOver(
+      MODES.DAILY,
+      () => {
+        Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+      },
+      () => {
+        const drawn = captureFillText(drawGameOverScreen);
+        shared = shareDailyResult();
+        return drawn;
+      }
+    );
     const hint = calls.find((c) => c.text === HINT);
-    assert(hint, `Daily Game Over should nudge toward sharing, got: ${JSON.stringify(calls.map((c) => c.text))}`);
-    assert(calls.some((c) => c.text === 'TODAY BEST'), 'TODAY BEST should stay on the death screen');
-    assert(calls.some((c) => c.text === '00500'), 'the today-best score should stay on the death screen');
-    assert(!calls.some((c) => c.text === preRunLine()), 'the pre-run line should stay off Game Over');
-    assertEquals(hint.y, GAME_CONFIG.CANVAS_H - 16, 'the hint should sit on the bottom edge, under the scores');
-    assertEquals(button.display, 'block', 'Copy result should still appear once the count-up finishes');
+    assert(
+      hint,
+      `Daily Game Over should nudge toward sharing, got: ${JSON.stringify(calls.map((c) => c.text))}`
+    );
+    assert(
+      calls.some((c) => c.text === 'TODAY BEST'),
+      'TODAY BEST should stay on the death screen'
+    );
+    assert(
+      calls.some((c) => c.text === '00500'),
+      'the today-best score should stay on the death screen'
+    );
+    assert(
+      !calls.some((c) => c.text === preRunLine()),
+      'the pre-run line should stay off Game Over'
+    );
+    assertEquals(
+      hint.y,
+      GAME_CONFIG.CANVAS_H - 16,
+      'the hint should sit on the bottom edge, under the scores'
+    );
+    assertEquals(
+      button.display,
+      'block',
+      'Copy result should still appear once the count-up finishes'
+    );
     assertEquals(button.text, '📋 Copy result', 'the share button label should stay Copy result');
     assert(shared.includes('500'), 'Share result should still include the daily best');
   });
 
   it('the hint stays static, including when motion is reduced and after a copy', () => {
-    const first = withGameOver(MODES.DAILY, () => {
-      Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
-      setReducedMotion(false);
-    }, () => captureFillText(drawGameOverScreen));
-    const later = withGameOver(MODES.DAILY, () => {
-      Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
-      game.animFrame = 90;
-      setReducedMotion(true);
-    }, () => captureFillText(drawGameOverScreen));
-    const copied = withGameOver(MODES.DAILY, () => {
-      Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
-      Animations.copyFlashFrames = 40;
-      setReducedMotion(true);
-    }, () => captureFillText(drawGameOverScreen));
+    const first = withGameOver(
+      MODES.DAILY,
+      () => {
+        Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+        setReducedMotion(false);
+      },
+      () => captureFillText(drawGameOverScreen)
+    );
+    const later = withGameOver(
+      MODES.DAILY,
+      () => {
+        Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+        game.animFrame = 90;
+        setReducedMotion(true);
+      },
+      () => captureFillText(drawGameOverScreen)
+    );
+    const copied = withGameOver(
+      MODES.DAILY,
+      () => {
+        Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+        Animations.copyFlashFrames = 40;
+        setReducedMotion(true);
+      },
+      () => captureFillText(drawGameOverScreen)
+    );
     setReducedMotion(false);
 
     const a = first.calls.find((c) => c.text === HINT);
@@ -5636,30 +6514,52 @@ describe('Daily death-screen hint', () => {
   });
 
   it('the hint waits until the score count-up finishes', () => {
-    const mid = withGameOver(MODES.DAILY, () => {
-      Animations.deathAnimFrame = 0;
-    }, () => captureFillText(drawGameOverScreen));
-    assert(!mid.calls.some((c) => c.text === HINT),
-      `the hint should wait for the settled screen, got: ${JSON.stringify(mid.calls.map((c) => c.text))}`);
+    const mid = withGameOver(
+      MODES.DAILY,
+      () => {
+        Animations.deathAnimFrame = 0;
+      },
+      () => captureFillText(drawGameOverScreen)
+    );
+    assert(
+      !mid.calls.some((c) => c.text === HINT),
+      `the hint should wait for the settled screen, got: ${JSON.stringify(mid.calls.map((c) => c.text))}`
+    );
     assertEquals(mid.button.display, 'none', 'Copy result should still wait for the count-up');
   });
 
   it('Classic and Updated Game Over do not show the Daily hint', () => {
-    const classic = withGameOver(MODES.CLASSIC, () => {
-      Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
-    }, () => captureFillText(drawGameOverScreen));
-    const updated = withGameOver(MODES.UPDATED, () => {
-      Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
-    }, () => captureFillText(drawGameOverScreen));
+    const classic = withGameOver(
+      MODES.CLASSIC,
+      () => {
+        Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+      },
+      () => captureFillText(drawGameOverScreen)
+    );
+    const updated = withGameOver(
+      MODES.UPDATED,
+      () => {
+        Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+      },
+      () => captureFillText(drawGameOverScreen)
+    );
 
-    assert(!classic.calls.some((c) => c.text === HINT),
-      `Classic Game Over must stay free of the Daily hint, got: ${JSON.stringify(classic.calls.map((c) => c.text))}`);
-    assert(!updated.calls.some((c) => c.text === HINT),
-      `Updated Game Over must stay free of the Daily hint, got: ${JSON.stringify(updated.calls.map((c) => c.text))}`);
-    assert(classic.calls.some((c) => c.text === 'Tap / Press Space to Restart'),
-      'Classic should keep its restart line');
-    assert(updated.calls.some((c) => c.text === 'YOUR BEST'),
-      'Updated should keep the free-play best comparison');
+    assert(
+      !classic.calls.some((c) => c.text === HINT),
+      `Classic Game Over must stay free of the Daily hint, got: ${JSON.stringify(classic.calls.map((c) => c.text))}`
+    );
+    assert(
+      !updated.calls.some((c) => c.text === HINT),
+      `Updated Game Over must stay free of the Daily hint, got: ${JSON.stringify(updated.calls.map((c) => c.text))}`
+    );
+    assert(
+      classic.calls.some((c) => c.text === 'Tap / Press Space to Restart'),
+      'Classic should keep its restart line'
+    );
+    assert(
+      updated.calls.some((c) => c.text === 'YOUR BEST'),
+      'Updated should keep the free-play best comparison'
+    );
     assertEquals(classic.button.display, 'none', 'Classic must not reveal Copy result');
     assertEquals(updated.button.display, 'none', 'Updated must not reveal Copy result');
   });
@@ -5697,11 +6597,18 @@ describe('Daily death-screen hint', () => {
     Animations.scorePopFrames = orig.pop;
     Animations.deathAnimFrame = orig.anim;
 
-    assert(!waiting.some((c) => c.text === HINT),
-      `WAITING should keep the pre-run line only, got: ${JSON.stringify(waiting.map((c) => c.text))}`);
-    assert(waiting.some((c) => c.text === preRunLine()), 'the pre-run shared-course line should stay');
-    assert(!running.some((c) => c.text === HINT || c.text.includes('TODAY')),
-      `RUNNING HUD must stay score-only, got: ${JSON.stringify(running.map((c) => c.text))}`);
+    assert(
+      !waiting.some((c) => c.text === HINT),
+      `WAITING should keep the pre-run line only, got: ${JSON.stringify(waiting.map((c) => c.text))}`
+    );
+    assert(
+      waiting.some((c) => c.text === preRunLine()),
+      'the pre-run shared-course line should stay'
+    );
+    assert(
+      !running.some((c) => c.text === HINT || c.text.includes('TODAY')),
+      `RUNNING HUD must stay score-only, got: ${JSON.stringify(running.map((c) => c.text))}`
+    );
   });
 
   it('only a Daily death tells the screen reader to share TODAY BEST', () => {
@@ -5767,10 +6674,18 @@ describe('Daily death-screen hint', () => {
     const classic = dieIn(MODES.CLASSIC);
 
     assert(daily.includes(HINT), `Daily death should mention the share hint, got: ${daily}`);
-    assert(daily.includes('New today best'),
-      `A Daily death that beats today best should announce the celebration, got: ${daily}`);
-    assert(!classic.includes(HINT), `Classic death must not mention the Daily hint, got: ${classic}`);
-    assert(classic.includes('High score'), `Classic death should keep the high-score line, got: ${classic}`);
+    assert(
+      daily.includes('New today best'),
+      `A Daily death that beats today best should announce the celebration, got: ${daily}`
+    );
+    assert(
+      !classic.includes(HINT),
+      `Classic death must not mention the Daily hint, got: ${classic}`
+    );
+    assert(
+      classic.includes('High score'),
+      `Classic death should keep the high-score line, got: ${classic}`
+    );
   });
 });
 
@@ -5781,13 +6696,14 @@ describe('Daily new today best celebration', () => {
   function captureFillText(draw) {
     const calls = [];
     const origFill = ctx.fillText;
-    ctx.fillText = (text, x, y) => calls.push({
-      text: String(text),
-      x,
-      y,
-      font: ctx.font,
-      fillStyle: ctx.fillStyle,
-    });
+    ctx.fillText = (text, x, y) =>
+      calls.push({
+        text: String(text),
+        x,
+        y,
+        font: ctx.font,
+        fillStyle: ctx.fillStyle,
+      });
     draw();
     ctx.fillText = origFill;
     return calls;
@@ -5918,19 +6834,45 @@ describe('Daily new today best celebration', () => {
     const hint = calls.find((c) => c.text === HINT);
 
     assertEquals(flags.isNewTodayBest, true, 'beating today best should flag the celebration');
-    assertEquals(flags.previousDailyBest, 25, 'previous today best is the value before this death saved');
+    assertEquals(
+      flags.previousDailyBest,
+      25,
+      'previous today best is the value before this death saved'
+    );
     assertEquals(flags.dailyBest, 80, 'today best should update to this run');
-    assertEquals(flags.isNewBest, false, 'an all-time miss should not flip the free-play new-best flag');
+    assertEquals(
+      flags.isNewBest,
+      false,
+      'an all-time miss should not flip the free-play new-best flag'
+    );
     assert(title, `celebration title missing, got: ${JSON.stringify(calls.map((c) => c.text))}`);
-    assertEquals(title.y, GAME_CONFIG.CANVAS_H / 2 - 36, 'celebration title should sit where NEW BEST sits');
+    assertEquals(
+      title.y,
+      GAME_CONFIG.CANVAS_H / 2 - 36,
+      'celebration title should sit where NEW BEST sits'
+    );
     assert(score, 'the run score should be the big number on the celebration');
-    assert(String(score.font).includes('42px'), `celebration score should use the big NEW BEST size, got: ${score.font}`);
+    assert(
+      String(score.font).includes('42px'),
+      `celebration score should use the big NEW BEST size, got: ${score.font}`
+    );
     assertEquals(score.x, GAME_CONFIG.CANVAS_W / 2, 'celebration score should be centered');
-    assert(calls.some((c) => c.text === '+55 over your previous best'),
-      `improvement over the prior today best should show, got: ${JSON.stringify(calls.map((c) => c.text))}`);
-    assert(!calls.some((c) => c.text === 'THIS RUN'), 'celebration should replace the comparison pair');
-    assert(!calls.some((c) => c.text === 'TODAY BEST'), 'celebration should replace the TODAY BEST column');
-    assert(calls.some((c) => c.text.indexOf('DAILY #') !== -1), 'the daily number should stay on the death screen');
+    assert(
+      calls.some((c) => c.text === '+55 over your previous best'),
+      `improvement over the prior today best should show, got: ${JSON.stringify(calls.map((c) => c.text))}`
+    );
+    assert(
+      !calls.some((c) => c.text === 'THIS RUN'),
+      'celebration should replace the comparison pair'
+    );
+    assert(
+      !calls.some((c) => c.text === 'TODAY BEST'),
+      'celebration should replace the TODAY BEST column'
+    );
+    assert(
+      calls.some((c) => c.text.indexOf('DAILY #') !== -1),
+      'the daily number should stay on the death screen'
+    );
     assert(hint, 'the share hint should still appear once the count-up finishes');
     assertEquals(hint.y, GAME_CONFIG.CANVAS_H - 16, 'the hint should keep its bottom-edge spot');
     assertEquals(button.display, 'block', 'Copy result should appear once the count-up finishes');
@@ -5951,11 +6893,22 @@ describe('Daily new today best celebration', () => {
     assertEquals(flags.isNewTodayBest, true, 'a first today best should celebrate');
     assertEquals(flags.previousDailyBest, 0, 'there is no prior today best');
     assertEquals(flags.dailyBest, 80, 'the run should become today best');
-    assert(calls.some((c) => c.text === CELEBRATION), 'first today best should use the celebration');
-    assert(!calls.some((c) => c.text.includes('over your previous best')),
-      'no prior today best means no improvement line');
-    assert(!calls.some((c) => c.text === 'THIS RUN'), 'first today best should not fall back to the comparison');
-    assert(calls.some((c) => c.text === HINT), 'the hint still arrives with the settled screen');
+    assert(
+      calls.some((c) => c.text === CELEBRATION),
+      'first today best should use the celebration'
+    );
+    assert(
+      !calls.some((c) => c.text.includes('over your previous best')),
+      'no prior today best means no improvement line'
+    );
+    assert(
+      !calls.some((c) => c.text === 'THIS RUN'),
+      'first today best should not fall back to the comparison'
+    );
+    assert(
+      calls.some((c) => c.text === HINT),
+      'the hint still arrives with the settled screen'
+    );
     assertEquals(button.display, 'block', 'Copy result still arrives with the settled screen');
   });
 
@@ -5970,13 +6923,31 @@ describe('Daily new today best celebration', () => {
     assertEquals(flags.isNewTodayBest, false, 'missing today best should clear the celebration');
     assertEquals(flags.previousDailyBest, 500, 'previous today best stays the stored best');
     assertEquals(flags.dailyBest, 500, 'a lower score should not replace today best');
-    assert(calls.some((c) => c.text === 'THIS RUN'), 'a miss should keep THIS RUN');
-    assert(calls.some((c) => c.text === 'TODAY BEST'), 'a miss should keep TODAY BEST');
-    assert(calls.some((c) => c.text === '00040'), 'a miss should show this run');
-    assert(calls.some((c) => c.text === '00500'), 'a miss should show the stored today best');
-    assert(calls.some((c) => c.text === '← +460 →'), 'a miss should keep the gap to today best');
+    assert(
+      calls.some((c) => c.text === 'THIS RUN'),
+      'a miss should keep THIS RUN'
+    );
+    assert(
+      calls.some((c) => c.text === 'TODAY BEST'),
+      'a miss should keep TODAY BEST'
+    );
+    assert(
+      calls.some((c) => c.text === '00040'),
+      'a miss should show this run'
+    );
+    assert(
+      calls.some((c) => c.text === '00500'),
+      'a miss should show the stored today best'
+    );
+    assert(
+      calls.some((c) => c.text === '← +460 →'),
+      'a miss should keep the gap to today best'
+    );
     assert(!calls.some((c) => c.text === CELEBRATION), 'a miss should not celebrate');
-    assert(calls.some((c) => c.text === HINT), 'the hint should still follow a miss');
+    assert(
+      calls.some((c) => c.text === HINT),
+      'the hint should still follow a miss'
+    );
     assertEquals(button.display, 'block', 'Copy result should still follow a miss');
     assertEquals(
       heard,
@@ -5993,8 +6964,14 @@ describe('Daily new today best celebration', () => {
     });
     assertEquals(flags.isNewTodayBest, false, 'a tie is not a new today best');
     assertEquals(flags.dailyBest, 40, 'a tie should not rewrite today best');
-    assert(calls.some((c) => c.text === 'THIS RUN'), 'a tie should keep the comparison');
-    assert(calls.some((c) => c.text === '← best →'), 'a tie should keep the even-best marker');
+    assert(
+      calls.some((c) => c.text === 'THIS RUN'),
+      'a tie should keep the comparison'
+    );
+    assert(
+      calls.some((c) => c.text === '← best →'),
+      'a tie should keep the even-best marker'
+    );
     assert(!calls.some((c) => c.text === CELEBRATION), 'a tie should not celebrate');
   });
 
@@ -6006,8 +6983,14 @@ describe('Daily new today best celebration', () => {
     });
     assertEquals(flags.isNewBest, true, 'the all-time record should still be recorded');
     assertEquals(flags.isNewTodayBest, false, 'missing today best should not celebrate');
-    assert(calls.some((c) => c.text === 'TODAY BEST'), 'Daily Game Over should stay on the comparison');
-    assert(!calls.some((c) => c.text === '★  NEW BEST  ★'), 'Daily Game Over should not use the free-play celebration');
+    assert(
+      calls.some((c) => c.text === 'TODAY BEST'),
+      'Daily Game Over should stay on the comparison'
+    );
+    assert(
+      !calls.some((c) => c.text === '★  NEW BEST  ★'),
+      'Daily Game Over should not use the free-play celebration'
+    );
     assert(!calls.some((c) => c.text === CELEBRATION), 'missing today best should not celebrate');
   });
 
@@ -6046,12 +7029,24 @@ describe('Daily new today best celebration', () => {
     restoreElementStyle(shareBtn, orig.btnStyle);
     shareBtn.textContent = orig.btnText;
 
-    assert(early.some((c) => c.text === CELEBRATION), 'the title is up while the score counts');
-    assert(early.some((c) => c.text === '00000'), 'the score should start at zero during the count-up');
+    assert(
+      early.some((c) => c.text === CELEBRATION),
+      'the title is up while the score counts'
+    );
+    assert(
+      early.some((c) => c.text === '00000'),
+      'the score should start at zero during the count-up'
+    );
     assert(!early.some((c) => c.text === HINT), 'the hint should wait for the count-up');
     assertEquals(earlyButton, 'none', 'Copy result should wait for the count-up');
-    assert(settled.some((c) => c.text === '00080'), 'the settled celebration should show the full score');
-    assert(settled.some((c) => c.text === HINT), 'the hint should appear with the full score');
+    assert(
+      settled.some((c) => c.text === '00080'),
+      'the settled celebration should show the full score'
+    );
+    assert(
+      settled.some((c) => c.text === HINT),
+      'the hint should appear with the full score'
+    );
     assertEquals(settledButton, 'block', 'Copy result should appear with the full score');
   });
 
@@ -6143,18 +7138,43 @@ describe('Daily new today best celebration', () => {
     Animations.deathAnimFrame = orig.anim;
     restoreElementStyle(shareBtn, orig.btnStyle);
 
-    assert(classic.some((c) => c.text === 'YOUR BEST'), 'Classic should keep the free-play comparison');
-    assert(classic.some((c) => c.text === 'Tap / Press Space to Restart'), 'Classic should keep its restart line');
-    assert(!classic.some((c) => c.text === CELEBRATION), 'Classic should not show the today-best celebration');
+    assert(
+      classic.some((c) => c.text === 'YOUR BEST'),
+      'Classic should keep the free-play comparison'
+    );
+    assert(
+      classic.some((c) => c.text === 'Tap / Press Space to Restart'),
+      'Classic should keep its restart line'
+    );
+    assert(
+      !classic.some((c) => c.text === CELEBRATION),
+      'Classic should not show the today-best celebration'
+    );
     assert(!classic.some((c) => c.text === HINT), 'Classic should not show the Daily hint');
     assertEquals(classicButton, 'none', 'Classic should not reveal Copy result');
-    assert(updated.some((c) => c.text === '★  NEW BEST  ★'), 'Updated should keep the free-play celebration');
-    assert(!updated.some((c) => c.text === CELEBRATION), 'Updated should not show the today-best celebration');
+    assert(
+      updated.some((c) => c.text === '★  NEW BEST  ★'),
+      'Updated should keep the free-play celebration'
+    );
+    assert(
+      !updated.some((c) => c.text === CELEBRATION),
+      'Updated should not show the today-best celebration'
+    );
     assert(!updated.some((c) => c.text === HINT), 'Updated should not show the Daily hint');
     assertEquals(updatedButton, 'none', 'Updated should not reveal Copy result');
-    assertEquals(classicDeath.flags.isNewTodayBest, false, 'a Classic death should not flag a today-best celebration');
-    assert(classicDeath.heard.includes('High score'), `Classic death should keep the high-score line, got: ${classicDeath.heard}`);
-    assert(!classicDeath.heard.includes('New today best'), 'Classic death should not announce a today best');
+    assertEquals(
+      classicDeath.flags.isNewTodayBest,
+      false,
+      'a Classic death should not flag a today-best celebration'
+    );
+    assert(
+      classicDeath.heard.includes('High score'),
+      `Classic death should keep the high-score line, got: ${classicDeath.heard}`
+    );
+    assert(
+      !classicDeath.heard.includes('New today best'),
+      'Classic death should not announce a today best'
+    );
     assert(!classicDeath.heard.includes(HINT), 'Classic death should not announce the Daily hint');
   });
 
@@ -6183,7 +7203,7 @@ describe('Daily new today best celebration', () => {
 });
 
 describe('QA cluster flag (?qaCluster=1)', () => {
-  const cluster = () => GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'cluster');
+  const cluster = () => GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'cluster');
 
   function tick() {
     gameLoop();
@@ -6208,7 +7228,7 @@ describe('QA cluster flag (?qaCluster=1)', () => {
     dino.isJumping = false;
     dino.velocityY = 0;
     tick();
-    const spawned = game.obstacles.map(o => o.type);
+    const spawned = game.obstacles.map((o) => o.type);
     const gap = game.nextSpawnGap;
     const score = game.score;
     return {
@@ -6224,9 +7244,18 @@ describe('QA cluster flag (?qaCluster=1)', () => {
   }
 
   it('recognizes only ?qaCluster=1', () => {
-    assert(readQaClusterFlag('?qaCluster=1') === true, '?qaCluster=1 should enable the early cluster');
-    assert(readQaClusterFlag('?foo=1&qaCluster=1') === true, 'the flag should work alongside other params');
-    assert(readQaClusterFlag('?qaPlateau=1') === false, 'the plateau flag must not enable the cluster');
+    assert(
+      readQaClusterFlag('?qaCluster=1') === true,
+      '?qaCluster=1 should enable the early cluster'
+    );
+    assert(
+      readQaClusterFlag('?foo=1&qaCluster=1') === true,
+      'the flag should work alongside other params'
+    );
+    assert(
+      readQaClusterFlag('?qaPlateau=1') === false,
+      'the plateau flag must not enable the cluster'
+    );
     assert(readQaClusterFlag('') === false, 'a normal visit should leave the flag off');
     assert(readQaClusterFlag('?qaCluster=0') === false, 'only the value 1 enables the flag');
     assert(readQaClusterFlag('?qaCluster=12') === false, 'qaCluster=12 must not count as the flag');
@@ -6240,10 +7269,17 @@ describe('QA cluster flag (?qaCluster=1)', () => {
       assertEquals(cluster().unlockScore, 250, 'production unlock stays 250');
       assertEquals(cluster().weight, 20, 'production weight stays 20');
       assertEquals(cluster().width, 50, 'production hitbox stays 50');
-      assert(run.score < 50, `the early cluster should appear near the start, score was ${run.score}`);
+      assert(
+        run.score < 50,
+        `the early cluster should appear near the start, score was ${run.score}`
+      );
       assertEquals(run.spawned[0], 'cluster', 'the first Updated obstacle should be the cluster');
       assertEquals(game.obstacles[0].width, 50, 'the early cluster keeps the real hitbox');
-      assertEquals(game.obstacles[0].render, 'double', 'the early cluster uses the two-cactus draw');
+      assertEquals(
+        game.obstacles[0].render,
+        'double',
+        'the early cluster uses the two-cactus draw'
+      );
       assertEquals(game.qaClusterShown, true, 'the override is spent after one obstacle');
 
       // Drop the first cluster so the gap check looks at lastObstacleX, then
@@ -6313,8 +7349,16 @@ describe('QA cluster flag (?qaCluster=1)', () => {
     const origMode = game.mode;
     const run = runFirstSpawn(MODES.UPDATED, { search: '?qaCluster=1' });
     try {
-      assertEquals(run.spawned[0], 'cluster', 'resetGame should arm the early cluster from location.search');
-      assertEquals(game.qaClusterShown, true, 'the re-read flag should still latch after one cluster');
+      assertEquals(
+        run.spawned[0],
+        'cluster',
+        'resetGame should arm the early cluster from location.search'
+      );
+      assertEquals(
+        game.qaClusterShown,
+        true,
+        'the re-read flag should still latch after one cluster'
+      );
     } finally {
       run.restore();
       setQaCluster(false);
@@ -6325,7 +7369,7 @@ describe('QA cluster flag (?qaCluster=1)', () => {
 });
 
 describe('QA big cactus flag (?qaBig=1)', () => {
-  const big = () => GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'big');
+  const big = () => GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'big');
 
   function tick() {
     gameLoop();
@@ -6350,7 +7394,7 @@ describe('QA big cactus flag (?qaBig=1)', () => {
     dino.isJumping = false;
     dino.velocityY = 0;
     tick();
-    const spawned = game.obstacles.map(o => o.type);
+    const spawned = game.obstacles.map((o) => o.type);
     const gap = game.nextSpawnGap;
     const score = game.score;
     return {
@@ -6368,8 +7412,14 @@ describe('QA big cactus flag (?qaBig=1)', () => {
   it('recognizes only ?qaBig=1', () => {
     assert(readQaBigFlag('?qaBig=1') === true, '?qaBig=1 should enable the early big cactus');
     assert(readQaBigFlag('?foo=1&qaBig=1') === true, 'the flag should work alongside other params');
-    assert(readQaBigFlag('?qaCluster=1') === false, 'the cluster flag must not enable the big cactus');
-    assert(readQaBigFlag('?qaPlateau=1') === false, 'the plateau flag must not enable the big cactus');
+    assert(
+      readQaBigFlag('?qaCluster=1') === false,
+      'the cluster flag must not enable the big cactus'
+    );
+    assert(
+      readQaBigFlag('?qaPlateau=1') === false,
+      'the plateau flag must not enable the big cactus'
+    );
     assert(readQaBigFlag('') === false, 'a normal visit should leave the flag off');
     assert(readQaBigFlag('?qaBig=0') === false, 'only the value 1 enables the flag');
     assert(readQaBigFlag('?qaBig=12') === false, 'qaBig=12 must not count as the flag');
@@ -6384,11 +7434,22 @@ describe('QA big cactus flag (?qaBig=1)', () => {
       assertEquals(big().weight, 30, 'production weight stays 30');
       assertEquals(big().width, 30, 'production hitbox width stays 30');
       assertEquals(big().height, 55, 'production hitbox height stays 55');
-      assert(run.score < 50, `the early big cactus should appear near the start, score was ${run.score}`);
+      assert(
+        run.score < 50,
+        `the early big cactus should appear near the start, score was ${run.score}`
+      );
       assertEquals(run.spawned[0], 'big', 'the first Updated obstacle should be the big cactus');
       assertEquals(game.obstacles[0].width, 30, 'the early big cactus keeps the real hitbox width');
-      assertEquals(game.obstacles[0].height, 55, 'the early big cactus keeps the real hitbox height');
-      assertEquals(game.obstacles[0].render, 'single', 'the early big cactus stays a single sprite');
+      assertEquals(
+        game.obstacles[0].height,
+        55,
+        'the early big cactus keeps the real hitbox height'
+      );
+      assertEquals(
+        game.obstacles[0].render,
+        'single',
+        'the early big cactus stays a single sprite'
+      );
       assertEquals(game.qaBigShown, true, 'the override is spent after one obstacle');
 
       game.obstacles.length = 0;
@@ -6456,8 +7517,16 @@ describe('QA big cactus flag (?qaBig=1)', () => {
     const origMode = game.mode;
     const run = runFirstSpawn(MODES.UPDATED, { search: '?qaBig=1' });
     try {
-      assertEquals(run.spawned[0], 'big', 'resetGame should arm the early big cactus from location.search');
-      assertEquals(game.qaBigShown, true, 'the re-read flag should still latch after one big cactus');
+      assertEquals(
+        run.spawned[0],
+        'big',
+        'resetGame should arm the early big cactus from location.search'
+      );
+      assertEquals(
+        game.qaBigShown,
+        true,
+        'the re-read flag should still latch after one big cactus'
+      );
     } finally {
       run.restore();
       setQaBig(false);
@@ -6469,18 +7538,27 @@ describe('QA big cactus flag (?qaBig=1)', () => {
 
 describe('Night obstacle contrast', () => {
   function placeSmall() {
-    const small = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'small');
-    game.obstacles = [{
-      x: 40, y: 160, width: small.width, height: small.height,
-      render: small.render, type: small.id,
-    }];
+    const small = GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'small');
+    game.obstacles = [
+      {
+        x: 40,
+        y: 160,
+        width: small.width,
+        height: small.height,
+        render: small.render,
+        type: small.id,
+      },
+    ];
     return small;
   }
 
   function filtersDuringDraw() {
     const seen = [];
     const orig = ctx.drawImage;
-    ctx.drawImage = (...args) => { seen.push(ctx.filter); return orig.apply(ctx, args); };
+    ctx.drawImage = (...args) => {
+      seen.push(ctx.filter);
+      return orig.apply(ctx, args);
+    };
     try {
       drawObstacles();
     } finally {
@@ -6495,8 +7573,11 @@ describe('Night obstacle contrast', () => {
     try {
       setQaNight(false);
       setReducedMotion(false);
-      assertEquals(GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS, 1.65,
-        'the night lift stays a quiet brightness step, not a white invert');
+      assertEquals(
+        GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
+        1.65,
+        'the night lift stays a quiet brightness step, not a white invert'
+      );
 
       game.mode = MODES.UPDATED;
       game.score = 0;
@@ -6504,21 +7585,33 @@ describe('Night obstacle contrast', () => {
       game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
       assertEquals(obstacleNightBrightness(), 1, 'the lift waits until night has fully arrived');
       game.score = GAME_CONFIG.DAY_NIGHT_END;
-      assertEquals(obstacleNightBrightness(), GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
-        'full night brightens the cactus enough to separate it from the hills');
+      assertEquals(
+        obstacleNightBrightness(),
+        GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
+        'full night brightens the cactus enough to separate it from the hills'
+      );
       game.score = 1000;
-      assertEquals(obstacleNightBrightness(), GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
-        'later night keeps the same static lift');
+      assertEquals(
+        obstacleNightBrightness(),
+        GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
+        'later night keeps the same static lift'
+      );
 
       game.mode = MODES.DAILY;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
-      assertEquals(obstacleNightBrightness(), GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
-        'Daily shares the Updated night lift');
+      assertEquals(
+        obstacleNightBrightness(),
+        GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
+        'Daily shares the Updated night lift'
+      );
 
       game.mode = MODES.CLASSIC;
       game.score = 1000;
-      assertEquals(obstacleNightBrightness(), 1,
-        'Classic keeps the dark silhouette on the shared night sky');
+      assertEquals(
+        obstacleNightBrightness(),
+        1,
+        'Classic keeps the dark silhouette on the shared night sky'
+      );
     } finally {
       game.mode = origMode;
       game.score = origScore;
@@ -6535,11 +7628,17 @@ describe('Night obstacle contrast', () => {
       game.mode = MODES.UPDATED;
       setReducedMotion(true);
       game.score = 350;
-      assertEquals(obstacleNightBrightness(), 1,
-        'reduced motion keeps the day sprite while the sky is still day');
+      assertEquals(
+        obstacleNightBrightness(),
+        1,
+        'reduced motion keeps the day sprite while the sky is still day'
+      );
       game.score = GAME_CONFIG.DAY_NIGHT_END;
-      assertEquals(obstacleNightBrightness(), GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
-        'reduced motion still gets the static night lift');
+      assertEquals(
+        obstacleNightBrightness(),
+        GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
+        'reduced motion still gets the static night lift'
+      );
     } finally {
       game.mode = origMode;
       game.score = origScore;
@@ -6554,13 +7653,19 @@ describe('Night obstacle contrast', () => {
       game.mode = MODES.UPDATED;
       game.score = 0;
       setQaNight(true);
-      assertEquals(obstacleNightBrightness(), GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
-        'the existing night QA flag is enough to see the lift');
+      assertEquals(
+        obstacleNightBrightness(),
+        GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
+        'the existing night QA flag is enough to see the lift'
+      );
       assertEquals(game.score, 0, 'the lift must not write the score');
 
       game.mode = MODES.CLASSIC;
-      assertEquals(obstacleNightBrightness(), 1,
-        'QA night still leaves the Classic silhouette alone');
+      assertEquals(
+        obstacleNightBrightness(),
+        1,
+        'QA night still leaves the Classic silhouette alone'
+      );
       assertEquals(game.score, 0, 'Classic QA night must not write the score');
     } finally {
       game.mode = origMode;
@@ -6606,12 +7711,18 @@ describe('Night obstacle contrast', () => {
   it('a night cluster still draws two full sprites, only brighter', () => {
     const origMode = game.mode;
     const origScore = game.score;
-    const cluster = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'cluster');
-    const small = GAME_CONFIG.OBSTACLE_TYPES.find(t => t.id === 'small');
-    game.obstacles = [{
-      x: 100, y: 160, width: cluster.width, height: cluster.height,
-      render: cluster.render, type: cluster.id,
-    }];
+    const cluster = GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'cluster');
+    const small = GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'small');
+    game.obstacles = [
+      {
+        x: 100,
+        y: 160,
+        width: cluster.width,
+        height: cluster.height,
+        render: cluster.render,
+        type: cluster.id,
+      },
+    ];
     const calls = [];
     const origDrawImage = ctx.drawImage;
     ctx.drawImage = (...args) => calls.push(args);
@@ -6622,8 +7733,11 @@ describe('Night obstacle contrast', () => {
       assertEquals(calls.length, 2, 'Night cluster is still two sprites');
       assertEquals(calls[0][3], small.width, 'First sprite keeps the small-cactus width');
       assertEquals(calls[1][3], small.width, 'Second sprite keeps the small-cactus width');
-      assertEquals(calls[1][1] - (calls[0][1] + calls[0][3]), small.width,
-        'The sky gap between the cacti stays one small cactus wide');
+      assertEquals(
+        calls[1][1] - (calls[0][1] + calls[0][3]),
+        small.width,
+        'The sky gap between the cacti stays one small cactus wide'
+      );
       assertEquals(game.obstacles[0].width, cluster.width, 'Cluster hitbox width stays 50');
     } finally {
       ctx.drawImage = origDrawImage;
@@ -6638,7 +7752,10 @@ describe('Night dino contrast', () => {
   function filtersDuringSpriteDraw() {
     const seen = [];
     const orig = ctx.drawImage;
-    ctx.drawImage = (...args) => { seen.push(ctx.filter); return orig.apply(ctx, args); };
+    ctx.drawImage = (...args) => {
+      seen.push(ctx.filter);
+      return orig.apply(ctx, args);
+    };
     try {
       drawDino();
     } finally {
@@ -6654,10 +7771,15 @@ describe('Night dino contrast', () => {
     try {
       setQaNight(false);
       setReducedMotion(false);
-      assertEquals(GAME_CONFIG.NIGHT_DINO_BRIGHTNESS, 1.2,
-        'the night dino lift is the softer brightness step');
-      assert(GAME_CONFIG.NIGHT_DINO_BRIGHTNESS < GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
-        'the dino stays quieter than night cacti so obstacles still win the eye');
+      assertEquals(
+        GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
+        1.2,
+        'the night dino lift is the softer brightness step'
+      );
+      assert(
+        GAME_CONFIG.NIGHT_DINO_BRIGHTNESS < GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
+        'the dino stays quieter than night cacti so obstacles still win the eye'
+      );
 
       game.mode = MODES.UPDATED;
       game.score = 0;
@@ -6669,27 +7791,45 @@ describe('Night dino contrast', () => {
       game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
       assertEquals(dinoNightBrightness(), 1, 'the lift waits until night has fully arrived');
       game.score = GAME_CONFIG.DAY_NIGHT_END;
-      assertEquals(dinoNightBrightness(), GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
-        'full night brightens the dino enough to separate it from the sky and hills');
+      assertEquals(
+        dinoNightBrightness(),
+        GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
+        'full night brightens the dino enough to separate it from the sky and hills'
+      );
       game.animFrame = 0;
       const atRest = dinoNightBrightness();
       game.animFrame = 17;
-      assertEquals(dinoNightBrightness(), atRest, 'the night lift does not pulse with the run cycle');
+      assertEquals(
+        dinoNightBrightness(),
+        atRest,
+        'the night lift does not pulse with the run cycle'
+      );
       game.score = 1000;
-      assertEquals(dinoNightBrightness(), GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
-        'later night keeps the same static lift');
-      assert(dinoNightBrightness() < obstacleNightBrightness(),
-        'at the same night score the cactus lift stays stronger');
+      assertEquals(
+        dinoNightBrightness(),
+        GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
+        'later night keeps the same static lift'
+      );
+      assert(
+        dinoNightBrightness() < obstacleNightBrightness(),
+        'at the same night score the cactus lift stays stronger'
+      );
 
       game.mode = MODES.DAILY;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
-      assertEquals(dinoNightBrightness(), GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
-        'Daily shares the Updated night dino lift');
+      assertEquals(
+        dinoNightBrightness(),
+        GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
+        'Daily shares the Updated night dino lift'
+      );
 
       game.mode = MODES.CLASSIC;
       game.score = 1000;
-      assertEquals(dinoNightBrightness(), 1,
-        'Classic keeps the dark silhouette on the shared night sky');
+      assertEquals(
+        dinoNightBrightness(),
+        1,
+        'Classic keeps the dark silhouette on the shared night sky'
+      );
     } finally {
       game.mode = origMode;
       game.score = origScore;
@@ -6708,15 +7848,24 @@ describe('Night dino contrast', () => {
       game.mode = MODES.UPDATED;
       setReducedMotion(true);
       game.score = 350;
-      assertEquals(dinoNightBrightness(), 1,
-        'reduced motion keeps the day sprite while the sky is still fading');
+      assertEquals(
+        dinoNightBrightness(),
+        1,
+        'reduced motion keeps the day sprite while the sky is still fading'
+      );
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       game.animFrame = 0;
-      assertEquals(dinoNightBrightness(), GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
-        'reduced motion still gets the static night lift');
+      assertEquals(
+        dinoNightBrightness(),
+        GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
+        'reduced motion still gets the static night lift'
+      );
       game.animFrame = 30;
-      assertEquals(dinoNightBrightness(), GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
-        'reduced motion does not add a pulse');
+      assertEquals(
+        dinoNightBrightness(),
+        GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
+        'reduced motion does not add a pulse'
+      );
     } finally {
       game.mode = origMode;
       game.score = origScore;
@@ -6732,13 +7881,15 @@ describe('Night dino contrast', () => {
       game.mode = MODES.UPDATED;
       game.score = 0;
       setQaNight(true);
-      assertEquals(dinoNightBrightness(), GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
-        'the existing night QA flag is enough to see the dino lift');
+      assertEquals(
+        dinoNightBrightness(),
+        GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
+        'the existing night QA flag is enough to see the dino lift'
+      );
       assertEquals(game.score, 0, 'the lift must not write the score');
 
       game.mode = MODES.CLASSIC;
-      assertEquals(dinoNightBrightness(), 1,
-        'QA night still leaves the Classic silhouette alone');
+      assertEquals(dinoNightBrightness(), 1, 'QA night still leaves the Classic silhouette alone');
       assertEquals(game.score, 0, 'Classic QA night must not write the score');
     } finally {
       game.mode = origMode;
@@ -6781,7 +7932,11 @@ describe('Night dino contrast', () => {
       game.mode = MODES.CLASSIC;
       game.score = 1000;
       ctx.filter = 'none';
-      assertEquals(filtersDuringSpriteDraw()[0], 'none', 'Classic night paint stays the dark sprite');
+      assertEquals(
+        filtersDuringSpriteDraw()[0],
+        'none',
+        'Classic night paint stays the dark sprite'
+      );
     } finally {
       game.mode = origMode;
       game.score = origScore;
@@ -6809,7 +7964,11 @@ describe('Night dino contrast', () => {
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       dino.isJumping = true;
       // A loaded browser image's naturalWidth is a getter, so shadow it.
-      Object.defineProperty(dino.image, 'naturalWidth', { configurable: true, writable: true, value: 0 });
+      Object.defineProperty(dino.image, 'naturalWidth', {
+        configurable: true,
+        writable: true,
+        value: 0,
+      });
       ctx.filter = 'contrast(2)';
       drawDino();
       assertEquals(seen.length, 1, 'a missing sprite still paints one fallback rect');
@@ -6852,11 +8011,20 @@ describe('QA night flag (?qaNight=1)', () => {
 
   it('recognizes only ?qaNight=1', () => {
     assert(readQaNightFlag('?qaNight=1') === true, '?qaNight=1 should enable the early night sky');
-    assert(readQaNightFlag('?foo=1&qaNight=1') === true, 'the flag should work alongside other params');
-    assert(readQaNightFlag('') === false, 'a normal visit should leave the night fade on the real score');
+    assert(
+      readQaNightFlag('?foo=1&qaNight=1') === true,
+      'the flag should work alongside other params'
+    );
+    assert(
+      readQaNightFlag('') === false,
+      'a normal visit should leave the night fade on the real score'
+    );
     assert(readQaNightFlag('?qaNight=0') === false, 'only the value 1 enables the flag');
     assert(readQaNightFlag('?qaNight=12') === false, 'qaNight=12 must not count as the flag');
-    assert(readQaNightFlag('?qaPlateau=1') === false, 'another QA flag must not start the night fade');
+    assert(
+      readQaNightFlag('?qaPlateau=1') === false,
+      'another QA flag must not start the night fade'
+    );
   });
 
   it('with ?qaNight=1 stars start fading on the first running frame, speed unchanged', () => {
@@ -6927,7 +8095,10 @@ describe('QA night flag (?qaNight=1)', () => {
       game.obstacles.length = 0;
       game.lastObstacleX = GAME_CONFIG.CANVAS_W;
       tick();
-      assert(game.starsInitialised, 'resetGame should arm the early star fade from location.search');
+      assert(
+        game.starsInitialised,
+        'resetGame should arm the early star fade from location.search'
+      );
       assert(game.score < 1, 're-reading the flag must not change the score');
     } finally {
       restorePageQuery();
@@ -6941,7 +8112,11 @@ describe('Night cloud dim', () => {
   function withTuning(overrides, fn) {
     const orig = window.GAME_TUNING;
     window.GAME_TUNING = overrides;
-    try { fn(); } finally { window.GAME_TUNING = orig; }
+    try {
+      fn();
+    } finally {
+      window.GAME_TUNING = orig;
+    }
   }
 
   function alphasDuringCloudPaint() {
@@ -6985,23 +8160,24 @@ describe('Night cloud dim', () => {
       const dayInk = 0xff - dayCloudChannel(dayPeak);
       assert(dayPeak < 1, 'day Updated clouds are quieter than a full #e8e8e8 puff');
       assert(dayPeak > 0, 'the day puff still paints');
-      assert(dayPeak > GAME_CONFIG.NIGHT_CLOUD_ALPHA,
-        'the day whisper stays stronger than the night dim so twilight eases down');
+      assert(
+        dayPeak > GAME_CONFIG.NIGHT_CLOUD_ALPHA,
+        'the day whisper stays stronger than the night dim so twilight eases down'
+      );
       assert(dayInk < fullInk * 0.75, 'the day puff loses a real share of its ink');
       assert(dayInk > 10, 'the puff still sits more than ten levels off the white sky');
       const hillDay = parseInt(GAME_CONFIG.HILL_COLOR_DAY.slice(1, 3), 16);
-      assert(dayInk < (0xff - hillDay), 'day clouds stay quieter than the day hills');
+      assert(dayInk < 0xff - hillDay, 'day clouds stay quieter than the day hills');
       assert(GAME_CONFIG.NIGHT_CLOUD_ALPHA < dayPeak, 'night clouds are dimmer than the day puff');
-      assert(GAME_CONFIG.NIGHT_CLOUD_ALPHA > 0,
-        'night clouds stay visible against the night sky');
+      assert(GAME_CONFIG.NIGHT_CLOUD_ALPHA > 0, 'night clouds stay visible against the night sky');
       assert(
-        compositedCloudChannel(GAME_CONFIG.NIGHT_CLOUD_ALPHA)
-          < liftedSpriteChannel(GAME_CONFIG.NIGHT_DINO_BRIGHTNESS),
+        compositedCloudChannel(GAME_CONFIG.NIGHT_CLOUD_ALPHA) <
+          liftedSpriteChannel(GAME_CONFIG.NIGHT_DINO_BRIGHTNESS),
         'night clouds stay quieter than the night dino'
       );
       assert(
-        compositedCloudChannel(GAME_CONFIG.NIGHT_CLOUD_ALPHA)
-          < liftedSpriteChannel(GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS),
+        compositedCloudChannel(GAME_CONFIG.NIGHT_CLOUD_ALPHA) <
+          liftedSpriteChannel(GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS),
         'night clouds stay quieter than night cacti'
       );
 
@@ -7009,7 +8185,11 @@ describe('Night cloud dim', () => {
       game.score = 0;
       assertEquals(cloudPaintAlpha(), dayPeak, 'day Updated keeps the quieter day cloud');
       game.score = GAME_CONFIG.DAY_NIGHT_START;
-      assertEquals(cloudPaintAlpha(), dayPeak, 'the ease starts with the sky, still the quieter day cloud at the boundary');
+      assertEquals(
+        cloudPaintAlpha(),
+        dayPeak,
+        'the ease starts with the sky, still the quieter day cloud at the boundary'
+      );
       game.score = 350;
       const mid = dayPeak + (GAME_CONFIG.NIGHT_CLOUD_ALPHA - dayPeak) * 0.5;
       assert(
@@ -7017,22 +8197,32 @@ describe('Night cloud dim', () => {
         'mid-twilight is halfway from the quieter day cloud to the night dim'
       );
       game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
-      assert(cloudPaintAlpha() < dayPeak && cloudPaintAlpha() > GAME_CONFIG.NIGHT_CLOUD_ALPHA,
-        'one point before night is still easing, not snapped');
+      assert(
+        cloudPaintAlpha() < dayPeak && cloudPaintAlpha() > GAME_CONFIG.NIGHT_CLOUD_ALPHA,
+        'one point before night is still easing, not snapped'
+      );
       game.score = GAME_CONFIG.DAY_NIGHT_END;
-      assertEquals(cloudPaintAlpha(), GAME_CONFIG.NIGHT_CLOUD_ALPHA,
-        'full night holds the soft dim');
+      assertEquals(
+        cloudPaintAlpha(),
+        GAME_CONFIG.NIGHT_CLOUD_ALPHA,
+        'full night holds the soft dim'
+      );
       game.score = 1000;
-      assertEquals(cloudPaintAlpha(), GAME_CONFIG.NIGHT_CLOUD_ALPHA,
-        'later night keeps the same static dim');
+      assertEquals(
+        cloudPaintAlpha(),
+        GAME_CONFIG.NIGHT_CLOUD_ALPHA,
+        'later night keeps the same static dim'
+      );
 
       game.mode = MODES.DAILY;
       game.score = 0;
-      assertEquals(cloudPaintAlpha(), dayPeak,
-        'Daily shares the quieter Updated day cloud');
+      assertEquals(cloudPaintAlpha(), dayPeak, 'Daily shares the quieter Updated day cloud');
       game.score = GAME_CONFIG.DAY_NIGHT_END;
-      assertEquals(cloudPaintAlpha(), GAME_CONFIG.NIGHT_CLOUD_ALPHA,
-        'Daily shares the Updated night cloud dim');
+      assertEquals(
+        cloudPaintAlpha(),
+        GAME_CONFIG.NIGHT_CLOUD_ALPHA,
+        'Daily shares the Updated night cloud dim'
+      );
 
       game.mode = MODES.CLASSIC;
       game.score = 0;
@@ -7057,14 +8247,23 @@ describe('Night cloud dim', () => {
       game.mode = MODES.UPDATED;
       setReducedMotion(true);
       game.score = 350;
-      assertEquals(cloudPaintAlpha(), GAME_CONFIG.DAY_CLOUD_ALPHA,
-        'reduced motion keeps the quieter day cloud while the sky is still day');
+      assertEquals(
+        cloudPaintAlpha(),
+        GAME_CONFIG.DAY_CLOUD_ALPHA,
+        'reduced motion keeps the quieter day cloud while the sky is still day'
+      );
       game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
-      assertEquals(cloudPaintAlpha(), GAME_CONFIG.DAY_CLOUD_ALPHA,
-        'reduced motion does not run the twilight ease');
+      assertEquals(
+        cloudPaintAlpha(),
+        GAME_CONFIG.DAY_CLOUD_ALPHA,
+        'reduced motion does not run the twilight ease'
+      );
       game.score = GAME_CONFIG.DAY_NIGHT_END;
-      assertEquals(cloudPaintAlpha(), GAME_CONFIG.NIGHT_CLOUD_ALPHA,
-        'reduced motion still gets the static night dim');
+      assertEquals(
+        cloudPaintAlpha(),
+        GAME_CONFIG.NIGHT_CLOUD_ALPHA,
+        'reduced motion still gets the static night dim'
+      );
     } finally {
       game.mode = origMode;
       game.score = origScore;
@@ -7079,13 +8278,15 @@ describe('Night cloud dim', () => {
       game.mode = MODES.UPDATED;
       game.score = 0;
       setQaNight(true);
-      assertEquals(cloudPaintAlpha(), GAME_CONFIG.NIGHT_CLOUD_ALPHA,
-        'the existing night QA flag is enough to see the dim');
+      assertEquals(
+        cloudPaintAlpha(),
+        GAME_CONFIG.NIGHT_CLOUD_ALPHA,
+        'the existing night QA flag is enough to see the dim'
+      );
       assertEquals(game.score, 0, 'the dim must not write the score');
 
       game.mode = MODES.CLASSIC;
-      assertEquals(cloudPaintAlpha(), 1,
-        'QA night still leaves Classic clouds alone');
+      assertEquals(cloudPaintAlpha(), 1, 'QA night still leaves Classic clouds alone');
       assertEquals(game.score, 0, 'Classic QA night must not write the score');
     } finally {
       game.mode = origMode;
@@ -7103,19 +8304,32 @@ describe('Night cloud dim', () => {
       game.mode = MODES.UPDATED;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       withTuning({ NIGHT_CLOUD_ALPHA: 0.2 }, () => {
-        assertEquals(cloudPaintAlpha(), 0.2,
-          'a visual override should dim night clouds by the tuned amount');
+        assertEquals(
+          cloudPaintAlpha(),
+          0.2,
+          'a visual override should dim night clouds by the tuned amount'
+        );
       });
-      assertEquals(cloudPaintAlpha(), GAME_CONFIG.NIGHT_CLOUD_ALPHA,
-        'clearing the override returns the configured night dim');
+      assertEquals(
+        cloudPaintAlpha(),
+        GAME_CONFIG.NIGHT_CLOUD_ALPHA,
+        'clearing the override returns the configured night dim'
+      );
       game.score = 0;
       withTuning({ NIGHT_CLOUD_ALPHA: 0.2 }, () => {
-        assertEquals(cloudPaintAlpha(), GAME_CONFIG.DAY_CLOUD_ALPHA, 'day clouds ignore the night override');
+        assertEquals(
+          cloudPaintAlpha(),
+          GAME_CONFIG.DAY_CLOUD_ALPHA,
+          'day clouds ignore the night override'
+        );
       });
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       withTuning({ NIGHT_CLOUD_ALPHA: 'soft' }, () => {
-        assertEquals(cloudPaintAlpha(), GAME_CONFIG.NIGHT_CLOUD_ALPHA,
-          'a non-numeric override falls back to the configured dim');
+        assertEquals(
+          cloudPaintAlpha(),
+          GAME_CONFIG.NIGHT_CLOUD_ALPHA,
+          'a non-numeric override falls back to the configured dim'
+        );
       });
     } finally {
       game.mode = origMode;
@@ -7134,26 +8348,41 @@ describe('Night cloud dim', () => {
       game.mode = MODES.UPDATED;
       game.score = 0;
       withTuning({ DAY_CLOUD_ALPHA: 0.4 }, () => {
-        assertEquals(cloudPaintAlpha(), 0.4,
-          'a visual override should quiet day clouds by the tuned amount');
+        assertEquals(
+          cloudPaintAlpha(),
+          0.4,
+          'a visual override should quiet day clouds by the tuned amount'
+        );
       });
-      assertEquals(cloudPaintAlpha(), GAME_CONFIG.DAY_CLOUD_ALPHA,
-        'clearing the override returns the configured day peak');
+      assertEquals(
+        cloudPaintAlpha(),
+        GAME_CONFIG.DAY_CLOUD_ALPHA,
+        'clearing the override returns the configured day peak'
+      );
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       withTuning({ DAY_CLOUD_ALPHA: 0.4 }, () => {
-        assertEquals(cloudPaintAlpha(), GAME_CONFIG.NIGHT_CLOUD_ALPHA,
-          'full night ignores the day override');
+        assertEquals(
+          cloudPaintAlpha(),
+          GAME_CONFIG.NIGHT_CLOUD_ALPHA,
+          'full night ignores the day override'
+        );
       });
       game.score = 0;
       withTuning({ DAY_CLOUD_ALPHA: 'soft' }, () => {
-        assertEquals(cloudPaintAlpha(), GAME_CONFIG.DAY_CLOUD_ALPHA,
-          'a non-numeric override falls back to the configured day peak');
+        assertEquals(
+          cloudPaintAlpha(),
+          GAME_CONFIG.DAY_CLOUD_ALPHA,
+          'a non-numeric override falls back to the configured day peak'
+        );
       });
       game.mode = MODES.CLASSIC;
       game.score = 0;
       withTuning({ DAY_CLOUD_ALPHA: 0.4 }, () => {
-        assertEquals(cloudPaintAlpha(), 1,
-          'Classic keeps its own full-opacity cloud when the day peak is tuned');
+        assertEquals(
+          cloudPaintAlpha(),
+          1,
+          'Classic keeps its own full-opacity cloud when the day peak is tuned'
+        );
       });
     } finally {
       game.mode = origMode;
@@ -7190,10 +8419,14 @@ describe('Night cloud dim', () => {
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       assert(game.state === STATE.WAITING, 'one opening frame stays on GET READY');
       assertEquals(game.score, 0, 'painting the opening clouds must not write the score');
-      assert(seen.length === GAME_CONFIG.CLOUD_COUNT * GAME_CONFIG.CLOUD_CIRCLES.length,
-        'GET READY draws every cloud circle');
-      assert(seen.every(a => a === GAME_CONFIG.DAY_CLOUD_ALPHA),
-        'the opening screen uses the quieter day peak');
+      assert(
+        seen.length === GAME_CONFIG.CLOUD_COUNT * GAME_CONFIG.CLOUD_CIRCLES.length,
+        'GET READY draws every cloud circle'
+      );
+      assert(
+        seen.every((a) => a === GAME_CONFIG.DAY_CLOUD_ALPHA),
+        'the opening screen uses the quieter day peak'
+      );
       assertEquals(ctx.globalAlpha, 1, 'the opening cloud paint leaves the lane alone');
     } finally {
       ctx.arc = origArc;
@@ -7224,13 +8457,15 @@ describe('Night cloud dim', () => {
       game.mode = MODES.UPDATED;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       drawClouds();
-      assertEquals(fills, GAME_CONFIG.CLOUD_COUNT,
-        'each cloud is one fill so overlapping circles do not stack the night dim');
+      assertEquals(
+        fills,
+        GAME_CONFIG.CLOUD_COUNT,
+        'each cloud is one fill so overlapping circles do not stack the night dim'
+      );
       game.score = 0;
       fills = 0;
       drawClouds();
-      assertEquals(fills, GAME_CONFIG.CLOUD_COUNT,
-        'day clouds use the same single fill');
+      assertEquals(fills, GAME_CONFIG.CLOUD_COUNT, 'day clouds use the same single fill');
     } finally {
       ctx.fill = origFill;
       game.mode = origMode;
@@ -7245,18 +8480,26 @@ describe('Night cloud dim', () => {
     const origAlpha = ctx.globalAlpha;
     const origRng = game.rng;
     let rngCalls = 0;
-    game.rng = () => { rngCalls++; return origRng(); };
+    game.rng = () => {
+      rngCalls++;
+      return origRng();
+    };
     try {
       setQaNight(false);
       initClouds();
-      const before = game.clouds.map(c => c.x + ',' + c.y + ',' + c.speed).join('|');
+      const before = game.clouds.map((c) => c.x + ',' + c.y + ',' + c.speed).join('|');
       game.mode = MODES.UPDATED;
       game.score = 0;
       ctx.globalAlpha = 1;
       const day = alphasDuringCloudPaint();
-      assert(day.length === GAME_CONFIG.CLOUD_COUNT * GAME_CONFIG.CLOUD_CIRCLES.length,
-        'day still paints every cloud circle');
-      assert(day.every(a => a === GAME_CONFIG.DAY_CLOUD_ALPHA), 'day clouds use the quieter day peak');
+      assert(
+        day.length === GAME_CONFIG.CLOUD_COUNT * GAME_CONFIG.CLOUD_CIRCLES.length,
+        'day still paints every cloud circle'
+      );
+      assert(
+        day.every((a) => a === GAME_CONFIG.DAY_CLOUD_ALPHA),
+        'day clouds use the quieter day peak'
+      );
       assertEquals(ctx.globalAlpha, 1, 'a day draw leaves the obstacle lane alone');
       assertEquals(ctx.fillStyle, GAME_CONFIG.CLOUD_COLOR, 'day ink stays the day cloud colour');
 
@@ -7264,12 +8507,14 @@ describe('Night cloud dim', () => {
       ctx.globalAlpha = 0.8;
       const night = alphasDuringCloudPaint();
       assertEquals(night.length, day.length, 'night still paints the same circles');
-      assert(night.every(a => Math.abs(a - 0.8 * GAME_CONFIG.NIGHT_CLOUD_ALPHA) < 1e-9),
-        'night paint multiplies the existing alpha by the soft dim');
+      assert(
+        night.every((a) => Math.abs(a - 0.8 * GAME_CONFIG.NIGHT_CLOUD_ALPHA) < 1e-9),
+        'night paint multiplies the existing alpha by the soft dim'
+      );
       assertEquals(ctx.globalAlpha, 0.8, 'the dim must not leak onto the dino or cacti');
       assertEquals(ctx.fillStyle, GAME_CONFIG.CLOUD_COLOR, 'night still uses the day cloud colour');
       assertEquals(
-        game.clouds.map(c => c.x + ',' + c.y + ',' + c.speed).join('|'),
+        game.clouds.map((c) => c.x + ',' + c.y + ',' + c.speed).join('|'),
         before,
         'painting clouds does not move them'
       );
@@ -7279,7 +8524,10 @@ describe('Night cloud dim', () => {
       game.score = 1000;
       ctx.globalAlpha = 1;
       const classic = alphasDuringCloudPaint();
-      assert(classic.every(a => a === 1), 'Classic night paint stays day-bright');
+      assert(
+        classic.every((a) => a === 1),
+        'Classic night paint stays day-bright'
+      );
       assertEquals(ctx.globalAlpha, 1, 'Classic paint leaves the lane alone');
     } finally {
       game.rng = origRng;
@@ -7315,10 +8563,20 @@ describe('Soft night clouds', () => {
     ];
     assertEquals(now, 0.21, 'night clouds use the quieter dim');
     assertEquals(GAME_CONFIG.DAY_CLOUD_ALPHA, 0.6, 'day clouds stay the quieter day peak');
-    assertEquals(GAME_CONFIG.CLOUD_COLOR, '#e8e8e8', 'the ink stays the day puff; the quiet is opacity');
-    assert(Math.abs(now - old * 0.6) < 1e-9, 'the quieter dim keeps three-fifths of the old 0.35 band');
+    assertEquals(
+      GAME_CONFIG.CLOUD_COLOR,
+      '#e8e8e8',
+      'the ink stays the day puff; the quiet is opacity'
+    );
+    assert(
+      Math.abs(now - old * 0.6) < 1e-9,
+      'the quieter dim keeps three-fifths of the old 0.35 band'
+    );
     assert(sum(nowLifts) < sum(oldLifts) * 0.75, 'night clouds lose a real share of the old lift');
-    assert(nowLifts.every((n, i) => n > hill[i]), 'the mounds still sit lighter than the night hills');
+    assert(
+      nowLifts.every((n, i) => n > hill[i]),
+      'the mounds still sit lighter than the night hills'
+    );
     assert(sum(star) > sum(nowLifts), 'large mounds stay under the night-star whisper');
     assert(now > 0.15, 'the puff still reads against the night sky');
     assert(now < GAME_CONFIG.DAY_CLOUD_ALPHA, 'twilight still eases downward');
@@ -7332,7 +8590,11 @@ describe('Night land dust', () => {
   function withTuning(overrides, fn) {
     const orig = window.GAME_TUNING;
     window.GAME_TUNING = overrides;
-    try { fn(); } finally { window.GAME_TUNING = orig; }
+    try {
+      fn();
+    } finally {
+      window.GAME_TUNING = orig;
+    }
   }
 
   function relLuminance(hex) {
@@ -7353,7 +8615,7 @@ describe('Night land dust', () => {
   function liveColors(kind) {
     Particles.reset();
     Particles.emit(kind, 80, 140);
-    return Particles.particles.filter(p => p.life > 0).map(p => p.color);
+    return Particles.particles.filter((p) => p.life > 0).map((p) => p.color);
   }
 
   it('keeps day jump and land dust brown, and cools it once the sky is night', () => {
@@ -7364,8 +8626,11 @@ describe('Night land dust', () => {
       setReducedMotion(false);
       assertEquals(Particles.KINDS.jump.color, DAY_DUST, 'jump kind stays the day brown');
       assertEquals(Particles.KINDS.land.color, DAY_DUST, 'land kind stays the day brown');
-      assertEquals(GAME_CONFIG.NIGHT_LAND_DUST_COLOR, '#6a686e',
-        'night land dust is the quiet cool gray');
+      assertEquals(
+        GAME_CONFIG.NIGHT_LAND_DUST_COLOR,
+        '#6a686e',
+        'night land dust is the quiet cool gray'
+      );
       const night = GAME_CONFIG.NIGHT_LAND_DUST_COLOR;
       const nightWarmth = parseInt(night.slice(1, 3), 16) - parseInt(night.slice(5, 7), 16);
       const dayWarmth = 0x9c - 0x70;
@@ -7387,12 +8652,21 @@ describe('Night land dust', () => {
       game.mode = MODES.UPDATED;
       game.score = 0;
       assertEquals(landDustColor(DAY_DUST), DAY_DUST, 'day Updated keeps the brown foot dust');
-      assert(liveColors('jump').every(c => c === DAY_DUST), 'a day jump kicks brown dust');
-      assert(liveColors('land').every(c => c === DAY_DUST), 'a day landing kicks brown dust');
+      assert(
+        liveColors('jump').every((c) => c === DAY_DUST),
+        'a day jump kicks brown dust'
+      );
+      assert(
+        liveColors('land').every((c) => c === DAY_DUST),
+        'a day landing kicks brown dust'
+      );
 
       game.score = GAME_CONFIG.DAY_NIGHT_START;
-      assertEquals(landDustColor(DAY_DUST), DAY_DUST,
-        'the ease starts with the sky, still brown at the boundary');
+      assertEquals(
+        landDustColor(DAY_DUST),
+        DAY_DUST,
+        'the ease starts with the sky, still brown at the boundary'
+      );
       game.score = 350;
       const mid = landDustColor(DAY_DUST);
       assert(mid !== DAY_DUST && mid !== night, 'mid-twilight is between brown and night dust');
@@ -7401,15 +8675,24 @@ describe('Night land dust', () => {
       assert(almost !== night, 'one point before night is still easing, not snapped');
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       assertEquals(landDustColor(DAY_DUST), night, 'full night holds the cool dust');
-      assert(liveColors('jump').every(c => c === night), 'a night jump kicks cool dust');
-      assert(liveColors('land').every(c => c === night), 'a night landing kicks cool dust');
+      assert(
+        liveColors('jump').every((c) => c === night),
+        'a night jump kicks cool dust'
+      );
+      assert(
+        liveColors('land').every((c) => c === night),
+        'a night landing kicks cool dust'
+      );
       game.score = 1000;
       assertEquals(landDustColor(DAY_DUST), night, 'later night keeps the same cool dust');
 
       game.mode = MODES.DAILY;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       assertEquals(landDustColor(DAY_DUST), night, 'Daily shares the Updated night dust');
-      assert(liveColors('land').every(c => c === night), 'a Daily night landing kicks cool dust');
+      assert(
+        liveColors('land').every((c) => c === night),
+        'a Daily night landing kicks cool dust'
+      );
 
       game.mode = MODES.CLASSIC;
       game.score = 1000;
@@ -7433,19 +8716,30 @@ describe('Night land dust', () => {
       game.mode = MODES.UPDATED;
       setReducedMotion(true);
       game.score = 350;
-      assertEquals(landDustColor(DAY_DUST), DAY_DUST,
-        'reduced motion keeps brown dust while the sky is still changing');
+      assertEquals(
+        landDustColor(DAY_DUST),
+        DAY_DUST,
+        'reduced motion keeps brown dust while the sky is still changing'
+      );
       game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
-      assertEquals(landDustColor(DAY_DUST), DAY_DUST,
-        'reduced motion does not run the twilight ease');
+      assertEquals(
+        landDustColor(DAY_DUST),
+        DAY_DUST,
+        'reduced motion does not run the twilight ease'
+      );
       game.score = GAME_CONFIG.DAY_NIGHT_END;
-      assertEquals(landDustColor(DAY_DUST), GAME_CONFIG.NIGHT_LAND_DUST_COLOR,
-        'reduced motion still gets the static night dust');
+      assertEquals(
+        landDustColor(DAY_DUST),
+        GAME_CONFIG.NIGHT_LAND_DUST_COLOR,
+        'reduced motion still gets the static night dust'
+      );
       const emitted = Particles.emit('land', 80, 140);
       const damped = Math.max(1, Math.round(Particles.KINDS.land.count * 0.25));
       assertEquals(emitted, damped, 'reduced motion still damps the land burst');
       assert(
-        Particles.particles.filter(p => p.life > 0).every(p => p.color === GAME_CONFIG.NIGHT_LAND_DUST_COLOR),
+        Particles.particles
+          .filter((p) => p.life > 0)
+          .every((p) => p.color === GAME_CONFIG.NIGHT_LAND_DUST_COLOR),
         'the damped night burst is still cool dust'
       );
     } finally {
@@ -7464,10 +8758,15 @@ describe('Night land dust', () => {
       game.mode = MODES.UPDATED;
       game.score = 0;
       setQaNight(true);
-      assertEquals(landDustColor(DAY_DUST), GAME_CONFIG.NIGHT_LAND_DUST_COLOR,
-        'the existing night QA flag is enough to see night dust');
-      assert(liveColors('jump').every(c => c === GAME_CONFIG.NIGHT_LAND_DUST_COLOR),
-        'a QA-night jump kicks cool dust at score 0');
+      assertEquals(
+        landDustColor(DAY_DUST),
+        GAME_CONFIG.NIGHT_LAND_DUST_COLOR,
+        'the existing night QA flag is enough to see night dust'
+      );
+      assert(
+        liveColors('jump').every((c) => c === GAME_CONFIG.NIGHT_LAND_DUST_COLOR),
+        'a QA-night jump kicks cool dust at score 0'
+      );
       assertEquals(game.score, 0, 'night dust must not write the score');
 
       game.mode = MODES.CLASSIC;
@@ -7491,21 +8790,32 @@ describe('Night land dust', () => {
       game.mode = MODES.UPDATED;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       withTuning({ NIGHT_LAND_DUST_COLOR: '#556677' }, () => {
-        assertEquals(landDustColor(DAY_DUST), '#556677',
-          'a visual override should recolor night foot dust');
-        assert(liveColors('land').every(c => c === '#556677'),
-          'emitted night land dust uses the tuned color');
+        assertEquals(
+          landDustColor(DAY_DUST),
+          '#556677',
+          'a visual override should recolor night foot dust'
+        );
+        assert(
+          liveColors('land').every((c) => c === '#556677'),
+          'emitted night land dust uses the tuned color'
+        );
       });
-      assertEquals(landDustColor(DAY_DUST), GAME_CONFIG.NIGHT_LAND_DUST_COLOR,
-        'clearing the override returns the configured night dust');
+      assertEquals(
+        landDustColor(DAY_DUST),
+        GAME_CONFIG.NIGHT_LAND_DUST_COLOR,
+        'clearing the override returns the configured night dust'
+      );
       game.score = 0;
       withTuning({ NIGHT_LAND_DUST_COLOR: '#556677' }, () => {
         assertEquals(landDustColor(DAY_DUST), DAY_DUST, 'day dust ignores the night override');
       });
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       withTuning({ NIGHT_LAND_DUST_COLOR: 'dust' }, () => {
-        assertEquals(landDustColor(DAY_DUST), GAME_CONFIG.NIGHT_LAND_DUST_COLOR,
-          'a non-color override falls back to the configured night dust');
+        assertEquals(
+          landDustColor(DAY_DUST),
+          GAME_CONFIG.NIGHT_LAND_DUST_COLOR,
+          'a non-color override falls back to the configured night dust'
+        );
       });
     } finally {
       game.mode = origMode;
@@ -7537,7 +8847,7 @@ describe('Night land dust', () => {
   function liveBurst(kind) {
     Particles.reset();
     const n = Particles.emit(kind, 80, 140);
-    return { n: n, motes: Particles.particles.filter(p => p.life > 0) };
+    return { n: n, motes: Particles.particles.filter((p) => p.life > 0) };
   }
 
   it('softens jump and land dust once the sky is fully night, and leaves day alone', () => {
@@ -7545,30 +8855,39 @@ describe('Night land dust', () => {
     const origScore = game.score;
     const origRng = game.rng;
     let rngCalls = 0;
-    game.rng = () => { rngCalls++; return origRng(); };
+    game.rng = () => {
+      rngCalls++;
+      return origRng();
+    };
     try {
       setQaNight(false);
       setReducedMotion(false);
-      assertEquals(GAME_CONFIG.NIGHT_LAND_DUST_COLOR, '#6a686e',
-        'night dust stays the cool gray; the quiet is the ink, not a new color');
-      assertEquals(GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA, 0.42,
-        'night takeoff uses the quieter peak');
-      assertEquals(GAME_CONFIG.NIGHT_LAND_DUST_ALPHA, 0.36,
-        'night landing uses the quieter peak');
-      assertEquals(GAME_CONFIG.NIGHT_JUMP_DUST_COUNT, 2,
-        'night takeoff emits fewer motes');
-      assertEquals(GAME_CONFIG.NIGHT_LAND_DUST_COUNT, 3,
-        'night landing emits fewer motes');
-      assert(GAME_CONFIG.NIGHT_LAND_DUST_COUNT > GAME_CONFIG.NIGHT_JUMP_DUST_COUNT,
-        'a night landing still reads heavier than a takeoff');
-      assertEquals(GAME_CONFIG.NIGHT_LAND_DUST_LIFE, 6,
-        'night motes die sooner');
-      assert(GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA < Particles.KINDS.jump.alpha,
-        'night takeoff is softer than the day peak');
-      assert(GAME_CONFIG.NIGHT_LAND_DUST_ALPHA < Particles.KINDS.land.alpha,
-        'night landing is softer than the day peak');
-      assert(GAME_CONFIG.NIGHT_LAND_DUST_ALPHA < GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA,
-        'the wider night landing stays the softer of the two');
+      assertEquals(
+        GAME_CONFIG.NIGHT_LAND_DUST_COLOR,
+        '#6a686e',
+        'night dust stays the cool gray; the quiet is the ink, not a new color'
+      );
+      assertEquals(GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA, 0.42, 'night takeoff uses the quieter peak');
+      assertEquals(GAME_CONFIG.NIGHT_LAND_DUST_ALPHA, 0.36, 'night landing uses the quieter peak');
+      assertEquals(GAME_CONFIG.NIGHT_JUMP_DUST_COUNT, 2, 'night takeoff emits fewer motes');
+      assertEquals(GAME_CONFIG.NIGHT_LAND_DUST_COUNT, 3, 'night landing emits fewer motes');
+      assert(
+        GAME_CONFIG.NIGHT_LAND_DUST_COUNT > GAME_CONFIG.NIGHT_JUMP_DUST_COUNT,
+        'a night landing still reads heavier than a takeoff'
+      );
+      assertEquals(GAME_CONFIG.NIGHT_LAND_DUST_LIFE, 6, 'night motes die sooner');
+      assert(
+        GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA < Particles.KINDS.jump.alpha,
+        'night takeoff is softer than the day peak'
+      );
+      assert(
+        GAME_CONFIG.NIGHT_LAND_DUST_ALPHA < Particles.KINDS.land.alpha,
+        'night landing is softer than the day peak'
+      );
+      assert(
+        GAME_CONFIG.NIGHT_LAND_DUST_ALPHA < GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA,
+        'the wider night landing stays the softer of the two'
+      );
       assertEquals(Particles.KINDS.jump.alpha, 0.5, 'day takeoff peak stays 0.5');
       assertEquals(Particles.KINDS.land.alpha, 0.4, 'day landing peak stays 0.4');
       assertEquals(Particles.KINDS.jump.count, 3, 'day takeoff count stays 3');
@@ -7587,14 +8906,21 @@ describe('Night land dust', () => {
       assert(nightLand < dayLand, 'night landing lifts the road less than the day peak');
       assert(nightJump > road, 'night takeoff still reads above the night ground');
       assert(nightLand > road, 'night landing still reads above the night ground');
-      assert(sunkJump <= road + 0.2, 'three-fifths of the day takeoff alpha would land on the road');
+      assert(
+        sunkJump <= road + 0.2,
+        'three-fifths of the day takeoff alpha would land on the road'
+      );
       assert(sunkLand < road, 'three-fifths of the day landing alpha would sink under the road');
       const jumpLift = dayJump - road;
       const landLift = dayLand - road;
-      assert(Math.abs((nightJump - road) - jumpLift * 0.6) < 0.15,
-        'night takeoff keeps about three-fifths of the old lift over the road');
-      assert(Math.abs((nightLand - road) - landLift * 0.6) < 0.15,
-        'night landing keeps about three-fifths of the old lift over the road');
+      assert(
+        Math.abs(nightJump - road - jumpLift * 0.6) < 0.15,
+        'night takeoff keeps about three-fifths of the old lift over the road'
+      );
+      assert(
+        Math.abs(nightLand - road - landLift * 0.6) < 0.15,
+        'night landing keeps about three-fifths of the old lift over the road'
+      );
 
       game.mode = MODES.UPDATED;
       game.score = 0;
@@ -7613,49 +8939,105 @@ describe('Night land dust', () => {
       });
 
       game.score = 350;
-      const jumpMid = Particles.KINDS.jump.alpha
-        + (GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA - Particles.KINDS.jump.alpha) * 0.5;
-      const landMid = Particles.KINDS.land.alpha
-        + (GAME_CONFIG.NIGHT_LAND_DUST_ALPHA - Particles.KINDS.land.alpha) * 0.5;
+      const jumpMid =
+        Particles.KINDS.jump.alpha +
+        (GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA - Particles.KINDS.jump.alpha) * 0.5;
+      const landMid =
+        Particles.KINDS.land.alpha +
+        (GAME_CONFIG.NIGHT_LAND_DUST_ALPHA - Particles.KINDS.land.alpha) * 0.5;
       burst = liveBurst('jump');
-      assertEquals(burst.n, Particles.KINDS.jump.count,
-        'twilight still uses the day takeoff count');
+      assertEquals(
+        burst.n,
+        Particles.KINDS.jump.count,
+        'twilight still uses the day takeoff count'
+      );
       burst.motes.forEach((p) => {
         assert(Math.abs(p.alpha - jumpMid) < 1e-9, 'mid-twilight eases the takeoff peak');
         assertEquals(p.life, Particles.KINDS.jump.life, 'twilight still uses the day life');
       });
       burst = liveBurst('land');
-      assertEquals(burst.n, Particles.KINDS.land.count,
-        'twilight still uses the day landing count');
+      assertEquals(
+        burst.n,
+        Particles.KINDS.land.count,
+        'twilight still uses the day landing count'
+      );
       burst.motes.forEach((p) => {
         assert(Math.abs(p.alpha - landMid) < 1e-9, 'mid-twilight eases the landing peak');
       });
 
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       burst = liveBurst('jump');
-      assertEquals(burst.n, GAME_CONFIG.NIGHT_JUMP_DUST_COUNT, 'a night jump emits the shorter count');
+      assertEquals(
+        burst.n,
+        GAME_CONFIG.NIGHT_JUMP_DUST_COUNT,
+        'a night jump emits the shorter count'
+      );
       burst.motes.forEach((p) => {
-        assertEquals(p.alpha, GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA, 'a night jump uses the quieter peak');
-        assertEquals(p.life, GAME_CONFIG.NIGHT_LAND_DUST_LIFE, 'a night jump uses the shorter life');
-        assertEquals(p.maxLife, GAME_CONFIG.NIGHT_LAND_DUST_LIFE, 'a night jump fades across that life');
-        assertEquals(p.color, GAME_CONFIG.NIGHT_LAND_DUST_COLOR, 'a night jump stays the cool gray');
+        assertEquals(
+          p.alpha,
+          GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA,
+          'a night jump uses the quieter peak'
+        );
+        assertEquals(
+          p.life,
+          GAME_CONFIG.NIGHT_LAND_DUST_LIFE,
+          'a night jump uses the shorter life'
+        );
+        assertEquals(
+          p.maxLife,
+          GAME_CONFIG.NIGHT_LAND_DUST_LIFE,
+          'a night jump fades across that life'
+        );
+        assertEquals(
+          p.color,
+          GAME_CONFIG.NIGHT_LAND_DUST_COLOR,
+          'a night jump stays the cool gray'
+        );
         assertEquals(p.size, Particles.KINDS.jump.size, 'night motes stay the day size');
       });
       burst = liveBurst('land');
-      assertEquals(burst.n, GAME_CONFIG.NIGHT_LAND_DUST_COUNT, 'a night landing emits the shorter count');
+      assertEquals(
+        burst.n,
+        GAME_CONFIG.NIGHT_LAND_DUST_COUNT,
+        'a night landing emits the shorter count'
+      );
       burst.motes.forEach((p) => {
-        assertEquals(p.alpha, GAME_CONFIG.NIGHT_LAND_DUST_ALPHA, 'a night landing uses the quieter peak');
-        assertEquals(p.life, GAME_CONFIG.NIGHT_LAND_DUST_LIFE, 'a night landing uses the shorter life');
-        assertEquals(p.color, GAME_CONFIG.NIGHT_LAND_DUST_COLOR, 'a night landing stays the cool gray');
+        assertEquals(
+          p.alpha,
+          GAME_CONFIG.NIGHT_LAND_DUST_ALPHA,
+          'a night landing uses the quieter peak'
+        );
+        assertEquals(
+          p.life,
+          GAME_CONFIG.NIGHT_LAND_DUST_LIFE,
+          'a night landing uses the shorter life'
+        );
+        assertEquals(
+          p.color,
+          GAME_CONFIG.NIGHT_LAND_DUST_COLOR,
+          'a night landing stays the cool gray'
+        );
       });
 
       game.mode = MODES.DAILY;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       burst = liveBurst('land');
-      assertEquals(burst.n, GAME_CONFIG.NIGHT_LAND_DUST_COUNT, 'Daily night landing shares the shorter count');
+      assertEquals(
+        burst.n,
+        GAME_CONFIG.NIGHT_LAND_DUST_COUNT,
+        'Daily night landing shares the shorter count'
+      );
       burst.motes.forEach((p) => {
-        assertEquals(p.alpha, GAME_CONFIG.NIGHT_LAND_DUST_ALPHA, 'Daily night landing shares the quieter peak');
-        assertEquals(p.life, GAME_CONFIG.NIGHT_LAND_DUST_LIFE, 'Daily night landing shares the shorter life');
+        assertEquals(
+          p.alpha,
+          GAME_CONFIG.NIGHT_LAND_DUST_ALPHA,
+          'Daily night landing shares the quieter peak'
+        );
+        assertEquals(
+          p.life,
+          GAME_CONFIG.NIGHT_LAND_DUST_LIFE,
+          'Daily night landing shares the shorter life'
+        );
       });
 
       game.mode = MODES.CLASSIC;
@@ -7682,13 +9064,22 @@ describe('Night land dust', () => {
       setReducedMotion(true);
       game.score = 350;
       const burstMid = liveBurst('land');
-      assertEquals(burstMid.n, Math.max(1, Math.round(Particles.KINDS.land.count * 0.25)),
-        'reduced motion during twilight still damps the day landing');
+      assertEquals(
+        burstMid.n,
+        Math.max(1, Math.round(Particles.KINDS.land.count * 0.25)),
+        'reduced motion during twilight still damps the day landing'
+      );
       burstMid.motes.forEach((p) => {
-        assertEquals(p.alpha, Particles.KINDS.land.alpha,
-          'reduced motion does not ease the landing peak during twilight');
-        assertEquals(p.life, Math.max(2, Math.round(Particles.KINDS.land.life * 0.5)),
-          'reduced motion during twilight still halves the day life');
+        assertEquals(
+          p.alpha,
+          Particles.KINDS.land.alpha,
+          'reduced motion does not ease the landing peak during twilight'
+        );
+        assertEquals(
+          p.life,
+          Math.max(2, Math.round(Particles.KINDS.land.life * 0.5)),
+          'reduced motion during twilight still halves the day life'
+        );
       });
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       const burst = liveBurst('land');
@@ -7697,11 +9088,17 @@ describe('Night land dust', () => {
       assertEquals(burst.n, nightCount, 'reduced motion quarters the night landing count');
       assert(nightCount < GAME_CONFIG.NIGHT_LAND_DUST_COUNT, 'the night damp still removes motes');
       burst.motes.forEach((p) => {
-        assertEquals(p.alpha, GAME_CONFIG.NIGHT_LAND_DUST_ALPHA,
-          'reduced motion snaps to the night landing peak');
+        assertEquals(
+          p.alpha,
+          GAME_CONFIG.NIGHT_LAND_DUST_ALPHA,
+          'reduced motion snaps to the night landing peak'
+        );
         assertEquals(p.life, nightLife, 'reduced motion halves the shorter night life');
-        assertEquals(p.color, GAME_CONFIG.NIGHT_LAND_DUST_COLOR,
-          'the damped night burst stays cool dust');
+        assertEquals(
+          p.color,
+          GAME_CONFIG.NIGHT_LAND_DUST_COLOR,
+          'the damped night burst stays cool dust'
+        );
       });
     } finally {
       game.mode = origMode;
@@ -7720,31 +9117,40 @@ describe('Night land dust', () => {
       setReducedMotion(false);
       game.mode = MODES.UPDATED;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
-      withTuning({
-        NIGHT_JUMP_DUST_ALPHA: 0.22,
-        NIGHT_LAND_DUST_ALPHA: 0.18,
-        NIGHT_JUMP_DUST_COUNT: 4,
-        NIGHT_LAND_DUST_COUNT: 4,
-        NIGHT_LAND_DUST_LIFE: 4,
-      }, () => {
-        const jump = liveBurst('jump');
-        assertEquals(jump.n, 4, 'a visual override should change the night takeoff count');
-        jump.motes.forEach((p) => {
-          assertEquals(p.alpha, 0.22, 'a visual override should change the night takeoff peak');
-          assertEquals(p.life, 4, 'a visual override should change the night life');
-        });
-        const land = liveBurst('land');
-        assertEquals(land.n, 4, 'a visual override should change the night landing count');
-        land.motes.forEach((p) => {
-          assertEquals(p.alpha, 0.18, 'a visual override should change the night landing peak');
-        });
-      });
+      withTuning(
+        {
+          NIGHT_JUMP_DUST_ALPHA: 0.22,
+          NIGHT_LAND_DUST_ALPHA: 0.18,
+          NIGHT_JUMP_DUST_COUNT: 4,
+          NIGHT_LAND_DUST_COUNT: 4,
+          NIGHT_LAND_DUST_LIFE: 4,
+        },
+        () => {
+          const jump = liveBurst('jump');
+          assertEquals(jump.n, 4, 'a visual override should change the night takeoff count');
+          jump.motes.forEach((p) => {
+            assertEquals(p.alpha, 0.22, 'a visual override should change the night takeoff peak');
+            assertEquals(p.life, 4, 'a visual override should change the night life');
+          });
+          const land = liveBurst('land');
+          assertEquals(land.n, 4, 'a visual override should change the night landing count');
+          land.motes.forEach((p) => {
+            assertEquals(p.alpha, 0.18, 'a visual override should change the night landing peak');
+          });
+        }
+      );
       const restored = liveBurst('jump');
-      assertEquals(restored.n, GAME_CONFIG.NIGHT_JUMP_DUST_COUNT,
-        'clearing the override returns the night takeoff count');
+      assertEquals(
+        restored.n,
+        GAME_CONFIG.NIGHT_JUMP_DUST_COUNT,
+        'clearing the override returns the night takeoff count'
+      );
       restored.motes.forEach((p) => {
-        assertEquals(p.alpha, GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA,
-          'clearing the override returns the night takeoff peak');
+        assertEquals(
+          p.alpha,
+          GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA,
+          'clearing the override returns the night takeoff peak'
+        );
       });
       game.score = 0;
       withTuning({ NIGHT_JUMP_DUST_ALPHA: 0.22, NIGHT_JUMP_DUST_COUNT: 4 }, () => {
@@ -7755,33 +9161,51 @@ describe('Night land dust', () => {
         });
       });
       game.score = GAME_CONFIG.DAY_NIGHT_END;
-      withTuning({
-        NIGHT_JUMP_DUST_ALPHA: 2,
-        NIGHT_LAND_DUST_ALPHA: 'soft',
-        NIGHT_JUMP_DUST_COUNT: 0,
-        NIGHT_LAND_DUST_COUNT: -3,
-        NIGHT_LAND_DUST_LIFE: 1,
-      }, () => {
-        const jump = liveBurst('jump');
-        assertEquals(jump.n, GAME_CONFIG.NIGHT_JUMP_DUST_COUNT,
-          'a bad count override falls back to the night takeoff count');
-        jump.motes.forEach((p) => {
-          assertEquals(p.alpha, GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA,
-            'a bad peak override falls back to the night takeoff peak');
-          assertEquals(p.life, GAME_CONFIG.NIGHT_LAND_DUST_LIFE,
-            'a too-short life override falls back to the night life');
-        });
-        const land = liveBurst('land');
-        land.motes.forEach((p) => {
-          assertEquals(p.alpha, GAME_CONFIG.NIGHT_LAND_DUST_ALPHA,
-            'a bad landing peak falls back to the night landing peak');
-        });
-      });
+      withTuning(
+        {
+          NIGHT_JUMP_DUST_ALPHA: 2,
+          NIGHT_LAND_DUST_ALPHA: 'soft',
+          NIGHT_JUMP_DUST_COUNT: 0,
+          NIGHT_LAND_DUST_COUNT: -3,
+          NIGHT_LAND_DUST_LIFE: 1,
+        },
+        () => {
+          const jump = liveBurst('jump');
+          assertEquals(
+            jump.n,
+            GAME_CONFIG.NIGHT_JUMP_DUST_COUNT,
+            'a bad count override falls back to the night takeoff count'
+          );
+          jump.motes.forEach((p) => {
+            assertEquals(
+              p.alpha,
+              GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA,
+              'a bad peak override falls back to the night takeoff peak'
+            );
+            assertEquals(
+              p.life,
+              GAME_CONFIG.NIGHT_LAND_DUST_LIFE,
+              'a too-short life override falls back to the night life'
+            );
+          });
+          const land = liveBurst('land');
+          land.motes.forEach((p) => {
+            assertEquals(
+              p.alpha,
+              GAME_CONFIG.NIGHT_LAND_DUST_ALPHA,
+              'a bad landing peak falls back to the night landing peak'
+            );
+          });
+        }
+      );
       setReducedMotion(true);
       withTuning({ NIGHT_LAND_DUST_COUNT: 8 }, () => {
         const damped = liveBurst('land');
-        assertEquals(damped.n, Math.max(1, Math.round(8 * 0.25)),
-          'reduced motion quarters the tuned night count, not the day count');
+        assertEquals(
+          damped.n,
+          Math.max(1, Math.round(8 * 0.25)),
+          'reduced motion quarters the tuned night count, not the day count'
+        );
       });
     } finally {
       game.mode = origMode;
@@ -7797,7 +9221,10 @@ describe('Night land dust', () => {
     const origScore = game.score;
     const origRng = game.rng;
     let rngCalls = 0;
-    game.rng = () => { rngCalls++; return origRng(); };
+    game.rng = () => {
+      rngCalls++;
+      return origRng();
+    };
     try {
       setQaNight(false);
       setReducedMotion(false);
@@ -7806,8 +9233,10 @@ describe('Night land dust', () => {
       for (const kind of ['trail', 'collision', 'confetti', 'plateau', 'plateauQa']) {
         const colors = liveColors(kind);
         assert(colors.length > 0, kind + ' still emits at night');
-        assert(colors.every(c => c === Particles.KINDS[kind].color),
-          kind + ' keeps its own color at night');
+        assert(
+          colors.every((c) => c === Particles.KINDS[kind].color),
+          kind + ' keeps its own color at night'
+        );
       }
       assertEquals(rngCalls, 0, 'recoloring foot dust does not consume the run seed');
     } finally {
@@ -7825,7 +9254,11 @@ describe('Night ground cool', () => {
   function withTuning(overrides, fn) {
     const orig = window.GAME_TUNING;
     window.GAME_TUNING = overrides;
-    try { fn(); } finally { window.GAME_TUNING = orig; }
+    try {
+      fn();
+    } finally {
+      window.GAME_TUNING = orig;
+    }
   }
 
   // Night sky #1a1a2e showing through the day ground sprite #535353.
@@ -7855,25 +9288,40 @@ describe('Night ground cool', () => {
       setQaNight(false);
       setReducedMotion(false);
       assert(GAME_CONFIG.NIGHT_GROUND_ALPHA < 1, 'night ground is dimmer than the day strip');
-      assert(GAME_CONFIG.NIGHT_GROUND_ALPHA > 0, 'night ground stays visible against the night sky');
-      assert(GAME_CONFIG.NIGHT_GROUND_ALPHA > GAME_CONFIG.NIGHT_CLOUD_ALPHA,
-        'the running line stays firmer than the soft night clouds');
+      assert(
+        GAME_CONFIG.NIGHT_GROUND_ALPHA > 0,
+        'night ground stays visible against the night sky'
+      );
+      assert(
+        GAME_CONFIG.NIGHT_GROUND_ALPHA > GAME_CONFIG.NIGHT_CLOUD_ALPHA,
+        'the running line stays firmer than the soft night clouds'
+      );
       const night = compositedGround(GAME_CONFIG.NIGHT_GROUND_ALPHA);
       const day = compositedGround(1);
       assert(relLuminance(night) < relLuminance(day), 'night ground is dimmer than the day strip');
       assert(night[2] - night[0] > day[2] - day[0], 'night sky bleed cools the neutral day gray');
-      assert(relLuminance(night) < dustLuminance(),
-        'night ground stays quieter than the cooled foot dust');
-      assert(relLuminance(night) < 0x53 * GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
-        'night ground stays quieter than the night dino');
-      assert(relLuminance(night) < 0x53 * GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
-        'night ground stays quieter than night cacti');
+      assert(
+        relLuminance(night) < dustLuminance(),
+        'night ground stays quieter than the cooled foot dust'
+      );
+      assert(
+        relLuminance(night) < 0x53 * GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
+        'night ground stays quieter than the night dino'
+      );
+      assert(
+        relLuminance(night) < 0x53 * GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
+        'night ground stays quieter than night cacti'
+      );
 
       game.mode = MODES.UPDATED;
       game.score = 0;
       assertEquals(groundPaintAlpha(), 1, 'day Updated keeps the day-bright ground');
       game.score = GAME_CONFIG.DAY_NIGHT_START;
-      assertEquals(groundPaintAlpha(), 1, 'the ease starts with the sky, still day-bright at the boundary');
+      assertEquals(
+        groundPaintAlpha(),
+        1,
+        'the ease starts with the sky, still day-bright at the boundary'
+      );
       game.score = 350;
       const mid = 1 + (GAME_CONFIG.NIGHT_GROUND_ALPHA - 1) * 0.5;
       assert(
@@ -7881,19 +9329,30 @@ describe('Night ground cool', () => {
         'mid-twilight is halfway from day-bright to the night cool'
       );
       game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
-      assert(groundPaintAlpha() < 1 && groundPaintAlpha() > GAME_CONFIG.NIGHT_GROUND_ALPHA,
-        'one point before night is still easing, not snapped');
+      assert(
+        groundPaintAlpha() < 1 && groundPaintAlpha() > GAME_CONFIG.NIGHT_GROUND_ALPHA,
+        'one point before night is still easing, not snapped'
+      );
       game.score = GAME_CONFIG.DAY_NIGHT_END;
-      assertEquals(groundPaintAlpha(), GAME_CONFIG.NIGHT_GROUND_ALPHA,
-        'full night holds the cool dim');
+      assertEquals(
+        groundPaintAlpha(),
+        GAME_CONFIG.NIGHT_GROUND_ALPHA,
+        'full night holds the cool dim'
+      );
       game.score = 1000;
-      assertEquals(groundPaintAlpha(), GAME_CONFIG.NIGHT_GROUND_ALPHA,
-        'later night keeps the same static dim');
+      assertEquals(
+        groundPaintAlpha(),
+        GAME_CONFIG.NIGHT_GROUND_ALPHA,
+        'later night keeps the same static dim'
+      );
 
       game.mode = MODES.DAILY;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
-      assertEquals(groundPaintAlpha(), GAME_CONFIG.NIGHT_GROUND_ALPHA,
-        'Daily shares the Updated night ground cool');
+      assertEquals(
+        groundPaintAlpha(),
+        GAME_CONFIG.NIGHT_GROUND_ALPHA,
+        'Daily shares the Updated night ground cool'
+      );
 
       game.mode = MODES.CLASSIC;
       game.score = 0;
@@ -7918,14 +9377,19 @@ describe('Night ground cool', () => {
       game.mode = MODES.UPDATED;
       setReducedMotion(true);
       game.score = 350;
-      assertEquals(groundPaintAlpha(), 1,
-        'reduced motion keeps day-bright ground while the sky is still day');
+      assertEquals(
+        groundPaintAlpha(),
+        1,
+        'reduced motion keeps day-bright ground while the sky is still day'
+      );
       game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
-      assertEquals(groundPaintAlpha(), 1,
-        'reduced motion does not run the twilight ease');
+      assertEquals(groundPaintAlpha(), 1, 'reduced motion does not run the twilight ease');
       game.score = GAME_CONFIG.DAY_NIGHT_END;
-      assertEquals(groundPaintAlpha(), GAME_CONFIG.NIGHT_GROUND_ALPHA,
-        'reduced motion still gets the static night ground');
+      assertEquals(
+        groundPaintAlpha(),
+        GAME_CONFIG.NIGHT_GROUND_ALPHA,
+        'reduced motion still gets the static night ground'
+      );
     } finally {
       game.mode = origMode;
       game.score = origScore;
@@ -7940,13 +9404,15 @@ describe('Night ground cool', () => {
       game.mode = MODES.UPDATED;
       game.score = 0;
       setQaNight(true);
-      assertEquals(groundPaintAlpha(), GAME_CONFIG.NIGHT_GROUND_ALPHA,
-        'the existing night QA flag is enough to see the cool');
+      assertEquals(
+        groundPaintAlpha(),
+        GAME_CONFIG.NIGHT_GROUND_ALPHA,
+        'the existing night QA flag is enough to see the cool'
+      );
       assertEquals(game.score, 0, 'the cool must not write the score');
 
       game.mode = MODES.CLASSIC;
-      assertEquals(groundPaintAlpha(), 1,
-        'QA night still leaves Classic ground alone');
+      assertEquals(groundPaintAlpha(), 1, 'QA night still leaves Classic ground alone');
       assertEquals(game.score, 0, 'Classic QA night must not write the score');
     } finally {
       game.mode = origMode;
@@ -7964,19 +9430,28 @@ describe('Night ground cool', () => {
       game.mode = MODES.UPDATED;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       withTuning({ NIGHT_GROUND_ALPHA: 0.4 }, () => {
-        assertEquals(groundPaintAlpha(), 0.4,
-          'a visual override should dim night ground by the tuned amount');
+        assertEquals(
+          groundPaintAlpha(),
+          0.4,
+          'a visual override should dim night ground by the tuned amount'
+        );
       });
-      assertEquals(groundPaintAlpha(), GAME_CONFIG.NIGHT_GROUND_ALPHA,
-        'clearing the override returns the configured night dim');
+      assertEquals(
+        groundPaintAlpha(),
+        GAME_CONFIG.NIGHT_GROUND_ALPHA,
+        'clearing the override returns the configured night dim'
+      );
       game.score = 0;
       withTuning({ NIGHT_GROUND_ALPHA: 0.4 }, () => {
         assertEquals(groundPaintAlpha(), 1, 'day ground ignores the night override');
       });
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       withTuning({ NIGHT_GROUND_ALPHA: 'soft' }, () => {
-        assertEquals(groundPaintAlpha(), GAME_CONFIG.NIGHT_GROUND_ALPHA,
-          'a non-numeric override falls back to the configured dim');
+        assertEquals(
+          groundPaintAlpha(),
+          GAME_CONFIG.NIGHT_GROUND_ALPHA,
+          'a non-numeric override falls back to the configured dim'
+        );
       });
     } finally {
       game.mode = origMode;
@@ -7994,7 +9469,10 @@ describe('Night ground cool', () => {
     const origSpeed = game.currentSpeed;
     const origRng = game.rng;
     let rngCalls = 0;
-    game.rng = () => { rngCalls++; return origRng(); };
+    game.rng = () => {
+      rngCalls++;
+      return origRng();
+    };
     const seen = [];
     const origDraw = ctx.drawImage;
     ctx.drawImage = function (...args) {
@@ -8010,7 +9488,10 @@ describe('Night ground cool', () => {
       ctx.globalAlpha = 1;
       drawGround();
       assertEquals(seen.length, 2, 'day still blits the strip twice so it can scroll');
-      assert(seen.every(a => a === 1), 'day ground stays fully opaque');
+      assert(
+        seen.every((a) => a === 1),
+        'day ground stays fully opaque'
+      );
       assertEquals(ctx.globalAlpha, 1, 'a day draw leaves the obstacle lane alone');
       assertEquals(game.groundX, -40, 'painting ground does not scroll it');
 
@@ -8019,8 +9500,10 @@ describe('Night ground cool', () => {
       ctx.globalAlpha = 0.8;
       drawGround();
       assertEquals(seen.length, 2, 'night still blits the same two tiles');
-      assert(seen.every(a => Math.abs(a - 0.8 * GAME_CONFIG.NIGHT_GROUND_ALPHA) < 1e-9),
-        'night paint multiplies the existing alpha by the ground cool');
+      assert(
+        seen.every((a) => Math.abs(a - 0.8 * GAME_CONFIG.NIGHT_GROUND_ALPHA) < 1e-9),
+        'night paint multiplies the existing alpha by the ground cool'
+      );
       assertEquals(ctx.globalAlpha, 0.8, 'the cool must not leak onto the dino or cacti');
       assertEquals(game.groundX, -40, 'night paint does not scroll the strip');
       assertEquals(game.currentSpeed, origSpeed, 'night paint does not change speed');
@@ -8031,7 +9514,10 @@ describe('Night ground cool', () => {
       game.score = 1000;
       ctx.globalAlpha = 1;
       drawGround();
-      assert(seen.every(a => a === 1), 'Classic night paint stays day-bright');
+      assert(
+        seen.every((a) => a === 1),
+        'Classic night paint stays day-bright'
+      );
       assertEquals(ctx.globalAlpha, 1, 'Classic paint leaves the lane alone');
       assertEquals(game.groundX, -40, 'Classic paint does not scroll the strip');
     } finally {
@@ -8064,19 +9550,28 @@ describe('Soft night ground', () => {
     const groundRed = 0x1a + (0x53 - 0x1a) * now;
     const hillRed = parseInt(GAME_CONFIG.HILL_COLOR_NIGHT.slice(1, 3), 16);
     assertEquals(now, 0.42, 'night ground uses the quieter strip');
-    assert(now > GAME_CONFIG.NIGHT_CLOUD_ALPHA,
-      'the running line stays firmer than the soft night clouds');
-    assert(now - GAME_CONFIG.NIGHT_CLOUD_ALPHA >= 0.05,
-      'the strip stays clearly above the night-cloud whisper');
-    assert(sum(nowLifts) < sum(oldLifts) * 0.85,
-      'the strip loses a real share of the old 0.55 lift');
+    assert(
+      now > GAME_CONFIG.NIGHT_CLOUD_ALPHA,
+      'the running line stays firmer than the soft night clouds'
+    );
+    assert(
+      now - GAME_CONFIG.NIGHT_CLOUD_ALPHA >= 0.05,
+      'the strip stays clearly above the night-cloud whisper'
+    );
+    assert(
+      sum(nowLifts) < sum(oldLifts) * 0.85,
+      'the strip loses a real share of the old 0.55 lift'
+    );
     const threeFifthsRed = 0x1a + (0x53 - 0x1a) * fullThreeFifths;
-    assert(fullThreeFifths > GAME_CONFIG.NIGHT_CLOUD_ALPHA,
-      'a full three-fifths of 0.55 now sits above the quieter night clouds');
-    assert(Math.abs(threeFifthsRed - hillRed) < 1,
-      'that step still lands on the night hills, so the strip stays at 0.42');
-    assert(groundRed > hillRed,
-      'the road edge stays lighter than the night hills');
+    assert(
+      fullThreeFifths > GAME_CONFIG.NIGHT_CLOUD_ALPHA,
+      'a full three-fifths of 0.55 now sits above the quieter night clouds'
+    );
+    assert(
+      Math.abs(threeFifthsRed - hillRed) < 1,
+      'that step still lands on the night hills, so the strip stays at 0.42'
+    );
+    assert(groundRed > hillRed, 'the road edge stays lighter than the night hills');
     assertEquals(GAME_CONFIG.HILL_COLOR_DAY, '#e1e1e1', 'day hills stay the quieter day fill');
   });
 });
@@ -8085,7 +9580,11 @@ describe('Night milestone tint', () => {
   function withTuning(overrides, fn) {
     const orig = window.GAME_TUNING;
     window.GAME_TUNING = overrides;
-    try { fn(); } finally { window.GAME_TUNING = orig; }
+    try {
+      fn();
+    } finally {
+      window.GAME_TUNING = orig;
+    }
   }
 
   // Simple relative luminance. Gold (255, 215, 0) on white is a small drop;
@@ -8106,8 +9605,13 @@ describe('Night milestone tint', () => {
     let captured = '';
     Object.defineProperty(ctx, 'fillStyle', {
       configurable: true,
-      get() { return captured; },
-      set(v) { captured = v; fillStyles.push(v); },
+      get() {
+        return captured;
+      },
+      set(v) {
+        captured = v;
+        fillStyles.push(v);
+      },
     });
     const origFill = ctx.fillRect;
     ctx.fillRect = function (...args) {
@@ -8131,21 +9635,26 @@ describe('Night milestone tint', () => {
     try {
       setQaNight(false);
       setReducedMotion(false);
-      assertEquals(GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA, 0.024,
-        'night peak keeps three-fifths of the old 0.04 veil');
-      assert(Math.abs(GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA - 0.04 * 0.6) < 1e-9,
-        'the quieter peak is exactly three-fifths of the previous night band');
-      assertEquals(GAME_CONFIG.SKY_TINT_PEAK_ALPHA, 0.06,
-        'day peak stays the quieter day wash');
-      assert(GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA < GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
-        'night peak is lower than the day peak so twilight still eases down');
+      assertEquals(
+        GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
+        0.024,
+        'night peak keeps three-fifths of the old 0.04 veil'
+      );
+      assert(
+        Math.abs(GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA - 0.04 * 0.6) < 1e-9,
+        'the quieter peak is exactly three-fifths of the previous night band'
+      );
+      assertEquals(GAME_CONFIG.SKY_TINT_PEAK_ALPHA, 0.06, 'day peak stays the quieter day wash');
+      assert(
+        GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA < GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
+        'night peak is lower than the day peak so twilight still eases down'
+      );
       assert(GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA > 0, 'the level cue still paints at night');
       const cactus = [0x53, 0x53, 0x53];
       const laneNow = washLift(GAME_CONFIG.SKY_TINT_PEAK_ALPHA, cactus);
       const laneVeil = washLift(0.12, cactus);
       assert(laneNow > 0, 'the day wash still warms the lane');
-      assert(laneNow <= laneVeil * 0.5,
-        'gold on the day cactus stays at most half the old veil');
+      assert(laneNow <= laneVeil * 0.5, 'gold on the day cactus stays at most half the old veil');
       const dayLift = washLift(GAME_CONFIG.SKY_TINT_PEAK_ALPHA, daySky);
       const nightLift = washLift(GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA, nightSky);
       const previousNight = washLift(0.04, nightSky);
@@ -8154,61 +9663,93 @@ describe('Night milestone tint', () => {
       const nightSkyChannels = [0x1a, 0x1a, 0x2e];
       const gold = [255, 215, 0];
       const nightOff = gold.map((channel, i) => Math.abs(channel - nightSkyChannels[i]) * 0.024);
-      assertEquals(nightOff.map(n => Math.round(n)).join(','), '5,5,1',
-        'full night gold sits about 5, 5, and 1 levels off the night sky');
-      assert(nightLift < previousNight * 0.75,
-        'night wash loses a real share of the 0.04 veil');
-      assert(Math.abs(nightLift - previousNight * 0.6) < 1e-9,
-        'the luminance step is the same three-fifths, because the blend is linear');
-      assert(nightLift < oldPunch * 0.5,
-        'night wash stays much quieter than the old day peak on the night sky');
-      assert(nightLift > oldDayOnWhite * 0.5 && nightLift < oldDayOnWhite * 1.6,
-        'night lift stays near the old day cue on white, so the gold still reads once');
-      assert(dayLift < oldDayOnWhite,
-        'the quieter day wash lifts white less than the old veil');
+      assertEquals(
+        nightOff.map((n) => Math.round(n)).join(','),
+        '5,5,1',
+        'full night gold sits about 5, 5, and 1 levels off the night sky'
+      );
+      assert(nightLift < previousNight * 0.75, 'night wash loses a real share of the 0.04 veil');
+      assert(
+        Math.abs(nightLift - previousNight * 0.6) < 1e-9,
+        'the luminance step is the same three-fifths, because the blend is linear'
+      );
+      assert(
+        nightLift < oldPunch * 0.5,
+        'night wash stays much quieter than the old day peak on the night sky'
+      );
+      assert(
+        nightLift > oldDayOnWhite * 0.5 && nightLift < oldDayOnWhite * 1.6,
+        'night lift stays near the old day cue on white, so the gold still reads once'
+      );
+      assert(dayLift < oldDayOnWhite, 'the quieter day wash lifts white less than the old veil');
 
       game.mode = MODES.UPDATED;
       game.score = 0;
-      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
-        'day Updated keeps the day peak');
+      assertEquals(
+        skyTintPeakAlpha(),
+        GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
+        'day Updated keeps the day peak'
+      );
       game.score = GAME_CONFIG.DAY_NIGHT_START;
-      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
-        'the ease starts with the sky, still the day peak at the boundary');
+      assertEquals(
+        skyTintPeakAlpha(),
+        GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
+        'the ease starts with the sky, still the day peak at the boundary'
+      );
       game.score = 350;
-      const mid = GAME_CONFIG.SKY_TINT_PEAK_ALPHA
-        + (GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA - GAME_CONFIG.SKY_TINT_PEAK_ALPHA) * 0.5;
+      const mid =
+        GAME_CONFIG.SKY_TINT_PEAK_ALPHA +
+        (GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA - GAME_CONFIG.SKY_TINT_PEAK_ALPHA) * 0.5;
       assert(
         Math.abs(skyTintPeakAlpha() - mid) < 1e-9,
         'mid-twilight is halfway from the day peak to the night peak'
       );
       game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
       assert(
-        skyTintPeakAlpha() < GAME_CONFIG.SKY_TINT_PEAK_ALPHA
-          && skyTintPeakAlpha() > GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
+        skyTintPeakAlpha() < GAME_CONFIG.SKY_TINT_PEAK_ALPHA &&
+          skyTintPeakAlpha() > GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
         'one point before night is still easing, not snapped'
       );
       game.score = GAME_CONFIG.DAY_NIGHT_END;
-      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
-        'full night holds the quiet peak');
+      assertEquals(
+        skyTintPeakAlpha(),
+        GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
+        'full night holds the quiet peak'
+      );
       game.score = 1000;
-      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
-        'later night keeps the same static peak');
+      assertEquals(
+        skyTintPeakAlpha(),
+        GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
+        'later night keeps the same static peak'
+      );
 
       game.mode = MODES.DAILY;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
-      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
-        'Daily shares the Updated night peak');
+      assertEquals(
+        skyTintPeakAlpha(),
+        GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
+        'Daily shares the Updated night peak'
+      );
 
       game.mode = MODES.CLASSIC;
       game.score = 0;
-      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
-        'Classic day peak stays the day value');
+      assertEquals(
+        skyTintPeakAlpha(),
+        GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
+        'Classic day peak stays the day value'
+      );
       game.score = 350;
-      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
-        'Classic twilight peak stays the day value');
+      assertEquals(
+        skyTintPeakAlpha(),
+        GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
+        'Classic twilight peak stays the day value'
+      );
       game.score = 1000;
-      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
-        'Classic night peak stays the day value');
+      assertEquals(
+        skyTintPeakAlpha(),
+        GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
+        'Classic night peak stays the day value'
+      );
     } finally {
       game.mode = origMode;
       game.score = origScore;
@@ -8225,14 +9766,23 @@ describe('Night milestone tint', () => {
       game.mode = MODES.UPDATED;
       setReducedMotion(true);
       game.score = 350;
-      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
-        'reduced motion keeps the day peak while the sky is still day');
+      assertEquals(
+        skyTintPeakAlpha(),
+        GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
+        'reduced motion keeps the day peak while the sky is still day'
+      );
       game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
-      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
-        'reduced motion does not run the twilight ease');
+      assertEquals(
+        skyTintPeakAlpha(),
+        GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
+        'reduced motion does not run the twilight ease'
+      );
       game.score = GAME_CONFIG.DAY_NIGHT_END;
-      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
-        'reduced motion still gets the static night peak');
+      assertEquals(
+        skyTintPeakAlpha(),
+        GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
+        'reduced motion still gets the static night peak'
+      );
     } finally {
       game.mode = origMode;
       game.score = origScore;
@@ -8247,13 +9797,19 @@ describe('Night milestone tint', () => {
       game.mode = MODES.UPDATED;
       game.score = 0;
       setQaNight(true);
-      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
-        'the existing night QA flag is enough to see the quiet peak');
+      assertEquals(
+        skyTintPeakAlpha(),
+        GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
+        'the existing night QA flag is enough to see the quiet peak'
+      );
       assertEquals(game.score, 0, 'the quiet peak must not write the score');
 
       game.mode = MODES.CLASSIC;
-      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
-        'QA night still leaves the Classic peak at the day value');
+      assertEquals(
+        skyTintPeakAlpha(),
+        GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
+        'QA night still leaves the Classic peak at the day value'
+      );
       assertEquals(game.score, 0, 'Classic QA night must not write the score');
     } finally {
       game.mode = origMode;
@@ -8271,27 +9827,42 @@ describe('Night milestone tint', () => {
       game.mode = MODES.UPDATED;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       withTuning({ NIGHT_SKY_TINT_PEAK_ALPHA: 0.02 }, () => {
-        assertEquals(skyTintPeakAlpha(), 0.02,
-          'a visual override should quiet the night flash by the tuned amount');
+        assertEquals(
+          skyTintPeakAlpha(),
+          0.02,
+          'a visual override should quiet the night flash by the tuned amount'
+        );
       });
-      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
-        'clearing the override returns the configured night peak');
+      assertEquals(
+        skyTintPeakAlpha(),
+        GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
+        'clearing the override returns the configured night peak'
+      );
       game.score = 0;
       withTuning({ NIGHT_SKY_TINT_PEAK_ALPHA: 0.02, SKY_TINT_PEAK_ALPHA: 0.2 }, () => {
         assertEquals(skyTintPeakAlpha(), 0.2, 'day flash keeps the day peak override');
       });
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       withTuning({ SKY_TINT_PEAK_ALPHA: 0.2 }, () => {
-        assertEquals(skyTintPeakAlpha(), GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
-          'a day-peak override does not brighten the night flash');
+        assertEquals(
+          skyTintPeakAlpha(),
+          GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
+          'a day-peak override does not brighten the night flash'
+        );
       });
       withTuning({ NIGHT_SKY_TINT_PEAK_ALPHA: 'soft' }, () => {
-        assertEquals(skyTintPeakAlpha(), GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
-          'a non-numeric override falls back to the configured peak');
+        assertEquals(
+          skyTintPeakAlpha(),
+          GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
+          'a non-numeric override falls back to the configured peak'
+        );
       });
       withTuning({ NIGHT_SKY_TINT_PEAK_ALPHA: 1.5 }, () => {
-        assertEquals(skyTintPeakAlpha(), GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
-          'an out-of-range override falls back to the configured peak');
+        assertEquals(
+          skyTintPeakAlpha(),
+          GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
+          'an out-of-range override falls back to the configured peak'
+        );
       });
     } finally {
       game.mode = origMode;
@@ -8308,7 +9879,10 @@ describe('Night milestone tint', () => {
     const origSpeed = game.currentSpeed;
     const origRng = game.rng;
     let rngCalls = 0;
-    game.rng = () => { rngCalls++; return origRng(); };
+    game.rng = () => {
+      rngCalls++;
+      return origRng();
+    };
     try {
       setQaNight(false);
       setReducedMotion(false);
@@ -8316,27 +9890,42 @@ describe('Night milestone tint', () => {
       game.score = 0;
       Animations.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
       const day = paintedTint();
-      const dayGold = day.fillStyles.find(s => typeof s === 'string' && s.indexOf('rgba(255, 215, 0') === 0);
+      const dayGold = day.fillStyles.find(
+        (s) => typeof s === 'string' && s.indexOf('rgba(255, 215, 0') === 0
+      );
       assert(dayGold, 'day milestone still paints the gold wash');
-      assert(dayGold.indexOf(GAME_CONFIG.SKY_TINT_PEAK_ALPHA.toFixed(3)) !== -1,
-        'day wash uses the day peak');
+      assert(
+        dayGold.indexOf(GAME_CONFIG.SKY_TINT_PEAK_ALPHA.toFixed(3)) !== -1,
+        'day wash uses the day peak'
+      );
       assertEquals(day.rects.length, 1, 'day wash is one full-canvas fill');
       assertEquals(day.rects[0][2], GAME_CONFIG.CANVAS_W, 'day wash covers the canvas width');
       assertEquals(day.rects[0][3], GAME_CONFIG.CANVAS_H, 'day wash covers the canvas height');
       assertEquals(game.score, 0, 'painting the day wash does not move the score');
       assertEquals(rngCalls, 0, 'painting the day wash does not consume the run seed');
-      assertEquals(Animations.milestoneFrames, GAME_CONFIG.MILESTONE_FRAMES,
-        'the tint does not consume the milestone timer');
+      assertEquals(
+        Animations.milestoneFrames,
+        GAME_CONFIG.MILESTONE_FRAMES,
+        'the tint does not consume the milestone timer'
+      );
 
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       const night = paintedTint();
-      const nightGold = night.fillStyles.find(s => typeof s === 'string' && s.indexOf('rgba(255, 215, 0') === 0);
+      const nightGold = night.fillStyles.find(
+        (s) => typeof s === 'string' && s.indexOf('rgba(255, 215, 0') === 0
+      );
       assert(nightGold, 'night milestone still paints the gold wash');
-      assert(nightGold.indexOf(GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA.toFixed(3)) !== -1,
-        'night wash uses the quiet peak');
+      assert(
+        nightGold.indexOf(GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA.toFixed(3)) !== -1,
+        'night wash uses the quiet peak'
+      );
       assert(nightGold !== dayGold, 'night wash is quieter than the day wash');
       assertEquals(night.rects.length, 1, 'night wash is still one full-canvas fill');
-      assertEquals(game.score, GAME_CONFIG.DAY_NIGHT_END, 'painting the night wash does not move the score');
+      assertEquals(
+        game.score,
+        GAME_CONFIG.DAY_NIGHT_END,
+        'painting the night wash does not move the score'
+      );
       assertEquals(game.currentSpeed, origSpeed, 'night paint does not change speed');
       assertEquals(rngCalls, 0, 'painting the night wash does not consume the run seed');
 
@@ -8391,20 +9980,28 @@ describe('QA level flag (?qaLevel=1)', () => {
     let captured = '';
     Object.defineProperty(ctx, 'fillStyle', {
       configurable: true,
-      get() { return captured; },
-      set(v) { captured = v; fillStyles.push(v); },
+      get() {
+        return captured;
+      },
+      set(v) {
+        captured = v;
+        fillStyles.push(v);
+      },
     });
     try {
       fn();
     } finally {
       delete ctx.fillStyle;
     }
-    return fillStyles.filter(s => typeof s === 'string' && s.indexOf('rgba(255, 215, 0') === 0);
+    return fillStyles.filter((s) => typeof s === 'string' && s.indexOf('rgba(255, 215, 0') === 0);
   }
 
   it('recognizes only ?qaLevel=1', () => {
     assert(readQaLevelFlag('?qaLevel=1') === true, '?qaLevel=1 should enable the early level wash');
-    assert(readQaLevelFlag('?qaNight=1&qaLevel=1') === true, 'the flag should work beside ?qaNight=1');
+    assert(
+      readQaLevelFlag('?qaNight=1&qaLevel=1') === true,
+      'the flag should work beside ?qaNight=1'
+    );
     assert(readQaLevelFlag('?qaLevel=1&qaNight=1') === true, 'param order should not matter');
     assert(readQaLevelFlag('') === false, 'a normal visit should leave the wash on the real level');
     assert(readQaLevelFlag('?qaLevel=0') === false, 'only the value 1 enables the flag');
@@ -8433,32 +10030,58 @@ describe('QA level flag (?qaLevel=1)', () => {
       setQaLevel(true);
       const gold = goldWashDuring(tick);
       assertEquals(gold.length, 1, 'the first running frame paints one gold wash');
-      assert(gold[0].indexOf(GAME_CONFIG.SKY_TINT_PEAK_ALPHA.toFixed(3)) !== -1,
-        'qaLevel alone keeps the familiar day wash');
-      assertEquals(game.milestoneText, 'LEVEL 2', 'the early flash uses the first real level label');
-      assertEquals(Animations.milestoneFrames, GAME_CONFIG.MILESTONE_FRAMES - 1,
-        'the wash starts a full milestone and then counts down one frame');
-      assertEquals(game.score, GAME_CONFIG.SCORE_INCREMENT, 'the early flash must not jump the score');
+      assert(
+        gold[0].indexOf(GAME_CONFIG.SKY_TINT_PEAK_ALPHA.toFixed(3)) !== -1,
+        'qaLevel alone keeps the familiar day wash'
+      );
+      assertEquals(
+        game.milestoneText,
+        'LEVEL 2',
+        'the early flash uses the first real level label'
+      );
+      assertEquals(
+        Animations.milestoneFrames,
+        GAME_CONFIG.MILESTONE_FRAMES - 1,
+        'the wash starts a full milestone and then counts down one frame'
+      );
+      assertEquals(
+        game.score,
+        GAME_CONFIG.SCORE_INCREMENT,
+        'the early flash must not jump the score'
+      );
       assert(
         Math.abs(game.currentSpeed - DifficultyProfile.speedAtScore(game.score)) < 1e-6,
         'speed still follows the real score'
       );
-      assertEquals(game.currentSpeed, speedOff, 'the flag does not change speed versus a normal first frame');
+      assertEquals(
+        game.currentSpeed,
+        speedOff,
+        'the flag does not change speed versus a normal first frame'
+      );
       assertEquals(game.rng(), rngAfterOff, 'the early flash does not consume the run seed');
       assertEquals(game.qaLevelShown, true, 'the early flash is once per run');
-      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
-        'day score with qaLevel stays on the day peak');
+      assertEquals(
+        skyTintPeakAlpha(),
+        GAME_CONFIG.SKY_TINT_PEAK_ALPHA,
+        'day score with qaLevel stays on the day peak'
+      );
 
       tick();
-      assertEquals(Animations.milestoneFrames, GAME_CONFIG.MILESTONE_FRAMES - 2,
-        'the next frame continues the same wash instead of restarting it');
+      assertEquals(
+        Animations.milestoneFrames,
+        GAME_CONFIG.MILESTONE_FRAMES - 2,
+        'the next frame continues the same wash instead of restarting it'
+      );
       assertEquals(game.score, GAME_CONFIG.SCORE_INCREMENT * 2, 'scoring keeps its normal step');
 
       game.score = GAME_CONFIG.SCORE_PER_LEVEL - 0.05;
       tick();
       assertEquals(game.milestoneText, 'LEVEL 2', 'a real level-up still flashes with the flag on');
-      assertEquals(Animations.milestoneFrames, GAME_CONFIG.MILESTONE_FRAMES - 1,
-        'crossing 100 still starts a full wash');
+      assertEquals(
+        Animations.milestoneFrames,
+        GAME_CONFIG.MILESTONE_FRAMES - 1,
+        'crossing 100 still starts a full wash'
+      );
       assert(game.score >= GAME_CONFIG.SCORE_PER_LEVEL, 'the real level still arrives by score');
     } finally {
       game.mode = origMode;
@@ -8480,9 +10103,16 @@ describe('QA level flag (?qaLevel=1)', () => {
       game.mode = MODES.DAILY;
       setQaLevel(true);
       tick();
-      assertEquals(Animations.milestoneFrames, GAME_CONFIG.MILESTONE_FRAMES - 1,
-        'Daily shares the Updated early wash');
-      assertEquals(game.score, GAME_CONFIG.SCORE_INCREMENT, 'Daily early wash must not jump the score');
+      assertEquals(
+        Animations.milestoneFrames,
+        GAME_CONFIG.MILESTONE_FRAMES - 1,
+        'Daily shares the Updated early wash'
+      );
+      assertEquals(
+        game.score,
+        GAME_CONFIG.SCORE_INCREMENT,
+        'Daily early wash must not jump the score'
+      );
 
       armFreshRun();
       game.mode = MODES.CLASSIC;
@@ -8491,7 +10121,11 @@ describe('QA level flag (?qaLevel=1)', () => {
       assertEquals(gold.length, 0, 'Classic never paints the gold wash');
       assertEquals(Animations.milestoneFrames, 0, 'Classic does not take the early flash');
       assertEquals(game.qaLevelShown, false, 'Classic does not spend the Updated latch');
-      assertEquals(game.score, GAME_CONFIG.SCORE_INCREMENT, 'Classic scoring stays on the normal step');
+      assertEquals(
+        game.score,
+        GAME_CONFIG.SCORE_INCREMENT,
+        'Classic scoring stays on the normal step'
+      );
     } finally {
       game.mode = origMode;
       setQaLevel(false);
@@ -8512,11 +10146,20 @@ describe('QA level flag (?qaLevel=1)', () => {
       setQaLevel(true);
       const gold = goldWashDuring(tick);
       assertEquals(gold.length, 1, 'night plus level still paints one wash');
-      assert(gold[0].indexOf(GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA.toFixed(3)) !== -1,
-        'the night flag selects the quiet peak');
-      assertEquals(game.score, GAME_CONFIG.SCORE_INCREMENT, 'the pair of flags must not jump the score');
-      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
-        'the quiet peak is the one on screen at the start of the run');
+      assert(
+        gold[0].indexOf(GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA.toFixed(3)) !== -1,
+        'the night flag selects the quiet peak'
+      );
+      assertEquals(
+        game.score,
+        GAME_CONFIG.SCORE_INCREMENT,
+        'the pair of flags must not jump the score'
+      );
+      assertEquals(
+        skyTintPeakAlpha(),
+        GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
+        'the quiet peak is the one on screen at the start of the run'
+      );
     } finally {
       game.mode = origMode;
       setQaLevel(false);
@@ -8543,8 +10186,11 @@ describe('QA level flag (?qaLevel=1)', () => {
       game.score = GAME_CONFIG.SCORE_PER_LEVEL - 0.05;
       tick();
       assertEquals(game.milestoneText, 'LEVEL 2', 'score 100 still uses the real level label');
-      assertEquals(Animations.milestoneFrames, GAME_CONFIG.MILESTONE_FRAMES - 1,
-        'score 100 still starts the full wash');
+      assertEquals(
+        Animations.milestoneFrames,
+        GAME_CONFIG.MILESTONE_FRAMES - 1,
+        'score 100 still starts the full wash'
+      );
       assert(game.score >= GAME_CONFIG.SCORE_PER_LEVEL, 'the level still unlocks at 100');
     } finally {
       game.mode = origMode;
@@ -8570,12 +10216,22 @@ describe('QA level flag (?qaLevel=1)', () => {
       game.obstacles.length = 0;
       game.lastObstacleX = GAME_CONFIG.CANVAS_W;
       tick();
-      assertEquals(game.qaLevelShown, true, 'resetGame should arm the early wash from location.search');
-      assertEquals(Animations.milestoneFrames, GAME_CONFIG.MILESTONE_FRAMES - 1,
-        'the re-read flag still fires on the first running frame');
+      assertEquals(
+        game.qaLevelShown,
+        true,
+        'resetGame should arm the early wash from location.search'
+      );
+      assertEquals(
+        Animations.milestoneFrames,
+        GAME_CONFIG.MILESTONE_FRAMES - 1,
+        'the re-read flag still fires on the first running frame'
+      );
       assert(game.score < 1, 're-reading the flag must not change the score');
-      assertEquals(skyTintPeakAlpha(), GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
-        'qaNight on the same query still selects the quiet peak');
+      assertEquals(
+        skyTintPeakAlpha(),
+        GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
+        'qaNight on the same query still selects the quiet peak'
+      );
     } finally {
       restorePageQuery();
       game.mode = origMode;
@@ -8592,7 +10248,11 @@ describe('Night death flash', () => {
   function withTuning(overrides, fn) {
     const orig = window.GAME_TUNING;
     window.GAME_TUNING = overrides;
-    try { fn(); } finally { window.GAME_TUNING = orig; }
+    try {
+      fn();
+    } finally {
+      window.GAME_TUNING = orig;
+    }
   }
 
   // White on the day sky (#ffffff) does not move the sky. The same overlay
@@ -8612,8 +10272,13 @@ describe('Night death flash', () => {
     let captured = '';
     Object.defineProperty(ctx, 'fillStyle', {
       configurable: true,
-      get() { return captured; },
-      set(v) { captured = v; fillStyles.push(v); },
+      get() {
+        return captured;
+      },
+      set(v) {
+        captured = v;
+        fillStyles.push(v);
+      },
     });
     const origFill = ctx.fillRect;
     ctx.fillRect = function (...args) {
@@ -8640,37 +10305,50 @@ describe('Night death flash', () => {
       const dayPeak = GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA;
       assert(dayPeak < 1, 'day peak is quieter than a full white overlay');
       assert(dayPeak > 0, 'the day death cue still paints');
-      assert(dayPeak > GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
-        'the day blink stays stronger than the night blink');
+      assert(
+        dayPeak > GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
+        'the day blink stays stronger than the night blink'
+      );
       const washedDino = whiteWash(dayPeak, dayDino);
       const dinoLum = relLuminance(dayDino);
       const dayLum = relLuminance(washedDino);
       const daySlap = relLuminance(whiteWash(1, dayDino)) - dinoLum;
-      assert(dayLum > dinoLum * 2,
-        'the day blink more than doubles luminance on the dark shapes');
-      assert(dayLum - dinoLum < daySlap * 0.6,
-        'the day blink is quieter than a full white overlay on those shapes');
-      assert(GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA < 1,
-        'night peak is lower than a full white overlay');
-      assert(GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA > 0,
-        'the death cue still paints at night');
+      assert(dayLum > dinoLum * 2, 'the day blink more than doubles luminance on the dark shapes');
+      assert(
+        dayLum - dinoLum < daySlap * 0.6,
+        'the day blink is quieter than a full white overlay on those shapes'
+      );
+      assert(
+        GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA < 1,
+        'night peak is lower than a full white overlay'
+      );
+      assert(GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA > 0, 'the death cue still paints at night');
       const painted = whiteWash(GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA, nightSky);
       const nightLum = relLuminance(painted);
       const skyLum = relLuminance(nightSky);
       const slapped = relLuminance(whiteWash(1, nightSky)) - skyLum;
-      assert(nightLum < relLuminance(dayDino),
-        'the night blink stays darker than the day dino so the sky does not slap white');
-      assert(nightLum > skyLum * 2,
-        'the night blink is still bright enough to read as the death cue');
-      assert(nightLum - skyLum < slapped * 0.35,
-        'night blink is much quieter than a full white overlay on the night sky');
+      assert(
+        nightLum < relLuminance(dayDino),
+        'the night blink stays darker than the day dino so the sky does not slap white'
+      );
+      assert(
+        nightLum > skyLum * 2,
+        'the night blink is still bright enough to read as the death cue'
+      );
+      assert(
+        nightLum - skyLum < slapped * 0.35,
+        'night blink is much quieter than a full white overlay on the night sky'
+      );
 
       game.mode = MODES.UPDATED;
       game.score = 0;
       assertEquals(deathFlashPeakAlpha(), dayPeak, 'day Updated uses the quieter day blink');
       game.score = GAME_CONFIG.DAY_NIGHT_START;
-      assertEquals(deathFlashPeakAlpha(), dayPeak,
-        'the ease starts with the sky, still the quieter day blink at the boundary');
+      assertEquals(
+        deathFlashPeakAlpha(),
+        dayPeak,
+        'the ease starts with the sky, still the quieter day blink at the boundary'
+      );
       game.score = 350;
       const mid = dayPeak + (GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA - dayPeak) * 0.5;
       assert(
@@ -8679,21 +10357,30 @@ describe('Night death flash', () => {
       );
       game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
       assert(
-        deathFlashPeakAlpha() < GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA
-          && deathFlashPeakAlpha() > GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
+        deathFlashPeakAlpha() < GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA &&
+          deathFlashPeakAlpha() > GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
         'one point before night is still easing, not snapped'
       );
       game.score = GAME_CONFIG.DAY_NIGHT_END;
-      assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
-        'full night holds the quiet peak');
+      assertEquals(
+        deathFlashPeakAlpha(),
+        GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
+        'full night holds the quiet peak'
+      );
       game.score = 1000;
-      assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
-        'later night keeps the same static peak');
+      assertEquals(
+        deathFlashPeakAlpha(),
+        GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
+        'later night keeps the same static peak'
+      );
 
       game.mode = MODES.DAILY;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
-      assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
-        'Daily shares the Updated night peak');
+      assertEquals(
+        deathFlashPeakAlpha(),
+        GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
+        'Daily shares the Updated night peak'
+      );
 
       game.mode = MODES.CLASSIC;
       game.score = 0;
@@ -8718,14 +10405,23 @@ describe('Night death flash', () => {
       game.mode = MODES.UPDATED;
       setReducedMotion(true);
       game.score = 350;
-      assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA,
-        'reduced motion keeps the quieter day blink while the sky is still day');
+      assertEquals(
+        deathFlashPeakAlpha(),
+        GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA,
+        'reduced motion keeps the quieter day blink while the sky is still day'
+      );
       game.score = GAME_CONFIG.DAY_NIGHT_END - 1;
-      assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA,
-        'reduced motion does not run the twilight ease');
+      assertEquals(
+        deathFlashPeakAlpha(),
+        GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA,
+        'reduced motion does not run the twilight ease'
+      );
       game.score = GAME_CONFIG.DAY_NIGHT_END;
-      assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
-        'reduced motion still gets the static night peak');
+      assertEquals(
+        deathFlashPeakAlpha(),
+        GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
+        'reduced motion still gets the static night peak'
+      );
     } finally {
       game.mode = origMode;
       game.score = origScore;
@@ -8740,13 +10436,19 @@ describe('Night death flash', () => {
       game.mode = MODES.UPDATED;
       game.score = 0;
       setQaNight(true);
-      assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
-        'the existing night QA flag is enough to see the quiet blink');
+      assertEquals(
+        deathFlashPeakAlpha(),
+        GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
+        'the existing night QA flag is enough to see the quiet blink'
+      );
       assertEquals(game.score, 0, 'the quiet blink must not write the score');
 
       game.mode = MODES.CLASSIC;
-      assertEquals(deathFlashPeakAlpha(), 1,
-        'QA night still leaves the Classic blink at the day value');
+      assertEquals(
+        deathFlashPeakAlpha(),
+        1,
+        'QA night still leaves the Classic blink at the day value'
+      );
       assertEquals(game.score, 0, 'Classic QA night must not write the score');
     } finally {
       game.mode = origMode;
@@ -8764,48 +10466,81 @@ describe('Night death flash', () => {
       game.mode = MODES.UPDATED;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       withTuning({ NIGHT_DEATH_FLASH_PEAK_ALPHA: 0.05 }, () => {
-        assertEquals(deathFlashPeakAlpha(), 0.05,
-          'a visual override should quiet the night blink by the tuned amount');
+        assertEquals(
+          deathFlashPeakAlpha(),
+          0.05,
+          'a visual override should quiet the night blink by the tuned amount'
+        );
       });
-      assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
-        'clearing the override returns the configured night peak');
+      assertEquals(
+        deathFlashPeakAlpha(),
+        GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
+        'clearing the override returns the configured night peak'
+      );
       game.score = 0;
       withTuning({ NIGHT_DEATH_FLASH_PEAK_ALPHA: 0.05 }, () => {
-        assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA,
-          'day blink ignores the night peak override');
+        assertEquals(
+          deathFlashPeakAlpha(),
+          GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA,
+          'day blink ignores the night peak override'
+        );
       });
       withTuning({ DAY_DEATH_FLASH_PEAK_ALPHA: 0.7 }, () => {
-        assertEquals(deathFlashPeakAlpha(), 0.7,
-          'a visual override should quiet or lift the day blink by the tuned amount');
+        assertEquals(
+          deathFlashPeakAlpha(),
+          0.7,
+          'a visual override should quiet or lift the day blink by the tuned amount'
+        );
       });
-      assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA,
-        'clearing the day override returns the configured day peak');
+      assertEquals(
+        deathFlashPeakAlpha(),
+        GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA,
+        'clearing the day override returns the configured day peak'
+      );
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       withTuning({ DAY_DEATH_FLASH_PEAK_ALPHA: 0.7 }, () => {
-        assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
-          'a day peak override does not brighten the night blink');
+        assertEquals(
+          deathFlashPeakAlpha(),
+          GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
+          'a day peak override does not brighten the night blink'
+        );
       });
       game.score = 0;
       withTuning({ DAY_DEATH_FLASH_PEAK_ALPHA: 'loud' }, () => {
-        assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA,
-          'a non-numeric day override falls back to the configured peak');
+        assertEquals(
+          deathFlashPeakAlpha(),
+          GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA,
+          'a non-numeric day override falls back to the configured peak'
+        );
       });
       withTuning({ DAY_DEATH_FLASH_PEAK_ALPHA: 1.5 }, () => {
-        assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA,
-          'an out-of-range day override falls back to the configured peak');
+        assertEquals(
+          deathFlashPeakAlpha(),
+          GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA,
+          'an out-of-range day override falls back to the configured peak'
+        );
       });
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       withTuning({ DEATH_FLASH_FRAMES: 3 }, () => {
-        assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
-          'a frame-length override does not brighten the night peak');
+        assertEquals(
+          deathFlashPeakAlpha(),
+          GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
+          'a frame-length override does not brighten the night peak'
+        );
       });
       withTuning({ NIGHT_DEATH_FLASH_PEAK_ALPHA: 'soft' }, () => {
-        assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
-          'a non-numeric override falls back to the configured peak');
+        assertEquals(
+          deathFlashPeakAlpha(),
+          GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
+          'a non-numeric override falls back to the configured peak'
+        );
       });
       withTuning({ NIGHT_DEATH_FLASH_PEAK_ALPHA: 1.5 }, () => {
-        assertEquals(deathFlashPeakAlpha(), GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
-          'an out-of-range override falls back to the configured peak');
+        assertEquals(
+          deathFlashPeakAlpha(),
+          GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
+          'an out-of-range override falls back to the configured peak'
+        );
       });
     } finally {
       game.mode = origMode;
@@ -8822,7 +10557,10 @@ describe('Night death flash', () => {
     const origSpeed = game.currentSpeed;
     const origRng = game.rng;
     let rngCalls = 0;
-    game.rng = () => { rngCalls++; return origRng(); };
+    game.rng = () => {
+      rngCalls++;
+      return origRng();
+    };
     try {
       setQaNight(false);
       setReducedMotion(false);
@@ -8830,31 +10568,49 @@ describe('Night death flash', () => {
       game.score = 0;
       Animations.deathFlashFrames = GAME_CONFIG.DEATH_FLASH_FRAMES;
       const day = paintedFlash();
-      const dayWhite = day.fillStyles.find(s => typeof s === 'string' && s.indexOf('rgba(255, 255, 255') === 0);
+      const dayWhite = day.fillStyles.find(
+        (s) => typeof s === 'string' && s.indexOf('rgba(255, 255, 255') === 0
+      );
       assert(dayWhite, 'day death still paints the white blink');
-      assert(dayWhite.indexOf(GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA.toFixed(3)) !== -1,
-        'day blink uses the quieter day peak');
+      assert(
+        dayWhite.indexOf(GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA.toFixed(3)) !== -1,
+        'day blink uses the quieter day peak'
+      );
       assertEquals(day.rects.length, 1, 'day blink is one full-canvas fill');
       assertEquals(day.rects[0][2], GAME_CONFIG.CANVAS_W, 'day blink covers the canvas width');
       assertEquals(day.rects[0][3], GAME_CONFIG.CANVAS_H, 'day blink covers the canvas height');
       assertEquals(game.score, 0, 'painting the day blink does not move the score');
       assertEquals(rngCalls, 0, 'painting the day blink does not consume the run seed');
-      assertEquals(Animations.deathFlashFrames, GAME_CONFIG.DEATH_FLASH_FRAMES,
-        'the paint does not consume the flash timer');
+      assertEquals(
+        Animations.deathFlashFrames,
+        GAME_CONFIG.DEATH_FLASH_FRAMES,
+        'the paint does not consume the flash timer'
+      );
 
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       const night = paintedFlash();
-      const nightWhite = night.fillStyles.find(s => typeof s === 'string' && s.indexOf('rgba(255, 255, 255') === 0);
+      const nightWhite = night.fillStyles.find(
+        (s) => typeof s === 'string' && s.indexOf('rgba(255, 255, 255') === 0
+      );
       assert(nightWhite, 'night death still paints the white blink');
-      assert(nightWhite.indexOf(GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA.toFixed(3)) !== -1,
-        'night blink uses the quiet peak');
+      assert(
+        nightWhite.indexOf(GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA.toFixed(3)) !== -1,
+        'night blink uses the quiet peak'
+      );
       assert(nightWhite !== dayWhite, 'night blink is quieter than the day blink');
       assertEquals(night.rects.length, 1, 'night blink is still one full-canvas fill');
-      assertEquals(game.score, GAME_CONFIG.DAY_NIGHT_END, 'painting the night blink does not move the score');
+      assertEquals(
+        game.score,
+        GAME_CONFIG.DAY_NIGHT_END,
+        'painting the night blink does not move the score'
+      );
       assertEquals(game.currentSpeed, origSpeed, 'night paint does not change speed');
       assertEquals(rngCalls, 0, 'painting the night blink does not consume the run seed');
-      assertEquals(Animations.deathFlashFrames, GAME_CONFIG.DEATH_FLASH_FRAMES,
-        'night paint does not consume the flash timer');
+      assertEquals(
+        Animations.deathFlashFrames,
+        GAME_CONFIG.DEATH_FLASH_FRAMES,
+        'night paint does not consume the flash timer'
+      );
 
       game.mode = MODES.CLASSIC;
       game.score = 1000;
@@ -8883,7 +10639,11 @@ describe('Soft death shake', () => {
   function withTuning(overrides, fn) {
     const orig = window.GAME_TUNING;
     window.GAME_TUNING = overrides;
-    try { fn(); } finally { window.GAME_TUNING = orig; }
+    try {
+      fn();
+    } finally {
+      window.GAME_TUNING = orig;
+    }
   }
 
   function expectedOffset(frame, amp, freq) {
@@ -8901,7 +10661,10 @@ describe('Soft death shake', () => {
     const origPop = Animations.scorePopFrames;
     const origState = game.state;
     let rngCalls = 0;
-    game.rng = () => { rngCalls++; return origRng(); };
+    game.rng = () => {
+      rngCalls++;
+      return origRng();
+    };
     ctx.translate = (x, y) => {
       samples.push({ x: x, y: y });
       return origTranslate.call(ctx, x, y);
@@ -8915,12 +10678,11 @@ describe('Soft death shake', () => {
       for (let i = 0; i < frames; i++) {
         STATE_HANDLERS[STATE.DEAD]();
       }
-      assertEquals(samples.length, frames,
-        'each shake frame translates once');
+      assertEquals(samples.length, frames, 'each shake frame translates once');
       assertEquals(rngCalls, 0, 'the death shake does not consume the run seed');
       assertEquals(game.score, origScore, 'the death shake does not move the score');
       assertEquals(game.currentSpeed, origSpeed, 'the death shake does not change speed');
-      samples.forEach(sample => {
+      samples.forEach((sample) => {
         assertEquals(sample.y, 0, 'the shake stays horizontal');
       });
       return samples;
@@ -8953,26 +10715,46 @@ describe('Soft death shake', () => {
     try {
       setQaNight(false);
       setReducedMotion(false);
-      assert(QUIET_AMPLITUDE < GAME_CONFIG.DEATH_SHAKE_AMPLITUDE / 2,
-        'the quiet peak is under half the Classic yank');
+      assert(
+        QUIET_AMPLITUDE < GAME_CONFIG.DEATH_SHAKE_AMPLITUDE / 2,
+        'the quiet peak is under half the Classic yank'
+      );
       assert(QUIET_AMPLITUDE > 0, 'the death cue still moves');
-      assert(QUIET_FREQ < GAME_CONFIG.DEATH_SHAKE_FREQ,
-        'the quiet shake turns slower than the Classic buzz');
-      assertEquals(GAME_CONFIG.UPDATED_DEATH_SHAKE_FRAMES, QUIET_FRAMES,
-        'the quiet settle is about two thirds of the Classic window');
-      assert(QUIET_FRAMES < GAME_CONFIG.DEATH_SHAKE_FRAMES,
-        'Updated finishes before the Classic shake');
-      assertEquals(QUIET_FRAMES * QUIET_FREQ, Math.PI,
-        'eight frames at the quiet frequency are one half-turn');
+      assert(
+        QUIET_FREQ < GAME_CONFIG.DEATH_SHAKE_FREQ,
+        'the quiet shake turns slower than the Classic buzz'
+      );
+      assertEquals(
+        GAME_CONFIG.UPDATED_DEATH_SHAKE_FRAMES,
+        QUIET_FRAMES,
+        'the quiet settle is about two thirds of the Classic window'
+      );
+      assert(
+        QUIET_FRAMES < GAME_CONFIG.DEATH_SHAKE_FRAMES,
+        'Updated finishes before the Classic shake'
+      );
+      assertEquals(
+        QUIET_FRAMES * QUIET_FREQ,
+        Math.PI,
+        'eight frames at the quiet frequency are one half-turn'
+      );
 
       game.mode = MODES.CLASSIC;
       game.score = 0;
       const classicDay = sampleShake();
-      assertWave(classicDay, GAME_CONFIG.DEATH_SHAKE_AMPLITUDE, GAME_CONFIG.DEATH_SHAKE_FREQ,
-        'Classic day');
+      assertWave(
+        classicDay,
+        GAME_CONFIG.DEATH_SHAKE_AMPLITUDE,
+        GAME_CONFIG.DEATH_SHAKE_FREQ,
+        'Classic day'
+      );
       game.score = GAME_CONFIG.DAY_NIGHT_END;
-      assertWave(sampleShake(), GAME_CONFIG.DEATH_SHAKE_AMPLITUDE, GAME_CONFIG.DEATH_SHAKE_FREQ,
-        'Classic night');
+      assertWave(
+        sampleShake(),
+        GAME_CONFIG.DEATH_SHAKE_AMPLITUDE,
+        GAME_CONFIG.DEATH_SHAKE_FREQ,
+        'Classic night'
+      );
 
       game.mode = MODES.UPDATED;
       game.score = 0;
@@ -8984,8 +10766,10 @@ describe('Soft death shake', () => {
       for (let i = 0; i < updatedDay.length; i++) {
         quietPeak = Math.max(quietPeak, Math.abs(updatedDay[i].x));
         if (i > 0) {
-          assert(Math.abs(updatedDay[i].x - updatedDay[i - 1].x) < 0.5,
-            'each quiet step stays under half a pixel');
+          assert(
+            Math.abs(updatedDay[i].x - updatedDay[i - 1].x) < 0.5,
+            'each quiet step stays under half a pixel'
+          );
         }
         assert(updatedDay[i].x >= -1e-9, 'the quiet half-turn does not reverse');
       }
@@ -9011,26 +10795,48 @@ describe('Soft death shake', () => {
       setQaNight(true);
       game.mode = MODES.UPDATED;
       game.score = 0;
-      assertWave(sampleShake(), QUIET_AMPLITUDE, QUIET_FREQ,
-        'qaNight does not change the Updated nudge');
+      assertWave(
+        sampleShake(),
+        QUIET_AMPLITUDE,
+        QUIET_FREQ,
+        'qaNight does not change the Updated nudge'
+      );
       game.mode = MODES.CLASSIC;
-      assertWave(sampleShake(), GAME_CONFIG.DEATH_SHAKE_AMPLITUDE, GAME_CONFIG.DEATH_SHAKE_FREQ,
-        'qaNight leaves the Classic buzz');
+      assertWave(
+        sampleShake(),
+        GAME_CONFIG.DEATH_SHAKE_AMPLITUDE,
+        GAME_CONFIG.DEATH_SHAKE_FREQ,
+        'qaNight leaves the Classic buzz'
+      );
 
       setReducedMotion(true);
       setQaNight(false);
       game.mode = MODES.UPDATED;
       game.score = 0;
-      assertWave(sampleShake(), QUIET_AMPLITUDE, QUIET_FREQ,
-        'reduced motion keeps the quiet Updated nudge');
+      assertWave(
+        sampleShake(),
+        QUIET_AMPLITUDE,
+        QUIET_FREQ,
+        'reduced motion keeps the quiet Updated nudge'
+      );
       game.mode = MODES.CLASSIC;
-      assertWave(sampleShake(), GAME_CONFIG.DEATH_SHAKE_AMPLITUDE, GAME_CONFIG.DEATH_SHAKE_FREQ,
-        'reduced motion leaves the Classic buzz');
+      assertWave(
+        sampleShake(),
+        GAME_CONFIG.DEATH_SHAKE_AMPLITUDE,
+        GAME_CONFIG.DEATH_SHAKE_FREQ,
+        'reduced motion leaves the Classic buzz'
+      );
 
-      assertEquals(GAME_CONFIG.UPDATED_DEATH_SHAKE_AMPLITUDE, QUIET_AMPLITUDE,
-        'the quiet amplitude is the Updated/Daily tunable');
-      assertEquals(GAME_CONFIG.UPDATED_DEATH_SHAKE_FREQ, QUIET_FREQ,
-        'the quiet frequency is the Updated/Daily tunable');
+      assertEquals(
+        GAME_CONFIG.UPDATED_DEATH_SHAKE_AMPLITUDE,
+        QUIET_AMPLITUDE,
+        'the quiet amplitude is the Updated/Daily tunable'
+      );
+      assertEquals(
+        GAME_CONFIG.UPDATED_DEATH_SHAKE_FREQ,
+        QUIET_FREQ,
+        'the quiet frequency is the Updated/Daily tunable'
+      );
     } finally {
       game.mode = origMode;
       game.score = origScore;
@@ -9055,20 +10861,36 @@ describe('Soft death shake', () => {
         assertWave(sampleShake(), QUIET_AMPLITUDE, 0.1, 'Updated frequency tune');
       });
       withTuning({ DEATH_SHAKE_AMPLITUDE: 2, DEATH_SHAKE_FREQ: 2.5 }, () => {
-        assertWave(sampleShake(), QUIET_AMPLITUDE, QUIET_FREQ,
-          'Updated ignores the Classic shake tunes');
+        assertWave(
+          sampleShake(),
+          QUIET_AMPLITUDE,
+          QUIET_FREQ,
+          'Updated ignores the Classic shake tunes'
+        );
       });
       withTuning({ UPDATED_DEATH_SHAKE_AMPLITUDE: 40 }, () => {
-        assertWave(sampleShake(), QUIET_AMPLITUDE, QUIET_FREQ,
-          'an out-of-range amplitude falls back to the quiet nudge');
+        assertWave(
+          sampleShake(),
+          QUIET_AMPLITUDE,
+          QUIET_FREQ,
+          'an out-of-range amplitude falls back to the quiet nudge'
+        );
       });
       withTuning({ UPDATED_DEATH_SHAKE_FREQ: -1 }, () => {
-        assertWave(sampleShake(), QUIET_AMPLITUDE, QUIET_FREQ,
-          'a negative frequency falls back to the quiet nudge');
+        assertWave(
+          sampleShake(),
+          QUIET_AMPLITUDE,
+          QUIET_FREQ,
+          'a negative frequency falls back to the quiet nudge'
+        );
       });
       withTuning({ UPDATED_DEATH_SHAKE_AMPLITUDE: 'soft' }, () => {
-        assertWave(sampleShake(), QUIET_AMPLITUDE, QUIET_FREQ,
-          'a non-numeric amplitude falls back to the quiet nudge');
+        assertWave(
+          sampleShake(),
+          QUIET_AMPLITUDE,
+          QUIET_FREQ,
+          'a non-numeric amplitude falls back to the quiet nudge'
+        );
       });
       withTuning({ UPDATED_DEATH_SHAKE_FRAMES: 6 }, () => {
         const tuned = sampleShake();
@@ -9076,30 +10898,56 @@ describe('Soft death shake', () => {
         assertWave(tuned, QUIET_AMPLITUDE, QUIET_FREQ, 'Updated frame tune');
       });
       withTuning({ UPDATED_DEATH_SHAKE_FRAMES: 40 }, () => {
-        assertEquals(sampleShake().length, QUIET_FRAMES,
-          'a frame count past Classic falls back to the quiet settle');
+        assertEquals(
+          sampleShake().length,
+          QUIET_FRAMES,
+          'a frame count past Classic falls back to the quiet settle'
+        );
       });
       withTuning({ UPDATED_DEATH_SHAKE_FRAMES: 0 }, () => {
-        assertEquals(sampleShake().length, QUIET_FRAMES,
-          'a zero frame count falls back to the quiet settle');
+        assertEquals(
+          sampleShake().length,
+          QUIET_FRAMES,
+          'a zero frame count falls back to the quiet settle'
+        );
       });
       withTuning({ UPDATED_DEATH_SHAKE_FRAMES: 1.5 }, () => {
-        assertEquals(sampleShake().length, QUIET_FRAMES,
-          'a fractional frame count falls back to the quiet settle');
+        assertEquals(
+          sampleShake().length,
+          QUIET_FRAMES,
+          'a fractional frame count falls back to the quiet settle'
+        );
       });
       withTuning({ UPDATED_DEATH_SHAKE_FRAMES: 'short' }, () => {
-        assertEquals(sampleShake().length, QUIET_FRAMES,
-          'a non-numeric frame count falls back to the quiet settle');
+        assertEquals(
+          sampleShake().length,
+          QUIET_FRAMES,
+          'a non-numeric frame count falls back to the quiet settle'
+        );
       });
 
       game.mode = MODES.CLASSIC;
-      withTuning({ UPDATED_DEATH_SHAKE_AMPLITUDE: 0.5, UPDATED_DEATH_SHAKE_FREQ: 0.1, UPDATED_DEATH_SHAKE_FRAMES: 6 }, () => {
-        const classic = sampleShake();
-        assertEquals(classic.length, GAME_CONFIG.DEATH_SHAKE_FRAMES,
-          'Classic keeps the 12-frame shake');
-        assertWave(classic, GAME_CONFIG.DEATH_SHAKE_AMPLITUDE, GAME_CONFIG.DEATH_SHAKE_FREQ,
-          'Classic ignores the Updated shake tunes');
-      });
+      withTuning(
+        {
+          UPDATED_DEATH_SHAKE_AMPLITUDE: 0.5,
+          UPDATED_DEATH_SHAKE_FREQ: 0.1,
+          UPDATED_DEATH_SHAKE_FRAMES: 6,
+        },
+        () => {
+          const classic = sampleShake();
+          assertEquals(
+            classic.length,
+            GAME_CONFIG.DEATH_SHAKE_FRAMES,
+            'Classic keeps the 12-frame shake'
+          );
+          assertWave(
+            classic,
+            GAME_CONFIG.DEATH_SHAKE_AMPLITUDE,
+            GAME_CONFIG.DEATH_SHAKE_FREQ,
+            'Classic ignores the Updated shake tunes'
+          );
+        }
+      );
       withTuning({ DEATH_SHAKE_AMPLITUDE: 2, DEATH_SHAKE_FREQ: 0.8 }, () => {
         assertWave(sampleShake(), 2, 0.8, 'Classic still follows its own shake tunes');
       });
@@ -9130,10 +10978,16 @@ describe('Soft death shake', () => {
       gameLoop();
       cancelAnimationFrame(game.animationFrameId);
       assertEquals(game.state, STATE.DEAD, 'collision still ends the run');
-      assertEquals(Animations.deathShakeFrames, GAME_CONFIG.UPDATED_DEATH_SHAKE_FRAMES,
-        'reduced motion keeps the shorter Updated shake');
-      assertEquals(Animations.deathFlashFrames, 1,
-        'reduced motion still caps the flash at one frame');
+      assertEquals(
+        Animations.deathShakeFrames,
+        GAME_CONFIG.UPDATED_DEATH_SHAKE_FRAMES,
+        'reduced motion keeps the shorter Updated shake'
+      );
+      assertEquals(
+        Animations.deathFlashFrames,
+        1,
+        'reduced motion still caps the flash at one frame'
+      );
       assertEquals(Animations.scorePopFrames, 0, 'reduced motion still skips the score pop');
     } finally {
       setReducedMotion(false);
@@ -9159,24 +11013,41 @@ describe('Soft death shake', () => {
         gameLoop();
         cancelAnimationFrame(game.animationFrameId);
         assertEquals(game.state, STATE.DEAD, mode + ' collision still ends the run');
-        assertEquals(Animations.deathShakeFrames, QUIET_FRAMES,
-          mode + ' shake starts on the shorter window');
-        assertEquals(Animations.scorePopFrames, QUIET_FRAMES,
-          mode + ' score pop starts on that same window');
+        assertEquals(
+          Animations.deathShakeFrames,
+          QUIET_FRAMES,
+          mode + ' shake starts on the shorter window'
+        );
+        assertEquals(
+          Animations.scorePopFrames,
+          QUIET_FRAMES,
+          mode + ' score pop starts on that same window'
+        );
         const scales = [];
-        ctx.scale = (x) => { scales.push(x); };
+        ctx.scale = (x) => {
+          scales.push(x);
+        };
         for (let i = 0; i < QUIET_FRAMES; i++) STATE_HANDLERS[STATE.DEAD]();
         assertEquals(scales.length, QUIET_FRAMES, mode + ' scales once per shake frame');
-        assertEquals(scales[0], GAME_CONFIG.SCORE_POP_PEAK_SCALE,
-          mode + ' opens the pop at the quiet peak');
+        assertEquals(
+          scales[0],
+          GAME_CONFIG.SCORE_POP_PEAK_SCALE,
+          mode + ' opens the pop at the quiet peak'
+        );
         const peak = GAME_CONFIG.SCORE_POP_PEAK_SCALE;
         const last = scales[scales.length - 1];
-        assert(last > 1 && last < 1 + (peak - 1) * 0.25,
-          mode + ' last shake frame has nearly settled the score');
+        assert(
+          last > 1 && last < 1 + (peak - 1) * 0.25,
+          mode + ' last shake frame has nearly settled the score'
+        );
         assertEquals(Animations.scorePopFrames, 0, mode + ' pop is done when the shake is');
         assertEquals(Animations.deathShakeFrames, 0, mode + ' shake is done');
         STATE_HANDLERS[STATE.DEAD]();
-        assertEquals(scales.length, QUIET_FRAMES, mode + ' Game Over does not keep scaling the HUD');
+        assertEquals(
+          scales.length,
+          QUIET_FRAMES,
+          mode + ' Game Over does not keep scaling the HUD'
+        );
         assertEquals(game.state, STATE.DEAD, mode + ' the run stays over');
       }
 
@@ -9189,8 +11060,11 @@ describe('Soft death shake', () => {
       game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
       gameLoop();
       cancelAnimationFrame(game.animationFrameId);
-      assertEquals(Animations.deathShakeFrames, GAME_CONFIG.DEATH_SHAKE_FRAMES,
-        'Classic still starts the 12-frame shake');
+      assertEquals(
+        Animations.deathShakeFrames,
+        GAME_CONFIG.DEATH_SHAKE_FRAMES,
+        'Classic still starts the 12-frame shake'
+      );
       assertEquals(Animations.scorePopFrames, 0, 'Classic still does not start the pop');
     } finally {
       ctx.scale = origScale;
@@ -9217,7 +11091,9 @@ describe('QA death shake flag (?qaShake=1)', () => {
     };
     return {
       calls: calls,
-      restore() { ctx.translate = orig; },
+      restore() {
+        ctx.translate = orig;
+      },
     };
   }
 
@@ -9252,8 +11128,10 @@ describe('QA death shake flag (?qaShake=1)', () => {
 
   it('recognizes only ?qaShake=1', () => {
     assert(readQaShakeFlag('?qaShake=1') === true, '?qaShake=1 should hold the death nudge');
-    assert(readQaShakeFlag('?qaNight=1&qaShake=1') === true,
-      'the flag should work beside ?qaNight=1');
+    assert(
+      readQaShakeFlag('?qaNight=1&qaShake=1') === true,
+      'the flag should work beside ?qaNight=1'
+    );
     assert(readQaShakeFlag('?qaShake=1&qaFlash=1') === true, 'param order should not matter');
     assert(readQaShakeFlag('') === false, 'a normal visit should leave the nudge for a real death');
     assert(readQaShakeFlag('?qaShake=0') === false, 'only the value 1 enables the flag');
@@ -9286,11 +11164,17 @@ describe('QA death shake flag (?qaShake=1)', () => {
         spy.calls.length = 0;
         tick();
         assertEquals(spy.calls.length, 1, mode + ' shifts the camera once');
-        assertEquals(spy.calls[0].x, GAME_CONFIG.UPDATED_DEATH_SHAKE_AMPLITUDE,
-          mode + ' holds the quiet peak, not a louder debug shift');
+        assertEquals(
+          spy.calls[0].x,
+          GAME_CONFIG.UPDATED_DEATH_SHAKE_AMPLITUDE,
+          mode + ' holds the quiet peak, not a louder debug shift'
+        );
         assertEquals(spy.calls[0].y, 0, mode + ' hold stays horizontal');
-        assertEquals(qaShakeOffset(), GAME_CONFIG.UPDATED_DEATH_SHAKE_AMPLITUDE,
-          mode + ' playtest offset is the real quiet amplitude');
+        assertEquals(
+          qaShakeOffset(),
+          GAME_CONFIG.UPDATED_DEATH_SHAKE_AMPLITUDE,
+          mode + ' playtest offset is the real quiet amplitude'
+        );
         assertEquals(game.qaShakeHold, QA_SHAKE_HOLD, mode + ' latches the full hold');
         assertEquals(game.qaShakeShown, true, mode + ' spends the latch');
         assertEquals(Animations.deathShakeFrames, 0, mode + ' does not arm the real shake');
@@ -9304,8 +11188,11 @@ describe('QA death shake flag (?qaShake=1)', () => {
         spy.calls.length = 0;
         tick();
         assertEquals(spy.calls.length, 1, mode + ' night still shifts once');
-        assertEquals(spy.calls[0].x, GAME_CONFIG.UPDATED_DEATH_SHAKE_AMPLITUDE,
-          mode + ' night uses the same quiet peak');
+        assertEquals(
+          spy.calls[0].x,
+          GAME_CONFIG.UPDATED_DEATH_SHAKE_AMPLITUDE,
+          mode + ' night uses the same quiet peak'
+        );
       }
     } finally {
       spy.restore();
@@ -9330,12 +11217,21 @@ describe('QA death shake flag (?qaShake=1)', () => {
       tick();
       assertEquals(game.state, STATE.DEAD, 'the cactus still ends the run');
       assertEquals(spy.calls.length, 1, 'the hold still shifts the hit frame');
-      assertEquals(spy.calls[0].x, GAME_CONFIG.UPDATED_DEATH_SHAKE_AMPLITUDE,
-        'the hit frame uses the quiet peak');
-      assertEquals(Animations.deathShakeFrames, GAME_CONFIG.UPDATED_DEATH_SHAKE_FRAMES,
-        'the real shake timer is still armed');
-      assertEquals(Animations.scorePopFrames, GAME_CONFIG.UPDATED_DEATH_SHAKE_FRAMES,
-        'the real pop stays locked to that shake');
+      assertEquals(
+        spy.calls[0].x,
+        GAME_CONFIG.UPDATED_DEATH_SHAKE_AMPLITUDE,
+        'the hit frame uses the quiet peak'
+      );
+      assertEquals(
+        Animations.deathShakeFrames,
+        GAME_CONFIG.UPDATED_DEATH_SHAKE_FRAMES,
+        'the real shake timer is still armed'
+      );
+      assertEquals(
+        Animations.scorePopFrames,
+        GAME_CONFIG.UPDATED_DEATH_SHAKE_FRAMES,
+        'the real pop stays locked to that shake'
+      );
       assert(game.score < 1, 'dying on the QA frame does not invent score');
     } finally {
       spy.restore();
@@ -9383,10 +11279,8 @@ describe('QA death shake flag (?qaShake=1)', () => {
         tick();
         const damped = qaShakeOffset();
         const peak = GAME_CONFIG.UPDATED_DEATH_SHAKE_AMPLITUDE;
-        assertEquals(game.qaShakeHold, qaShakeHoldFrames(),
-          mode + ' hold uses the shorter window');
-        assert(game.qaShakeHold < QA_SHAKE_HOLD,
-          mode + ' hold is shorter than the full capture');
+        assertEquals(game.qaShakeHold, qaShakeHoldFrames(), mode + ' hold uses the shorter window');
+        assert(game.qaShakeHold < QA_SHAKE_HOLD, mode + ' hold is shorter than the full capture');
         assert(qaShakeHoldFrames() >= 2, mode + ' hold still lasts long enough to see');
         assert(damped > 0, mode + ' damped hold still moves the lane');
         assert(damped < peak, mode + ' damped hold is softer than the motion-allowed peak');
@@ -9426,8 +11320,11 @@ describe('QA death shake flag (?qaShake=1)', () => {
       Particles.reset();
       tick();
       assertEquals(spy.calls.length, 1, 're-read flag shifts the camera');
-      assertEquals(spy.calls[0].x, GAME_CONFIG.UPDATED_DEATH_SHAKE_AMPLITUDE,
-        're-read flag holds the quiet peak');
+      assertEquals(
+        spy.calls[0].x,
+        GAME_CONFIG.UPDATED_DEATH_SHAKE_AMPLITUDE,
+        're-read flag holds the quiet peak'
+      );
       assertEquals(game.qaShakeHold, QA_SHAKE_HOLD, 'the re-read flag latches the hold');
       assert(game.score < 1, 're-reading the flag must not change the score');
       assertEquals(game.qaShakeShown, true, 'the re-read flag spends the latch');
@@ -9456,21 +11353,79 @@ describe('Soft collision burst', () => {
     vyMin: -1.2,
     vyMax: 0.4,
     vxSpread: 0.7,
-    gravity: 0.10,
+    gravity: 0.1,
   };
 
   const UNCHANGED_KINDS = {
-    jump:      { count: 3,  color: '#9c8770', size: 3, life: 8, alpha: 0.5, vyMin: -1.2, vyMax: -0.4, vxSpread: 0.6, gravity: 0.10 },
-    land:      { count: 5,  color: '#9c8770', size: 3, life: 8, alpha: 0.4, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.7, gravity: 0.12 },
-    trail:     { count: 1,  color: 'rgba(150,150,150,0.28)', size: 2, life:  6, vyMin: -0.1, vyMax:  0.1, vxSpread: 0.2, gravity: 0 },
-    confetti:  { count: 6, color: '#ffd700',                size: 3, life: 12, alpha: 0.7, vyMin: -1.6, vyMax: -0.5, vxSpread: 0.7, gravity: 0.10 },
-    plateau:   { count: 4,  color: '#c5d4e4', size: 2, life: 12, alpha: 0.45, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.3, gravity: 0.06 },
-    plateauQa: { count: 4, color: '#3d4f63', size: 2, life: 40, vyMin: -0.2, vyMax: -0.08, vxSpread: 0.08, gravity: 0.002 },
+    jump: {
+      count: 3,
+      color: '#9c8770',
+      size: 3,
+      life: 8,
+      alpha: 0.5,
+      vyMin: -1.2,
+      vyMax: -0.4,
+      vxSpread: 0.6,
+      gravity: 0.1,
+    },
+    land: {
+      count: 5,
+      color: '#9c8770',
+      size: 3,
+      life: 8,
+      alpha: 0.4,
+      vyMin: -0.9,
+      vyMax: -0.4,
+      vxSpread: 0.7,
+      gravity: 0.12,
+    },
+    trail: {
+      count: 1,
+      color: 'rgba(150,150,150,0.28)',
+      size: 2,
+      life: 6,
+      vyMin: -0.1,
+      vyMax: 0.1,
+      vxSpread: 0.2,
+      gravity: 0,
+    },
+    confetti: {
+      count: 6,
+      color: '#ffd700',
+      size: 3,
+      life: 12,
+      alpha: 0.7,
+      vyMin: -1.6,
+      vyMax: -0.5,
+      vxSpread: 0.7,
+      gravity: 0.1,
+    },
+    plateau: {
+      count: 4,
+      color: '#c5d4e4',
+      size: 2,
+      life: 12,
+      alpha: 0.45,
+      vyMin: -0.9,
+      vyMax: -0.4,
+      vxSpread: 0.3,
+      gravity: 0.06,
+    },
+    plateauQa: {
+      count: 4,
+      color: '#3d4f63',
+      size: 2,
+      life: 40,
+      vyMin: -0.2,
+      vyMax: -0.08,
+      vxSpread: 0.08,
+      gravity: 0.002,
+    },
   };
 
   function travel(kind) {
     const n = kind.life;
-    const drop = kind.gravity * ((n - 1) * n) / 2;
+    const drop = (kind.gravity * ((n - 1) * n)) / 2;
     return {
       x: kind.vxSpread * n,
       up: Math.abs(n * kind.vyMin + drop),
@@ -9488,17 +11443,20 @@ describe('Soft collision burst', () => {
     const halfW = GAME_CONFIG.DINO_WIDTH / 2;
     const halfH = GAME_CONFIG.DINO_HEIGHT / 2;
     const edge = cfg('PARTICLE_EMIT_SPREAD') / 2 + kind.size / 2;
-    assert(moved.x + edge <= halfW,
-      'horizontal travel stays on the dino, including emit jitter and mote size');
+    assert(
+      moved.x + edge <= halfW,
+      'horizontal travel stays on the dino, including emit jitter and mote size'
+    );
     assert(moved.up + kind.size / 2 <= halfH, 'the puff does not fountain above the dino');
     assert(moved.down + kind.size / 2 <= halfH, 'the puff does not rain off the dino');
     assert(kind.count < 11, 'fewer than half the old 22-mote firework');
     assert(kind.count < 8, 'quieter than the round-1 eight-mote puff');
     assert(kind.count > Particles.KINDS.jump.count, 'still reads louder than a jump puff');
-    assert(kind.life < GAME_CONFIG.DEATH_SHAKE_FRAMES,
-      'the puff dies before the death nudge ends');
-    assert(kind.life * 2 > GAME_CONFIG.DEATH_SHAKE_FRAMES,
-      'the puff still lasts through most of the shake');
+    assert(kind.life < GAME_CONFIG.DEATH_SHAKE_FRAMES, 'the puff dies before the death nudge ends');
+    assert(
+      kind.life * 2 > GAME_CONFIG.DEATH_SHAKE_FRAMES,
+      'the puff still lasts through most of the shake'
+    );
     assert(moved.x < 8, 'tighter than the round-1 12px reach');
     assertEquals(kind.color, PUFF.color, 'death stays the same red');
     assertEquals(kind.size, PUFF.size, 'mote size stays readable');
@@ -9525,7 +11483,10 @@ describe('Soft collision burst', () => {
       for (const mode of [MODES.UPDATED, MODES.DAILY]) {
         game.mode = mode;
         let rngCalls = 0;
-        game.rng = () => { rngCalls++; return 0.5; };
+        game.rng = () => {
+          rngCalls++;
+          return 0.5;
+        };
         Particles.reset();
         const n = Particles.emit('collision', 80, 140);
         const motes = collisionMotes();
@@ -9538,8 +11499,14 @@ describe('Soft collision burst', () => {
           assertEquals(p.size, PUFF.size, mode + ' mote keeps the readable size');
           assertEquals(p.color, PUFF.color, mode + ' mote stays red');
           assertEquals(p.gravity, PUFF.gravity, mode + ' mote keeps its weight');
-          assert(Math.abs(p.vx) <= PUFF.vxSpread, mode + ' horizontal speed stays inside the spread');
-          assert(p.vy >= PUFF.vyMin && p.vy <= PUFF.vyMax, mode + ' vertical speed stays inside the short span');
+          assert(
+            Math.abs(p.vx) <= PUFF.vxSpread,
+            mode + ' horizontal speed stays inside the spread'
+          );
+          assert(
+            p.vy >= PUFF.vyMin && p.vy <= PUFF.vyMax,
+            mode + ' vertical speed stays inside the short span'
+          );
         });
       }
 
@@ -9575,11 +11542,16 @@ describe('Soft collision burst', () => {
       Particles.reset();
       const jumpN = Particles.emit('jump', 80, 140);
       const jumpLife = Math.max(2, Math.round(Particles.KINDS.jump.life * 0.5));
-      assertEquals(jumpN, Math.max(1, Math.round(Particles.KINDS.jump.count * 0.25)),
-        'reduced motion still damps the jump puff the same way');
-      Particles.particles.filter((p) => p.life > 0).forEach((p) => {
-        assertEquals(p.life, jumpLife, 'reduced motion still halves jump life');
-      });
+      assertEquals(
+        jumpN,
+        Math.max(1, Math.round(Particles.KINDS.jump.count * 0.25)),
+        'reduced motion still damps the jump puff the same way'
+      );
+      Particles.particles
+        .filter((p) => p.life > 0)
+        .forEach((p) => {
+          assertEquals(p.life, jumpLife, 'reduced motion still halves jump life');
+        });
     } finally {
       game.mode = origMode;
       setReducedMotion(false);
@@ -9610,10 +11582,16 @@ describe('Soft collision burst', () => {
           assertEquals(motes.length, 0, 'Classic collision still emits no red puff');
         } else {
           assertEquals(motes.length, PUFF.count, mode + ' collision emits the quiet puff');
-          assert(motes.every((p) => p.life === PUFF.life), mode + ' collision puff uses the short life');
+          assert(
+            motes.every((p) => p.life === PUFF.life),
+            mode + ' collision puff uses the short life'
+          );
         }
-        assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
-          mode + ' collision leaves speed on the curve');
+        assertEquals(
+          game.currentSpeed,
+          DifficultyProfile.speedAtScore(game.score),
+          mode + ' collision leaves speed on the curve'
+        );
       }
       assertEquals(Math.floor(game.score), 0, 'one collision frame does not score a point');
     } finally {
@@ -9669,10 +11647,12 @@ describe('QA collision flag (?qaCollision=1)', () => {
   }
 
   function onBody(rect) {
-    return rect.x >= dino.x
-      && rect.y >= dino.y
-      && rect.x + rect.w <= dino.x + dino.width
-      && rect.y + rect.h <= dino.y + dino.height;
+    return (
+      rect.x >= dino.x &&
+      rect.y >= dino.y &&
+      rect.x + rect.w <= dino.x + dino.width &&
+      rect.y + rect.h <= dino.y + dino.height
+    );
   }
 
   function assertCluster(calls, label, alpha) {
@@ -9695,7 +11675,9 @@ describe('QA collision flag (?qaCollision=1)', () => {
       assert(onBody(rim), label + ' rim stays inside the dino');
     });
     const lastHud = calls.reduce((at, c, i) => (c.op === 'text' ? i : at), -1);
-    const redAt = calls.findIndex((c) => c.op === 'rect' && c.style === Particles.KINDS.collision.color);
+    const redAt = calls.findIndex(
+      (c) => c.op === 'rect' && c.style === Particles.KINDS.collision.color
+    );
     assert(redAt > lastHud, label + ' cluster is painted after the HUD');
   }
 
@@ -9727,22 +11709,46 @@ describe('QA collision flag (?qaCollision=1)', () => {
   }
 
   it('recognizes only ?qaCollision=1', () => {
-    assert(readQaCollisionFlag('?qaCollision=1') === true, '?qaCollision=1 should hold the death puff');
-    assert(readQaCollisionFlag('?qaNight=1&qaCollision=1') === true, 'the flag should work beside ?qaNight=1');
-    assert(readQaCollisionFlag('?qaCollision=1&qaDust=1') === true, 'param order should not matter');
-    assert(readQaCollisionFlag('') === false, 'a normal visit should leave the puff for a real death');
+    assert(
+      readQaCollisionFlag('?qaCollision=1') === true,
+      '?qaCollision=1 should hold the death puff'
+    );
+    assert(
+      readQaCollisionFlag('?qaNight=1&qaCollision=1') === true,
+      'the flag should work beside ?qaNight=1'
+    );
+    assert(
+      readQaCollisionFlag('?qaCollision=1&qaDust=1') === true,
+      'param order should not matter'
+    );
+    assert(
+      readQaCollisionFlag('') === false,
+      'a normal visit should leave the puff for a real death'
+    );
     assert(readQaCollisionFlag('?qaCollision=0') === false, 'only the value 1 enables the flag');
-    assert(readQaCollisionFlag('?qaCollision=12') === false, 'qaCollision=12 must not count as the flag');
-    assert(readQaCollisionFlag('?qaFlash=1') === false, 'the flash flag must not hold the death puff');
+    assert(
+      readQaCollisionFlag('?qaCollision=12') === false,
+      'qaCollision=12 must not count as the flag'
+    );
+    assert(
+      readQaCollisionFlag('?qaFlash=1') === false,
+      'the flash flag must not hold the death puff'
+    );
   });
 
   it('paints the quieter red cluster on the dino from the first running frame', () => {
     const origMode = game.mode;
     const spy = spyPaint();
     try {
-      assert(QA_COLLISION_HOLD >= 120, 'the debug hold must outlast a quick capture after GET READY');
-      assertEquals(QA_COLLISION_OFFSETS.length, Particles.KINDS.collision.count,
-        'the hold shows one mark per quieter mote');
+      assert(
+        QA_COLLISION_HOLD >= 120,
+        'the debug hold must outlast a quick capture after GET READY'
+      );
+      assertEquals(
+        QA_COLLISION_OFFSETS.length,
+        Particles.KINDS.collision.count,
+        'the hold shows one mark per quieter mote'
+      );
       for (const mode of [MODES.UPDATED, MODES.DAILY]) {
         armFreshRun(mode);
         game.rng = mulberry32(11);
@@ -9754,7 +11760,11 @@ describe('QA collision flag (?qaCollision=1)', () => {
         const scoreOff = game.score;
         const gapOff = game.nextSpawnGap;
         assertEquals(redFills(spy.calls).length, 0, mode + ' without the flag does not paint');
-        assertEquals(game.qaCollisionShown, false, mode + ' without the flag does not spend the latch');
+        assertEquals(
+          game.qaCollisionShown,
+          false,
+          mode + ' without the flag does not spend the latch'
+        );
         assertEquals(game.qaCollisionHold, 0, mode + ' without the flag does not start the hold');
 
         armFreshRun(mode);
@@ -9778,8 +11788,11 @@ describe('QA collision flag (?qaCollision=1)', () => {
         );
         assertEquals(game.score, scoreOff, mode + ' hold must not write the score');
         assertEquals(game.currentSpeed, speedOff, mode + ' hold must not change speed');
-        assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
-          mode + ' speed still follows the real score');
+        assertEquals(
+          game.currentSpeed,
+          DifficultyProfile.speedAtScore(game.score),
+          mode + ' speed still follows the real score'
+        );
         assertEquals(game.nextSpawnGap, gapOff, mode + ' hold must not change the spawn gap');
         assertEquals(game.rng(), rngAfterOff, mode + ' hold must not consume the run seed');
         assertEquals(game.obstacles.length, 0, mode + ' hold must not spawn an obstacle');
@@ -9789,8 +11802,11 @@ describe('QA collision flag (?qaCollision=1)', () => {
           tick();
         }
         assertCluster(spy.calls, mode + ' still', 1);
-        assertEquals(game.qaCollisionHold, QA_COLLISION_HOLD - 30,
-          mode + ' keeps the hold up after the run starts');
+        assertEquals(
+          game.qaCollisionHold,
+          QA_COLLISION_HOLD - 30,
+          mode + ' keeps the hold up after the run starts'
+        );
       }
     } finally {
       spy.restore();
@@ -9812,11 +11828,17 @@ describe('QA collision flag (?qaCollision=1)', () => {
       tick();
       assertEquals(game.state, STATE.DEAD, 'the cactus still ends the run');
       const reds = redFills(spy.calls);
-      assertEquals(reds.length, qaCollisionMarks().length,
-        'the hold still paints after the collision return');
+      assertEquals(
+        reds.length,
+        qaCollisionMarks().length,
+        'the hold still paints after the collision return'
+      );
       assert(reds.every(onBody), 'the death-frame hold stays on the dino');
-      assertEquals(game.qaCollisionHold, QA_COLLISION_HOLD,
-        'the latch frame does not tick the hold down');
+      assertEquals(
+        game.qaCollisionHold,
+        QA_COLLISION_HOLD,
+        'the latch frame does not tick the hold down'
+      );
       assert(game.score < 1, 'dying on the QA frame does not invent score');
     } finally {
       spy.restore();
@@ -9838,14 +11860,18 @@ describe('QA collision flag (?qaCollision=1)', () => {
       tick();
       assertEquals(redFills(spy.calls).length, 0, 'Classic never paints the debug cluster');
       assertEquals(
-        Particles.particles.filter((p) => p.life > 0 && p.color === Particles.KINDS.collision.color).length,
+        Particles.particles.filter((p) => p.life > 0 && p.color === Particles.KINDS.collision.color)
+          .length,
         0,
         'Classic does not emit the production puff either'
       );
       assertEquals(game.qaCollisionShown, false, 'Classic does not spend the Updated latch');
       assertEquals(game.qaCollisionHold, 0, 'Classic does not start the hold');
-      assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
-        'Classic speed still follows the score');
+      assertEquals(
+        game.currentSpeed,
+        DifficultyProfile.speedAtScore(game.score),
+        'Classic speed still follows the score'
+      );
     } finally {
       spy.restore();
       game.mode = origMode;
@@ -9872,9 +11898,13 @@ describe('QA collision flag (?qaCollision=1)', () => {
       assert(qaCollisionHoldFrames() >= 2, 'hold still lasts long enough to see');
       assertEquals(qaCollisionPaintAlpha(), 0.5, 'reduced motion halves the hold ink');
       assertCluster(spy.calls, 'reduced motion', 0.5);
-      assert(redFills(spy.calls).length < fullMarks, 'reduced motion does not paint the full cluster');
+      assert(
+        redFills(spy.calls).length < fullMarks,
+        'reduced motion does not paint the full cluster'
+      );
       assertEquals(
-        Particles.particles.filter((p) => p.life > 0 && p.color === Particles.KINDS.collision.color).length,
+        Particles.particles.filter((p) => p.life > 0 && p.color === Particles.KINDS.collision.color)
+          .length,
         0,
         'the damped hold does not go through the particle pool'
       );
@@ -9939,18 +11969,77 @@ describe('Quiet late-run heel trail', () => {
   };
 
   const UNCHANGED_KINDS = {
-    jump:      { count: 3,  color: '#9c8770', size: 3, life: 8, alpha: 0.5, vyMin: -1.2, vyMax: -0.4, vxSpread: 0.6, gravity: 0.10 },
-    land:      { count: 5,  color: '#9c8770', size: 3, life: 8, alpha: 0.4, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.7, gravity: 0.12 },
-    collision: { count: 5,  color: '#d04a2a', size: 3, life: 8, vyMin: -1.2, vyMax:  0.4, vxSpread: 0.7, gravity: 0.10 },
-    confetti:  { count: 6, color: '#ffd700', size: 3, life: 12, alpha: 0.7, vyMin: -1.6, vyMax: -0.5, vxSpread: 0.7, gravity: 0.10 },
-    plateau:   { count: 4,  color: '#c5d4e4', size: 2, life: 12, alpha: 0.45, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.3, gravity: 0.06 },
-    plateauQa: { count: 4, color: '#3d4f63', size: 2, life: 40, vyMin: -0.2, vyMax: -0.08, vxSpread: 0.08, gravity: 0.002 },
+    jump: {
+      count: 3,
+      color: '#9c8770',
+      size: 3,
+      life: 8,
+      alpha: 0.5,
+      vyMin: -1.2,
+      vyMax: -0.4,
+      vxSpread: 0.6,
+      gravity: 0.1,
+    },
+    land: {
+      count: 5,
+      color: '#9c8770',
+      size: 3,
+      life: 8,
+      alpha: 0.4,
+      vyMin: -0.9,
+      vyMax: -0.4,
+      vxSpread: 0.7,
+      gravity: 0.12,
+    },
+    collision: {
+      count: 5,
+      color: '#d04a2a',
+      size: 3,
+      life: 8,
+      vyMin: -1.2,
+      vyMax: 0.4,
+      vxSpread: 0.7,
+      gravity: 0.1,
+    },
+    confetti: {
+      count: 6,
+      color: '#ffd700',
+      size: 3,
+      life: 12,
+      alpha: 0.7,
+      vyMin: -1.6,
+      vyMax: -0.5,
+      vxSpread: 0.7,
+      gravity: 0.1,
+    },
+    plateau: {
+      count: 4,
+      color: '#c5d4e4',
+      size: 2,
+      life: 12,
+      alpha: 0.45,
+      vyMin: -0.9,
+      vyMax: -0.4,
+      vxSpread: 0.3,
+      gravity: 0.06,
+    },
+    plateauQa: {
+      count: 4,
+      color: '#3d4f63',
+      size: 2,
+      life: 40,
+      vyMin: -0.2,
+      vyMax: -0.08,
+      vxSpread: 0.08,
+      gravity: 0.002,
+    },
   };
 
   function trailCrossScore() {
     const { INITIAL_SPEED, PLATEAU_SPEED, RAMP_STEEPNESS, RAMP_MIDPOINT, TRAIL_SPEED_RATIO } =
       GAME_CONFIG;
-    const sig = (TRAIL_SPEED_RATIO * PLATEAU_SPEED - INITIAL_SPEED) / (PLATEAU_SPEED - INITIAL_SPEED);
+    const sig =
+      (TRAIL_SPEED_RATIO * PLATEAU_SPEED - INITIAL_SPEED) / (PLATEAU_SPEED - INITIAL_SPEED);
     return RAMP_MIDPOINT - Math.log(1 / sig - 1) / RAMP_STEEPNESS;
   }
 
@@ -9999,7 +12088,11 @@ describe('Quiet late-run heel trail', () => {
     assertEquals(kind.life, WHISPER.life, 'life is shorter so the stack dies at the heel');
     assertEquals(kind.vyMin, WHISPER.vyMin, 'the whisper does not lift off the heel');
     assertEquals(kind.vyMax, WHISPER.vyMax, 'the whisper does not drop off the heel');
-    assertEquals(kind.vxSpread, WHISPER.vxSpread, 'horizontal drift stays tighter than the old smear');
+    assertEquals(
+      kind.vxSpread,
+      WHISPER.vxSpread,
+      'horizontal drift stays tighter than the old smear'
+    );
     assertEquals(kind.gravity, WHISPER.gravity, 'the mote does not fall away from the heel');
     assert(kind.life < 10, 'shorter than the old 10-frame smear');
     assert(kind.vxSpread < 0.4, 'tighter than the old ±0.4 drift');
@@ -10040,8 +12133,11 @@ describe('Quiet late-run heel trail', () => {
       game.score = before - GAME_CONFIG.SCORE_INCREMENT;
       tick();
       assertEquals(trailMotes().length, 0, 'one frame early should not whisper');
-      assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
-        'an early frame still takes speed from the curve');
+      assertEquals(
+        game.currentSpeed,
+        DifficultyProfile.speedAtScore(game.score),
+        'an early frame still takes speed from the curve'
+      );
 
       for (const mode of [MODES.UPDATED, MODES.DAILY]) {
         armRun(mode);
@@ -10056,13 +12152,18 @@ describe('Quiet late-run heel trail', () => {
           assertEquals(p.size, WHISPER.size, mode + ' mote keeps the readable size');
           assertEquals(p.color, WHISPER.color, mode + ' mote stays the quiet grey');
           assertEquals(p.gravity, WHISPER.gravity, mode + ' mote stays weightless');
-          assert(Math.abs(p.x - (dino.x + 4)) <= cfg('PARTICLE_EMIT_SPREAD') / 2,
-            mode + ' mote stays on the heel, including emit jitter');
+          assert(
+            Math.abs(p.x - (dino.x + 4)) <= cfg('PARTICLE_EMIT_SPREAD') / 2,
+            mode + ' mote stays on the heel, including emit jitter'
+          );
           assertEquals(p.y, dino.y + dino.height - 4, mode + ' mote starts at the heel');
         });
         assertEquals(game.plateauCueShown, false, mode + ' whisper does not spend the plateau cue');
-        assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
-          mode + ' speed still follows the score');
+        assertEquals(
+          game.currentSpeed,
+          DifficultyProfile.speedAtScore(game.score),
+          mode + ' speed still follows the score'
+        );
         assertEquals(game.rng, seed, mode + ' whisper does not replace the run seed');
       }
 
@@ -10070,8 +12171,11 @@ describe('Quiet late-run heel trail', () => {
       game.score = before;
       tick();
       assertEquals(trailMotes().length, 0, 'Classic never trails');
-      assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
-        'Classic speed still follows the score');
+      assertEquals(
+        game.currentSpeed,
+        DifficultyProfile.speedAtScore(game.score),
+        'Classic speed still follows the score'
+      );
     } finally {
       game.mode = origMode;
       game.score = origScore;
@@ -10107,8 +12211,11 @@ describe('Quiet late-run heel trail', () => {
         assertEquals(p.life, expectedLife, 'the running frame uses the halved life');
       });
       assert(game.score < 1, 'the damped whisper does not move the score');
-      assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
-        'the damped whisper does not move the speed');
+      assertEquals(
+        game.currentSpeed,
+        DifficultyProfile.speedAtScore(game.score),
+        'the damped whisper does not move the speed'
+      );
     } finally {
       game.mode = origMode;
       setQaTrail(false);
@@ -10153,7 +12260,10 @@ describe('QA trail flag (?qaTrail=1)', () => {
 
   it('recognizes only ?qaTrail=1', () => {
     assert(readQaTrailFlag('?qaTrail=1') === true, '?qaTrail=1 should enable the early heel trail');
-    assert(readQaTrailFlag('?qaNight=1&qaTrail=1') === true, 'the flag should work beside ?qaNight=1');
+    assert(
+      readQaTrailFlag('?qaNight=1&qaTrail=1') === true,
+      'the flag should work beside ?qaNight=1'
+    );
     assert(readQaTrailFlag('?qaTrail=1&qaNight=1') === true, 'param order should not matter');
     assert(readQaTrailFlag('') === false, 'a normal visit should leave the trail on real speed');
     assert(readQaTrailFlag('?qaTrail=0') === false, 'only the value 1 enables the flag');
@@ -10171,31 +12281,48 @@ describe('QA trail flag (?qaTrail=1)', () => {
         tick();
         const rngAfterOff = game.rng();
         const speedOff = game.currentSpeed;
-        assertEquals(trailMotes().length, 0, mode + ' without the flag does not whisper at the start');
+        assertEquals(
+          trailMotes().length,
+          0,
+          mode + ' without the flag does not whisper at the start'
+        );
 
         armFreshRun(mode);
         game.rng = mulberry32(11);
         setQaTrail(true);
         tick();
         const motes = trailMotes();
-        assertEquals(motes.length, Particles.KINDS.trail.count, mode + ' emits the whisper immediately');
+        assertEquals(
+          motes.length,
+          Particles.KINDS.trail.count,
+          mode + ' emits the whisper immediately'
+        );
         motes.forEach((p) => {
           assertEquals(p.life, Particles.KINDS.trail.life, mode + ' uses the quiet life');
           assertEquals(p.color, WHISPER_COLOR, mode + ' uses the quiet grey');
-          assert(Math.abs(p.x - (dino.x + 4)) <= cfg('PARTICLE_EMIT_SPREAD') / 2,
-            mode + ' QA mote stays at the heel');
+          assert(
+            Math.abs(p.x - (dino.x + 4)) <= cfg('PARTICLE_EMIT_SPREAD') / 2,
+            mode + ' QA mote stays at the heel'
+          );
           assertEquals(p.y, dino.y + dino.height - 4, mode + ' QA mote starts at the heel');
         });
         assertEquals(game.score, GAME_CONFIG.SCORE_INCREMENT, mode + ' must not jump the score');
         assertEquals(game.currentSpeed, speedOff, mode + ' must not change speed');
-        assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
-          mode + ' speed still follows the real score');
+        assertEquals(
+          game.currentSpeed,
+          DifficultyProfile.speedAtScore(game.score),
+          mode + ' speed still follows the real score'
+        );
         assertEquals(game.rng(), rngAfterOff, mode + ' does not consume the run seed');
         assertEquals(game.plateauCueShown, false, mode + ' does not spend the plateau cue');
 
         tick();
         assertEquals(trailMotes().length, 2, mode + ' keeps whispering on the next frame');
-        assertEquals(game.score, GAME_CONFIG.SCORE_INCREMENT * 2, mode + ' scoring keeps its normal step');
+        assertEquals(
+          game.score,
+          GAME_CONFIG.SCORE_INCREMENT * 2,
+          mode + ' scoring keeps its normal step'
+        );
       }
     } finally {
       game.mode = origMode;
@@ -10213,8 +12340,11 @@ describe('QA trail flag (?qaTrail=1)', () => {
       tick();
       tick();
       assertEquals(trailMotes().length, 0, 'Classic never trails, even with the flag');
-      assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
-        'Classic speed still follows the score');
+      assertEquals(
+        game.currentSpeed,
+        DifficultyProfile.speedAtScore(game.score),
+        'Classic speed still follows the score'
+      );
     } finally {
       game.mode = origMode;
       setQaTrail(false);
@@ -10239,11 +12369,17 @@ describe('QA trail flag (?qaTrail=1)', () => {
       game.lastObstacleX = GAME_CONFIG.CANVAS_W;
       game.nextSpawnGap = GAME_CONFIG.MAX_SPAWN_GAP;
       tick();
-      assertEquals(trailMotes().length, Particles.KINDS.trail.count,
-        'resetGame should arm the early whisper from location.search');
+      assertEquals(
+        trailMotes().length,
+        Particles.KINDS.trail.count,
+        'resetGame should arm the early whisper from location.search'
+      );
       assert(game.score < 1, 're-reading the flag must not change the score');
-      assertEquals(getBackgroundColor(game.score), '#1a1a2e',
-        'qaNight on the same query still paints night');
+      assertEquals(
+        getBackgroundColor(game.score),
+        '#1a1a2e',
+        'qaNight on the same query still paints night'
+      );
     } finally {
       restorePageQuery();
       game.mode = origMode;
@@ -10272,16 +12408,73 @@ describe('Quiet new-best confetti', () => {
     vyMin: -1.6,
     vyMax: -0.5,
     vxSpread: 0.7,
-    gravity: 0.10,
+    gravity: 0.1,
   };
 
   const UNCHANGED_KINDS = {
-    jump:      { count: 3,  color: '#9c8770', size: 3, life: 8, alpha: 0.5, vyMin: -1.2, vyMax: -0.4, vxSpread: 0.6, gravity: 0.10 },
-    land:      { count: 5,  color: '#9c8770', size: 3, life: 8, alpha: 0.4, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.7, gravity: 0.12 },
-    trail:     { count: 1,  color: 'rgba(150,150,150,0.28)', size: 2, life:  6, vyMin: -0.1, vyMax:  0.1, vxSpread: 0.2, gravity: 0 },
-    collision: { count: 5,  color: '#d04a2a',                size: 3, life: 8, vyMin: -1.2, vyMax:  0.4, vxSpread: 0.7, gravity: 0.10 },
-    plateau:   { count: 4,  color: '#c5d4e4', size: 2, life: 12, alpha: 0.45, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.3, gravity: 0.06 },
-    plateauQa: { count: 4, color: '#3d4f63', size: 2, life: 40, vyMin: -0.2, vyMax: -0.08, vxSpread: 0.08, gravity: 0.002 },
+    jump: {
+      count: 3,
+      color: '#9c8770',
+      size: 3,
+      life: 8,
+      alpha: 0.5,
+      vyMin: -1.2,
+      vyMax: -0.4,
+      vxSpread: 0.6,
+      gravity: 0.1,
+    },
+    land: {
+      count: 5,
+      color: '#9c8770',
+      size: 3,
+      life: 8,
+      alpha: 0.4,
+      vyMin: -0.9,
+      vyMax: -0.4,
+      vxSpread: 0.7,
+      gravity: 0.12,
+    },
+    trail: {
+      count: 1,
+      color: 'rgba(150,150,150,0.28)',
+      size: 2,
+      life: 6,
+      vyMin: -0.1,
+      vyMax: 0.1,
+      vxSpread: 0.2,
+      gravity: 0,
+    },
+    collision: {
+      count: 5,
+      color: '#d04a2a',
+      size: 3,
+      life: 8,
+      vyMin: -1.2,
+      vyMax: 0.4,
+      vxSpread: 0.7,
+      gravity: 0.1,
+    },
+    plateau: {
+      count: 4,
+      color: '#c5d4e4',
+      size: 2,
+      life: 12,
+      alpha: 0.45,
+      vyMin: -0.9,
+      vyMax: -0.4,
+      vxSpread: 0.3,
+      gravity: 0.06,
+    },
+    plateauQa: {
+      count: 4,
+      color: '#3d4f63',
+      size: 2,
+      life: 40,
+      vyMin: -0.2,
+      vyMax: -0.08,
+      vxSpread: 0.08,
+      gravity: 0.002,
+    },
   };
 
   function stepPath(vy0, kind) {
@@ -10324,8 +12517,10 @@ describe('Quiet new-best confetti', () => {
     assert(kind.alpha < 1 && kind.alpha >= 0.6, 'soft gold, still a celebration');
     assert(reach <= 16, 'a full life stays on the score, including emit jitter');
     assert(reach < 1.2 * 20, 'tighter than the round-1 spray toward the lane');
-    assert(-up.min + kind.size / 2 < GAME_CONFIG.SCORE_Y,
-      'the puff does not leave the top of the canvas');
+    assert(
+      -up.min + kind.size / 2 < GAME_CONFIG.SCORE_Y,
+      'the puff does not leave the top of the canvas'
+    );
     assert(-up.min >= 8, 'the puff still lifts enough to read at the score');
     assert(down.max + kind.size / 2 < 24, 'the puff does not fall toward the lane');
     assert(kind.count > Particles.KINDS.jump.count, 'still reads louder than a jump puff');
@@ -10364,12 +12559,24 @@ describe('Quiet new-best confetti', () => {
           assertEquals(motes.length, 0, 'Classic level-up still emits no confetti');
         } else {
           assertEquals(motes.length, PUFF.count, mode + ' level-up emits the quiet puff');
-          assert(motes.every((p) => p.life === PUFF.life - 1), mode + ' puff uses the short life');
-          assert(motes.every((p) => p.color === PUFF.color), mode + ' puff stays gold');
-          assert(motes.every((p) => p.alpha === PUFF.alpha), mode + ' puff uses the soft peak');
+          assert(
+            motes.every((p) => p.life === PUFF.life - 1),
+            mode + ' puff uses the short life'
+          );
+          assert(
+            motes.every((p) => p.color === PUFF.color),
+            mode + ' puff stays gold'
+          );
+          assert(
+            motes.every((p) => p.alpha === PUFF.alpha),
+            mode + ' puff uses the soft peak'
+          );
         }
-        assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
-          mode + ' level-up leaves speed on the curve');
+        assertEquals(
+          game.currentSpeed,
+          DifficultyProfile.speedAtScore(game.score),
+          mode + ' level-up leaves speed on the curve'
+        );
       }
     } finally {
       game.mode = origMode;
@@ -10415,7 +12622,15 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
     const origFillRect = ctx.fillRect;
     const origFillText = ctx.fillText;
     ctx.fillRect = function (x, y, w, h) {
-      calls.push({ op: 'rect', style: ctx.fillStyle, x: x, y: y, w: w, h: h, alpha: ctx.globalAlpha });
+      calls.push({
+        op: 'rect',
+        style: ctx.fillStyle,
+        x: x,
+        y: y,
+        w: w,
+        h: h,
+        alpha: ctx.globalAlpha,
+      });
     };
     ctx.fillText = function (text) {
       calls.push({ op: 'text', text: String(text) });
@@ -10479,12 +12694,24 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
   }
 
   it('recognizes only ?qaConfetti=1', () => {
-    assert(readQaConfettiFlag('?qaConfetti=1') === true, '?qaConfetti=1 should enable the early gold puff');
-    assert(readQaConfettiFlag('?qaNight=1&qaConfetti=1') === true, 'the flag should work beside ?qaNight=1');
+    assert(
+      readQaConfettiFlag('?qaConfetti=1') === true,
+      '?qaConfetti=1 should enable the early gold puff'
+    );
+    assert(
+      readQaConfettiFlag('?qaNight=1&qaConfetti=1') === true,
+      'the flag should work beside ?qaNight=1'
+    );
     assert(readQaConfettiFlag('?qaConfetti=1&qaTrail=1') === true, 'param order should not matter');
-    assert(readQaConfettiFlag('') === false, 'a normal visit should leave confetti on the real level');
+    assert(
+      readQaConfettiFlag('') === false,
+      'a normal visit should leave confetti on the real level'
+    );
     assert(readQaConfettiFlag('?qaConfetti=0') === false, 'only the value 1 enables the flag');
-    assert(readQaConfettiFlag('?qaConfetti=12') === false, 'qaConfetti=12 must not count as the flag');
+    assert(
+      readQaConfettiFlag('?qaConfetti=12') === false,
+      'qaConfetti=12 must not count as the flag'
+    );
     assert(readQaConfettiFlag('?qaLevel=1') === false, 'the level flag must not force this latch');
   });
 
@@ -10492,11 +12719,24 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
     const origMode = game.mode;
     const spy = spyPaint();
     try {
-      assert(QA_CONFETTI_HOLD >= 120, 'the debug hold must outlast a quick capture after GET READY');
-      assert(QA_CONFETTI_BLOCK_W >= 60, 'the debug block must be wide enough to see under the score');
-      assert(QA_CONFETTI_BLOCK_H >= 24, 'the debug block must be tall enough to see under the score');
+      assert(
+        QA_CONFETTI_HOLD >= 120,
+        'the debug hold must outlast a quick capture after GET READY'
+      );
+      assert(
+        QA_CONFETTI_BLOCK_W >= 60,
+        'the debug block must be wide enough to see under the score'
+      );
+      assert(
+        QA_CONFETTI_BLOCK_H >= 24,
+        'the debug block must be tall enough to see under the score'
+      );
       assertEquals(Particles.KINDS.confetti.life, 12, 'production life stays the shorter puff');
-      assertEquals(Particles.KINDS.confetti.color, '#ffd700', 'production gold stays the light kind');
+      assertEquals(
+        Particles.KINDS.confetti.color,
+        '#ffd700',
+        'production gold stays the light kind'
+      );
       assertEquals(Particles.KINDS.confetti.size, 3, 'production mote size stays 3');
       assertEquals(Particles.KINDS.confetti.count, 6, 'production count stays the quieter puff');
       assertEquals(Particles.KINDS.confetti.vxSpread, 0.7, 'production spread stays on the score');
@@ -10509,8 +12749,16 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
         tick();
         const rngAfterOff = game.rng();
         const speedOff = game.currentSpeed;
-        assertEquals(goldAfterScore(spy.calls).length, 0, mode + ' without the flag does not paint');
-        assertEquals(game.qaConfettiShown, false, mode + ' without the flag does not spend the latch');
+        assertEquals(
+          goldAfterScore(spy.calls).length,
+          0,
+          mode + ' without the flag does not paint'
+        );
+        assertEquals(
+          game.qaConfettiShown,
+          false,
+          mode + ' without the flag does not spend the latch'
+        );
         assertEquals(game.qaConfettiHold, 0, mode + ' without the flag does not start the hold');
 
         armFreshRun(mode);
@@ -10533,8 +12781,11 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
         });
         assertEquals(game.score, GAME_CONFIG.SCORE_INCREMENT, mode + ' must not jump the score');
         assertEquals(game.currentSpeed, speedOff, mode + ' must not change speed');
-        assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
-          mode + ' speed still follows the real score');
+        assertEquals(
+          game.currentSpeed,
+          DifficultyProfile.speedAtScore(game.score),
+          mode + ' speed still follows the real score'
+        );
         assertEquals(game.rng(), rngAfterOff, mode + ' does not consume the run seed');
         assertEquals(game.plateauCueShown, false, mode + ' does not spend the plateau cue');
         assertEquals(game.qaLevelShown, false, mode + ' does not spend the level latch');
@@ -10545,10 +12796,15 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
           tick();
         }
         assertBlock(spy.calls, mode + ' still');
-        assertEquals(game.qaConfettiHold, QA_CONFETTI_HOLD - 90,
-          mode + ' keeps the hold up well after GET READY');
-        assert(Math.abs(game.score - GAME_CONFIG.SCORE_INCREMENT * 91) < 1e-6,
-          mode + ' scoring keeps its normal step');
+        assertEquals(
+          game.qaConfettiHold,
+          QA_CONFETTI_HOLD - 90,
+          mode + ' keeps the hold up well after GET READY'
+        );
+        assert(
+          Math.abs(game.score - GAME_CONFIG.SCORE_INCREMENT * 91) < 1e-6,
+          mode + ' scoring keeps its normal step'
+        );
       }
     } finally {
       spy.restore();
@@ -10615,8 +12871,11 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
       );
       assertEquals(game.qaConfettiShown, false, 'Classic does not spend the Updated latch');
       assertEquals(game.qaConfettiHold, 0, 'Classic does not start the hold');
-      assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
-        'Classic speed still follows the score');
+      assertEquals(
+        game.currentSpeed,
+        DifficultyProfile.speedAtScore(game.score),
+        'Classic speed still follows the score'
+      );
     } finally {
       spy.restore();
       game.mode = origMode;
@@ -10636,13 +12895,21 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
         setQaConfetti(true);
         spy.calls.length = 0;
         tick();
-        assertEquals(game.qaConfettiHold, qaConfettiHoldFrames(), mode + ' hold uses the shorter window');
-        assert(game.qaConfettiHold < QA_CONFETTI_HOLD, mode + ' hold is shorter than the full capture');
+        assertEquals(
+          game.qaConfettiHold,
+          qaConfettiHoldFrames(),
+          mode + ' hold uses the shorter window'
+        );
+        assert(
+          game.qaConfettiHold < QA_CONFETTI_HOLD,
+          mode + ' hold is shorter than the full capture'
+        );
         assert(qaConfettiHoldFrames() >= 2, mode + ' hold still lasts long enough to see');
         assertEquals(qaConfettiPaintAlpha(), 0.5, mode + ' reduced motion halves the hold ink');
         assertBlock(spy.calls, mode + ' reduced motion', 0.5);
         assertEquals(
-          Particles.particles.filter((p) => p.color === QA_CONFETTI_COLOR || p.color === '#ffd700').length,
+          Particles.particles.filter((p) => p.color === QA_CONFETTI_COLOR || p.color === '#ffd700')
+            .length,
           0,
           mode + ' debug block does not go through the particle pool'
         );
@@ -10719,11 +12986,58 @@ describe('Quiet day land dust', () => {
     gravity: 0.12,
   };
   const UNCHANGED_KINDS = {
-    trail:     { count: 1,  color: 'rgba(150,150,150,0.28)', size: 2, life:  6, vyMin: -0.1, vyMax:  0.1, vxSpread: 0.2, gravity: 0 },
-    collision: { count: 5,  color: '#d04a2a',                size: 3, life: 8, vyMin: -1.2, vyMax:  0.4, vxSpread: 0.7, gravity: 0.10 },
-    confetti:  { count: 6, color: '#ffd700',                size: 3, life: 12, alpha: 0.7, vyMin: -1.6, vyMax: -0.5, vxSpread: 0.7, gravity: 0.10 },
-    plateau:   { count: 4,  color: '#c5d4e4', size: 2, life: 12, alpha: 0.45, vyMin: -0.9, vyMax: -0.4, vxSpread: 0.3, gravity: 0.06 },
-    plateauQa: { count: 4, color: '#3d4f63', size: 2, life: 40, vyMin: -0.2, vyMax: -0.08, vxSpread: 0.08, gravity: 0.002 },
+    trail: {
+      count: 1,
+      color: 'rgba(150,150,150,0.28)',
+      size: 2,
+      life: 6,
+      vyMin: -0.1,
+      vyMax: 0.1,
+      vxSpread: 0.2,
+      gravity: 0,
+    },
+    collision: {
+      count: 5,
+      color: '#d04a2a',
+      size: 3,
+      life: 8,
+      vyMin: -1.2,
+      vyMax: 0.4,
+      vxSpread: 0.7,
+      gravity: 0.1,
+    },
+    confetti: {
+      count: 6,
+      color: '#ffd700',
+      size: 3,
+      life: 12,
+      alpha: 0.7,
+      vyMin: -1.6,
+      vyMax: -0.5,
+      vxSpread: 0.7,
+      gravity: 0.1,
+    },
+    plateau: {
+      count: 4,
+      color: '#c5d4e4',
+      size: 2,
+      life: 12,
+      alpha: 0.45,
+      vyMin: -0.9,
+      vyMax: -0.4,
+      vxSpread: 0.3,
+      gravity: 0.06,
+    },
+    plateauQa: {
+      count: 4,
+      color: '#3d4f63',
+      size: 2,
+      life: 40,
+      vyMin: -0.2,
+      vyMax: -0.08,
+      vxSpread: 0.08,
+      gravity: 0.002,
+    },
   };
 
   function stepPath(vy0, kind) {
@@ -10816,7 +13130,10 @@ describe('Quiet day land dust', () => {
           game.mode = mode;
           game.score = 0;
           let rngCalls = 0;
-          game.rng = () => { rngCalls++; return 0.5; };
+          game.rng = () => {
+            rngCalls++;
+            return 0.5;
+          };
           Particles.reset();
           const n = Particles.emit(kind, 80, 140);
           const motes = dustMotes(want.color);
@@ -10830,8 +13147,14 @@ describe('Quiet day land dust', () => {
             assertEquals(p.color, want.color, mode + ' ' + kind + ' mote stays the day brown');
             assertEquals(p.alpha, want.alpha, mode + ' ' + kind + ' mote keeps the soft peak ink');
             assertEquals(p.gravity, want.gravity, mode + ' ' + kind + ' mote keeps its settle');
-            assert(Math.abs(p.vx) <= want.vxSpread, mode + ' ' + kind + ' stays inside the tight spread');
-            assert(p.vy >= want.vyMin && p.vy <= want.vyMax, mode + ' ' + kind + ' stays in the short lift');
+            assert(
+              Math.abs(p.vx) <= want.vxSpread,
+              mode + ' ' + kind + ' stays inside the tight spread'
+            );
+            assert(
+              p.vy >= want.vyMin && p.vy <= want.vyMax,
+              mode + ' ' + kind + ' stays in the short lift'
+            );
           });
         }
       }
@@ -10944,7 +13267,15 @@ describe('QA dust flag (?qaDust=1)', () => {
     const origFillRect = ctx.fillRect;
     const origFillText = ctx.fillText;
     ctx.fillRect = function (x, y, w, h) {
-      calls.push({ op: 'rect', style: ctx.fillStyle, x: x, y: y, w: w, h: h, alpha: ctx.globalAlpha });
+      calls.push({
+        op: 'rect',
+        style: ctx.fillStyle,
+        x: x,
+        y: y,
+        w: w,
+        h: h,
+        alpha: ctx.globalAlpha,
+      });
     };
     ctx.fillText = function (text) {
       calls.push({ op: 'text', text: String(text) });
@@ -10959,7 +13290,9 @@ describe('QA dust flag (?qaDust=1)', () => {
   }
 
   function dustFills(calls, color) {
-    return calls.filter((c) => c.op === 'rect' && c.style === color && c.w === QA_DUST_SIZE && c.h === QA_DUST_SIZE);
+    return calls.filter(
+      (c) => c.op === 'rect' && c.style === color && c.w === QA_DUST_SIZE && c.h === QA_DUST_SIZE
+    );
   }
 
   function assertMarks(calls, color, label, alpha) {
@@ -10975,7 +13308,9 @@ describe('QA dust flag (?qaDust=1)', () => {
     const rims = calls.filter((c) => c.op === 'rect' && c.style === QA_DUST_RIM);
     assertEquals(rims.length, marks.length, label + ' paints a rim with every mote');
     const lastHud = calls.reduce((at, c, i) => (c.op === 'text' ? i : at), -1);
-    const firstFill = calls.findIndex((c) => c.op === 'rect' && c.style === color && c.w === QA_DUST_SIZE);
+    const firstFill = calls.findIndex(
+      (c) => c.op === 'rect' && c.style === color && c.w === QA_DUST_SIZE
+    );
     assert(firstFill > lastHud, label + ' dust is painted after the frame, including the HUD');
   }
 
@@ -11004,9 +13339,15 @@ describe('QA dust flag (?qaDust=1)', () => {
 
   it('recognizes only ?qaDust=1', () => {
     assert(readQaDustFlag('?qaDust=1') === true, '?qaDust=1 should enable the held foot dust');
-    assert(readQaDustFlag('?qaNight=1&qaDust=1') === true, 'the flag should work beside ?qaNight=1');
+    assert(
+      readQaDustFlag('?qaNight=1&qaDust=1') === true,
+      'the flag should work beside ?qaNight=1'
+    );
     assert(readQaDustFlag('?qaDust=1&qaConfetti=1') === true, 'param order should not matter');
-    assert(readQaDustFlag('') === false, 'a normal visit should leave dust on a real jump and land');
+    assert(
+      readQaDustFlag('') === false,
+      'a normal visit should leave dust on a real jump and land'
+    );
     assert(readQaDustFlag('?qaDust=0') === false, 'only the value 1 enables the flag');
     assert(readQaDustFlag('?qaDust=12') === false, 'qaDust=12 must not count as the flag');
     assert(readQaDustFlag('?qaNight=1') === false, 'night alone must not force the held dust');
@@ -11026,7 +13367,11 @@ describe('QA dust flag (?qaDust=1)', () => {
         tick();
         const rngAfterOff = game.rng();
         const speedOff = game.currentSpeed;
-        assertEquals(dustFills(spy.calls, '#9c8770').length, 0, mode + ' without the flag does not paint');
+        assertEquals(
+          dustFills(spy.calls, '#9c8770').length,
+          0,
+          mode + ' without the flag does not paint'
+        );
         assertEquals(game.qaDustShown, false, mode + ' without the flag does not spend the latch');
         assertEquals(game.qaDustHold, 0, mode + ' without the flag does not start the hold');
 
@@ -11051,8 +13396,11 @@ describe('QA dust flag (?qaDust=1)', () => {
         });
         assertEquals(game.score, GAME_CONFIG.SCORE_INCREMENT, mode + ' must not jump the score');
         assertEquals(game.currentSpeed, speedOff, mode + ' must not change speed');
-        assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
-          mode + ' speed still follows the real score');
+        assertEquals(
+          game.currentSpeed,
+          DifficultyProfile.speedAtScore(game.score),
+          mode + ' speed still follows the real score'
+        );
         assertEquals(game.rng(), rngAfterOff, mode + ' does not consume the run seed');
         assertEquals(game.plateauCueShown, false, mode + ' does not spend the plateau cue');
 
@@ -11061,10 +13409,15 @@ describe('QA dust flag (?qaDust=1)', () => {
           tick();
         }
         assertMarks(spy.calls, '#9c8770', mode + ' still');
-        assertEquals(game.qaDustHold, QA_DUST_HOLD - 90,
-          mode + ' keeps the hold up well into the run');
-        assert(Math.abs(game.score - GAME_CONFIG.SCORE_INCREMENT * 91) < 1e-6,
-          mode + ' scoring keeps its normal step');
+        assertEquals(
+          game.qaDustHold,
+          QA_DUST_HOLD - 90,
+          mode + ' keeps the hold up well into the run'
+        );
+        assert(
+          Math.abs(game.score - GAME_CONFIG.SCORE_INCREMENT * 91) < 1e-6,
+          mode + ' scoring keeps its normal step'
+        );
       }
     } finally {
       spy.restore();
@@ -11146,11 +13499,22 @@ describe('QA dust flag (?qaDust=1)', () => {
       tick();
       assertMarks(spy.calls, GAME_CONFIG.NIGHT_LAND_DUST_COLOR, 'night', 0.42);
       assertEquals(GAME_CONFIG.NIGHT_LAND_DUST_COLOR, '#6a686e', 'night dust stays the cool gray');
-      assertEquals(GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA, 0.42,
-        'the night hold uses the quieter takeoff peak, not solid ink');
-      assertEquals(dustFills(spy.calls, '#9c8770').length, 0, 'night hold does not paint the day brown');
+      assertEquals(
+        GAME_CONFIG.NIGHT_JUMP_DUST_ALPHA,
+        0.42,
+        'the night hold uses the quieter takeoff peak, not solid ink'
+      );
+      assertEquals(
+        dustFills(spy.calls, '#9c8770').length,
+        0,
+        'night hold does not paint the day brown'
+      );
       assert(game.score < 1, 'the night hold must not write the score');
-      assertEquals(game.qaDustHold, QA_DUST_HOLD, 'the quieter night hold keeps the full capture length');
+      assertEquals(
+        game.qaDustHold,
+        QA_DUST_HOLD,
+        'the quieter night hold keeps the full capture length'
+      );
     } finally {
       spy.restore();
       game.mode = origMode;
@@ -11170,11 +13534,18 @@ describe('QA dust flag (?qaDust=1)', () => {
       tick();
       tick();
       assertEquals(dustFills(spy.calls, '#9c8770').length, 0, 'Classic never paints the held dust');
-      assertEquals(dustFills(spy.calls, '#6a686e').length, 0, 'Classic never paints the night dust either');
+      assertEquals(
+        dustFills(spy.calls, '#6a686e').length,
+        0,
+        'Classic never paints the night dust either'
+      );
       assertEquals(game.qaDustShown, false, 'Classic does not spend the Updated latch');
       assertEquals(game.qaDustHold, 0, 'Classic does not start the hold');
-      assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
-        'Classic speed still follows the score');
+      assertEquals(
+        game.currentSpeed,
+        DifficultyProfile.speedAtScore(game.score),
+        'Classic speed still follows the score'
+      );
     } finally {
       spy.restore();
       game.mode = origMode;
@@ -11219,8 +13590,11 @@ describe('QA dust flag (?qaDust=1)', () => {
       setQaDust(true);
       tick();
       assertMarks(spy.calls, '#6a686e', 'reduced motion night', 0.21);
-      assertEquals(game.qaDustHold, QA_DUST_HOLD,
-        'reduced motion damps the night ink without shortening the hold');
+      assertEquals(
+        game.qaDustHold,
+        QA_DUST_HOLD,
+        'reduced motion damps the night ink without shortening the hold'
+      );
       assertEquals(
         Particles.particles.filter((p) => p.life > 0).length,
         0,
@@ -11260,8 +13634,11 @@ describe('QA dust flag (?qaDust=1)', () => {
       assertEquals(game.qaDustHold, QA_DUST_HOLD, 'the re-read flag latches the hold');
       assert(game.score < 1, 're-reading the flag must not change the score');
       assertEquals(game.qaDustShown, true, 'the re-read flag spends the latch');
-      assertEquals(getBackgroundColor(game.score), '#1a1a2e',
-        'qaNight on the same query still paints night');
+      assertEquals(
+        getBackgroundColor(game.score),
+        '#1a1a2e',
+        'qaNight on the same query still paints night'
+      );
     } finally {
       spy.restore();
       restorePageQuery();
@@ -11308,13 +13685,14 @@ describe('QA flash flag (?qaFlash=1)', () => {
   }
 
   function flashFills(calls, alphaText) {
-    return calls.filter((c) =>
-      c.op === 'rect'
-      && typeof c.style === 'string'
-      && c.style.indexOf('rgba(255, 255, 255') === 0
-      && c.style.indexOf(alphaText) !== -1
-      && c.w === GAME_CONFIG.CANVAS_W
-      && c.h === GAME_CONFIG.CANVAS_H
+    return calls.filter(
+      (c) =>
+        c.op === 'rect' &&
+        typeof c.style === 'string' &&
+        c.style.indexOf('rgba(255, 255, 255') === 0 &&
+        c.style.indexOf(alphaText) !== -1 &&
+        c.w === GAME_CONFIG.CANVAS_W &&
+        c.h === GAME_CONFIG.CANVAS_H
     );
   }
 
@@ -11346,7 +13724,10 @@ describe('QA flash flag (?qaFlash=1)', () => {
 
   it('recognizes only ?qaFlash=1', () => {
     assert(readQaFlashFlag('?qaFlash=1') === true, '?qaFlash=1 should hold the death blink');
-    assert(readQaFlashFlag('?qaNight=1&qaFlash=1') === true, 'the flag should work beside ?qaNight=1');
+    assert(
+      readQaFlashFlag('?qaNight=1&qaFlash=1') === true,
+      'the flag should work beside ?qaNight=1'
+    );
     assert(readQaFlashFlag('?qaFlash=1&qaDust=1') === true, 'param order should not matter');
     assert(readQaFlashFlag('') === false, 'a normal visit should leave the flash for a real death');
     assert(readQaFlashFlag('?qaFlash=0') === false, 'only the value 1 enables the flag');
@@ -11369,7 +13750,11 @@ describe('QA flash flag (?qaFlash=1)', () => {
         const rngAfterOff = game.rng();
         const speedOff = game.currentSpeed;
         const scoreOff = game.score;
-        assertEquals(flashFills(spy.calls, dayAlpha).length, 0, mode + ' without the flag does not wash the lane');
+        assertEquals(
+          flashFills(spy.calls, dayAlpha).length,
+          0,
+          mode + ' without the flag does not wash the lane'
+        );
         assertEquals(game.qaFlashHold, 0, mode + ' without the flag does not start the hold');
 
         armFreshRun(mode);
@@ -11386,11 +13771,21 @@ describe('QA flash flag (?qaFlash=1)', () => {
         assertEquals(fills[0].y, 0, mode + ' blink starts at the canvas top');
         assertEquals(fills[0].alpha, 1, mode + ' blink is a real fill, not a hidden layer');
         const lastHud = spy.calls.reduce((at, c, i) => (c.op === 'text' ? i : at), -1);
-        const flashAt = spy.calls.findIndex((c) => c.op === 'rect' && c.w === GAME_CONFIG.CANVAS_W && typeof c.style === 'string' && c.style.indexOf(dayAlpha) !== -1);
+        const flashAt = spy.calls.findIndex(
+          (c) =>
+            c.op === 'rect' &&
+            c.w === GAME_CONFIG.CANVAS_W &&
+            typeof c.style === 'string' &&
+            c.style.indexOf(dayAlpha) !== -1
+        );
         assert(flashAt > lastHud, mode + ' blink is painted after the frame, including the HUD');
         assertEquals(game.qaFlashHold, QA_FLASH_HOLD, mode + ' latches the full hold');
         assertEquals(game.qaFlashShown, true, mode + ' spends the latch');
-        assertEquals(Animations.deathFlashFrames, 0, mode + ' does not borrow the real death timer');
+        assertEquals(
+          Animations.deathFlashFrames,
+          0,
+          mode + ' does not borrow the real death timer'
+        );
         assertEquals(game.score, scoreOff, mode + ' hold must not write the score');
         assertEquals(game.currentSpeed, speedOff, mode + ' hold must not change speed');
         assertEquals(game.rng(), rngAfterOff, mode + ' hold must not consume the run seed');
@@ -11417,10 +13812,16 @@ describe('QA flash flag (?qaFlash=1)', () => {
       tick();
       const dayAlpha = GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA.toFixed(3);
       assertEquals(game.state, STATE.DEAD, 'the cactus still ends the run');
-      assertEquals(flashFills(spy.calls, dayAlpha).length, 1,
-        'the hold still paints after the collision return');
-      assertEquals(Animations.deathFlashFrames, GAME_CONFIG.DEATH_FLASH_FRAMES,
-        'the real flash timer is still armed for the death shake');
+      assertEquals(
+        flashFills(spy.calls, dayAlpha).length,
+        1,
+        'the hold still paints after the collision return'
+      );
+      assertEquals(
+        Animations.deathFlashFrames,
+        GAME_CONFIG.DEATH_FLASH_FRAMES,
+        'the real flash timer is still armed for the death shake'
+      );
       assert(game.score < 1, 'dying on the QA frame does not invent score');
     } finally {
       spy.restore();
@@ -11445,10 +13846,17 @@ describe('QA flash flag (?qaFlash=1)', () => {
       const nightAlpha = GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA.toFixed(3);
       const dayAlpha = GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA.toFixed(3);
       assertEquals(flashFills(spy.calls, nightAlpha).length, 1, 'night hold paints the quiet peak');
-      assertEquals(flashFills(spy.calls, dayAlpha).length, 0, 'night hold does not paint the day peak');
+      assertEquals(
+        flashFills(spy.calls, dayAlpha).length,
+        0,
+        'night hold does not paint the day peak'
+      );
       assert(game.score < 1, 'the night hold must not write the score');
-      assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
-        'the night hold must not change speed');
+      assertEquals(
+        game.currentSpeed,
+        DifficultyProfile.speedAtScore(game.score),
+        'the night hold must not change speed'
+      );
     } finally {
       spy.restore();
       game.mode = origMode;
@@ -11497,12 +13905,23 @@ describe('QA flash flag (?qaFlash=1)', () => {
         spy.calls.length = 0;
         tick();
         const label = night ? 'night' : 'day';
-        assertEquals(game.qaFlashHold, qaFlashHoldFrames(), label + ' hold uses the shorter window');
+        assertEquals(
+          game.qaFlashHold,
+          qaFlashHoldFrames(),
+          label + ' hold uses the shorter window'
+        );
         assert(game.qaFlashHold < QA_FLASH_HOLD, label + ' hold is shorter than the full capture');
         assert(qaFlashHoldFrames() >= 2, label + ' hold still lasts long enough to see');
-        assertEquals(flashFills(spy.calls, damped).length, 1, label + ' reduced motion still paints the wash');
-        assertEquals(flashFills(spy.calls, peak.toFixed(3)).length, 0,
-          label + ' reduced motion does not keep the full-strength ink');
+        assertEquals(
+          flashFills(spy.calls, damped).length,
+          1,
+          label + ' reduced motion still paints the wash'
+        );
+        assertEquals(
+          flashFills(spy.calls, peak.toFixed(3)).length,
+          0,
+          label + ' reduced motion does not keep the full-strength ink'
+        );
         assertEquals(Animations.deathFlashFrames, 0, label + ' hold does not arm the real flash');
         assert(game.score < 1, label + ' damped hold must not write the score');
       }
@@ -11536,13 +13955,19 @@ describe('QA flash flag (?qaFlash=1)', () => {
       Animations.deathFlashFrames = 0;
       Particles.reset();
       tick();
-      assertEquals(flashFills(spy.calls, GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA.toFixed(3)).length, 1,
-        're-read flag paints the night blink');
+      assertEquals(
+        flashFills(spy.calls, GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA.toFixed(3)).length,
+        1,
+        're-read flag paints the night blink'
+      );
       assertEquals(game.qaFlashHold, QA_FLASH_HOLD, 'the re-read flag latches the hold');
       assert(game.score < 1, 're-reading the flag must not change the score');
       assertEquals(game.qaFlashShown, true, 'the re-read flag spends the latch');
-      assertEquals(getBackgroundColor(game.score), '#1a1a2e',
-        'qaNight on the same query still paints night');
+      assertEquals(
+        getBackgroundColor(game.score),
+        '#1a1a2e',
+        'qaNight on the same query still paints night'
+      );
     } finally {
       spy.restore();
       restorePageQuery();
@@ -11561,7 +13986,11 @@ describe('Quieter death score pop', () => {
   function withTuning(overrides, fn) {
     const orig = window.GAME_TUNING;
     window.GAME_TUNING = overrides;
-    try { fn(); } finally { window.GAME_TUNING = orig; }
+    try {
+      fn();
+    } finally {
+      window.GAME_TUNING = orig;
+    }
   }
 
   function spyScale() {
@@ -11584,33 +14013,44 @@ describe('Quieter death score pop', () => {
   }
 
   function scalesNear(calls, scale) {
-    return calls.filter((c) =>
-      c.op === 'scale' && Math.abs(c.x - scale) < 1e-9 && Math.abs(c.y - scale) < 1e-9
+    return calls.filter(
+      (c) => c.op === 'scale' && Math.abs(c.x - scale) < 1e-9 && Math.abs(c.y - scale) < 1e-9
     );
   }
 
   it('keeps the shake window and peaks as a breath, not a 1.4 slap', () => {
     const origMode = game.mode;
     try {
-    assertEquals(GAME_CONFIG.SCORE_POP_FRAMES, 12,
-      'the classic-length count stays 12');
-    game.mode = MODES.UPDATED;
-    assertEquals(scorePopWindow(), GAME_CONFIG.UPDATED_DEATH_SHAKE_FRAMES,
-      'the Updated pop eases across the quieter shake');
+      assertEquals(GAME_CONFIG.SCORE_POP_FRAMES, 12, 'the classic-length count stays 12');
+      game.mode = MODES.UPDATED;
+      assertEquals(
+        scorePopWindow(),
+        GAME_CONFIG.UPDATED_DEATH_SHAKE_FRAMES,
+        'the Updated pop eases across the quieter shake'
+      );
     } finally {
       game.mode = origMode;
     }
-    assertEquals(GAME_CONFIG.SCORE_POP_PEAK_SCALE, 1.12,
-      'the first frame grows the 20px digits by about 2.4px');
-    assert(GAME_CONFIG.SCORE_POP_PEAK_SCALE < OLD_SLAP,
-      'the peak stays under the old slap');
-    assert(GAME_CONFIG.SCORE_POP_PEAK_SCALE > 1,
-      'the number still grows, so the death cue still reads');
-    assertEquals(scorePopScale(1), GAME_CONFIG.SCORE_POP_PEAK_SCALE,
-      'the first pop frame is the quiet peak');
+    assertEquals(
+      GAME_CONFIG.SCORE_POP_PEAK_SCALE,
+      1.12,
+      'the first frame grows the 20px digits by about 2.4px'
+    );
+    assert(GAME_CONFIG.SCORE_POP_PEAK_SCALE < OLD_SLAP, 'the peak stays under the old slap');
+    assert(
+      GAME_CONFIG.SCORE_POP_PEAK_SCALE > 1,
+      'the number still grows, so the death cue still reads'
+    );
+    assertEquals(
+      scorePopScale(1),
+      GAME_CONFIG.SCORE_POP_PEAK_SCALE,
+      'the first pop frame is the quiet peak'
+    );
     const mid = scorePopScale(0.5);
-    assert(mid > 1 && mid < GAME_CONFIG.SCORE_POP_PEAK_SCALE,
-      'later frames ease back toward the resting size');
+    assert(
+      mid > 1 && mid < GAME_CONFIG.SCORE_POP_PEAK_SCALE,
+      'later frames ease back toward the resting size'
+    );
   });
 
   it('Updated and Daily draw the first death frame at the quiet peak', () => {
@@ -11626,14 +14066,19 @@ describe('Quieter death score pop', () => {
         Animations.scorePopFrames = scorePopWindow();
         spy.calls.length = 0;
         drawScore();
-        assertEquals(scalesNear(spy.calls, OLD_SLAP).length, 0,
-          mode + ' does not slap the score to 1.4');
-        assertEquals(scalesNear(spy.calls, GAME_CONFIG.SCORE_POP_PEAK_SCALE).length, 1,
-          mode + ' scales the HUD once, at the quiet peak');
+        assertEquals(
+          scalesNear(spy.calls, OLD_SLAP).length,
+          0,
+          mode + ' does not slap the score to 1.4'
+        );
+        assertEquals(
+          scalesNear(spy.calls, GAME_CONFIG.SCORE_POP_PEAK_SCALE).length,
+          1,
+          mode + ' scales the HUD once, at the quiet peak'
+        );
         const scaleAt = spy.calls.findIndex((c) => c.op === 'scale');
         const textAt = spy.calls.findIndex((c) => c.op === 'text' && c.text === '00042');
-        assert(scaleAt !== -1 && textAt > scaleAt,
-          mode + ' draws the digits inside the scale');
+        assert(scaleAt !== -1 && textAt > scaleAt, mode + ' draws the digits inside the scale');
       }
     } finally {
       spy.restore();
@@ -11653,8 +14098,11 @@ describe('Quieter death score pop', () => {
       game.mode = MODES.CLASSIC;
       Animations.scorePopFrames = GAME_CONFIG.SCORE_POP_FRAMES;
       drawScore();
-      assertEquals(spy.calls.filter((c) => c.op === 'scale').length, 0,
-        'Classic keeps the resting HUD even if a pop counter is set');
+      assertEquals(
+        spy.calls.filter((c) => c.op === 'scale').length,
+        0,
+        'Classic keeps the resting HUD even if a pop counter is set'
+      );
     } finally {
       spy.restore();
       game.mode = origMode;
@@ -11674,8 +14122,11 @@ describe('Quieter death score pop', () => {
       drawScore();
       game.mode = MODES.DAILY;
       drawScore();
-      assertEquals(spy.calls.filter((c) => c.op === 'scale').length, 0,
-        'reduced motion skips the real pop in Updated and Daily');
+      assertEquals(
+        spy.calls.filter((c) => c.op === 'scale').length,
+        0,
+        'reduced motion skips the real pop in Updated and Daily'
+      );
     } finally {
       spy.restore();
       game.mode = origMode;
@@ -11699,20 +14150,28 @@ describe('Quieter death score pop', () => {
         assertEquals(scalesNear(spy.calls, 1.05).length, 1, 'the draw uses the tuned peak');
       });
       withTuning({ SCORE_POP_PEAK_SCALE: OLD_SLAP }, () => {
-        assertEquals(scorePopScale(1), OLD_SLAP,
-          'the old peak is the loudest tune still allowed');
+        assertEquals(scorePopScale(1), OLD_SLAP, 'the old peak is the loudest tune still allowed');
       });
       withTuning({ SCORE_POP_PEAK_SCALE: 2 }, () => {
-        assertEquals(scorePopScale(1), GAME_CONFIG.SCORE_POP_PEAK_SCALE,
-          'a peak past 1.4 falls back to the quiet breath');
+        assertEquals(
+          scorePopScale(1),
+          GAME_CONFIG.SCORE_POP_PEAK_SCALE,
+          'a peak past 1.4 falls back to the quiet breath'
+        );
       });
       withTuning({ SCORE_POP_PEAK_SCALE: 0.8 }, () => {
-        assertEquals(scorePopScale(1), GAME_CONFIG.SCORE_POP_PEAK_SCALE,
-          'a shrink falls back so the cue cannot invert');
+        assertEquals(
+          scorePopScale(1),
+          GAME_CONFIG.SCORE_POP_PEAK_SCALE,
+          'a shrink falls back so the cue cannot invert'
+        );
       });
       withTuning({ SCORE_POP_PEAK_SCALE: 'big' }, () => {
-        assertEquals(scorePopScale(1), GAME_CONFIG.SCORE_POP_PEAK_SCALE,
-          'a non-numeric peak falls back to the quiet breath');
+        assertEquals(
+          scorePopScale(1),
+          GAME_CONFIG.SCORE_POP_PEAK_SCALE,
+          'a non-numeric peak falls back to the quiet breath'
+        );
       });
     } finally {
       spy.restore();
@@ -11762,8 +14221,8 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
   }
 
   function scalesNear(calls, scale) {
-    return calls.filter((c) =>
-      c.op === 'scale' && Math.abs(c.x - scale) < 1e-9 && Math.abs(c.y - scale) < 1e-9
+    return calls.filter(
+      (c) => c.op === 'scale' && Math.abs(c.x - scale) < 1e-9 && Math.abs(c.y - scale) < 1e-9
     );
   }
 
@@ -11796,13 +14255,24 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
 
   it('recognizes only ?qaScorePop=1', () => {
     assert(readQaScorePopFlag('?qaScorePop=1') === true, '?qaScorePop=1 should hold the score pop');
-    assert(readQaScorePopFlag('?qaNight=1&qaScorePop=1') === true,
-      'the flag should work beside ?qaNight=1');
+    assert(
+      readQaScorePopFlag('?qaNight=1&qaScorePop=1') === true,
+      'the flag should work beside ?qaNight=1'
+    );
     assert(readQaScorePopFlag('?qaScorePop=1&qaFlash=1') === true, 'param order should not matter');
-    assert(readQaScorePopFlag('') === false, 'a normal visit should leave the pop for a real death');
+    assert(
+      readQaScorePopFlag('') === false,
+      'a normal visit should leave the pop for a real death'
+    );
     assert(readQaScorePopFlag('?qaScorePop=0') === false, 'only the value 1 enables the flag');
-    assert(readQaScorePopFlag('?qaScorePop=12') === false, 'qaScorePop=12 must not count as the flag');
-    assert(readQaScorePopFlag('?qaFlash=1') === false, 'the death blink must not hold the score pop');
+    assert(
+      readQaScorePopFlag('?qaScorePop=12') === false,
+      'qaScorePop=12 must not count as the flag'
+    );
+    assert(
+      readQaScorePopFlag('?qaFlash=1') === false,
+      'the death blink must not hold the score pop'
+    );
   });
 
   it('holds the quieter peak from the first frame even when the pop timer is zero', () => {
@@ -11821,8 +14291,11 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
         const rngAfterOff = game.rng();
         const speedOff = game.currentSpeed;
         const scoreOff = game.score;
-        assertEquals(scalesNear(spy.calls, peak).length, 0,
-          mode + ' without the flag does not scale the HUD');
+        assertEquals(
+          scalesNear(spy.calls, peak).length,
+          0,
+          mode + ' without the flag does not scale the HUD'
+        );
         assertEquals(game.qaScorePopHold, 0, mode + ' without the flag does not start the hold');
 
         armFreshRun(mode);
@@ -11836,14 +14309,19 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
         const popped = scalesNear(spy.calls, peak);
         assertEquals(popped.length, 1, mode + ' scales the HUD once, at the quiet peak');
         assertEquals(scalesNear(spy.calls, 1.4).length, 0, mode + ' does not hold the old slap');
-        const coverAt = spy.calls.findIndex((c) =>
-          c.op === 'rect' && c.style === '#ffffff'
-          && c.x === cover.x && c.y === cover.y && c.w === cover.w && c.h === cover.h
-          && c.alpha === 1
+        const coverAt = spy.calls.findIndex(
+          (c) =>
+            c.op === 'rect' &&
+            c.style === '#ffffff' &&
+            c.x === cover.x &&
+            c.y === cover.y &&
+            c.w === cover.w &&
+            c.h === cover.h &&
+            c.alpha === 1
         );
         const scaleAt = spy.calls.findIndex((c) => c.op === 'scale');
-        const textAt = spy.calls.findIndex((c, i) =>
-          i > scaleAt && c.op === 'text' && c.text === '00000'
+        const textAt = spy.calls.findIndex(
+          (c, i) => i > scaleAt && c.op === 'text' && c.text === '00000'
         );
         assert(coverAt !== -1, mode + ' covers the resting digits so they cannot ghost');
         assert(scaleAt > coverAt, mode + ' scales after the cover');
@@ -11876,14 +14354,26 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
       spy.calls.length = 0;
       tick();
       assertEquals(game.state, STATE.DEAD, 'the cactus still ends the run');
-      assertEquals(scalesNear(spy.calls, GAME_CONFIG.SCORE_POP_PEAK_SCALE).length, 1,
-        'the hold still paints after the collision return');
-      assertEquals(Animations.scorePopFrames, GAME_CONFIG.UPDATED_DEATH_SHAKE_FRAMES,
-        'the real pop timer is still armed for the quieter shake');
-      assertEquals(Animations.deathFlashFrames, GAME_CONFIG.DEATH_FLASH_FRAMES,
-        'the death blink is unchanged');
-      assertEquals(Animations.deathShakeFrames, GAME_CONFIG.UPDATED_DEATH_SHAKE_FRAMES,
-        'the death shake uses the shorter window');
+      assertEquals(
+        scalesNear(spy.calls, GAME_CONFIG.SCORE_POP_PEAK_SCALE).length,
+        1,
+        'the hold still paints after the collision return'
+      );
+      assertEquals(
+        Animations.scorePopFrames,
+        GAME_CONFIG.UPDATED_DEATH_SHAKE_FRAMES,
+        'the real pop timer is still armed for the quieter shake'
+      );
+      assertEquals(
+        Animations.deathFlashFrames,
+        GAME_CONFIG.DEATH_FLASH_FRAMES,
+        'the death blink is unchanged'
+      );
+      assertEquals(
+        Animations.deathShakeFrames,
+        GAME_CONFIG.UPDATED_DEATH_SHAKE_FRAMES,
+        'the death shake uses the shorter window'
+      );
       assert(game.score < 1, 'dying on the QA frame does not invent score');
     } finally {
       spy.restore();
@@ -11904,8 +14394,11 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
       setQaScorePop(true);
       tick();
       tick();
-      assertEquals(spy.calls.filter((c) => c.op === 'scale').length, 0,
-        'Classic never scales the HUD');
+      assertEquals(
+        spy.calls.filter((c) => c.op === 'scale').length,
+        0,
+        'Classic never scales the HUD'
+      );
       assertEquals(game.qaScorePopShown, false, 'Classic does not spend the Updated latch');
       assertEquals(game.qaScorePopHold, 0, 'Classic does not start the hold');
       assertEquals(Animations.scorePopFrames, 0, 'Classic still does not start the real pop');
@@ -11930,17 +14423,28 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
         tick();
         const damped = qaScorePopScale();
         const peak = GAME_CONFIG.SCORE_POP_PEAK_SCALE;
-        assertEquals(game.qaScorePopHold, qaScorePopHoldFrames(),
-          mode + ' hold uses the shorter window');
-        assert(game.qaScorePopHold < QA_SCORE_POP_HOLD,
-          mode + ' hold is shorter than the full capture');
+        assertEquals(
+          game.qaScorePopHold,
+          qaScorePopHoldFrames(),
+          mode + ' hold uses the shorter window'
+        );
+        assert(
+          game.qaScorePopHold < QA_SCORE_POP_HOLD,
+          mode + ' hold is shorter than the full capture'
+        );
         assert(qaScorePopHoldFrames() >= 2, mode + ' hold still lasts long enough to see');
         assert(damped > 1, mode + ' damped hold still grows the number');
         assert(damped < peak, mode + ' damped hold is softer than the motion-allowed peak');
-        assertEquals(scalesNear(spy.calls, damped).length, 1,
-          mode + ' reduced motion still paints the swell');
-        assertEquals(scalesNear(spy.calls, peak).length, 0,
-          mode + ' reduced motion does not keep the full peak');
+        assertEquals(
+          scalesNear(spy.calls, damped).length,
+          1,
+          mode + ' reduced motion still paints the swell'
+        );
+        assertEquals(
+          scalesNear(spy.calls, peak).length,
+          0,
+          mode + ' reduced motion does not keep the full peak'
+        );
         assertEquals(Animations.scorePopFrames, 0, mode + ' hold does not arm the real pop');
         assert(game.score < 1, mode + ' damped hold must not write the score');
       }
@@ -11973,8 +14477,11 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
       Animations.scorePopFrames = 0;
       Particles.reset();
       tick();
-      assertEquals(scalesNear(spy.calls, GAME_CONFIG.SCORE_POP_PEAK_SCALE).length, 1,
-        're-read flag paints the quiet peak');
+      assertEquals(
+        scalesNear(spy.calls, GAME_CONFIG.SCORE_POP_PEAK_SCALE).length,
+        1,
+        're-read flag paints the quiet peak'
+      );
       assertEquals(game.qaScorePopHold, QA_SCORE_POP_HOLD, 'the re-read flag latches the hold');
       assert(game.score < 1, 're-reading the flag must not change the score');
       assertEquals(game.qaScorePopShown, true, 'the re-read flag spends the latch');
@@ -11995,7 +14502,11 @@ describe('Quieter LEVEL label', () => {
   function withTuning(overrides, fn) {
     const orig = window.GAME_TUNING;
     window.GAME_TUNING = overrides;
-    try { fn(); } finally { window.GAME_TUNING = orig; }
+    try {
+      fn();
+    } finally {
+      window.GAME_TUNING = orig;
+    }
   }
 
   function spyText() {
@@ -12013,7 +14524,9 @@ describe('Quieter LEVEL label', () => {
     };
     return {
       calls: calls,
-      restore() { ctx.fillText = origFillText; },
+      restore() {
+        ctx.fillText = origFillText;
+      },
     };
   }
 
@@ -12027,7 +14540,11 @@ describe('Quieter LEVEL label', () => {
     Animations.milestoneFrames = frames;
     try {
       drawMilestoneFlash();
-      return { calls: levelCalls(spy.calls), framesAfter: Animations.milestoneFrames, before: before };
+      return {
+        calls: levelCalls(spy.calls),
+        framesAfter: Animations.milestoneFrames,
+        before: before,
+      };
     } finally {
       spy.restore();
       ctx.globalAlpha = 1;
@@ -12050,25 +14567,41 @@ describe('Quieter LEVEL label', () => {
       assertEquals(first.calls[0].alpha, 1, 'Classic still opens at full ink');
       assertEquals(first.calls[0].fill, '#000000', 'day Classic stays black');
       assertEquals(first.calls[0].x, GAME_CONFIG.CANVAS_W / 2, 'the word stays centered');
-      assertEquals(first.calls[0].y, GAME_CONFIG.CANVAS_H / 2 - 30, 'the word stays in the jump band');
-      assertEquals(first.framesAfter, GAME_CONFIG.MILESTONE_FRAMES - 1,
-        'Classic still counts the shared wash timer down by one');
+      assertEquals(
+        first.calls[0].y,
+        GAME_CONFIG.CANVAS_H / 2 - 30,
+        'the word stays in the jump band'
+      );
+      assertEquals(
+        first.framesAfter,
+        GAME_CONFIG.MILESTONE_FRAMES - 1,
+        'Classic still counts the shared wash timer down by one'
+      );
 
       const late = paintLabel(1);
       assertEquals(late.calls.length, 1, 'Classic still paints on the last wash frame');
       assertEquals(late.calls[0].font, CLASSIC_FONT, 'the last Classic frame is still 22px');
-      assert(Math.abs(late.calls[0].alpha - 1 / GAME_CONFIG.MILESTONE_FRAMES) < 1e-12,
-        'Classic alpha is still frames / MILESTONE_FRAMES');
+      assert(
+        Math.abs(late.calls[0].alpha - 1 / GAME_CONFIG.MILESTONE_FRAMES) < 1e-12,
+        'Classic alpha is still frames / MILESTONE_FRAMES'
+      );
 
-      withTuning({
-        UPDATED_MILESTONE_FONT_PX: 12,
-        UPDATED_MILESTONE_PEAK_ALPHA: 0.2,
-        UPDATED_MILESTONE_TEXT_FRAMES: 10,
-      }, () => {
-        const tuned = paintLabel(GAME_CONFIG.MILESTONE_FRAMES);
-        assertEquals(tuned.calls[0].font, CLASSIC_FONT, 'Classic does not read the Updated type size');
-        assertEquals(tuned.calls[0].alpha, 1, 'Classic does not read the Updated peak');
-      });
+      withTuning(
+        {
+          UPDATED_MILESTONE_FONT_PX: 12,
+          UPDATED_MILESTONE_PEAK_ALPHA: 0.2,
+          UPDATED_MILESTONE_TEXT_FRAMES: 10,
+        },
+        () => {
+          const tuned = paintLabel(GAME_CONFIG.MILESTONE_FRAMES);
+          assertEquals(
+            tuned.calls[0].font,
+            CLASSIC_FONT,
+            'Classic does not read the Updated type size'
+          );
+          assertEquals(tuned.calls[0].alpha, 1, 'Classic does not read the Updated peak');
+        }
+      );
     } finally {
       game.mode = origMode;
       game.score = origScore;
@@ -12089,38 +14622,64 @@ describe('Quieter LEVEL label', () => {
       setQaNight(false);
       game.score = 40;
       game.milestoneText = 'LEVEL 3';
-      assertEquals(GAME_CONFIG.UPDATED_MILESTONE_FONT_PX, 16,
-        'the quiet word is 16px');
-      assertEquals(GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES, 45,
-        'the word lasts half of the 90-frame wash');
-      assertEquals(GAME_CONFIG.UPDATED_MILESTONE_PEAK_ALPHA, 0.5,
-        'the first frame is half the old ink');
-      assert(GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES < GAME_CONFIG.MILESTONE_FRAMES,
-        'the word is shorter than the gold wash');
+      assertEquals(GAME_CONFIG.UPDATED_MILESTONE_FONT_PX, 16, 'the quiet word is 16px');
+      assertEquals(
+        GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES,
+        45,
+        'the word lasts half of the 90-frame wash'
+      );
+      assertEquals(
+        GAME_CONFIG.UPDATED_MILESTONE_PEAK_ALPHA,
+        0.5,
+        'the first frame is half the old ink'
+      );
+      assert(
+        GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES < GAME_CONFIG.MILESTONE_FRAMES,
+        'the word is shorter than the gold wash'
+      );
 
       for (const mode of [MODES.UPDATED, MODES.DAILY]) {
         game.mode = mode;
         const first = paintLabel(GAME_CONFIG.MILESTONE_FRAMES);
         assertEquals(first.calls.length, 1, mode + ' still paints LEVEL on the first frame');
         assertEquals(first.calls[0].text, 'LEVEL 3', mode + ' still uses the level label');
-        assertEquals(first.calls[0].font, "bold 16px 'Courier New', Courier, monospace",
-          mode + ' uses the smaller type');
+        assertEquals(
+          first.calls[0].font,
+          "bold 16px 'Courier New', Courier, monospace",
+          mode + ' uses the smaller type'
+        );
         assertEquals(first.calls[0].alpha, 0.5, mode + ' opens at the quiet peak');
         assertEquals(first.calls[0].fill, '#000000', mode + ' stays black by day');
         assertEquals(first.calls[0].x, GAME_CONFIG.CANVAS_W / 2, mode + ' stays centered');
-        assertEquals(first.calls[0].y, GAME_CONFIG.CANVAS_H / 2 - 30, mode + ' stays in the jump band');
-        assertEquals(first.framesAfter, GAME_CONFIG.MILESTONE_FRAMES - 1,
-          mode + ' still counts the shared wash timer');
+        assertEquals(
+          first.calls[0].y,
+          GAME_CONFIG.CANVAS_H / 2 - 30,
+          mode + ' stays in the jump band'
+        );
+        assertEquals(
+          first.framesAfter,
+          GAME_CONFIG.MILESTONE_FRAMES - 1,
+          mode + ' still counts the shared wash timer'
+        );
 
-        const still = paintLabel(GAME_CONFIG.MILESTONE_FRAMES - GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES + 1);
+        const still = paintLabel(
+          GAME_CONFIG.MILESTONE_FRAMES - GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES + 1
+        );
         assertEquals(still.calls.length, 1, mode + ' still paints on the last quiet frame');
-        assert(still.calls[0].alpha > 0 && still.calls[0].alpha < 0.5,
-          mode + ' has already faded below the peak');
+        assert(
+          still.calls[0].alpha > 0 && still.calls[0].alpha < 0.5,
+          mode + ' has already faded below the peak'
+        );
 
-        const gone = paintLabel(GAME_CONFIG.MILESTONE_FRAMES - GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES);
+        const gone = paintLabel(
+          GAME_CONFIG.MILESTONE_FRAMES - GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES
+        );
         assertEquals(gone.calls.length, 0, mode + ' word is gone while the wash timer remains');
-        assertEquals(gone.framesAfter, GAME_CONFIG.MILESTONE_FRAMES - GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES - 1,
-          mode + ' keeps counting the wash after the word leaves');
+        assertEquals(
+          gone.framesAfter,
+          GAME_CONFIG.MILESTONE_FRAMES - GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES - 1,
+          mode + ' keeps counting the wash after the word leaves'
+        );
       }
     } finally {
       game.mode = origMode;
@@ -12149,14 +14708,23 @@ describe('Quieter LEVEL label', () => {
       const origFill = ctx.fillStyle;
       Object.defineProperty(ctx, 'fillStyle', {
         configurable: true,
-        get() { return origFill; },
-        set(v) { fills.push(v); },
+        get() {
+          return origFill;
+        },
+        set(v) {
+          fills.push(v);
+        },
       });
       drawSkyTint();
       delete ctx.fillStyle;
-      const gold = fills.filter((s) => typeof s === 'string' && s.indexOf('rgba(255, 215, 0') === 0);
+      const gold = fills.filter(
+        (s) => typeof s === 'string' && s.indexOf('rgba(255, 215, 0') === 0
+      );
       assertEquals(gold.length, 1, 'the wash still paints after the word has left');
-      const expected = ((left / GAME_CONFIG.MILESTONE_FRAMES) * GAME_CONFIG.SKY_TINT_PEAK_ALPHA).toFixed(3);
+      const expected = (
+        (left / GAME_CONFIG.MILESTONE_FRAMES) *
+        GAME_CONFIG.SKY_TINT_PEAK_ALPHA
+      ).toFixed(3);
       assert(gold[0].indexOf(expected) !== -1, 'the wash still fades across all 90 frames');
       const word = paintLabel(left);
       assertEquals(word.calls.length, 0, 'that same frame does not bring the word back');
@@ -12183,8 +14751,11 @@ describe('Quieter LEVEL label', () => {
       game.mode = MODES.UPDATED;
       const updated = paintLabel(GAME_CONFIG.MILESTONE_FRAMES);
       assertEquals(updated.calls[0].fill, '#ffffff', 'Updated night word stays white');
-      assertEquals(updated.calls[0].alpha, GAME_CONFIG.UPDATED_MILESTONE_PEAK_ALPHA,
-        'night uses the same quiet peak');
+      assertEquals(
+        updated.calls[0].alpha,
+        GAME_CONFIG.UPDATED_MILESTONE_PEAK_ALPHA,
+        'night uses the same quiet peak'
+      );
       game.mode = MODES.CLASSIC;
       const classic = paintLabel(GAME_CONFIG.MILESTONE_FRAMES);
       assertEquals(classic.calls[0].fill, '#ffffff', 'Classic night word stays white');
@@ -12209,36 +14780,51 @@ describe('Quieter LEVEL label', () => {
       game.mode = MODES.UPDATED;
       game.score = 10;
       game.milestoneText = 'LEVEL 2';
-      withTuning({
-        UPDATED_MILESTONE_FONT_PX: 18,
-        UPDATED_MILESTONE_PEAK_ALPHA: 0.4,
-        UPDATED_MILESTONE_TEXT_FRAMES: 30,
-      }, () => {
-        const first = paintLabel(GAME_CONFIG.MILESTONE_FRAMES);
-        assertEquals(first.calls[0].font, "bold 18px 'Courier New', Courier, monospace",
-          'a size inside 12..18 is used');
-        assertEquals(first.calls[0].alpha, 0.4, 'a peak inside 0..1 is used');
-        const edge = paintLabel(GAME_CONFIG.MILESTONE_FRAMES - 30);
-        assertEquals(edge.calls.length, 0, 'a shorter tune ends the word at that frame count');
-      });
-      withTuning({
-        UPDATED_MILESTONE_FONT_PX: 40,
-        UPDATED_MILESTONE_PEAK_ALPHA: 2,
-        UPDATED_MILESTONE_TEXT_FRAMES: 0,
-      }, () => {
-        const first = paintLabel(GAME_CONFIG.MILESTONE_FRAMES);
-        assertEquals(first.calls[0].font, "bold 16px 'Courier New', Courier, monospace",
-          'a size above 18 falls back');
-        assertEquals(first.calls[0].alpha, 0.5, 'a peak above 1 falls back');
-        const still = paintLabel(GAME_CONFIG.MILESTONE_FRAMES - 45 + 1);
-        assertEquals(still.calls.length, 1, 'a zero frame tune falls back to 45');
-      });
+      withTuning(
+        {
+          UPDATED_MILESTONE_FONT_PX: 18,
+          UPDATED_MILESTONE_PEAK_ALPHA: 0.4,
+          UPDATED_MILESTONE_TEXT_FRAMES: 30,
+        },
+        () => {
+          const first = paintLabel(GAME_CONFIG.MILESTONE_FRAMES);
+          assertEquals(
+            first.calls[0].font,
+            "bold 18px 'Courier New', Courier, monospace",
+            'a size inside 12..18 is used'
+          );
+          assertEquals(first.calls[0].alpha, 0.4, 'a peak inside 0..1 is used');
+          const edge = paintLabel(GAME_CONFIG.MILESTONE_FRAMES - 30);
+          assertEquals(edge.calls.length, 0, 'a shorter tune ends the word at that frame count');
+        }
+      );
+      withTuning(
+        {
+          UPDATED_MILESTONE_FONT_PX: 40,
+          UPDATED_MILESTONE_PEAK_ALPHA: 2,
+          UPDATED_MILESTONE_TEXT_FRAMES: 0,
+        },
+        () => {
+          const first = paintLabel(GAME_CONFIG.MILESTONE_FRAMES);
+          assertEquals(
+            first.calls[0].font,
+            "bold 16px 'Courier New', Courier, monospace",
+            'a size above 18 falls back'
+          );
+          assertEquals(first.calls[0].alpha, 0.5, 'a peak above 1 falls back');
+          const still = paintLabel(GAME_CONFIG.MILESTONE_FRAMES - 45 + 1);
+          assertEquals(still.calls.length, 1, 'a zero frame tune falls back to 45');
+        }
+      );
       withTuning({ UPDATED_MILESTONE_TEXT_FRAMES: 200, UPDATED_MILESTONE_FONT_PX: 'big' }, () => {
         const gone = paintLabel(GAME_CONFIG.MILESTONE_FRAMES - 45);
         assertEquals(gone.calls.length, 0, 'a frame tune past the wash falls back to 45');
         const first = paintLabel(GAME_CONFIG.MILESTONE_FRAMES);
-        assertEquals(first.calls[0].font, "bold 16px 'Courier New', Courier, monospace",
-          'a non-number size falls back');
+        assertEquals(
+          first.calls[0].font,
+          "bold 16px 'Courier New', Courier, monospace",
+          'a non-number size falls back'
+        );
       });
     } finally {
       game.mode = origMode;
@@ -12263,22 +14849,38 @@ describe('Quieter LEVEL label', () => {
       assertEquals(classic.calls[0].font, CLASSIC_FONT, 'reduced motion does not resize Classic');
       assertEquals(classic.calls[0].alpha, 1, 'reduced motion does not fade Classic');
       const classicLate = paintLabel(1);
-      assertEquals(classicLate.calls.length, 1, 'Classic still lasts the full wash under reduced motion');
+      assertEquals(
+        classicLate.calls.length,
+        1,
+        'Classic still lasts the full wash under reduced motion'
+      );
 
       for (const mode of [MODES.UPDATED, MODES.DAILY]) {
         game.mode = mode;
         const first = paintLabel(GAME_CONFIG.MILESTONE_FRAMES);
-        assertEquals(first.calls[0].font, "bold 16px 'Courier New', Courier, monospace",
-          mode + ' stays on the small type under reduced motion');
-        assertEquals(first.calls[0].alpha, 0.5,
-          mode + ' keeps the quiet peak so the word still reads');
+        assertEquals(
+          first.calls[0].font,
+          "bold 16px 'Courier New', Courier, monospace",
+          mode + ' stays on the small type under reduced motion'
+        );
+        assertEquals(
+          first.calls[0].alpha,
+          0.5,
+          mode + ' keeps the quiet peak so the word still reads'
+        );
         const half = Math.max(2, Math.round(GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES * 0.5));
         const gone = paintLabel(GAME_CONFIG.MILESTONE_FRAMES - half);
         assertEquals(gone.calls.length, 0, mode + ' word ends at half the quiet length');
-        assert(half < GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES,
-          mode + ' reduced-motion word is shorter than the motion-allowed word');
+        assert(
+          half < GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES,
+          mode + ' reduced-motion word is shorter than the motion-allowed word'
+        );
         const still = paintLabel(GAME_CONFIG.MILESTONE_FRAMES - half + 1);
-        assertEquals(still.calls.length, 1, mode + ' still paints on the last reduced-motion frame');
+        assertEquals(
+          still.calls.length,
+          1,
+          mode + ' still paints on the last reduced-motion frame'
+        );
       }
     } finally {
       game.mode = origMode;
@@ -12326,8 +14928,11 @@ describe('Quieter LEVEL label', () => {
         tick();
         assertEquals(game.qaLevelHold, 180, 'the playtest hold starts at the full capture window');
         assertEquals(game.milestoneText, 'LEVEL 2', 'the hold uses the same early label');
-        assertEquals(Animations.milestoneFrames, GAME_CONFIG.MILESTONE_FRAMES - 1,
-          'the hold does not change the wash length');
+        assertEquals(
+          Animations.milestoneFrames,
+          GAME_CONFIG.MILESTONE_FRAMES - 1,
+          'the hold does not change the wash length'
+        );
         const live = levelCalls(spy.calls);
         assertEquals(live.length, 1, 'the first frame paints the live word once');
         assertEquals(live[0].alpha, 0.5, 'the live word, not a louder hold, is what shows first');
@@ -12338,11 +14943,17 @@ describe('Quieter LEVEL label', () => {
         tick();
         const held = levelCalls(spy.calls);
         assertEquals(held.length, 1, 'the hold keeps LEVEL up after the live word has ended');
-        assertEquals(held[0].font, "bold 16px 'Courier New', Courier, monospace",
-          'the hold uses the quiet type');
+        assertEquals(
+          held[0].font,
+          "bold 16px 'Courier New', Courier, monospace",
+          'the hold uses the quiet type'
+        );
         assertEquals(held[0].alpha, 0.5, 'motion allowed holds the quiet peak');
-        assertEquals(game.score < GAME_CONFIG.SCORE_PER_LEVEL, true,
-          'the hold must not jump the score to the real level');
+        assertEquals(
+          game.score < GAME_CONFIG.SCORE_PER_LEVEL,
+          true,
+          'the hold must not jump the score to the real level'
+        );
       } finally {
         spy.restore();
       }
@@ -12354,7 +14965,11 @@ describe('Quieter LEVEL label', () => {
       try {
         tick();
         assertEquals(game.qaLevelHold, 0, 'Classic does not start the hold');
-        assertEquals(levelCalls(classicSpy.calls).length, 0, 'Classic does not paint an early LEVEL');
+        assertEquals(
+          levelCalls(classicSpy.calls).length,
+          0,
+          'Classic does not paint an early LEVEL'
+        );
       } finally {
         classicSpy.restore();
       }
@@ -12375,8 +14990,11 @@ describe('Quieter LEVEL label', () => {
           const held = levelCalls(rmSpy.calls);
           assertEquals(held.length, 1, mode + ' reduced motion still paints the held word');
           assertEquals(held[0].alpha, 0.25, mode + ' reduced motion holds half the quiet peak');
-          assertEquals(held[0].font, "bold 16px 'Courier New', Courier, monospace",
-            mode + ' reduced-motion hold stays on the small type');
+          assertEquals(
+            held[0].font,
+            "bold 16px 'Courier New', Courier, monospace",
+            mode + ' reduced-motion hold stays on the small type'
+          );
         } finally {
           rmSpy.restore();
         }
@@ -12402,7 +15020,11 @@ describe('Quieter NEW BEST badge', () => {
   function withTuning(overrides, fn) {
     const orig = window.GAME_TUNING;
     window.GAME_TUNING = overrides;
-    try { fn(); } finally { window.GAME_TUNING = orig; }
+    try {
+      fn();
+    } finally {
+      window.GAME_TUNING = orig;
+    }
   }
 
   function spyText() {
@@ -12420,7 +15042,9 @@ describe('Quieter NEW BEST badge', () => {
     };
     return {
       calls: calls,
-      restore() { ctx.fillText = origFillText; },
+      restore() {
+        ctx.fillText = origFillText;
+      },
     };
   }
 
@@ -12484,11 +15108,17 @@ describe('Quieter NEW BEST badge', () => {
       assertEquals(first.calls[0].alpha, 1, 'Classic still opens at full gold');
       assertEquals(first.calls[0].fill, '#ffd700', 'Classic stays gold');
       assertEquals(first.calls[0].text, 'NEW BEST!', 'Classic still says NEW BEST!');
-      assertEquals(first.calls[0].x, GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET,
-        'the badge stays under the score');
+      assertEquals(
+        first.calls[0].x,
+        GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET,
+        'the badge stays under the score'
+      );
       assertEquals(first.calls[0].y, 70, 'the badge stays at the corner baseline');
-      assertEquals(first.framesAfter, GAME_CONFIG.NEW_BEST_FRAMES - 1,
-        'Classic still counts the shared timer down by one');
+      assertEquals(
+        first.framesAfter,
+        GAME_CONFIG.NEW_BEST_FRAMES - 1,
+        'Classic still counts the shared timer down by one'
+      );
 
       const mid = paintBadge(GAME_CONFIG.NEW_BEST_FRAMES / 2);
       assertEquals(mid.calls[0].alpha, 0.5, 'Classic alpha is still frames / NEW_BEST_FRAMES');
@@ -12496,26 +15126,38 @@ describe('Quieter NEW BEST badge', () => {
 
       const last = paintBadge(1);
       assertEquals(last.calls.length, 1, 'Classic still paints on the last frame');
-      assert(Math.abs(last.calls[0].alpha - 1 / GAME_CONFIG.NEW_BEST_FRAMES) < 1e-12,
-        'the last Classic frame is still 1 / NEW_BEST_FRAMES');
+      assert(
+        Math.abs(last.calls[0].alpha - 1 / GAME_CONFIG.NEW_BEST_FRAMES) < 1e-12,
+        'the last Classic frame is still 1 / NEW_BEST_FRAMES'
+      );
 
       Animations.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
       const dropped = paintBadge(GAME_CONFIG.NEW_BEST_FRAMES);
       assertEquals(dropped.calls[0].y, 100, 'Classic still drops 30px when a milestone is up');
       assertEquals(dropped.calls[0].y - 70, 30, 'the Classic stagger is still 30px');
 
-      withTuning({
-        UPDATED_NEW_BEST_FONT_PX: 10,
-        UPDATED_NEW_BEST_PEAK_ALPHA: 0.2,
-        UPDATED_NEW_BEST_FRAMES: 12,
-      }, () => {
-        Animations.milestoneFrames = 0;
-        const tuned = paintBadge(GAME_CONFIG.NEW_BEST_FRAMES);
-        assertEquals(tuned.calls[0].font, CLASSIC_FONT, 'Classic does not read the Updated type size');
-        assertEquals(tuned.calls[0].alpha, 1, 'Classic does not read the Updated peak');
-        assertEquals(newBestDuration(), GAME_CONFIG.NEW_BEST_FRAMES,
-          'Classic duration ignores the Updated frame tune');
-      });
+      withTuning(
+        {
+          UPDATED_NEW_BEST_FONT_PX: 10,
+          UPDATED_NEW_BEST_PEAK_ALPHA: 0.2,
+          UPDATED_NEW_BEST_FRAMES: 12,
+        },
+        () => {
+          Animations.milestoneFrames = 0;
+          const tuned = paintBadge(GAME_CONFIG.NEW_BEST_FRAMES);
+          assertEquals(
+            tuned.calls[0].font,
+            CLASSIC_FONT,
+            'Classic does not read the Updated type size'
+          );
+          assertEquals(tuned.calls[0].alpha, 1, 'Classic does not read the Updated peak');
+          assertEquals(
+            newBestDuration(),
+            GAME_CONFIG.NEW_BEST_FRAMES,
+            'Classic duration ignores the Updated frame tune'
+          );
+        }
+      );
     } finally {
       game.mode = origMode;
       game.score = origScore;
@@ -12535,12 +15177,20 @@ describe('Quieter NEW BEST badge', () => {
       setQaNewBest(false);
       game.qaNewBestHold = 0;
       assertEquals(GAME_CONFIG.UPDATED_NEW_BEST_FONT_PX, 11, 'the quiet badge is 11px');
-      assertEquals(GAME_CONFIG.UPDATED_NEW_BEST_FRAMES, 60,
-        'the badge lasts half of the 120-frame countdown');
-      assertEquals(GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA, 0.65,
-        'the first frame keeps the gold readable');
-      assert(GAME_CONFIG.UPDATED_NEW_BEST_FRAMES < GAME_CONFIG.NEW_BEST_FRAMES,
-        'the badge is shorter than the Classic countdown');
+      assertEquals(
+        GAME_CONFIG.UPDATED_NEW_BEST_FRAMES,
+        60,
+        'the badge lasts half of the 120-frame countdown'
+      );
+      assertEquals(
+        GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
+        0.65,
+        'the first frame keeps the gold readable'
+      );
+      assert(
+        GAME_CONFIG.UPDATED_NEW_BEST_FRAMES < GAME_CONFIG.NEW_BEST_FRAMES,
+        'the badge is shorter than the Classic countdown'
+      );
       assert(GAME_CONFIG.UPDATED_NEW_BEST_FONT_PX < 14, 'the type is smaller than Classic');
       assert(GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA < 1, 'the peak is quieter than solid gold');
 
@@ -12551,22 +15201,36 @@ describe('Quieter NEW BEST badge', () => {
         assertEquals(first.calls.length, 1, mode + ' still paints NEW BEST on the first frame');
         assertEquals(first.calls[0].text, 'NEW BEST!', mode + ' still celebrates');
         assertEquals(first.calls[0].font, QUIET_FONT, mode + ' uses the smaller type');
-        assertEquals(first.calls[0].alpha, GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
-          mode + ' opens at the quiet peak');
+        assertEquals(
+          first.calls[0].alpha,
+          GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
+          mode + ' opens at the quiet peak'
+        );
         assertEquals(first.calls[0].fill, '#ffd700', mode + ' stays gold');
         assertEquals(first.calls[0].y, 70, mode + ' stays in the corner');
-        assertEquals(first.framesAfter, GAME_CONFIG.UPDATED_NEW_BEST_FRAMES - 1,
-          mode + ' counts its own shorter timer');
+        assertEquals(
+          first.framesAfter,
+          GAME_CONFIG.UPDATED_NEW_BEST_FRAMES - 1,
+          mode + ' counts its own shorter timer'
+        );
 
         const mid = paintBadge(GAME_CONFIG.UPDATED_NEW_BEST_FRAMES / 2);
-        assert(Math.abs(mid.calls[0].alpha - GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA * 0.5) < 1e-12,
-          mode + ' fades from the quiet peak');
-        assertEquals(mid.calls[0].font, QUIET_FONT, mode + ' stays on the small type while it fades');
+        assert(
+          Math.abs(mid.calls[0].alpha - GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA * 0.5) < 1e-12,
+          mode + ' fades from the quiet peak'
+        );
+        assertEquals(
+          mid.calls[0].font,
+          QUIET_FONT,
+          mode + ' stays on the small type while it fades'
+        );
 
         const last = paintBadge(1);
         assertEquals(last.calls.length, 1, mode + ' still paints on the last quiet frame');
-        assert(last.calls[0].alpha > 0 && last.calls[0].alpha < GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
-          mode + ' has faded below the peak by the last frame');
+        assert(
+          last.calls[0].alpha > 0 && last.calls[0].alpha < GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
+          mode + ' has faded below the peak by the last frame'
+        );
 
         const gone = paintBadge(0);
         assertEquals(gone.calls.length, 0, mode + ' badge is gone when the countdown ends');
@@ -12593,42 +15257,66 @@ describe('Quieter NEW BEST badge', () => {
       game.qaNewBestHold = 0;
       game.mode = MODES.UPDATED;
       Animations.milestoneFrames = 0;
-      withTuning({
-        UPDATED_NEW_BEST_FONT_PX: 13,
-        UPDATED_NEW_BEST_PEAK_ALPHA: 0.4,
-        UPDATED_NEW_BEST_FRAMES: 24,
-      }, () => {
-        assertEquals(newBestDuration(), 24, 'a frame tune inside 1..120 is the countdown');
-        const first = paintBadge(24);
-        assertEquals(first.calls[0].font, "bold 13px 'Courier New', Courier, monospace",
-          'a size inside 10..13 is used');
-        assertEquals(first.calls[0].alpha, 0.4, 'a peak inside 0..1 is used');
-        assertEquals(first.calls[0].fill, '#ffd700', 'a tune does not recolor the gold');
-      });
-      withTuning({
-        UPDATED_NEW_BEST_FONT_PX: 14,
-        UPDATED_NEW_BEST_PEAK_ALPHA: 2,
-        UPDATED_NEW_BEST_FRAMES: 0,
-      }, () => {
-        assertEquals(newBestDuration(), GAME_CONFIG.UPDATED_NEW_BEST_FRAMES,
-          'a zero frame tune falls back to 60');
-        const first = paintBadge(GAME_CONFIG.UPDATED_NEW_BEST_FRAMES);
-        assertEquals(first.calls[0].font, QUIET_FONT, '14px is outside 10..13 and falls back');
-        assertEquals(first.calls[0].alpha, GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
-          'a peak above 1 falls back');
-      });
-      withTuning({
-        UPDATED_NEW_BEST_FRAMES: 500,
-        UPDATED_NEW_BEST_FONT_PX: 'big',
-        UPDATED_NEW_BEST_PEAK_ALPHA: -0.2,
-      }, () => {
-        assertEquals(newBestDuration(), GAME_CONFIG.UPDATED_NEW_BEST_FRAMES,
-          'a frame tune past the Classic countdown falls back');
-        const first = paintBadge(GAME_CONFIG.UPDATED_NEW_BEST_FRAMES);
-        assertEquals(first.calls[0].font, QUIET_FONT, 'a non-number size falls back');
-        assertEquals(first.calls[0].alpha, GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
-          'a negative peak falls back');
-      });
+      withTuning(
+        {
+          UPDATED_NEW_BEST_FONT_PX: 13,
+          UPDATED_NEW_BEST_PEAK_ALPHA: 0.4,
+          UPDATED_NEW_BEST_FRAMES: 24,
+        },
+        () => {
+          assertEquals(newBestDuration(), 24, 'a frame tune inside 1..120 is the countdown');
+          const first = paintBadge(24);
+          assertEquals(
+            first.calls[0].font,
+            "bold 13px 'Courier New', Courier, monospace",
+            'a size inside 10..13 is used'
+          );
+          assertEquals(first.calls[0].alpha, 0.4, 'a peak inside 0..1 is used');
+          assertEquals(first.calls[0].fill, '#ffd700', 'a tune does not recolor the gold');
+        }
+      );
+      withTuning(
+        {
+          UPDATED_NEW_BEST_FONT_PX: 14,
+          UPDATED_NEW_BEST_PEAK_ALPHA: 2,
+          UPDATED_NEW_BEST_FRAMES: 0,
+        },
+        () => {
+          assertEquals(
+            newBestDuration(),
+            GAME_CONFIG.UPDATED_NEW_BEST_FRAMES,
+            'a zero frame tune falls back to 60'
+          );
+          const first = paintBadge(GAME_CONFIG.UPDATED_NEW_BEST_FRAMES);
+          assertEquals(first.calls[0].font, QUIET_FONT, '14px is outside 10..13 and falls back');
+          assertEquals(
+            first.calls[0].alpha,
+            GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
+            'a peak above 1 falls back'
+          );
+        }
+      );
+      withTuning(
+        {
+          UPDATED_NEW_BEST_FRAMES: 500,
+          UPDATED_NEW_BEST_FONT_PX: 'big',
+          UPDATED_NEW_BEST_PEAK_ALPHA: -0.2,
+        },
+        () => {
+          assertEquals(
+            newBestDuration(),
+            GAME_CONFIG.UPDATED_NEW_BEST_FRAMES,
+            'a frame tune past the Classic countdown falls back'
+          );
+          const first = paintBadge(GAME_CONFIG.UPDATED_NEW_BEST_FRAMES);
+          assertEquals(first.calls[0].font, QUIET_FONT, 'a non-number size falls back');
+          assertEquals(
+            first.calls[0].alpha,
+            GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
+            'a negative peak falls back'
+          );
+        }
+      );
     } finally {
       game.mode = origMode;
       Animations.newBestFrames = 0;
@@ -12644,8 +15332,11 @@ describe('Quieter NEW BEST badge', () => {
       game.qaNewBestHold = 0;
       game.mode = MODES.CLASSIC;
       Animations.milestoneFrames = 0;
-      assertEquals(newBestDuration(), GAME_CONFIG.NEW_BEST_FRAMES,
-        'reduced motion does not shorten Classic');
+      assertEquals(
+        newBestDuration(),
+        GAME_CONFIG.NEW_BEST_FRAMES,
+        'reduced motion does not shorten Classic'
+      );
       const classic = paintBadge(GAME_CONFIG.NEW_BEST_FRAMES);
       assertEquals(classic.calls[0].font, CLASSIC_FONT, 'reduced motion does not resize Classic');
       assertEquals(classic.calls[0].alpha, 1, 'reduced motion does not fade Classic');
@@ -12655,13 +15346,21 @@ describe('Quieter NEW BEST badge', () => {
         game.mode = mode;
         const half = Math.max(2, Math.round(GAME_CONFIG.UPDATED_NEW_BEST_FRAMES * 0.5));
         assertEquals(newBestDuration(), half, mode + ' reduced motion halves the quiet countdown');
-        assert(half < GAME_CONFIG.UPDATED_NEW_BEST_FRAMES,
-          mode + ' reduced-motion badge is shorter than the motion-allowed badge');
+        assert(
+          half < GAME_CONFIG.UPDATED_NEW_BEST_FRAMES,
+          mode + ' reduced-motion badge is shorter than the motion-allowed badge'
+        );
         const first = paintBadge(half);
-        assertEquals(first.calls[0].font, QUIET_FONT,
-          mode + ' stays on the small type under reduced motion');
-        assertEquals(first.calls[0].alpha, GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
-          mode + ' keeps the quiet peak so the gold still reads');
+        assertEquals(
+          first.calls[0].font,
+          QUIET_FONT,
+          mode + ' stays on the small type under reduced motion'
+        );
+        assertEquals(
+          first.calls[0].alpha,
+          GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
+          mode + ' keeps the quiet peak so the gold still reads'
+        );
         assertEquals(first.calls[0].fill, '#ffd700', mode + ' stays gold under reduced motion');
         const last = paintBadge(1);
         assertEquals(last.calls.length, 1, mode + ' still paints on the last reduced-motion frame');
@@ -12689,17 +15388,28 @@ describe('Quieter NEW BEST badge', () => {
         const seedBefore = game.runSeed;
         const rngBefore = game.rng;
         let rngCalls = 0;
-        game.rng = () => { rngCalls++; return rngBefore(); };
+        game.rng = () => {
+          rngCalls++;
+          return rngBefore();
+        };
         const spy = spyText();
         try {
           tick();
-          const expected = mode === MODES.CLASSIC
-            ? GAME_CONFIG.NEW_BEST_FRAMES
-            : GAME_CONFIG.UPDATED_NEW_BEST_FRAMES;
+          const expected =
+            mode === MODES.CLASSIC
+              ? GAME_CONFIG.NEW_BEST_FRAMES
+              : GAME_CONFIG.UPDATED_NEW_BEST_FRAMES;
           assertEquals(game.newBestShown, true, mode + ' still latches the once-per-run badge');
-          assertEquals(Animations.newBestFrames, expected - 1,
-            mode + ' starts the mode countdown and paints the first frame');
-          assertEquals(a11yLive.textContent, 'New best score!', mode + ' still announces the new best');
+          assertEquals(
+            Animations.newBestFrames,
+            expected - 1,
+            mode + ' starts the mode countdown and paints the first frame'
+          );
+          assertEquals(
+            a11yLive.textContent,
+            'New best score!',
+            mode + ' still announces the new best'
+          );
           const painted = badgeCalls(spy.calls);
           assertEquals(painted.length, 1, mode + ' paints the badge once on the beat frame');
           assertEquals(painted[0].fill, '#ffd700', mode + ' beat frame stays gold');
@@ -12708,18 +15418,30 @@ describe('Quieter NEW BEST badge', () => {
             assertEquals(painted[0].alpha, 1, 'the beat frame stays full gold in Classic');
           } else {
             assertEquals(painted[0].font, QUIET_FONT, mode + ' beat frame uses the quiet type');
-            assertEquals(painted[0].alpha, GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
-              mode + ' beat frame uses the quiet peak');
+            assertEquals(
+              painted[0].alpha,
+              GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
+              mode + ' beat frame uses the quiet peak'
+            );
           }
           assertEquals(game.highScore, 1, mode + ' badge does not write the stored high score');
-          assertEquals(game.score, 2 + GAME_CONFIG.SCORE_INCREMENT,
-            mode + ' score still advances by the normal increment');
-          assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
-            mode + ' speed still follows the score');
+          assertEquals(
+            game.score,
+            2 + GAME_CONFIG.SCORE_INCREMENT,
+            mode + ' score still advances by the normal increment'
+          );
+          assertEquals(
+            game.currentSpeed,
+            DifficultyProfile.speedAtScore(game.score),
+            mode + ' speed still follows the score'
+          );
           assertEquals(game.nextSpawnGap, gapBefore, mode + ' does not change the spawn gap');
           assertEquals(game.runSeed, seedBefore, mode + ' does not change the run seed');
-          assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
-            mode + ' speed on the next read still follows the score');
+          assertEquals(
+            game.currentSpeed,
+            DifficultyProfile.speedAtScore(game.score),
+            mode + ' speed on the next read still follows the score'
+          );
           const again = rngCalls;
           tick();
           assertEquals(Animations.newBestFrames, expected - 2, mode + ' keeps counting down');
@@ -12747,12 +15469,24 @@ describe('Quieter NEW BEST badge', () => {
       setReducedMotion(false);
       setQaNewBest(false);
       assert(readQaNewBestFlag('?qaNewBest=1') === true, '?qaNewBest=1 should hold the badge');
-      assert(readQaNewBestFlag('?qaLevel=1&qaNewBest=1') === true, 'the flag should work beside other params');
-      assert(readQaNewBestFlag('?qaNewBest=1&qaScorePop=1') === true, 'param order should not matter');
+      assert(
+        readQaNewBestFlag('?qaLevel=1&qaNewBest=1') === true,
+        'the flag should work beside other params'
+      );
+      assert(
+        readQaNewBestFlag('?qaNewBest=1&qaScorePop=1') === true,
+        'param order should not matter'
+      );
       assert(readQaNewBestFlag('?qaNewBest=0') === false, 'only the value 1 enables the flag');
-      assert(readQaNewBestFlag('?qaNewBest=12') === false, 'qaNewBest=12 must not count as the flag');
+      assert(
+        readQaNewBestFlag('?qaNewBest=12') === false,
+        'qaNewBest=12 must not count as the flag'
+      );
       assert(readQaNewBestFlag('?qaLevel=1') === false, 'the level flag must not hold this badge');
-      assert(readQaNewBestFlag('?qaScorePop=1') === false, 'the score-pop flag must not hold this badge');
+      assert(
+        readQaNewBestFlag('?qaScorePop=1') === false,
+        'the score-pop flag must not hold this badge'
+      );
       assert(readQaLevelFlag('?qaNewBest=1') === false, 'this flag must not fire the level wash');
       assert(readQaScorePopFlag('?qaNewBest=1') === false, 'this flag must not swell the score');
 
@@ -12765,33 +15499,61 @@ describe('Quieter NEW BEST badge', () => {
         const high = game.highScore;
         const rngBefore = game.rng;
         let rngCalls = 0;
-        game.rng = () => { rngCalls++; return rngBefore(); };
+        game.rng = () => {
+          rngCalls++;
+          return rngBefore();
+        };
         const spy = spyText();
         try {
           tick();
-          assertEquals(game.qaNewBestHold, QA_NEW_BEST_HOLD, mode + ' latches the full capture window');
+          assertEquals(
+            game.qaNewBestHold,
+            QA_NEW_BEST_HOLD,
+            mode + ' latches the full capture window'
+          );
           assertEquals(game.qaNewBestShown, true, mode + ' spends the latch once');
           assertEquals(game.newBestShown, false, mode + ' hold does not spend the real badge');
-          assertEquals(Animations.newBestFrames, 0, mode + ' hold does not start the live countdown');
-          assertEquals(a11yLive.textContent.indexOf('New best score!') === -1, true,
-            mode + ' hold does not announce a new best');
+          assertEquals(
+            Animations.newBestFrames,
+            0,
+            mode + ' hold does not start the live countdown'
+          );
+          assertEquals(
+            a11yLive.textContent.indexOf('New best score!') === -1,
+            true,
+            mode + ' hold does not announce a new best'
+          );
           const painted = badgeCalls(spy.calls);
           assertEquals(painted.length, 1, mode + ' paints the held badge once');
           assertEquals(painted[0].font, QUIET_FONT, mode + ' hold uses the quiet type');
-          assertEquals(painted[0].alpha, GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
-            mode + ' hold uses the quiet peak');
+          assertEquals(
+            painted[0].alpha,
+            GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
+            mode + ' hold uses the quiet peak'
+          );
           assertEquals(painted[0].fill, '#ffd700', mode + ' hold stays gold');
           assertEquals(painted[0].y, 70, mode + ' hold stays in the corner');
           assertEquals(game.highScore, high, mode + ' hold does not write the high score');
-          assertEquals(game.score, GAME_CONFIG.SCORE_INCREMENT, mode + ' score still starts from zero');
+          assertEquals(
+            game.score,
+            GAME_CONFIG.SCORE_INCREMENT,
+            mode + ' score still starts from zero'
+          );
           assertEquals(game.nextSpawnGap, gap, mode + ' hold does not change the spawn gap');
           assertEquals(game.runSeed, seed, mode + ' hold does not change the run seed');
-          assertEquals(game.currentSpeed, DifficultyProfile.speedAtScore(game.score),
-            mode + ' speed still follows the score');
+          assertEquals(
+            game.currentSpeed,
+            DifficultyProfile.speedAtScore(game.score),
+            mode + ' speed still follows the score'
+          );
           const afterFirst = rngCalls;
           spy.calls.length = 0;
           tick();
-          assertEquals(game.qaNewBestHold, QA_NEW_BEST_HOLD - 1, mode + ' hold counts down while running');
+          assertEquals(
+            game.qaNewBestHold,
+            QA_NEW_BEST_HOLD - 1,
+            mode + ' hold counts down while running'
+          );
           assertEquals(badgeCalls(spy.calls).length, 1, mode + ' hold keeps painting');
           assertEquals(rngCalls, afterFirst, mode + ' the hold frame does not draw gameplay rng');
         } finally {
@@ -12809,7 +15571,11 @@ describe('Quieter NEW BEST badge', () => {
         tick();
         assertEquals(game.qaNewBestHold, 0, 'Classic does not start the hold');
         assertEquals(game.qaNewBestShown, false, 'Classic does not spend the Updated latch');
-        assertEquals(badgeCalls(classicSpy.calls).length, 0, 'Classic does not paint an early NEW BEST');
+        assertEquals(
+          badgeCalls(classicSpy.calls).length,
+          0,
+          'Classic does not paint an early NEW BEST'
+        );
         assertEquals(Animations.newBestFrames, 0, 'Classic hold does not start the live countdown');
       } finally {
         classicSpy.restore();
@@ -12840,11 +15606,17 @@ describe('Quieter NEW BEST badge', () => {
         drawQaNewBest();
         const painted = badgeCalls(spy.calls);
         assertEquals(painted.length, 1, 'only the hold paints while both timers are up');
-        assertEquals(painted[0].alpha, GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
-          'the visible badge is the quiet hold, not a second full-gold copy');
+        assertEquals(
+          painted[0].alpha,
+          GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
+          'the visible badge is the quiet hold, not a second full-gold copy'
+        );
         assertEquals(painted[0].font, QUIET_FONT, 'the stacked frame stays on the quiet type');
-        assertEquals(Animations.newBestFrames, GAME_CONFIG.UPDATED_NEW_BEST_FRAMES - 1,
-          'the live countdown still runs under the hold');
+        assertEquals(
+          Animations.newBestFrames,
+          GAME_CONFIG.UPDATED_NEW_BEST_FRAMES - 1,
+          'the live countdown still runs under the hold'
+        );
         assertEquals(game.qaNewBestHold, 40, 'drawing does not spend the hold');
       } finally {
         spy.restore();
@@ -12870,23 +15642,41 @@ describe('Quieter NEW BEST badge', () => {
         const spy = spyText();
         try {
           tick();
-          assertEquals(game.qaNewBestHold, qaNewBestHoldFrames(),
-            mode + ' hold uses the shorter window');
+          assertEquals(
+            game.qaNewBestHold,
+            qaNewBestHoldFrames(),
+            mode + ' hold uses the shorter window'
+          );
           assertEquals(game.qaNewBestHold, 90, mode + ' reduced motion halves the 180-frame hold');
-          assert(game.qaNewBestHold < QA_NEW_BEST_HOLD,
-            mode + ' hold is shorter than the full capture');
+          assert(
+            game.qaNewBestHold < QA_NEW_BEST_HOLD,
+            mode + ' hold is shorter than the full capture'
+          );
           assert(qaNewBestHoldFrames() >= 2, mode + ' hold still lasts long enough to see');
           const painted = badgeCalls(spy.calls);
           assertEquals(painted.length, 1, mode + ' reduced motion still paints the badge');
-          assertEquals(painted[0].alpha, qaNewBestPaintAlpha(),
-            mode + ' reduced motion holds the damped peak');
-          assert(painted[0].alpha < GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
-            mode + ' damped hold is softer than the motion-allowed peak');
+          assertEquals(
+            painted[0].alpha,
+            qaNewBestPaintAlpha(),
+            mode + ' reduced motion holds the damped peak'
+          );
+          assert(
+            painted[0].alpha < GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
+            mode + ' damped hold is softer than the motion-allowed peak'
+          );
           assert(painted[0].alpha > 0, mode + ' damped hold still reads');
           assertEquals(painted[0].font, QUIET_FONT, mode + ' damped hold stays on the small type');
           assertEquals(painted[0].fill, '#ffd700', mode + ' damped hold stays gold');
-          assertEquals(game.newBestShown, false, mode + ' damped hold does not spend the real badge');
-          assertEquals(Animations.newBestFrames, 0, mode + ' damped hold does not arm the live countdown');
+          assertEquals(
+            game.newBestShown,
+            false,
+            mode + ' damped hold does not spend the real badge'
+          );
+          assertEquals(
+            Animations.newBestFrames,
+            0,
+            mode + ' damped hold does not arm the live countdown'
+          );
           assert(game.score < 1, mode + ' damped hold must not write the score');
         } finally {
           spy.restore();
@@ -12923,8 +15713,11 @@ describe('Quieter NEW BEST badge', () => {
       tick();
       assertEquals(badgeCalls(spy.calls).length, 1, 're-read flag paints the quiet badge');
       assertEquals(badgeCalls(spy.calls)[0].font, QUIET_FONT, 're-read flag uses the quiet type');
-      assertEquals(badgeCalls(spy.calls)[0].alpha, GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
-        're-read flag uses the quiet peak');
+      assertEquals(
+        badgeCalls(spy.calls)[0].alpha,
+        GAME_CONFIG.UPDATED_NEW_BEST_PEAK_ALPHA,
+        're-read flag uses the quiet peak'
+      );
       assertEquals(game.qaNewBestHold, QA_NEW_BEST_HOLD, 'the re-read flag latches the hold');
       assertEquals(game.qaNewBestShown, true, 'the re-read flag spends the latch');
       assertEquals(game.newBestShown, false, 'the re-read flag does not spend the real badge');
@@ -12951,10 +15744,22 @@ describe('Quieter NEW BEST badge', () => {
       spy.calls.length = 0;
       tick();
       assertEquals(game.state, STATE.DEAD, 'the cactus still ends the run');
-      assertEquals(badgeCalls(spy.calls).length, 1, 'the hold still paints after the collision return');
+      assertEquals(
+        badgeCalls(spy.calls).length,
+        1,
+        'the hold still paints after the collision return'
+      );
       assertEquals(badgeCalls(spy.calls)[0].font, QUIET_FONT, 'the death-frame hold stays quiet');
-      assertEquals(game.newBestShown, false, 'dying on the QA frame does not latch a real new best');
-      assertEquals(Animations.newBestFrames, 0, 'dying on the QA frame does not start the live countdown');
+      assertEquals(
+        game.newBestShown,
+        false,
+        'dying on the QA frame does not latch a real new best'
+      );
+      assertEquals(
+        Animations.newBestFrames,
+        0,
+        'dying on the QA frame does not start the live countdown'
+      );
       assert(game.score < 1, 'dying on the QA frame does not invent score');
     } finally {
       spy.restore();
@@ -12982,20 +15787,30 @@ describe('Quieter copy flash', () => {
   function installClassList(el) {
     const names = new Set();
     el.classList = {
-      add(name) { names.add(name); },
-      remove(name) { names.delete(name); },
-      contains(name) { return names.has(name); },
+      add(name) {
+        names.add(name);
+      },
+      remove(name) {
+        names.delete(name);
+      },
+      contains(name) {
+        return names.has(name);
+      },
     };
     return el.classList;
   }
 
   it('the Copied confirmation is about half the old 90-frame flash', () => {
-    assertEquals(GAME_CONFIG.COPY_FLASH_FRAMES, 45,
-      'copy flash should be 45 frames, about 0.75s');
-    assert(GAME_CONFIG.COPY_FLASH_FRAMES < 90,
-      'the confirmation should be shorter than the old 1.5s flash');
-    assertEquals(copyFlashDuration(), GAME_CONFIG.COPY_FLASH_FRAMES,
-      'the handler duration should read the named config');
+    assertEquals(GAME_CONFIG.COPY_FLASH_FRAMES, 45, 'copy flash should be 45 frames, about 0.75s');
+    assert(
+      GAME_CONFIG.COPY_FLASH_FRAMES < 90,
+      'the confirmation should be shorter than the old 1.5s flash'
+    );
+    assertEquals(
+      copyFlashDuration(),
+      GAME_CONFIG.COPY_FLASH_FRAMES,
+      'the handler duration should read the named config'
+    );
   });
 
   it('a tune outside 1..90 frames falls back to the quiet length', () => {
@@ -13003,22 +15818,32 @@ describe('Quieter copy flash', () => {
       assertEquals(copyFlashDuration(), 30, 'a readable tune should apply');
     });
     withTuning({ COPY_FLASH_FRAMES: 0 }, () => {
-      assertEquals(copyFlashDuration(), GAME_CONFIG.COPY_FLASH_FRAMES,
-        'zero would flicker, so it falls back');
+      assertEquals(
+        copyFlashDuration(),
+        GAME_CONFIG.COPY_FLASH_FRAMES,
+        'zero would flicker, so it falls back'
+      );
     });
     withTuning({ COPY_FLASH_FRAMES: 200 }, () => {
-      assertEquals(copyFlashDuration(), GAME_CONFIG.COPY_FLASH_FRAMES,
-        'a longer tune would nag past the old flash');
+      assertEquals(
+        copyFlashDuration(),
+        GAME_CONFIG.COPY_FLASH_FRAMES,
+        'a longer tune would nag past the old flash'
+      );
     });
     withTuning({}, () => {
-      assertEquals(copyFlashDuration(), GAME_CONFIG.COPY_FLASH_FRAMES,
-        'no tune keeps the quiet default');
+      assertEquals(
+        copyFlashDuration(),
+        GAME_CONFIG.COPY_FLASH_FRAMES,
+        'no tune keeps the quiet default'
+      );
     });
   });
 
   it('starts the shorter Copied flash before the clipboard write', () => {
     const shareBtn = document.getElementById('share-btn');
-    const handler = shareBtn._listeners && shareBtn._listeners.click && shareBtn._listeners.click[0];
+    const handler =
+      shareBtn._listeners && shareBtn._listeners.click && shareBtn._listeners.click[0];
     assert(typeof handler === 'function', 'share button must register a click handler');
     const origDesc = Object.getOwnPropertyDescriptor(testGlobal, 'navigator');
     const origFlash = Animations.copyFlashFrames;
@@ -13047,11 +15872,17 @@ describe('Quieter copy flash', () => {
     try {
       handler({ stopPropagation() {} });
       assert(wrote, 'the clipboard write should still run');
-      assertEquals(flashAtWrite, GAME_CONFIG.COPY_FLASH_FRAMES,
-        'the flash counter is set before writeText');
+      assertEquals(
+        flashAtWrite,
+        GAME_CONFIG.COPY_FLASH_FRAMES,
+        'the flash counter is set before writeText'
+      );
       assertEquals(labelAtWrite, '✓ Copied!', 'the Copied label is set before writeText');
-      assertEquals(Animations.copyFlashFrames, GAME_CONFIG.COPY_FLASH_FRAMES,
-        'the live counter stays on the quiet length');
+      assertEquals(
+        Animations.copyFlashFrames,
+        GAME_CONFIG.COPY_FLASH_FRAMES,
+        'the live counter stays on the quiet length'
+      );
       assert(classes.contains('is-copied'), 'the Copied state uses the calmer button class');
       assert(!classes.contains('is-qa-damped'), 'a real tap is not the reduced-motion QA hold');
     } finally {
@@ -13073,9 +15904,15 @@ describe('QA copy flag (?qaCopy=1)', () => {
   function installClassList(el) {
     const names = new Set();
     el.classList = {
-      add(name) { names.add(name); },
-      remove(name) { names.delete(name); },
-      contains(name) { return names.has(name); },
+      add(name) {
+        names.add(name);
+      },
+      remove(name) {
+        names.delete(name);
+      },
+      contains(name) {
+        return names.has(name);
+      },
     };
     return el.classList;
   }
@@ -13120,7 +15957,10 @@ describe('QA copy flag (?qaCopy=1)', () => {
 
   it('?qaCopy=1 is Daily-only and off for any other value', () => {
     assert(readQaCopyFlag('?qaCopy=1') === true, '?qaCopy=1 should hold Copied');
-    assert(readQaCopyFlag('?qaNight=1&qaCopy=1') === true, 'the flag should work beside other params');
+    assert(
+      readQaCopyFlag('?qaNight=1&qaCopy=1') === true,
+      'the flag should work beside other params'
+    );
     assert(readQaCopyFlag('?qaCopy=1&qaNewBest=1') === true, 'param order should not matter');
     assert(readQaCopyFlag('?qaCopy=0') === false, 'only the value 1 enables the flag');
     assert(readQaCopyFlag('?qaCopy=12') === false, 'qaCopy=12 must not count as the flag');
@@ -13261,10 +16101,15 @@ describe('QA copy flag (?qaCopy=1)', () => {
       shareBtn.textContent = '📋 Copy result';
       tick();
       assert(Animations.deathAnimFrame > 0, 'the count-up still advances');
-      assert(Animations.deathAnimFrame < GAME_CONFIG.DEATH_ANIM_FRAMES,
-        'the count-up has not finished');
-      assertEquals(shareBtn.style.display, 'block',
-        'QA keeps the button up before the count-up ends');
+      assert(
+        Animations.deathAnimFrame < GAME_CONFIG.DEATH_ANIM_FRAMES,
+        'the count-up has not finished'
+      );
+      assertEquals(
+        shareBtn.style.display,
+        'block',
+        'QA keeps the button up before the count-up ends'
+      );
       assertEquals(shareBtn.textContent, '✓ Copied!', 'the early button still says Copied');
       assertEquals(game.score, 0, 'showing the button does not invent a score');
     } finally {
@@ -13312,7 +16157,11 @@ describe('QA copy flag (?qaCopy=1)', () => {
       assertEquals(shareBtn.style.display, 'block', 'the re-read flag shows Copied');
       assertEquals(shareBtn.textContent, '✓ Copied!', 'the re-read flag labels Copied');
       assertEquals(game.score, score, 're-reading the flag must not change the score');
-      assertEquals(Animations.copyFlashFrames, 0, 're-reading the flag does not start the live flash');
+      assertEquals(
+        Animations.copyFlashFrames,
+        0,
+        're-reading the flag does not start the live flash'
+      );
     } finally {
       restorePageQuery();
       game.mode = origMode;
@@ -13334,7 +16183,11 @@ describe('Soft death score count-up', () => {
   function withTuning(overrides, fn) {
     const orig = window.GAME_TUNING;
     window.GAME_TUNING = overrides;
-    try { fn(); } finally { window.GAME_TUNING = orig; }
+    try {
+      fn();
+    } finally {
+      window.GAME_TUNING = orig;
+    }
   }
 
   function armDead(mode, score) {
@@ -13357,7 +16210,10 @@ describe('Soft death score count-up', () => {
     const origFill = ctx.fillText;
     const origRng = game.rng;
     let rngCalls = 0;
-    game.rng = () => { rngCalls++; return 0; };
+    game.rng = () => {
+      rngCalls++;
+      return 0;
+    };
     ctx.fillText = (text) => {
       const s = String(text);
       if (/^\d{5}$/.test(s)) scores.push(s);
@@ -13407,15 +16263,25 @@ describe('Soft death score count-up', () => {
       const updated = rollCountUp();
       assertEquals(updated.steps, QUIET_FRAMES, 'Updated count-up advances 18 frames');
       assertEquals(updated.frame, QUIET_FRAMES, 'Updated stops on frame 18');
-      assertEquals(updated.scores[QUIET_FRAMES - 1], '00500',
-        'Updated frame 18 draws the full score');
+      assertEquals(
+        updated.scores[QUIET_FRAMES - 1],
+        '00500',
+        'Updated frame 18 draws the full score'
+      );
       assertEquals(updated.rngCalls, 0, 'the count-up does not consume the run seed');
       assertEquals(game.score, 500, 'the count-up does not change the score');
-      assertEquals(game.currentSpeed, GAME_CONFIG.INITIAL_SPEED, 'the count-up does not change speed');
+      assertEquals(
+        game.currentSpeed,
+        GAME_CONFIG.INITIAL_SPEED,
+        'the count-up does not change speed'
+      );
       assertEquals(game.highScore, 900, 'the count-up does not change the high score');
       assertEquals(game.dailyBest, 400, 'the count-up does not change daily best');
-      assertEquals(localStorage.getItem('dino-daily-best'), storedDaily,
-        'the count-up does not write daily best');
+      assertEquals(
+        localStorage.getItem('dino-daily-best'),
+        storedDaily,
+        'the count-up does not write daily best'
+      );
 
       armDead(MODES.DAILY, 500);
       const daily = rollCountUp();
@@ -13424,11 +16290,21 @@ describe('Soft death score count-up', () => {
 
       armDead(MODES.CLASSIC, 500);
       const classic = rollCountUp();
-      assertEquals(classic.steps, GAME_CONFIG.DEATH_ANIM_FRAMES, 'Classic still rolls for 30 frames');
-      assertEquals(classic.scores[QUIET_FRAMES - 1], '00300',
-        'Classic frame 18 is still sixty percent of the score');
-      assertEquals(classic.scores[GAME_CONFIG.DEATH_ANIM_FRAMES - 1], '00500',
-        'Classic frame 30 draws the full score');
+      assertEquals(
+        classic.steps,
+        GAME_CONFIG.DEATH_ANIM_FRAMES,
+        'Classic still rolls for 30 frames'
+      );
+      assertEquals(
+        classic.scores[QUIET_FRAMES - 1],
+        '00300',
+        'Classic frame 18 is still sixty percent of the score'
+      );
+      assertEquals(
+        classic.scores[GAME_CONFIG.DEATH_ANIM_FRAMES - 1],
+        '00500',
+        'Classic frame 30 draws the full score'
+      );
 
       setReducedMotion(true);
       armDead(MODES.UPDATED, 500);
@@ -13438,8 +16314,11 @@ describe('Soft death score count-up', () => {
       armDead(MODES.DAILY, 500);
       assertEquals(rollCountUp().steps, 9, 'reduced motion halves the Daily roll');
       armDead(MODES.CLASSIC, 500);
-      assertEquals(rollCountUp().steps, GAME_CONFIG.DEATH_ANIM_FRAMES,
-        'reduced motion leaves the Classic roll at 30');
+      assertEquals(
+        rollCountUp().steps,
+        GAME_CONFIG.DEATH_ANIM_FRAMES,
+        'reduced motion leaves the Classic roll at 30'
+      );
     } finally {
       game.mode = orig.mode;
       game.state = orig.state;
@@ -13492,22 +16371,27 @@ describe('Soft death score count-up', () => {
       ctx.fillText = (text) => early.push(String(text));
       drawGameOverScreen();
       ctx.fillText = origFill;
-      assert(!early.includes('Share TODAY BEST with Copy result'),
-        'the hint waits until the shorter roll finishes');
-      assertEquals(shareBtn.style.display, 'none',
-        'Copy result stays hidden until the shorter roll finishes');
+      assert(
+        !early.includes('Share TODAY BEST with Copy result'),
+        'the hint waits until the shorter roll finishes'
+      );
+      assertEquals(
+        shareBtn.style.display,
+        'none',
+        'Copy result stays hidden until the shorter roll finishes'
+      );
 
       Animations.deathAnimFrame = 18;
       const settled = [];
       ctx.fillText = (text) => settled.push(String(text));
       drawGameOverScreen();
       ctx.fillText = origFill;
-      assert(settled.includes('Share TODAY BEST with Copy result'),
-        'the hint appears on the Updated/Daily frame 18');
-      assertEquals(shareBtn.style.display, 'block',
-        'Copy result appears with the hint');
-      assertEquals(shareBtn.textContent, '📋 Copy result',
-        'the share label stays Copy result');
+      assert(
+        settled.includes('Share TODAY BEST with Copy result'),
+        'the hint appears on the Updated/Daily frame 18'
+      );
+      assertEquals(shareBtn.style.display, 'block', 'Copy result appears with the hint');
+      assertEquals(shareBtn.textContent, '📋 Copy result', 'the share label stays Copy result');
 
       game.mode = MODES.UPDATED;
       shareBtn.style.display = 'block';
@@ -13515,25 +16399,35 @@ describe('Soft death score count-up', () => {
       ctx.fillText = (text) => updated.push(String(text));
       drawGameOverScreen();
       ctx.fillText = origFill;
-      assert(!updated.includes('Share TODAY BEST with Copy result'),
-        'Updated free play still does not draw the Daily hint');
+      assert(
+        !updated.includes('Share TODAY BEST with Copy result'),
+        'Updated free play still does not draw the Daily hint'
+      );
 
       setReducedMotion(true);
       game.mode = MODES.DAILY;
       Animations.deathAnimFrame = 8;
       shareBtn.style.display = 'block';
       drawGameOverScreen();
-      assertEquals(shareBtn.style.display, 'none',
-        'reduced motion keeps Copy result hidden until the halved roll finishes');
+      assertEquals(
+        shareBtn.style.display,
+        'none',
+        'reduced motion keeps Copy result hidden until the halved roll finishes'
+      );
       Animations.deathAnimFrame = 9;
       const damped = [];
       ctx.fillText = (text) => damped.push(String(text));
       drawGameOverScreen();
       ctx.fillText = origFill;
-      assert(damped.includes('Share TODAY BEST with Copy result'),
-        'reduced motion shows the hint once the halved roll finishes');
-      assertEquals(shareBtn.style.display, 'block',
-        'reduced motion shows Copy result with that hint');
+      assert(
+        damped.includes('Share TODAY BEST with Copy result'),
+        'reduced motion shows the hint once the halved roll finishes'
+      );
+      assertEquals(
+        shareBtn.style.display,
+        'block',
+        'reduced motion shows Copy result with that hint'
+      );
     } finally {
       ctx.fillText = origFill;
       game.mode = orig.mode;
@@ -13565,16 +16459,22 @@ describe('Soft death score count-up', () => {
       Animations.deathAnimFrame = 18;
       handleAction();
       assertEquals(game.state, STATE.DEAD, 'Classic frame 18 is still rolling');
-      assertEquals(Animations.deathAnimFrame, GAME_CONFIG.DEATH_ANIM_FRAMES,
-        'Classic skip still jumps to frame 30');
+      assertEquals(
+        Animations.deathAnimFrame,
+        GAME_CONFIG.DEATH_ANIM_FRAMES,
+        'Classic skip still jumps to frame 30'
+      );
 
       game.mode = MODES.UPDATED;
       game.state = STATE.DEAD;
       Animations.deathAnimFrame = 18;
       handleAction();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
-      assertEquals(game.state, STATE.WAITING,
-        'Updated frame 18 is the end of the roll, so space restarts');
+      assertEquals(
+        game.state,
+        STATE.WAITING,
+        'Updated frame 18 is the end of the roll, so space restarts'
+      );
     } finally {
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       game.mode = orig.mode;
@@ -13599,8 +16499,10 @@ describe('Soft death score count-up', () => {
     };
     try {
       setReducedMotion(false);
-      assert(typeof deathAnimFrames === 'function',
-        'deathAnimFrames should be the mode-correct length');
+      assert(
+        typeof deathAnimFrames === 'function',
+        'deathAnimFrames should be the mode-correct length'
+      );
       game.score = 500;
 
       game.mode = MODES.UPDATED;
@@ -13613,8 +16515,7 @@ describe('Soft death score count-up', () => {
         assertEquals(deathAnimFrames(), 30, 'a tune equal to Classic is allowed');
       });
       withTuning({ UPDATED_DEATH_ANIM_FRAMES: 40 }, () => {
-        assertEquals(deathAnimFrames(), QUIET_FRAMES,
-          'a tune past Classic 30 falls back to 18');
+        assertEquals(deathAnimFrames(), QUIET_FRAMES, 'a tune past Classic 30 falls back to 18');
       });
       withTuning({ UPDATED_DEATH_ANIM_FRAMES: 0 }, () => {
         assertEquals(deathAnimFrames(), QUIET_FRAMES, 'zero falls back to 18');
@@ -13632,10 +16533,16 @@ describe('Soft death score count-up', () => {
       game.mode = MODES.CLASSIC;
       withTuning({ UPDATED_DEATH_ANIM_FRAMES: 12 }, () => {
         armDead(MODES.CLASSIC, 500);
-        assertEquals(deathAnimFrames(), GAME_CONFIG.DEATH_ANIM_FRAMES,
-          'Classic ignores the Updated length');
-        assertEquals(rollCountUp().steps, GAME_CONFIG.DEATH_ANIM_FRAMES,
-          'Classic still rolls for 30 frames');
+        assertEquals(
+          deathAnimFrames(),
+          GAME_CONFIG.DEATH_ANIM_FRAMES,
+          'Classic ignores the Updated length'
+        );
+        assertEquals(
+          rollCountUp().steps,
+          GAME_CONFIG.DEATH_ANIM_FRAMES,
+          'Classic still rolls for 30 frames'
+        );
       });
 
       game.mode = MODES.DAILY;
@@ -13646,13 +16553,19 @@ describe('Soft death score count-up', () => {
       setReducedMotion(true);
       game.mode = MODES.UPDATED;
       withTuning({ UPDATED_DEATH_ANIM_FRAMES: 1 }, () => {
-        assertEquals(deathAnimFrames(), 2,
-          'reduced motion keeps a positive length when the tune is 1');
+        assertEquals(
+          deathAnimFrames(),
+          2,
+          'reduced motion keeps a positive length when the tune is 1'
+        );
       });
       game.mode = MODES.CLASSIC;
       withTuning({ UPDATED_DEATH_ANIM_FRAMES: 12 }, () => {
-        assertEquals(deathAnimFrames(), GAME_CONFIG.DEATH_ANIM_FRAMES,
-          'reduced motion does not shorten Classic');
+        assertEquals(
+          deathAnimFrames(),
+          GAME_CONFIG.DEATH_ANIM_FRAMES,
+          'reduced motion does not shorten Classic'
+        );
       });
     } finally {
       game.mode = orig.mode;
@@ -13706,23 +16619,34 @@ describe('QA death count-up flag (?qaCountUp=1)', () => {
     return {
       calls: calls,
       alpha: () => alpha,
-      restore() { ctx.fillText = orig; },
+      restore() {
+        ctx.fillText = orig;
+      },
     };
   }
 
   it('recognizes only ?qaCountUp=1', () => {
-    assert(typeof readQaCountUpFlag === 'function',
-      'readQaCountUpFlag should parse the playtest query');
-    assert(typeof setQaCountUp === 'function',
-      'setQaCountUp should be exposed for tests');
+    assert(
+      typeof readQaCountUpFlag === 'function',
+      'readQaCountUpFlag should parse the playtest query'
+    );
+    assert(typeof setQaCountUp === 'function', 'setQaCountUp should be exposed for tests');
     assert(readQaCountUpFlag('?qaCountUp=1') === true, '?qaCountUp=1 should hold the count-up');
-    assert(readQaCountUpFlag('?qaNight=1&qaCountUp=1') === true,
-      'the flag should work beside ?qaNight=1');
+    assert(
+      readQaCountUpFlag('?qaNight=1&qaCountUp=1') === true,
+      'the flag should work beside ?qaNight=1'
+    );
     assert(readQaCountUpFlag('?qaCountUp=1&qaShake=1') === true, 'param order should not matter');
-    assert(readQaCountUpFlag('') === false, 'a normal visit should leave the roll for a real death');
+    assert(
+      readQaCountUpFlag('') === false,
+      'a normal visit should leave the roll for a real death'
+    );
     assert(readQaCountUpFlag('?qaCountUp=0') === false, 'only the value 1 enables the flag');
     assert(readQaCountUpFlag('?qaCountUp=18') === false, 'qaCountUp=18 must not count as the flag');
-    assert(readQaCountUpFlag('?qaScorePop=1') === false, 'the score pop must not hold the count-up');
+    assert(
+      readQaCountUpFlag('?qaScorePop=1') === false,
+      'the score pop must not hold the count-up'
+    );
   });
 
   it('holds a screenshotable Game Over roll without writing the run', () => {
@@ -13737,21 +16661,29 @@ describe('QA death count-up flag (?qaCountUp=1)', () => {
         armWaiting(mode);
         const origRng = game.rng;
         let rngCalls = 0;
-        game.rng = () => { rngCalls++; return origRng(); };
+        game.rng = () => {
+          rngCalls++;
+          return origRng();
+        };
         setQaCountUp(true);
         spy.calls.length = 0;
         tick();
         const expectFull = mode === MODES.DAILY;
-        assert(spy.calls.includes('00100'),
-          mode + ' holds the settled sample score from the shorter roll');
-        assert(!spy.calls.includes('00060'),
-          mode + ' does not paint the Classic partial score');
+        assert(
+          spy.calls.includes('00100'),
+          mode + ' holds the settled sample score from the shorter roll'
+        );
+        assert(!spy.calls.includes('00060'), mode + ' does not paint the Classic partial score');
         if (expectFull) {
-          assert(spy.calls.includes('Share TODAY BEST with Copy result'),
-            'Daily hold shows the hint once the shorter roll has settled');
+          assert(
+            spy.calls.includes('Share TODAY BEST with Copy result'),
+            'Daily hold shows the hint once the shorter roll has settled'
+          );
         } else {
-          assert(!spy.calls.includes('Share TODAY BEST with Copy result'),
-            'Updated hold does not draw the Daily hint');
+          assert(
+            !spy.calls.includes('Share TODAY BEST with Copy result'),
+            'Updated hold does not draw the Daily hint'
+          );
         }
         assertEquals(game.qaCountUpHold, QA_COUNT_UP_HOLD, mode + ' latches the full hold');
         assertEquals(game.qaCountUpShown, true, mode + ' spends the latch');
@@ -13760,13 +16692,22 @@ describe('QA death count-up flag (?qaCountUp=1)', () => {
         assertEquals(game.score, 0, mode + ' hold must not write the score');
         assertEquals(game.highScore, 0, mode + ' hold must not write the high score');
         assertEquals(game.dailyBest, 0, mode + ' hold must not write daily best');
-        assertEquals(localStorage.getItem('dino-daily-best'), storedDaily,
-          mode + ' hold must not store daily best');
-        assertEquals(localStorage.getItem('dino-high-score'), storedHigh,
-          mode + ' hold must not store the high score');
+        assertEquals(
+          localStorage.getItem('dino-daily-best'),
+          storedDaily,
+          mode + ' hold must not store daily best'
+        );
+        assertEquals(
+          localStorage.getItem('dino-high-score'),
+          storedHigh,
+          mode + ' hold must not store the high score'
+        );
         assertEquals(rngCalls, 0, mode + ' hold must not consume the run seed');
-        assertEquals(game.currentSpeed, GAME_CONFIG.INITIAL_SPEED,
-          mode + ' hold must not change speed');
+        assertEquals(
+          game.currentSpeed,
+          GAME_CONFIG.INITIAL_SPEED,
+          mode + ' hold must not change speed'
+        );
         game.rng = origRng;
       }
 
@@ -13774,13 +16715,20 @@ describe('QA death count-up flag (?qaCountUp=1)', () => {
       setQaCountUp(true);
       spy.calls.length = 0;
       tick();
-      assert(spy.calls.includes('00060'),
-        'Classic hold paints the 30-frame roll at the Updated marker');
-      assert(!spy.calls.includes('00100'),
-        'Classic hold does not paint the settled Updated score');
-      assert(!spy.calls.includes('Share TODAY BEST with Copy result'),
-        'Classic hold does not draw the Daily hint');
-      assertEquals(game.qaCountUpHold, QA_COUNT_UP_HOLD, 'Classic still holds long enough to capture');
+      assert(
+        spy.calls.includes('00060'),
+        'Classic hold paints the 30-frame roll at the Updated marker'
+      );
+      assert(!spy.calls.includes('00100'), 'Classic hold does not paint the settled Updated score');
+      assert(
+        !spy.calls.includes('Share TODAY BEST with Copy result'),
+        'Classic hold does not draw the Daily hint'
+      );
+      assertEquals(
+        game.qaCountUpHold,
+        QA_COUNT_UP_HOLD,
+        'Classic still holds long enough to capture'
+      );
       assertEquals(Animations.deathAnimFrame, 0, 'Classic hold does not arm the real count-up');
       assertEquals(game.score, 0, 'Classic hold must not write the score');
 
@@ -13816,12 +16764,14 @@ describe('QA death count-up flag (?qaCountUp=1)', () => {
       setQaCountUp(true);
       spy.calls.length = 0;
       tick();
-      assertEquals(game.qaCountUpHold, qaCountUpHoldFrames(),
-        'the hold uses the shorter window');
+      assertEquals(game.qaCountUpHold, qaCountUpHoldFrames(), 'the hold uses the shorter window');
       assert(game.qaCountUpHold < QA_COUNT_UP_HOLD, 'the hold is shorter than the full capture');
       assert(qaCountUpHoldFrames() >= 2, 'the hold still lasts long enough to see');
-      assertEquals(game.qaCountUpHold, Math.max(2, Math.round(QA_COUNT_UP_HOLD * 0.5)),
-        'reduced motion halves the 180-frame hold');
+      assertEquals(
+        game.qaCountUpHold,
+        Math.max(2, Math.round(QA_COUNT_UP_HOLD * 0.5)),
+        'reduced motion halves the 180-frame hold'
+      );
       assert(spy.calls.includes('00100'), 'the damped hold still shows the settled score');
       assertEquals(spy.alpha(), 0.5, 'reduced motion paints the card at half strength');
       assertEquals(game.score, 0, 'the damped hold must not write the score');
@@ -13832,8 +16782,10 @@ describe('QA death count-up flag (?qaCountUp=1)', () => {
       setQaCountUp(true);
       spy.calls.length = 0;
       tick();
-      assert(spy.calls.includes('00060'),
-        'reduced motion does not switch Classic onto the Updated length');
+      assert(
+        spy.calls.includes('00060'),
+        'reduced motion does not switch Classic onto the Updated length'
+      );
       assert(!spy.calls.includes('00100'), 'Classic stays on the 30-frame partial score');
     } finally {
       spy.restore();
@@ -13866,7 +16818,11 @@ describe('QA death count-up flag (?qaCountUp=1)', () => {
       assertEquals(game.qaCountUpShown, true, 'the re-read flag spends the latch');
       assert(spy.calls.includes('00100'), 'the re-read flag paints the shorter roll');
       assertEquals(game.score, score, 're-reading the flag must not change the score');
-      assertEquals(Animations.deathAnimFrame, 0, 're-reading the flag does not arm the real count-up');
+      assertEquals(
+        Animations.deathAnimFrame,
+        0,
+        're-reading the flag does not arm the real count-up'
+      );
     } finally {
       spy.restore();
       restorePageQuery();
@@ -13893,7 +16849,11 @@ describe('Soft idle start pulse', () => {
   function withTuning(overrides, fn) {
     const orig = window.GAME_TUNING;
     window.GAME_TUNING = overrides;
-    try { fn(); } finally { window.GAME_TUNING = orig; }
+    try {
+      fn();
+    } finally {
+      window.GAME_TUNING = orig;
+    }
   }
 
   function classicAlpha(frame) {
@@ -13942,15 +16902,18 @@ describe('Soft idle start pulse', () => {
     const origMode = game.mode;
     const origHold = game.qaIdleHold;
     try {
-      assertEquals(GAME_CONFIG.UPDATED_IDLE_PULSE_BASE, QUIET_BASE,
-        'the quiet floor is 0.4');
-      assertEquals(GAME_CONFIG.UPDATED_IDLE_PULSE_AMPLITUDE, QUIET_AMP,
-        'the quiet swing is 0.15');
-      assertEquals(GAME_CONFIG.UPDATED_IDLE_PULSE_RATE, QUIET_RATE,
-        'the quiet breath is slower than Classic 0.08');
+      assertEquals(GAME_CONFIG.UPDATED_IDLE_PULSE_BASE, QUIET_BASE, 'the quiet floor is 0.4');
+      assertEquals(GAME_CONFIG.UPDATED_IDLE_PULSE_AMPLITUDE, QUIET_AMP, 'the quiet swing is 0.15');
+      assertEquals(
+        GAME_CONFIG.UPDATED_IDLE_PULSE_RATE,
+        QUIET_RATE,
+        'the quiet breath is slower than Classic 0.08'
+      );
       assert(QUIET_RATE < 0.08, 'the quiet rate must be slower than Classic');
-      assert(QUIET_BASE >= CLASSIC_MIN && QUIET_BASE + QUIET_AMP <= CLASSIC_MAX,
-        'the quiet band must sit inside Classic 0.3–0.7');
+      assert(
+        QUIET_BASE >= CLASSIC_MIN && QUIET_BASE + QUIET_AMP <= CLASSIC_MAX,
+        'the quiet band must sit inside Classic 0.3–0.7'
+      );
 
       for (const mode of [MODES.UPDATED, MODES.DAILY]) {
         game.mode = mode;
@@ -13991,11 +16954,20 @@ describe('Soft idle start pulse', () => {
         setReducedMotion(reduced);
         for (const frame of [0, 20, 40, 80]) {
           const painted = promptAlpha(frame);
-          assertEquals(painted.alpha, rounded(classicAlpha(frame)),
-            (reduced ? 'reduced motion' : 'motion') + ' Classic frame ' + frame + ' keeps the old pulse');
+          assertEquals(
+            painted.alpha,
+            rounded(classicAlpha(frame)),
+            (reduced ? 'reduced motion' : 'motion') +
+              ' Classic frame ' +
+              frame +
+              ' keeps the old pulse'
+          );
         }
-        assertNotEquals(promptAlpha(0).alpha, promptAlpha(40).alpha,
-          'Classic still breathes under reduced=' + reduced);
+        assertNotEquals(
+          promptAlpha(0).alpha,
+          promptAlpha(40).alpha,
+          'Classic still breathes under reduced=' + reduced
+        );
       }
     } finally {
       game.mode = origMode;
@@ -14016,8 +16988,11 @@ describe('Soft idle start pulse', () => {
         const first = promptAlpha(0).alpha;
         assertEquals(first, mid, mode + ' reduced motion uses the midpoint');
         for (const frame of [1, 20, 40, 80, 200]) {
-          assertEquals(promptAlpha(frame).alpha, first,
-            mode + ' reduced motion does not sample sin at frame ' + frame);
+          assertEquals(
+            promptAlpha(frame).alpha,
+            first,
+            mode + ' reduced motion does not sample sin at frame ' + frame
+          );
         }
       }
     } finally {
@@ -14050,7 +17025,11 @@ describe('Soft idle start pulse', () => {
       assertEquals(title.y, GAME_CONFIG.CANVAS_H / 2 - 16, 'title stays on the board vertically');
       assertEquals(prompt.x, GAME_CONFIG.CANVAS_W / 2, 'start line stays centered on the board');
       assertEquals(prompt.y, GAME_CONFIG.CANVAS_H / 2 + 12, 'start line stays under the title');
-      assertEquals(scrim.rect[2], GAME_CONFIG.CANVAS_W, 'the dim card covers the board, not the raw bitmap');
+      assertEquals(
+        scrim.rect[2],
+        GAME_CONFIG.CANVAS_W,
+        'the dim card covers the board, not the raw bitmap'
+      );
       assertEquals(scrim.rect[3], GAME_CONFIG.CANVAS_H, 'the dim card matches the board height');
     } finally {
       ctx.fillText = origText;
@@ -14073,7 +17052,10 @@ describe('Soft idle start pulse', () => {
         [{ UPDATED_IDLE_PULSE_AMPLITUDE: 9 }, 'a wide swing'],
         [{ UPDATED_IDLE_PULSE_BASE: 2 }, 'a base above the Classic band'],
         [{ UPDATED_IDLE_PULSE_BASE: 0.1 }, 'a base below the Classic band'],
-        [{ UPDATED_IDLE_PULSE_BASE: 0.5, UPDATED_IDLE_PULSE_AMPLITUDE: 0.3 }, 'a pair that peaks past 0.7'],
+        [
+          { UPDATED_IDLE_PULSE_BASE: 0.5, UPDATED_IDLE_PULSE_AMPLITUDE: 0.3 },
+          'a pair that peaks past 0.7',
+        ],
         [{ UPDATED_IDLE_PULSE_AMPLITUDE: 'loud' }, 'a non-number swing'],
         [{ UPDATED_IDLE_PULSE_RATE: 1 }, 'a rate faster than Classic'],
         [{ UPDATED_IDLE_PULSE_RATE: 0 }, 'a frozen rate'],
@@ -14082,22 +17064,31 @@ describe('Soft idle start pulse', () => {
       for (const [tune, label] of cases) {
         withTuning(tune, () => {
           for (const frame of [0, 2, 20, 31, 40]) {
-            assertEquals(promptAlpha(frame).alpha, fallbackAt(frame),
-              label + ' falls back at frame ' + frame);
+            assertEquals(
+              promptAlpha(frame).alpha,
+              fallbackAt(frame),
+              label + ' falls back at frame ' + frame
+            );
           }
         });
       }
 
-      withTuning({
-        UPDATED_IDLE_PULSE_BASE: 0.42,
-        UPDATED_IDLE_PULSE_AMPLITUDE: 0.08,
-        UPDATED_IDLE_PULSE_RATE: 0.04,
-      }, () => {
-        const frame = 10;
-        assertEquals(promptAlpha(frame).alpha, rounded(quietAlpha(frame, 0.42, 0.08, 0.04)),
-          'a tune inside the Classic band is honored');
-        assert(0.42 + 0.08 <= CLASSIC_MAX, 'the honored tune still ends at or under 0.7');
-      });
+      withTuning(
+        {
+          UPDATED_IDLE_PULSE_BASE: 0.42,
+          UPDATED_IDLE_PULSE_AMPLITUDE: 0.08,
+          UPDATED_IDLE_PULSE_RATE: 0.04,
+        },
+        () => {
+          const frame = 10;
+          assertEquals(
+            promptAlpha(frame).alpha,
+            rounded(quietAlpha(frame, 0.42, 0.08, 0.04)),
+            'a tune inside the Classic band is honored'
+          );
+          assert(0.42 + 0.08 <= CLASSIC_MAX, 'the honored tune still ends at or under 0.7');
+        }
+      );
     } finally {
       game.mode = origMode;
       setReducedMotion(false);
@@ -14146,9 +17137,15 @@ describe('QA idle pulse flag (?qaIdle=1)', () => {
     };
     return {
       calls,
-      prompt() { return calls.filter((c) => c.text === PROMPT); },
-      title() { return calls.filter((c) => c.text === 'REX RUN'); },
-      restore() { ctx.fillText = orig; },
+      prompt() {
+        return calls.filter((c) => c.text === PROMPT);
+      },
+      title() {
+        return calls.filter((c) => c.text === 'REX RUN');
+      },
+      restore() {
+        ctx.fillText = orig;
+      },
     };
   }
 
@@ -14160,13 +17157,13 @@ describe('QA idle pulse flag (?qaIdle=1)', () => {
   }
 
   it('recognizes only ?qaIdle=1', () => {
-    assert(typeof readQaIdleFlag === 'function',
-      'readQaIdleFlag should parse the playtest query');
-    assert(typeof setQaIdle === 'function',
-      'setQaIdle should be exposed for tests');
+    assert(typeof readQaIdleFlag === 'function', 'readQaIdleFlag should parse the playtest query');
+    assert(typeof setQaIdle === 'function', 'setQaIdle should be exposed for tests');
     assert(readQaIdleFlag('?qaIdle=1') === true, '?qaIdle=1 should hold the idle invite');
-    assert(readQaIdleFlag('?qaNight=1&qaIdle=1') === true,
-      'the flag should work beside ?qaNight=1');
+    assert(
+      readQaIdleFlag('?qaNight=1&qaIdle=1') === true,
+      'the flag should work beside ?qaNight=1'
+    );
     assert(readQaIdleFlag('?qaIdle=1&qaCountUp=1') === true, 'param order should not matter');
     assert(readQaIdleFlag('') === false, 'a normal visit should leave the live breath');
     assert(readQaIdleFlag('?qaIdle=0') === false, 'only the value 1 enables the flag');
@@ -14184,7 +17181,10 @@ describe('QA idle pulse flag (?qaIdle=1)', () => {
         armIdle(mode);
         const origRng = game.rng;
         let rngCalls = 0;
-        game.rng = () => { rngCalls++; return origRng(); };
+        game.rng = () => {
+          rngCalls++;
+          return origRng();
+        };
         const speed = game.currentSpeed;
         setQaIdle(true);
         spy.calls.length = 0;
@@ -14193,8 +17193,16 @@ describe('QA idle pulse flag (?qaIdle=1)', () => {
         const held = game.qaIdleHold;
         tick();
         assertEquals(first, QUIET_PEAK, mode + ' freezes the quieter peak');
-        assertEquals(promptFillAlpha(spy), QUIET_PEAK, mode + ' stays on that peak for a second frame');
-        assertEquals(spy.title()[0] && spy.title()[0].fill, 'white', mode + ' title stays solid white');
+        assertEquals(
+          promptFillAlpha(spy),
+          QUIET_PEAK,
+          mode + ' stays on that peak for a second frame'
+        );
+        assertEquals(
+          spy.title()[0] && spy.title()[0].fill,
+          'white',
+          mode + ' title stays solid white'
+        );
         assertEquals(held, QA_IDLE_HOLD, mode + ' latches the full hold');
         assertEquals(game.qaIdleHold, held, mode + ' idle card does not burn the hold down');
         assertEquals(game.qaIdleShown, true, mode + ' spends the latch');
@@ -14207,7 +17215,11 @@ describe('QA idle pulse flag (?qaIdle=1)', () => {
 
         const before = game.state;
         handleAction();
-        assertEquals(game.state, STATE.WAITING, mode + ' Space still leaves idle for the countdown');
+        assertEquals(
+          game.state,
+          STATE.WAITING,
+          mode + ' Space still leaves idle for the countdown'
+        );
         assertEquals(before, STATE.IDLE, mode + ' the hold itself had not already left idle');
         if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       }
@@ -14267,12 +17279,19 @@ describe('QA idle pulse flag (?qaIdle=1)', () => {
         assertEquals(game.qaIdleHold, qaIdleHoldFrames(), mode + ' uses the shorter window');
         assert(game.qaIdleHold < QA_IDLE_HOLD, mode + ' hold is shorter than the full capture');
         assert(qaIdleHoldFrames() >= 2, mode + ' hold still lasts long enough to see');
-        assertEquals(game.qaIdleHold, Math.max(2, Math.round(QA_IDLE_HOLD * 0.5)),
-          mode + ' reduced motion halves the hold');
+        assertEquals(
+          game.qaIdleHold,
+          Math.max(2, Math.round(QA_IDLE_HOLD * 0.5)),
+          mode + ' reduced motion halves the hold'
+        );
         assertEquals(first, HALF_INK, mode + ' paints the static invite at half ink');
         assertEquals(promptFillAlpha(spy), first, mode + ' damped hold does not breathe');
         assert(first < QUIET_MID, mode + ' half ink is quieter than the static midpoint');
-        assertEquals(spy.title()[0] && spy.title()[0].fill, 'white', mode + ' title stays solid white');
+        assertEquals(
+          spy.title()[0] && spy.title()[0].fill,
+          'white',
+          mode + ' title stays solid white'
+        );
         assertEquals(game.state, STATE.IDLE, mode + ' damped hold does not start the run');
         assertEquals(game.score, 0, mode + ' damped hold must not write the score');
       }
@@ -14283,10 +17302,16 @@ describe('QA idle pulse flag (?qaIdle=1)', () => {
       spy.calls.length = 0;
       tick();
       const frame = game.animFrame;
-      assertEquals(promptFillAlpha(spy), classicAlpha(frame),
-        'reduced motion does not switch Classic onto the quiet invite');
-      assertEquals(game.qaIdleHold, Math.max(2, Math.round(QA_IDLE_HOLD * 0.5)),
-        'Classic still damps the hold length');
+      assertEquals(
+        promptFillAlpha(spy),
+        classicAlpha(frame),
+        'reduced motion does not switch Classic onto the quiet invite'
+      );
+      assertEquals(
+        game.qaIdleHold,
+        Math.max(2, Math.round(QA_IDLE_HOLD * 0.5)),
+        'Classic still damps the hold length'
+      );
     } finally {
       spy.restore();
       game.mode = origMode;
@@ -14905,7 +17930,11 @@ describe('QA share flag (?qaShare=1)', () => {
       assertEquals(game.state, STATE.WAITING, 'GET READY is still counting down');
       assertEquals(game.qaShareHold, 0, 'GET READY must not start the hold');
       assertEquals(game.qaShareShown, false, 'GET READY must not spend the latch');
-      assertEquals(shareBtn.textContent, '📋 Copy result', 'the button stays at rest before Game Over');
+      assertEquals(
+        shareBtn.textContent,
+        '📋 Copy result',
+        'the button stays at rest before Game Over'
+      );
       assertEquals(game.score, score, 'GET READY must not change the score');
       assertEquals(rngCalls, 0, 'GET READY must not roll game.rng()');
       game.state = STATE.RUNNING;
@@ -14985,7 +18014,11 @@ describe('QA share flag (?qaShare=1)', () => {
       assertEquals(shared, 0, 'staying on Copied must not open a sheet');
       assertEquals(wrote, 0, 'staying on Copied must not write the clipboard');
       drawGameOverScreen();
-      assertEquals(shareBtn.textContent, '✓ Copied!', 'Game Over paint must not restore Copy result');
+      assertEquals(
+        shareBtn.textContent,
+        '✓ Copied!',
+        'Game Over paint must not restore Copy result'
+      );
       game.qaShareHold = 0;
       Animations.copyFlashFrames = 0;
       drawGameOverScreen();
@@ -15036,7 +18069,10 @@ describe('QA share flag (?qaShare=1)', () => {
       setQaShare(true);
       drawGameOverScreen();
       assertEquals(shareBtn.textContent, '✓ Copied!', 'a QA hold survives the Game Over paint');
-      assert(shareBtn.classList.contains('is-qa-damped'), 'reduced motion quiets the held confirmation');
+      assert(
+        shareBtn.classList.contains('is-qa-damped'),
+        'reduced motion quiets the held confirmation'
+      );
     } finally {
       game.mode = origMode;
       game.state = origState;
@@ -15255,13 +18291,23 @@ describe('Sim clock (60Hz)', () => {
 
   it('a timestamp-free call is one slice and does not spend a banked partial frame', () => {
     resetSimClock();
-    assertEquals(simStepsForFrame(0), 1, 'the first stamped frame anchors the clock and steps once');
+    assertEquals(
+      simStepsForFrame(0),
+      1,
+      'the first stamped frame anchors the clock and steps once'
+    );
     assertEquals(simStepsForFrame(SIM_FRAME_MS / 2), 0, 'half a slice banks and does not step');
     assertEquals(simStepsForFrame(), 1, 'a direct gameLoop() call is still one slice');
-    assertEquals(simStepsForFrame(SIM_FRAME_MS / 2 + SIM_FRAME_MS), 1,
-      'the banked half plus the next full slice is one step');
-    assertEquals(simStepsForFrame(SIM_FRAME_MS + SIM_FRAME_MS), 1,
-      'the leftover half plus another half completes the next slice');
+    assertEquals(
+      simStepsForFrame(SIM_FRAME_MS / 2 + SIM_FRAME_MS),
+      1,
+      'the banked half plus the next full slice is one step'
+    );
+    assertEquals(
+      simStepsForFrame(SIM_FRAME_MS + SIM_FRAME_MS),
+      1,
+      'the leftover half plus another half completes the next slice'
+    );
     resetSimClock();
   });
 
@@ -15276,10 +18322,16 @@ describe('Sim clock (60Hz)', () => {
   it('a long hitch is capped and the next frame is not a second burst', () => {
     resetSimClock();
     assertEquals(simStepsForFrame(0), 1);
-    assertEquals(simStepsForFrame(SIM_FRAME_MS * 40), MAX_SIM_STEPS,
-      'catch-up stops at MAX_SIM_STEPS');
-    assertEquals(simStepsForFrame(SIM_FRAME_MS * 40 + SIM_FRAME_MS), 1,
-      'dropped hitch time must not burst on the following frame');
+    assertEquals(
+      simStepsForFrame(SIM_FRAME_MS * 40),
+      MAX_SIM_STEPS,
+      'catch-up stops at MAX_SIM_STEPS'
+    );
+    assertEquals(
+      simStepsForFrame(SIM_FRAME_MS * 40 + SIM_FRAME_MS),
+      1,
+      'dropped hitch time must not burst on the following frame'
+    );
     resetSimClock();
   });
 
@@ -15289,8 +18341,11 @@ describe('Sim clock (60Hz)', () => {
     try {
       resetSimClock();
       assertEquals(simStepsForFrame(0), 1);
-      assertEquals(simStepsForFrame(SIM_FRAME_MS / 2), 0,
-        'a half slice stays banked even if a tune claims the slice is 1ms');
+      assertEquals(
+        simStepsForFrame(SIM_FRAME_MS / 2),
+        0,
+        'a half slice stays banked even if a tune claims the slice is 1ms'
+      );
     } finally {
       window.GAME_TUNING = prev;
       resetSimClock();
@@ -15303,7 +18358,11 @@ describe('Sim clock (60Hz)', () => {
     assertEquals(simStepsForFrame(SIM_FRAME_MS / 2), 0);
     resetGame();
     cancelLoop();
-    assertEquals(simStepsForFrame(5000), 1, 'the first frame of a new run is one slice, not the old hitch');
+    assertEquals(
+      simStepsForFrame(5000),
+      1,
+      'the first frame of a new run is one slice, not the old hitch'
+    );
     cancelLoop();
     resetSimClock();
   });
@@ -15324,7 +18383,11 @@ describe('Sim clock (60Hz)', () => {
       gameLoop(0);
       assertEquals(game.graceFrames, 9, 'the anchor frame spends one countdown slice');
       gameLoop(SIM_FRAME_MS / 2);
-      assertEquals(game.graceFrames, 9, 'a 120Hz half-frame must not spend another countdown slice');
+      assertEquals(
+        game.graceFrames,
+        9,
+        'a 120Hz half-frame must not spend another countdown slice'
+      );
       gameLoop(SIM_FRAME_MS);
       assertEquals(game.graceFrames, 8);
 
@@ -15345,7 +18408,11 @@ describe('Sim clock (60Hz)', () => {
       Animations.deathShakeFrames = 6;
       const shakeAt = Animations.deathShakeFrames;
       gameLoop(SIM_FRAME_MS * 2 + SIM_FRAME_MS / 2);
-      assertEquals(Animations.deathShakeFrames, shakeAt, 'death shake is frame-tied juice and waits for a slice');
+      assertEquals(
+        Animations.deathShakeFrames,
+        shakeAt,
+        'death shake is frame-tied juice and waits for a slice'
+      );
       gameLoop(SIM_FRAME_MS * 3);
       assertEquals(Animations.deathShakeFrames, shakeAt - 1);
     } finally {
@@ -15382,8 +18449,10 @@ describe('Sim clock (60Hz)', () => {
       const updatedFast = scoreFor(MODES.UPDATED, 120, SIM_FRAME_MS / 2);
       const classic60 = scoreFor(MODES.CLASSIC, 60, SIM_FRAME_MS);
       const expected = GAME_CONFIG.SCORE_INCREMENT * 60;
-      assert(Math.abs(classicFast - expected) < 1e-9,
-        '120 display frames at 120Hz are 60 sim slices');
+      assert(
+        Math.abs(classicFast - expected) < 1e-9,
+        '120 display frames at 120Hz are 60 sim slices'
+      );
       assertEquals(updatedFast, classicFast, 'Updated keeps the same sim clock as Classic');
       assertEquals(classic60, classicFast, '60Hz stamps match the 120Hz wall-clock second');
       assertEquals(game.state, STATE.RUNNING, 'the sample run must not die early');
@@ -15408,8 +18477,11 @@ describe('Sim clock (60Hz)', () => {
       }
     });
     assert(plain.length > 2, 'the sample must reach a second seeded roll');
-    assertEquals(stamped.join('|'), plain.join('|'),
-      'a 60Hz rAF stream must not change hill or spawn rolls versus one slice per call');
+    assertEquals(
+      stamped.join('|'),
+      plain.join('|'),
+      'a 60Hz rAF stream must not change hill or spawn rolls versus one slice per call'
+    );
     const fast = rngTrace(() => {
       let t = 0;
       for (let i = 0; i < frames; i++) {
@@ -15417,8 +18489,10 @@ describe('Sim clock (60Hz)', () => {
         t += SIM_FRAME_MS / 2;
       }
     });
-    assert(fast.length < plain.length,
-      'twice as many animation frames must not roll rng twice as often');
+    assert(
+      fast.length < plain.length,
+      'twice as many animation frames must not roll rng twice as often'
+    );
     cancelLoop();
     resetGame();
     cancelLoop();
@@ -15435,10 +18509,16 @@ describe('Sim clock (60Hz)', () => {
       game.score = 4;
       gameLoop(0);
       const texts = [];
-      ctx.fillText = (text) => { texts.push(String(text)); };
+      ctx.fillText = (text) => {
+        texts.push(String(text));
+      };
       gameLoop(SIM_FRAME_MS / 2);
       assertEquals(texts.length, 0, 'a banked half-frame must not repaint the HUD');
-      assertEquals(game.score, 4 + GAME_CONFIG.SCORE_INCREMENT, 'score advances only on the slice that was owed');
+      assertEquals(
+        game.score,
+        4 + GAME_CONFIG.SCORE_INCREMENT,
+        'score advances only on the slice that was owed'
+      );
     } finally {
       ctx.fillText = origFill;
       setQaHz(false);
@@ -15470,7 +18550,9 @@ describe('QA pace readout (?qaHz=1)', () => {
     try {
       setQaHz(false);
       const texts = [];
-      ctx.fillText = (text) => { texts.push(String(text)); };
+      ctx.fillText = (text) => {
+        texts.push(String(text));
+      };
       drawQaHz();
       assertEquals(texts.length, 0, 'a normal visit must not paint the pace label');
 
@@ -15507,7 +18589,9 @@ describe('QA pace readout (?qaHz=1)', () => {
       setReducedMotion(true);
       setQaHz(true);
       const texts = [];
-      ctx.fillText = (text) => { texts.push(String(text)); };
+      ctx.fillText = (text) => {
+        texts.push(String(text));
+      };
       drawQaHz();
       assertEquals(texts.length, 1, 'reduced motion still shows the readout');
       assertEquals(texts[0], 'sim --  raf --', 'before a full second the rates are not invented');
@@ -15524,8 +18608,7 @@ describe('QA pace readout (?qaHz=1)', () => {
         gameLoop(t);
         t += 1000 / 120;
       }
-      assertEquals(qaHzLabel(), 'sim 60  raf 120',
-        'a 120Hz second should read sim 60 and raf 120');
+      assertEquals(qaHzLabel(), 'sim 60  raf 120', 'a 120Hz second should read sim 60 and raf 120');
 
       resetGame();
       cancelLoop();
@@ -15536,8 +18619,7 @@ describe('QA pace readout (?qaHz=1)', () => {
         gameLoop(t);
         t += SIM_FRAME_MS;
       }
-      assertEquals(qaHzLabel(), 'sim 60  raf 60',
-        'a 60Hz second should read sim 60 and raf 60');
+      assertEquals(qaHzLabel(), 'sim 60  raf 60', 'a 60Hz second should read sim 60 and raf 60');
     } finally {
       ctx.fillText = origFill;
       setReducedMotion(false);
@@ -15558,7 +18640,9 @@ describe('QA pace readout (?qaHz=1)', () => {
       resetGame();
       cancelLoop();
       const texts = [];
-      ctx.fillText = (text) => { texts.push(String(text)); };
+      ctx.fillText = (text) => {
+        texts.push(String(text));
+      };
       drawQaHz();
       assertEquals(texts[0], 'sim --  raf --', 'the query enables the label after reset');
       setPageQuery('');
@@ -15584,11 +18668,19 @@ describe('Blocked storage (C2)', () => {
     const origMemory = safeStorage._memory;
     safeStorage._memory = {};
     const restoreStorage = overrideGlobalProp('localStorage', {
-      getItem() { throw new Error('SecurityError: storage blocked'); },
-      setItem() { throw new Error('SecurityError: storage blocked'); },
-      removeItem() { throw new Error('SecurityError: storage blocked'); },
+      getItem() {
+        throw new Error('SecurityError: storage blocked');
+      },
+      setItem() {
+        throw new Error('SecurityError: storage blocked');
+      },
+      removeItem() {
+        throw new Error('SecurityError: storage blocked');
+      },
     });
-    try { fn(); } finally {
+    try {
+      fn();
+    } finally {
       restoreStorage();
       safeStorage._memory = origMemory;
     }
@@ -15597,9 +18689,17 @@ describe('Blocked storage (C2)', () => {
   it('safeStorage.get returns the fallback and set reports failure without throwing', () => {
     withBlockedStorage(() => {
       assertEquals(safeStorage.get('dino-mode'), null, 'missing key reads as null');
-      assertEquals(safeStorage.get('dino-high-score', '0'), '0', 'missing key reads as the fallback');
+      assertEquals(
+        safeStorage.get('dino-high-score', '0'),
+        '0',
+        'missing key reads as the fallback'
+      );
       assertEquals(safeStorage.set('dino-mode', 'classic'), false, 'a blocked write returns false');
-      assertEquals(safeStorage.get('dino-mode'), 'classic', 'the write is kept in memory for this session');
+      assertEquals(
+        safeStorage.get('dino-mode'),
+        'classic',
+        'the write is kept in memory for this session'
+      );
       safeStorage.remove('dino-mode');
       assertEquals(safeStorage.get('dino-mode', 'x'), 'x', 'remove clears the in-memory copy');
     });
@@ -15619,8 +18719,12 @@ describe('Blocked storage (C2)', () => {
     const origMemory = safeStorage._memory;
     safeStorage._memory = {};
     const restoreStorage = overrideGlobalProp('localStorage', {
-      getItem() { return null; },
-      setItem() { throw new Error('QuotaExceededError'); },
+      getItem() {
+        return null;
+      },
+      setItem() {
+        throw new Error('QuotaExceededError');
+      },
       removeItem() {},
     });
     try {
@@ -15666,7 +18770,11 @@ describe('Blocked storage (C2)', () => {
       cancelAnimationFrame(game.animationFrameId);
       assertEquals(game.state, STATE.DEAD, 'the run ends normally');
       assertEquals(game.highScore, 150, 'game.highScore updates');
-      assertEquals(ScoreStore.loadHighScore(), 150, 'ScoreStore reads the new best back from memory');
+      assertEquals(
+        ScoreStore.loadHighScore(),
+        150,
+        'ScoreStore reads the new best back from memory'
+      );
     });
     game.highScore = origHS;
     resetGame();
@@ -15681,10 +18789,10 @@ describe('Blocked storage (C2)', () => {
     // assignment, so script.js sees storage exactly as a blocking browser does.
     const code = [
       "Object.defineProperty(global, 'localStorage', {",
-      "  configurable: true,",
+      '  configurable: true,',
       "  get() { throw new Error('SecurityError: storage blocked'); },",
-      "  set() {},",
-      "});",
+      '  set() {},',
+      '});',
       'require(' + JSON.stringify(scriptPath) + ');',
       'ScoreStore.saveHighScore(4321);',
       'process.stdout.write(JSON.stringify({',
@@ -15716,7 +18824,10 @@ describe('Page background writes (R4)', () => {
     const style = {};
     Object.defineProperty(style, 'background', {
       get: () => value,
-      set: (v) => { value = v; writes.push(v); },
+      set: (v) => {
+        value = v;
+        writes.push(v);
+      },
     });
     const fake = { style };
     const prev = Object.getOwnPropertyDescriptor(document, 'body');
@@ -15781,7 +18892,9 @@ describe('Page background writes (R4)', () => {
       body.writes.length = 0;
       // Let the run's own score carry the sky through dusk into night.
       const start = GAME_CONFIG.DAY_NIGHT_START - 5;
-      const frames = Math.ceil((GAME_CONFIG.DAY_NIGHT_END + 5 - start) / GAME_CONFIG.SCORE_INCREMENT);
+      const frames = Math.ceil(
+        (GAME_CONFIG.DAY_NIGHT_END + 5 - start) / GAME_CONFIG.SCORE_INCREMENT
+      );
       const seen = [];
       let s = start;
       for (let i = 0; i < frames; i++) {
@@ -15810,7 +18923,11 @@ describe('Page background writes (R4)', () => {
       const before = body.writes.length;
       resetGame();
       stopLoop();
-      assertEquals(body.writes.length, before, 'a second reset does not rewrite the same empty value');
+      assertEquals(
+        body.writes.length,
+        before,
+        'a second reset does not rewrite the same empty value'
+      );
       runFrames(3, () => 0);
       assertEquals(body.writes.length, before + 1, 'the new run writes the day sky once');
       assertEquals(body.style.background, getBackgroundColor(0), 'page follows the day sky');
@@ -15837,15 +18954,22 @@ describe('Shell touch targets (S1)', () => {
     const TOUCH_TARGET = 44;
     const TOP_OFFSET = 6;
     const GAP = 6;
-    assert(SHELL_CHROME_ROW >= TOUCH_TARGET + TOP_OFFSET + GAP,
-      'a 44px row at top 6px keeps a gap above the canvas');
-    assertEquals(SHELL_CHROME_ROW, TOUCH_TARGET + TOP_OFFSET + GAP,
-      'matches #game-wrapper padding-top in style.css');
+    assert(
+      SHELL_CHROME_ROW >= TOUCH_TARGET + TOP_OFFSET + GAP,
+      'a 44px row at top 6px keeps a gap above the canvas'
+    );
+    assertEquals(
+      SHELL_CHROME_ROW,
+      TOUCH_TARGET + TOP_OFFSET + GAP,
+      'matches #game-wrapper padding-top in style.css'
+    );
   });
 
   it('a phone in landscape letterboxes the canvas below the taller row', () => {
-    const maxH = computeCanvasMaxHeight(390,
-      SHELL_CHROME_ROW + SHELL_JUMP_BLOCK + SHELL_SHARE_BLOCK);
+    const maxH = computeCanvasMaxHeight(
+      390,
+      SHELL_CHROME_ROW + SHELL_JUMP_BLOCK + SHELL_SHARE_BLOCK
+    );
     const size = fitCanvasCssSize(828, maxH);
     assertEquals(maxH, 221, '390px tall minus the 56px row, jump, and share');
     assert(size.cssH <= maxH, 'canvas never runs into the control row or jump');
@@ -15877,16 +19001,19 @@ describe('Installable and offline (PL1)', () => {
     assert(/^#[0-9a-f]{6}$/i.test(m.theme_color), 'theme colour');
     const sizes = m.icons.map((i) => i.sizes);
     assert(sizes.includes('192x192') && sizes.includes('512x512'), '192 and 512 icons');
-    assert(m.icons.some((i) => i.purpose === 'maskable'), 'a maskable icon for Android');
+    assert(
+      m.icons.some((i) => i.purpose === 'maskable'),
+      'a maskable icon for Android'
+    );
     m.icons.forEach((i) => assert(exists(i.src), 'icon file exists: ' + i.src));
   });
 
   it('index.html links the manifest and an apple-touch-icon that exist', () => {
     if (!fs) return;
     const html = read('index.html');
-    const manifest = html.match(/<link rel="manifest" href="([^"]+)">/);
+    const manifest = html.match(/<link rel="manifest" href="([^"]+)"\s*\/?>/);
     assert(manifest && exists(manifest[1]), 'manifest link');
-    const apple = html.match(/<link rel="apple-touch-icon" href="([^"]+)">/);
+    const apple = html.match(/<link rel="apple-touch-icon" href="([^"]+)"\s*\/?>/);
     assert(apple && exists(apple[1]), 'apple-touch-icon link');
     assert(/<meta name="theme-color"/.test(html), 'theme-color meta');
   });
@@ -15898,7 +19025,9 @@ describe('Installable and offline (PL1)', () => {
     ['./', 'index.html', 'script.js', 'style.css', 'manifest.webmanifest'].forEach((u) =>
       assert(urls.includes(u), 'shell file precached: ' + u)
     );
-    const sprites = (read('script.js').match(/'assets\/[^']+\.png'/g) || []).map((s) => s.slice(1, -1));
+    const sprites = (read('script.js').match(/'assets\/[^']+\.png'/g) || []).map((s) =>
+      s.slice(1, -1)
+    );
     assertEquals(sprites.length, 6, 'script.js loads 6 sprites');
     sprites.forEach((s) => assert(urls.includes(s), 'sprite precached: ' + s));
     const html = read('index.html');
@@ -15920,7 +19049,10 @@ describe('Installable and offline (PL1)', () => {
     assert(/sed -i "s\/__VERSION__\/[^"]*" [^\n]*\bsw\.js/.test(pages), 'pages.yml rewrites sw.js');
     // The dev-mode sentinel must survive that sed, or a deploy would think it is local.
     const deployed = sw.replace(/__VERSION__/g, 'abc1234');
-    assert(deployed.includes("CACHE_VERSION !== '__VER' + 'SION__'"), 'sentinel survives deploy sed');
+    assert(
+      deployed.includes("CACHE_VERSION !== '__VER' + 'SION__'"),
+      'sentinel survives deploy sed'
+    );
     assert(deployed.includes("CACHE_VERSION = 'abc1234'"), 'version injected');
   });
 
@@ -15947,7 +19079,11 @@ describe('Installable and offline (PL1)', () => {
     assertEquals(registerServiceWorker(undefined, win), false, 'no navigator (Node)');
     assertEquals(registerServiceWorker({}, win), false, 'no serviceWorker API');
     const nav = { serviceWorker: { register: () => Promise.resolve() } };
-    assertEquals(registerServiceWorker(nav, { isSecureContext: false, addEventListener: () => {} }), false, 'file://');
+    assertEquals(
+      registerServiceWorker(nav, { isSecureContext: false, addEventListener: () => {} }),
+      false,
+      'file://'
+    );
   });
 
   it('a rejected registration does not throw', () => {
@@ -15962,8 +19098,12 @@ describe('Installable and offline (PL1)', () => {
 
 // test-runner.html loads this file after the page's load event (so the
 // sprites are decoded), so do not wait for a load that already happened.
-if (typeof document !== 'undefined' && document.readyState !== 'complete'
-    && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+if (
+  typeof document !== 'undefined' &&
+  document.readyState !== 'complete' &&
+  typeof window !== 'undefined' &&
+  typeof window.addEventListener === 'function'
+) {
   window.addEventListener('load', () => setTimeout(printSummary, 500));
 } else {
   setTimeout(printSummary, 500);
