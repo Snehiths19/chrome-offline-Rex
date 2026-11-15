@@ -364,6 +364,7 @@ const GAME_CONFIG = Object.freeze({
   UPDATED_DEATH_SHAKE_AMPLITUDE: 1,
   UPDATED_DEATH_SHAKE_FREQ: Math.PI / 8,
   DEATH_FLASH_FRAMES: 6, // PR-C: white-flash overlay length on collision
+  DEATH_VIBRATE_MS: 30, // S5: one short buzz on death (phones that support it)
   DEATH_FLASH_COLOR_RGB: '255, 255, 255', // death-flash overlay colour (rgb triplet, alpha applied at draw)
   // Visual only. Peak scale of the white death-flash on the day sky, in
   // Updated and Daily. The first frame multiplies this by
@@ -1614,3 +1615,18 @@ const audio = {
     osc.stop(now + 0.4);
   },
 };
+
+// --- Death buzz (S5) ---
+// One short vibration when the dino dies, on phones that support it. It
+// follows the sound rules: Updated and Daily only, never when muted, and
+// never under reduced motion. Where navigator.vibrate is missing (desktop
+// browsers, iOS Safari, Node) it does nothing. Returns whether it buzzed.
+function vibrateOnDeath(nav = typeof navigator !== 'undefined' ? navigator : undefined) {
+  if (audio.muted || reducedMotion || !isUpdatedMode()) return false;
+  if (!nav || typeof nav.vibrate !== 'function') return false;
+  try {
+    return nav.vibrate(GAME_CONFIG.DEATH_VIBRATE_MS) !== false;
+  } catch {
+    return false;
+  }
+}

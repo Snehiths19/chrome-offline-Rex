@@ -375,6 +375,7 @@ function updateRunning() {
       }
       Particles.emit('collision', dino.x + dino.width / 2, dino.y + dino.height / 2);
       audio.death();
+      vibrateOnDeath();
       const finalScore = Math.floor(game.score);
       const runResult = computeRunResult(finalScore, game.highScore);
       game.isNewBest = runResult.isNewBest;

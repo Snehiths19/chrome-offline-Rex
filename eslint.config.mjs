@@ -191,6 +191,7 @@ export default [
         a11yLive: 'readonly',
         announce: 'readonly',
         audio: 'readonly',
+        vibrateOnDeath: 'readonly',
         cfg: 'readonly',
         computeRunResult: 'readonly',
         dailyNumber: 'readonly',

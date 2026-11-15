@@ -106,6 +106,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.safeStorage = safeStorage;
   global.Particles = Particles;
   global.audio = audio;
+  global.vibrateOnDeath = vibrateOnDeath;
   global.drawDeathFlash = drawDeathFlash;
   global.deathFlashPeakAlpha = deathFlashPeakAlpha;
   global.drawMilestoneFlash = drawMilestoneFlash;
