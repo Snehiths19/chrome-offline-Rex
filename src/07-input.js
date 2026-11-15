@@ -15,6 +15,7 @@ function handleAction() {
     game.state = STATE.RUNNING;
     announce('Go!');
   } else if (game.state === STATE.RUNNING) {
+    dino.jumpHeld = true; // until the key, button or finger lets go (F3)
     jump();
   } else if (game.state === STATE.DEAD) {
     const countFrames = deathAnimFrames();
@@ -36,21 +37,95 @@ function keyBelongsToFocusedControl(event) {
   if (event.code !== 'Space' && event.code !== 'Enter') return false;
   const target = event.target;
   if (!target || typeof target.closest !== 'function') return false;
-  return Boolean(target.closest('button, a, input, select, textarea'));
+  if (!target.closest('button, a, input, select, textarea')) return false;
+  // A mouse click or tap also focuses a button in Chrome and Firefox. Only
+  // focus the keyboard put there keeps Space; after a click, Space jumps.
+  return !focusSource.byPointer;
 }
+
+// How the focused control got focus: a pointer press (mouse or touch) just
+// before the focus moved, or the keyboard. :focus-visible can't tell, since
+// Chrome marks a clicked button keyboard-focused as soon as a key is pressed.
+const focusSource = { pointerDown: false, byPointer: false };
+function notePointerDown() {
+  focusSource.pointerDown = true;
+}
+function clearPointerDown() {
+  focusSource.pointerDown = false;
+}
+function noteFocusIn() {
+  focusSource.byPointer = focusSource.pointerDown;
+  focusSource.pointerDown = false;
+}
+document.addEventListener('mousedown', notePointerDown, true);
+document.addEventListener('touchstart', notePointerDown, { capture: true, passive: true });
+document.addEventListener('keydown', clearPointerDown, true);
+// A press on something already focused moves no focus: its click ends it.
+document.addEventListener('click', clearPointerDown, true);
+document.addEventListener('focusin', noteFocusIn);
+
+const JUMP_KEYS = ['Space', 'ArrowUp', 'KeyW'];
+const DROP_KEYS = ['ArrowDown', 'KeyS'];
 
 function handleKeyDown(event) {
   if (keyBelongsToFocusedControl(event)) return;
-  if (event.code === 'Space' || event.code === 'ArrowUp' || event.code === 'KeyW') {
+  if (JUMP_KEYS.includes(event.code)) {
     event.preventDefault();
     handleAction();
+  } else if (DROP_KEYS.includes(event.code)) {
+    event.preventDefault();
+    dropDino();
   } else {
     handleDebugKey(event);
   }
 }
 document.addEventListener('keydown', handleKeyDown);
 
-canvas.addEventListener('click', handleAction);
+// Letting go of jump ends the hold (F3): updateRunning then cuts the rise.
+function releaseJump() {
+  dino.jumpHeld = false;
+}
+function handleKeyUp(event) {
+  if (JUMP_KEYS.includes(event.code)) releaseJump();
+}
+document.addEventListener('keyup', handleKeyUp);
+
+// The mouse jumps on press, not on click, so how long it is held counts.
+function handleMouseDown(event) {
+  if (event.button !== undefined && event.button !== 0) return;
+  handleAction();
+}
+canvas.addEventListener('mousedown', handleMouseDown);
+document.addEventListener('mouseup', releaseJump);
+
+// Touch: the hold ends when the last finger lifts, and a swipe down of
+// SWIPE_DOWN_CSS_PX or more from where the touch began is a fast fall.
+const SWIPE_DOWN_CSS_PX = 30;
+const touchSwipe = { startY: null, dropped: false };
+function handleSwipeStart(event) {
+  const touch = event.touches && event.touches[0];
+  if (!touch || event.touches.length > 1) return;
+  touchSwipe.startY = touch.clientY;
+  touchSwipe.dropped = false;
+}
+function handleSwipeMove(event) {
+  if (!bootGate.files || touchSwipe.startY === null || touchSwipe.dropped) return;
+  const touch = event.touches && event.touches[0];
+  if (!touch || event.touches.length > 1) return;
+  if (touch.clientY - touchSwipe.startY >= SWIPE_DOWN_CSS_PX) {
+    touchSwipe.dropped = true;
+    dropDino();
+  }
+}
+function handleTouchEnd(event) {
+  if (event.touches && event.touches.length > 0) return;
+  touchSwipe.startY = null;
+  releaseJump();
+}
+document.addEventListener('touchstart', handleSwipeStart, { passive: true });
+document.addEventListener('touchmove', handleSwipeMove, { passive: true });
+document.addEventListener('touchend', handleTouchEnd);
+document.addEventListener('touchcancel', handleTouchEnd);
 
 // A second finger is a pinch zoom (allowed since A1), not a tap: leave it
 // to the browser and don't count it as a jump.
@@ -118,7 +193,18 @@ function syncJumpButtonLabel() {
 const jumpBtn = document.getElementById('jump-btn');
 if (jumpBtn) {
   jumpBtn.addEventListener('touchstart', handleTouchAction, { passive: false });
-  jumpBtn.addEventListener('click', handleAction);
+  // Mouse: jump on press so the hold counts, like the canvas (F3).
+  jumpBtn.addEventListener('mousedown', handleMouseDown);
+  jumpBtn.addEventListener('click', handleJumpButtonClick);
+}
+
+// A click with no pointer behind it (detail 0: Space or Enter on the
+// focused button, or a screen reader) is a finished tap: act, then let go.
+// A mouse click already acted on mousedown; touch never reaches click.
+function handleJumpButtonClick(event) {
+  if (event && event.detail > 0) return;
+  handleAction();
+  releaseJump();
 }
 
 // Segmented toggle: two buttons, both always visible, exactly one pressed.

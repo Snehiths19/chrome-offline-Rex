@@ -31,6 +31,12 @@ _Avoid_: freeze, suspend, menu
 **Jump buffer** — a jump pressed while the dino is still in the air, up to `JUMP_BUFFER_FRAMES` (6) sim frames before it lands, is kept and fires on the landing frame. A press earlier than that is dropped, as before. It counts sim frames, not display frames, reads `GAME_CONFIG` directly and never draws on the run seed. It serves Flow: at speed a press a hair early should not feel like the game missed it. Same in every mode.
 _Avoid_: input queue, coyote time (that is the opposite: a late jump after leaving a ledge)
 
+**Variable jump** — how long jump is held sets the height (F3). A held press is the full jump (49 frames, about 144px). Letting go while still rising fast cuts the rise to `JUMP_CUT_VELOCITY`, but not before the feet are `JUMP_MIN_HEIGHT` up, so a quick tap is a short hop (about 33 frames, 76px) that still clears every obstacle at every speed. Keys (keyup), mouse (press on the canvas, release anywhere) and touch (last finger lifted) all end the hold. Gameplay values: `GAME_CONFIG`, never `cfg()`. Spawns are untouched, so the Daily course stays the same for everyone; only the player's input differs.
+_Avoid_: charge jump, jump strength
+
+**Fast fall** — Down, S or a swipe down (30 CSS px) while airborne: the dino stops rising and falls at three times gravity until it lands, dropping any buffered jump. Does nothing on the ground (there is no duck).
+_Avoid_: dive, slam, duck
+
 **Obstacle** — any on-screen hazard the dino must jump over.
 _Avoid_: enemy, object
 
@@ -155,7 +161,7 @@ _Avoid_: faded text, alpha labels
 **Tap without zoom** — the page and its buttons use `touch-action: manipulation`, so a quick double tap on a phone jumps twice instead of zooming the page. Pinch zoom still works, and a second finger on the canvas, the jump button or the page below never counts as a jump (#116).
 _Avoid_: disable zoom, user-scalable=no
 
-**Focused control keys** — Space or Enter while a button, link or field has keyboard focus belongs to that control: the game ignores it, so tabbing to Mute and pressing Space mutes without starting, jumping or restarting. Up arrow and W still jump from anywhere (#117).
+**Focused control keys** — Space or Enter while a button, link or field has keyboard focus belongs to that control: the game ignores it, so tabbing to Mute and pressing Space mutes without starting, jumping or restarting. Only focus the keyboard put there counts: after a mouse click or tap on a button, Space jumps as usual. Up arrow and W still jump from anywhere (#117).
 _Avoid_: key capture, global Space
 
 **Readable label** — a small canvas label (11-16 logical px: Game Over and Daily captions, hints, the start and countdown lines, PAUSED). The canvas is 600 logical px wide and shrinks on a phone, so `labelPx()` raises such a label until it is about 12 CSS px on screen, capped at 20 logical px so the layout still fits. Desktop, where the canvas is drawn at full size or larger, keeps the designed sizes. Big numbers (the score, the countdown digit) are already readable and never change.

@@ -27,6 +27,11 @@ const dino = {
   isJumping: false,
   // Sim frames left on a jump pressed in the air (see JUMP_BUFFER_FRAMES).
   jumpBufferFrames: 0,
+  // Variable jump and fast fall (F3). jumpHeld is whether the jump input is
+  // still down (the input handlers set and clear it); dropping is true from a
+  // fast-fall press until landing.
+  jumpHeld: false,
+  dropping: false,
   image: new Image(),
 };
 

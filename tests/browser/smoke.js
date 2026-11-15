@@ -168,6 +168,43 @@ async function playOnDevice(browser, base, vp) {
   await shot('2-jump');
   check('dino lands again', await waitFor(page, 'dino.isJumping === false', 3000));
 
+  // Variable jump and fast fall with real input events (F3, desktop).
+  if (!vp.touch) {
+    // Height of the next flight above the ground, read every display frame.
+    const flightPeak = () =>
+      page.evaluate(
+        () =>
+          new Promise((resolve) => {
+            let min = dino.y;
+            const tick = () => {
+              min = Math.min(min, dino.y);
+              if (dino.isJumping) requestAnimationFrame(tick);
+              else resolve(GAME_CONFIG.CANVAS_H - dino.height - min);
+            };
+            requestAnimationFrame(tick);
+          })
+      );
+    await page.evaluate(() => (game.obstacles.length = 0)); // keep the lane clear
+    await page.keyboard.down('Space');
+    const heldPeak = await flightPeak();
+    await page.keyboard.up('Space');
+    await page.evaluate(() => (game.obstacles.length = 0));
+    const box = await page.locator('#gameCanvas').boundingBox();
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    const tapPeak = await flightPeak();
+    check(
+      `holding Space jumps higher than a quick click (${Math.round(heldPeak)} vs ${Math.round(tapPeak)}px)`,
+      heldPeak > 130 && tapPeak < 100 && tapPeak > 55
+    );
+    await page.evaluate(() => (game.obstacles.length = 0));
+    await page.keyboard.down('Space');
+    await waitFor(page, 'dino.isJumping && dino.velocityY > -6', 2000);
+    await page.keyboard.press('ArrowDown');
+    check('Down drops the dino fast', await read(page, 'dino.dropping === true'));
+    await page.keyboard.up('Space');
+    check('dino lands after the drop', await waitFor(page, 'dino.isJumping === false', 2000));
+  }
+
   // Portrait phones: the empty space below the canvas is a jump zone too.
   if (vp.portrait) {
     const box = await page.locator('#gameCanvas').boundingBox();
@@ -258,6 +295,7 @@ async function playOnDevice(browser, base, vp) {
 
   // Space on a focused button presses that button and nothing else (A2).
   if (!vp.touch) {
+    await mute.evaluate((el) => el.blur()); // arrive by keyboard, as Tab would
     await mute.focus();
     // A run still going may end on its own; only a jump or a restart fails.
     const before = await read(page, '({ s: game.state, j: dino.isJumping })');
@@ -270,6 +308,19 @@ async function playOnDevice(browser, base, vp) {
       (await read(page, 'audio.muted')) === !wasMuted && noJump && noRestart
     );
     await page.keyboard.press('Space');
+    await mute.evaluate((el) => el.blur());
+  }
+
+  // After a mouse click on Mute, Space is a game key again (A2 follow-up).
+  if (!vp.touch) {
+    const mutedNow = await read(page, 'audio.muted');
+    await mute.click();
+    await page.keyboard.press('Space');
+    check(
+      'Space after clicking Mute does not press Mute again',
+      (await read(page, 'audio.muted')) === !mutedNow
+    );
+    await mute.click();
     await mute.evaluate((el) => el.blur());
   }
 

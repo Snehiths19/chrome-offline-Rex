@@ -12,6 +12,21 @@ const GAME_CONFIG = Object.freeze({
   // kept and fires on the landing frame, so a slightly early press at speed
   // is not dropped. Gameplay value: read GAME_CONFIG directly, never cfg().
   JUMP_BUFFER_FRAMES: 6,
+  // Variable jump (F3). Letting go of jump while still rising faster than
+  // JUMP_CUT_VELOCITY cuts the rise to that speed, so a quick tap is a short
+  // hop and a held press is the full 49-frame jump. The cut waits until the
+  // feet are JUMP_MIN_HEIGHT px up: a tap still rises about 76px over about
+  // 33 frames, which clears every obstacle type at the speed it first appears
+  // (the big cactus with about 8 frames to spare). Gameplay values: read
+  // GAME_CONFIG directly, never cfg().
+  JUMP_CUT_VELOCITY: -5,
+  JUMP_MIN_HEIGHT: 50,
+  // Fast fall (F3). Down, S or a swipe down in the air drops the dino: it
+  // stops rising (falls at least FAST_FALL_START_VELOCITY px per frame) and
+  // falls under FAST_FALL_GRAVITY (3x GRAVITY) until it lands. From the top of
+  // a full jump that lands in about 13 frames instead of 25.
+  FAST_FALL_START_VELOCITY: 2,
+  FAST_FALL_GRAVITY: 1.44,
   INITIAL_SPEED: 3.0, // obstacle scroll speed at score 0
   SPEED_CAP: 13.0, // max scroll speed (matches Chrome T-Rex)
   PLATEAU_SPEED: 8.0, // sigmoid ceiling — focusable-but-demanding speed the curve approaches
@@ -38,6 +53,8 @@ const GAME_CONFIG = Object.freeze({
   // would leave less than one focused jump. A jump is 49 frames at the current
   // JUMP_POWER/GRAVITY; 72 also covers a cluster's width plus a short read.
   // The base gap sits at this / (1 - JITTER), so ±30% rarely piles onto the floor.
+  // Re-checked for F3: a short hop (about 33 frames) or a fast fall only lands
+  // sooner than the 49-frame held jump, so 72 frames is still enough.
   UPDATED_MIN_GAP_FRAMES: 72,
 
   // --- Obstacle sprite (small cactus — baseline) ---
