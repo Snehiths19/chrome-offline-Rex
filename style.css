@@ -1,4 +1,6 @@
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
 body {
   display: flex;
@@ -55,7 +57,9 @@ body {
   cursor: pointer;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
-  transition: background-color 80ms ease-out, transform 80ms ease-out;
+  transition:
+    background-color 80ms ease-out,
+    transform 80ms ease-out;
 }
 
 #mute-btn[aria-pressed='true'] {
@@ -64,9 +68,16 @@ body {
   border-color: #444;
 }
 
-#mute-btn:hover { transform: scale(1.05); }
-#mute-btn:active { transform: scale(0.95); }
-#mute-btn:focus-visible { outline: 2px solid #4a90e2; outline-offset: 2px; }
+#mute-btn:hover {
+  transform: scale(1.05);
+}
+#mute-btn:active {
+  transform: scale(0.95);
+}
+#mute-btn:focus-visible {
+  outline: 2px solid #4a90e2;
+  outline-offset: 2px;
+}
 
 #daily-btn {
   position: absolute;
@@ -88,7 +99,9 @@ body {
   cursor: pointer;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
-  transition: background-color 80ms ease-out, transform 80ms ease-out;
+  transition:
+    background-color 80ms ease-out,
+    transform 80ms ease-out;
 }
 
 /* #N gains a digit every few years. Tuck the pill toward mute so it stays
@@ -112,11 +125,20 @@ body {
   border-color: #cc6600;
 }
 
-#daily-btn:hover { transform: scale(1.05); }
-#daily-btn:active { transform: scale(0.95); }
-#daily-btn:focus-visible { outline: 2px solid #4a90e2; outline-offset: 2px; }
+#daily-btn:hover {
+  transform: scale(1.05);
+}
+#daily-btn:active {
+  transform: scale(0.95);
+}
+#daily-btn:focus-visible {
+  outline: 2px solid #4a90e2;
+  outline-offset: 2px;
+}
 
-.daily-active #mode-toggle { display: none; }
+.daily-active #mode-toggle {
+  display: none;
+}
 
 #mode-toggle {
   position: absolute;
@@ -154,7 +176,9 @@ body {
   background-clip: padding-box;
   border-radius: 999px;
   cursor: pointer;
-  transition: background-color 120ms ease-out, color 120ms ease-out;
+  transition:
+    background-color 120ms ease-out,
+    color 120ms ease-out;
 }
 
 #mode-toggle button[aria-pressed='true'] {
@@ -162,8 +186,13 @@ body {
   color: #fff;
 }
 
-#mode-toggle button:hover:not([aria-pressed='true']) { color: #555; }
-#mode-toggle button:focus-visible { outline: 2px solid #4a90e2; outline-offset: 2px; }
+#mode-toggle button:hover:not([aria-pressed='true']) {
+  color: #555;
+}
+#mode-toggle button:focus-visible {
+  outline: 2px solid #4a90e2;
+  outline-offset: 2px;
+}
 
 /* After the base toggle rules so the tighter padding wins on a narrow phone. */
 @media (max-width: 420px) {
@@ -202,7 +231,9 @@ body {
   cursor: pointer;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
-  transition: background-color 80ms ease-out, transform 80ms ease-out;
+  transition:
+    background-color 80ms ease-out,
+    transform 80ms ease-out;
 }
 
 #jump-btn:active {
@@ -217,7 +248,9 @@ body {
 
 /* Show jump button only on touchscreen devices */
 @media (hover: none) and (pointer: coarse) {
-  #jump-btn { display: block; }
+  #jump-btn {
+    display: block;
+  }
 }
 
 #share-btn {
@@ -232,7 +265,9 @@ body {
   cursor: pointer;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
-  transition: background-color 80ms ease-out, transform 80ms ease-out;
+  transition:
+    background-color 80ms ease-out,
+    transform 80ms ease-out;
 }
 
 /* Quieter Copied confirmation. Still orange, just less loud than the rest state. */
@@ -245,8 +280,13 @@ body {
   background: rgba(255, 140, 0, 0.38);
 }
 
-#share-btn:active { transform: scale(0.96); }
-#share-btn:focus-visible { outline: 2px solid #4a90e2; outline-offset: 2px; }
+#share-btn:active {
+  transform: scale(0.96);
+}
+#share-btn:focus-visible {
+  outline: 2px solid #4a90e2;
+  outline-offset: 2px;
+}
 
 /* QA/debug only. ?qaSafe=1 (html.qa-safe) paints stand-in insets so Playtest
    can check notch, side, and home-indicator clearance on a desktop browser.
@@ -258,13 +298,19 @@ html.qa-safe body {
   padding-left: 47px;
   background-color: #f0f0f0;
   background-image:
-    linear-gradient(#f6cfc4, #f6cfc4),
-    linear-gradient(#f6cfc4, #f6cfc4),
-    linear-gradient(#f6cfc4, #f6cfc4),
-    linear-gradient(#f6cfc4, #f6cfc4);
+    linear-gradient(#f6cfc4, #f6cfc4), linear-gradient(#f6cfc4, #f6cfc4),
+    linear-gradient(#f6cfc4, #f6cfc4), linear-gradient(#f6cfc4, #f6cfc4);
   background-repeat: no-repeat;
-  background-position: top center, center right, bottom center, left center;
-  background-size: 100% 59px, 47px 100%, 100% 34px, 47px 100%;
+  background-position:
+    top center,
+    center right,
+    bottom center,
+    left center;
+  background-size:
+    100% 59px,
+    47px 100%,
+    100% 34px,
+    47px 100%;
 }
 
 /* Visually hidden but readable by screen readers */
