@@ -1490,6 +1490,16 @@ describe('Variable jump and fast fall (F3)', () => {
     resetGame();
   });
 
+  it('the jump button: mouse acts on press, keyboard activation is a tap', () => {
+    f3Start();
+    handleJumpButtonClick({ detail: 1 }); // mouse click: already acted on mousedown
+    assert(!dino.isJumping, 'a mouse click does not jump twice');
+    handleJumpButtonClick({ detail: 0 }); // Space/Enter on the focused button
+    assert(dino.isJumping, 'keyboard activation jumps');
+    assert(!dino.jumpHeld, 'and is a finished tap, not a held jump');
+    resetGame();
+  });
+
   it('a new run starts with nothing held or dropping', () => {
     dino.jumpHeld = true;
     dino.dropping = true;

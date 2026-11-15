@@ -148,6 +148,7 @@ export default [
         jump: 'readonly',
         drawDailyDeathHint: 'readonly',
         handleKeyDown: 'readonly',
+        handleJumpButtonClick: 'readonly',
         handleTouchAction: 'readonly',
         dropDino: 'readonly',
         releaseJump: 'readonly',

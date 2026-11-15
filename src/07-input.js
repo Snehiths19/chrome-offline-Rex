@@ -193,7 +193,18 @@ function syncJumpButtonLabel() {
 const jumpBtn = document.getElementById('jump-btn');
 if (jumpBtn) {
   jumpBtn.addEventListener('touchstart', handleTouchAction, { passive: false });
-  jumpBtn.addEventListener('click', handleAction);
+  // Mouse: jump on press so the hold counts, like the canvas (F3).
+  jumpBtn.addEventListener('mousedown', handleMouseDown);
+  jumpBtn.addEventListener('click', handleJumpButtonClick);
+}
+
+// A click with no pointer behind it (detail 0: Space or Enter on the
+// focused button, or a screen reader) is a finished tap: act, then let go.
+// A mouse click already acted on mousedown; touch never reaches click.
+function handleJumpButtonClick(event) {
+  if (event && event.detail > 0) return;
+  handleAction();
+  releaseJump();
 }
 
 // Segmented toggle: two buttons, both always visible, exactly one pressed.

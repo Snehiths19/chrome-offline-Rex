@@ -31,6 +31,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.jump = jump;
   global.drawDailyDeathHint = drawDailyDeathHint;
   global.handleKeyDown = handleKeyDown;
+  global.handleJumpButtonClick = handleJumpButtonClick;
   global.handleTouchAction = handleTouchAction;
   global.dropDino = dropDino;
   global.releaseJump = releaseJump;
