@@ -2,6 +2,11 @@
   box-sizing: border-box;
 }
 
+/* No double-tap zoom on controls (A1); pinch zoom still works. */
+button {
+  touch-action: manipulation;
+}
+
 body {
   display: flex;
   flex-direction: column;
@@ -210,7 +215,9 @@ body {
   width: 100%;
   height: auto;
   display: block;
-  touch-action: none; /* Prevent scroll/zoom while playing */
+  /* Pinch zoom stays allowed (WCAG 1.4.4, A1); manipulation only drops
+     double-tap zoom so a quick double tap is two jumps. */
+  touch-action: manipulation;
 }
 
 #gameCanvas:focus-visible {

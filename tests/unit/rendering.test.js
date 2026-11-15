@@ -2759,3 +2759,81 @@ describe('Game Over keeps the run scene (R2)', () => {
     assert(ratio >= 4.5, 'contrast ' + ratio.toFixed(2) + ':1');
   });
 });
+
+describe('Game Over text contrast (A1)', () => {
+  const lumA1 = (hex) => {
+    const n = parseInt(hex.slice(1), 16);
+    const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
+      const c = v / 255;
+      return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+  };
+  // The lightest thing behind the card: the white day sky under the dim.
+  const dimmedSky = Math.round(255 * (1 - 0.6));
+  const skyHex = '#' + dimmedSky.toString(16).padStart(2, '0').repeat(3);
+  const contrastA1 = (hex) => (lumA1(hex) + 0.05) / (lumA1(skyHex) + 0.05);
+  const toHex = (style) => {
+    if (style === 'white') return '#ffffff';
+    if (/^#[0-9a-f]{6}$/i.test(style)) return style;
+    return null; // anything translucent fails below
+  };
+
+  it('every Game Over text colour is opaque and meets 4.5:1 over the dimmed sky', () => {
+    const scenarios = [
+      () => {
+        game.mode = 'updated';
+        game.highScore = 0;
+      },
+      () => {
+        game.mode = 'updated';
+        game.highScore = 999;
+      },
+      () => {
+        game.mode = 'daily';
+        game.isNewTodayBest = true;
+      },
+      () => {
+        game.mode = 'daily';
+        game.isNewTodayBest = false;
+        game.dailyBest = 999;
+      },
+    ];
+    const orig = {
+      mode: game.mode,
+      highScore: game.highScore,
+      dailyBest: game.dailyBest,
+      isNewTodayBest: game.isNewTodayBest,
+      fillText: ctx.fillText,
+      fillStyle: ctx.fillStyle,
+    };
+    const seen = [];
+    ctx.fillText = (text) => seen.push([String(text), ctx.fillStyle]);
+    try {
+      scenarios.forEach((setup) => {
+        resetGame();
+        setup();
+        game.state = STATE.DEAD;
+        game.score = 16;
+        Animations.deathAnimFrame = deathAnimFrames();
+        drawGameOverScreen();
+        drawDailyDeathHint();
+      });
+    } finally {
+      ctx.fillText = orig.fillText;
+      ctx.fillStyle = orig.fillStyle;
+      game.mode = orig.mode;
+      game.highScore = orig.highScore;
+      game.dailyBest = orig.dailyBest;
+      game.isNewTodayBest = orig.isNewTodayBest;
+      resetGame();
+    }
+    assert(seen.length > 10, 'captured the card text (' + seen.length + ')');
+    seen.forEach(([text, style]) => {
+      const hex = toHex(style);
+      assert(hex, '"' + text + '" is drawn in an opaque colour, not ' + style);
+      const ratio = contrastA1(hex);
+      assert(ratio >= 4.5, '"' + text + '" ' + style + ' is ' + ratio.toFixed(2) + ':1');
+    });
+  });
+});

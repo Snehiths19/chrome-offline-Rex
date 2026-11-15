@@ -698,6 +698,12 @@ function drawDeathBackdrop() {
 // contrast even over the white day sky (white on #666 is about 5.7:1).
 const GAME_OVER_DIM_ALPHA = 0.6;
 
+// Game Over text colours (A1). Every label, hint and the Daily title meets
+// 4.5:1 against the lightest thing behind it: the dimmed white day sky
+// (#666). Hierarchy comes from size; white is kept for the big numbers.
+const GAME_OVER_LABEL_COLOR = '#e6e6e6';
+const GAME_OVER_DAILY_COLOR = '#ffe2ad';
+
 function drawGameOverScreen() {
   const font = cfg('SCORE_FONT_FAMILY');
   const t = Math.min(Animations.deathAnimFrame / deathAnimFrames(), 1);
@@ -713,7 +719,7 @@ function drawGameOverScreen() {
     if (game.isNewTodayBest) {
       // Same takeover as free-play NEW BEST. The daily number sits higher so
       // it doesn't land on the title. Static text — no pulse.
-      ctx.fillStyle = 'rgba(255, 140, 0, 0.9)';
+      ctx.fillStyle = GAME_OVER_DAILY_COLOR;
       ctx.font = labelPx(13) + 'px ' + font;
       ctx.fillText(
         '📅 DAILY #' + dailyNumber(),
@@ -739,7 +745,7 @@ function drawGameOverScreen() {
       );
 
       if (game.previousDailyBest > 0) {
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.fillStyle = GAME_OVER_LABEL_COLOR;
         ctx.font = labelPx(13) + 'px ' + font;
         const improvement = displayScore - game.previousDailyBest;
         ctx.fillText(
@@ -753,7 +759,7 @@ function drawGameOverScreen() {
       const todayBest = game.dailyBest;
       const delta = todayBest > 0 ? todayBest - displayScore : 0;
 
-      ctx.fillStyle = 'rgba(255, 140, 0, 0.9)';
+      ctx.fillStyle = GAME_OVER_DAILY_COLOR;
       ctx.font = labelPx(13) + 'px ' + font;
       ctx.fillText(
         '📅 DAILY #' + dailyNumber(),
@@ -761,7 +767,7 @@ function drawGameOverScreen() {
         GAME_CONFIG.CANVAS_H / 2 - 48
       );
 
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.fillStyle = GAME_OVER_LABEL_COLOR;
       ctx.font = labelPx(12) + 'px ' + font;
       ctx.fillText('THIS RUN', GAME_CONFIG.CANVAS_W * 0.2, GAME_CONFIG.CANVAS_H / 2 - 14);
       ctx.fillStyle = 'white';
@@ -773,18 +779,18 @@ function drawGameOverScreen() {
       );
 
       if (todayBest > 0) {
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.fillStyle = GAME_OVER_LABEL_COLOR;
         ctx.font = labelPx(16) + 'px ' + font;
         ctx.fillText(
           delta > 0 ? '← +' + delta + ' →' : '← best →',
           GAME_CONFIG.CANVAS_W / 2,
           GAME_CONFIG.CANVAS_H / 2 - 10
         );
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.fillStyle = GAME_OVER_LABEL_COLOR;
         ctx.font = labelPx(11) + 'px ' + font;
         ctx.fillText('today best', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 10);
 
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.fillStyle = GAME_OVER_LABEL_COLOR;
         ctx.font = labelPx(12) + 'px ' + font;
         ctx.fillText('TODAY BEST', GAME_CONFIG.CANVAS_W * 0.8, GAME_CONFIG.CANVAS_H / 2 - 14);
         ctx.fillStyle = 'white';
@@ -836,7 +842,7 @@ function drawGameOverScreen() {
       );
 
       if (game.previousHighScore > 0) {
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.fillStyle = GAME_OVER_LABEL_COLOR;
         ctx.font = labelPx(13) + 'px ' + font;
         const improvement = displayScore - game.previousHighScore;
         ctx.fillText(
@@ -851,21 +857,21 @@ function drawGameOverScreen() {
       const scoreStr = String(displayScore).padStart(5, '0');
       const bestStr = String(game.highScore).padStart(5, '0');
 
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.fillStyle = GAME_OVER_LABEL_COLOR;
       ctx.font = labelPx(12) + 'px ' + font;
       ctx.fillText('THIS RUN', GAME_CONFIG.CANVAS_W * 0.2, GAME_CONFIG.CANVAS_H / 2 - 14);
       ctx.fillStyle = 'white';
       ctx.font = '28px ' + font;
       ctx.fillText(scoreStr, GAME_CONFIG.CANVAS_W * 0.2, GAME_CONFIG.CANVAS_H / 2 + 14);
 
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.fillStyle = GAME_OVER_LABEL_COLOR;
       ctx.font = labelPx(16) + 'px ' + font;
       ctx.fillText('← ' + delta + ' →', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 10);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+      ctx.fillStyle = GAME_OVER_LABEL_COLOR;
       ctx.font = labelPx(11) + 'px ' + font;
       ctx.fillText('from best', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 10);
 
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.fillStyle = GAME_OVER_LABEL_COLOR;
       ctx.font = labelPx(12) + 'px ' + font;
       ctx.fillText('YOUR BEST', GAME_CONFIG.CANVAS_W * 0.8, GAME_CONFIG.CANVAS_H / 2 - 14);
       ctx.fillStyle = 'white';
@@ -873,7 +879,7 @@ function drawGameOverScreen() {
       ctx.fillText(bestStr, GAME_CONFIG.CANVAS_W * 0.8, GAME_CONFIG.CANVAS_H / 2 + 14);
     }
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.fillStyle = GAME_OVER_LABEL_COLOR;
     ctx.font = labelPx(13) + 'px ' + font;
     ctx.fillText(
       'Tap / Press Space to Restart',
@@ -891,7 +897,7 @@ function drawDailyDeathHint() {
   if (!isDailyMode()) return;
   if (Animations.deathAnimFrame < deathAnimFrames()) return;
   ctx.textAlign = 'center';
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+  ctx.fillStyle = GAME_OVER_LABEL_COLOR;
   ctx.font = labelPx(12) + 'px ' + cfg('SCORE_FONT_FAMILY');
   ctx.fillText(DAILY_DEATH_HINT, GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H - 16);
 }
