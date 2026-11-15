@@ -163,7 +163,7 @@ The default and deploy branch is `initial-chrome-dino-game` (there is no `master
 
 1. Open the PR against `initial-chrome-dino-game` and make sure `npm test`, `npm run lint` and `npm run format:check` pass locally.
 2. When the PR is finished, add the **`automerge`** label. Leave it off (or open a draft) while work is still in progress.
-3. `.github/workflows/automerge.yml` (the merge queue) takes labelled, non-draft PRs one at a time, oldest first. It merges each with the latest base, runs lint, format check and tests on the combined code, then squash-merges, starts the Pages deploy and moves on to the next PR. It also runs hourly as a safety net.
+3. `.github/workflows/automerge.yml` (the merge queue) takes labelled, non-draft PRs one at a time, oldest first. It merges each with the latest base, runs lint, format check and tests on the combined code, checks the base has not moved meanwhile (if it has, it tests again), then squash-merges, starts the Pages deploy and moves on to the next PR. It also runs hourly as a safety net.
 4. If the combined code fails or conflicts, the queue removes the label and comments on the PR with the run link. Fix the branch (merge the base in; don't force-push someone else's branch) and add the label again.
 
 Merges made by the queue use the workflow token, which does not fire `push` workflows, so the queue starts `pages.yml` itself. A human or Claude merging by hand still triggers the normal push deploy.
