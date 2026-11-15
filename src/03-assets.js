@@ -186,9 +186,11 @@ function initCanvasScale() {
 
 initCanvasScale();
 
+// A resize can fire while later game files are still loading, before `game`
+// exists, so only repaint once every file is in (bootGate.files).
 function handleResize() {
   initCanvasScale();
-  if (game.state === STATE.DEAD) drawGameOverScreen();
+  if (bootGate.files && game.state === STATE.DEAD) drawGameOverScreen();
 }
 
 function bootWhenReady(part) {

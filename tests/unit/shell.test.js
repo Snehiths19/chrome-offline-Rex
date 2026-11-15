@@ -1490,6 +1490,35 @@ describe('Game files (C4)', () => {
     game.state = savedState;
   });
 
+  it('a resize or a mode/Daily tap while game files load does not reach later files', () => {
+    const savedFiles = bootGate.files;
+    const savedMode = game.mode;
+    const savedState = game.state;
+    const origGameOver = testGlobal.drawGameOverScreen;
+    let repaints = 0;
+    testGlobal.drawGameOverScreen = () => repaints++;
+    bootGate.files = false;
+    game.state = STATE.DEAD;
+    handleResize();
+    assertEquals(repaints, 0, 'no Game Over repaint before the files are in');
+    game.mode = MODES.UPDATED;
+    const tap = (id, mode) => {
+      const node = document.getElementById(id);
+      const target = { dataset: mode ? { mode } : {} };
+      (node._listeners.click || []).forEach((fn) =>
+        fn({ target, stopPropagation() {}, preventDefault() {} })
+      );
+    };
+    tap('mode-toggle', MODES.CLASSIC);
+    assertEquals(game.mode, MODES.UPDATED, 'mode tap ignored while loading');
+    tap('daily-btn');
+    assertEquals(game.mode, MODES.UPDATED, 'Daily tap ignored while loading');
+    bootGate.files = savedFiles;
+    testGlobal.drawGameOverScreen = origGameOver;
+    game.mode = savedMode;
+    game.state = savedState;
+  });
+
   it('the last start-up file marks the game files ready', () => {
     if (!IN_NODE_FS) return;
     const { read, GAME_FILES } = gameFilesC4();

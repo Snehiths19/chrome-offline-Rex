@@ -78,6 +78,9 @@ if (modeToggle && modeToggle.addEventListener) {
     const target = event.target;
     if (!target || !target.dataset || !target.dataset.mode) return;
     event.stopPropagation();
+    // A tap while later game files are still loading would reach
+    // resetGame() before it exists; the game is not on screen yet anyway.
+    if (!bootGate.files) return;
     if (target.dataset.mode === game.mode) return; // already in that mode
     setMode(target.dataset.mode);
     announce(game.mode === MODES.CLASSIC ? 'Classic mode' : 'Updated mode');
@@ -243,6 +246,7 @@ function refreshDailyButton() {
 if (dailyBtn && dailyBtn.addEventListener) {
   const onDailyTap = (event) => {
     if (event) event.stopPropagation();
+    if (!bootGate.files) return; // still loading: resetGame() may not exist yet
     const entering = !isDailyMode();
     if (entering) {
       game.mode = MODES.DAILY;
