@@ -41,7 +41,7 @@ tests/game.test.js                # custom describe/it; no JSDOM; canvas/documen
 docs/dev/specs/                   # internal design specs (don't touch)
 docs/dev/plans/                   # internal implementation plans (don't touch)
 package.json                      # npm scripts: test, lint, format, serve
-eslint.config.js, .prettierrc.json
+eslint.config.mjs, .prettierrc.json
 ```
 
 ## `script.js` section layout
