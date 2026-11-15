@@ -1912,3 +1912,65 @@ describe('Zoom and touch (A1)', () => {
     resetGame();
   });
 });
+
+describe('Space on a focused button (A2)', () => {
+  const keyEventA2 = (code, target) => {
+    const ev = { code, target, prevented: false };
+    ev.preventDefault = () => {
+      ev.prevented = true;
+    };
+    return ev;
+  };
+  const focusedA2 = (selector) => ({ closest: (sel) => (sel.includes(selector) ? {} : null) });
+  const withActionSpyA2 = (fn) => {
+    const orig = testGlobal.handleAction;
+    let calls = 0;
+    testGlobal.handleAction = () => {
+      calls += 1;
+    };
+    try {
+      fn();
+    } finally {
+      testGlobal.handleAction = orig;
+    }
+    return calls;
+  };
+
+  it('Space on a focused button is left to the button', () => {
+    let ev;
+    const calls = withActionSpyA2(() => {
+      ev = keyEventA2('Space', focusedA2('button'));
+      handleKeyDown(ev);
+    });
+    assertEquals(calls, 0, 'no jump or restart');
+    assert(!ev.prevented, 'the button still gets its press');
+  });
+
+  it('Enter on a focused link is left to the link', () => {
+    let ev;
+    const calls = withActionSpyA2(() => {
+      ev = keyEventA2('Enter', focusedA2('a'));
+      handleKeyDown(ev);
+    });
+    assertEquals(calls, 0);
+    assert(!ev.prevented);
+  });
+
+  it('Space with nothing focused still jumps', () => {
+    let ev;
+    const calls = withActionSpyA2(() => {
+      ev = keyEventA2('Space', { closest: () => null });
+      handleKeyDown(ev);
+    });
+    assertEquals(calls, 1);
+    assert(ev.prevented, 'page does not scroll');
+  });
+
+  it('Up arrow and W still jump while a button has focus', () => {
+    const calls = withActionSpyA2(() => {
+      handleKeyDown(keyEventA2('ArrowUp', focusedA2('button')));
+      handleKeyDown(keyEventA2('KeyW', focusedA2('button')));
+    });
+    assertEquals(calls, 2);
+  });
+});

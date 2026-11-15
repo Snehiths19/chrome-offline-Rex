@@ -29,14 +29,26 @@ function handleAction() {
   }
 }
 
-document.addEventListener('keydown', (event) => {
+// Space on a focused button or link belongs to that control (A2): the
+// browser presses it on keyup. Taking it here as well would start or
+// restart a run, and preventDefault would cancel the button's own press.
+function keyBelongsToFocusedControl(event) {
+  if (event.code !== 'Space' && event.code !== 'Enter') return false;
+  const target = event.target;
+  if (!target || typeof target.closest !== 'function') return false;
+  return Boolean(target.closest('button, a, input, select, textarea'));
+}
+
+function handleKeyDown(event) {
+  if (keyBelongsToFocusedControl(event)) return;
   if (event.code === 'Space' || event.code === 'ArrowUp' || event.code === 'KeyW') {
     event.preventDefault();
     handleAction();
   } else {
     handleDebugKey(event);
   }
-});
+}
+document.addEventListener('keydown', handleKeyDown);
 
 canvas.addEventListener('click', handleAction);
 

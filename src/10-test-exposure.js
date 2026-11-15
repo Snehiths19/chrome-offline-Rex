@@ -30,6 +30,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.checkCollision = checkCollision;
   global.jump = jump;
   global.drawDailyDeathHint = drawDailyDeathHint;
+  global.handleKeyDown = handleKeyDown;
   global.labelPx = labelPx;
   global.jumpButtonLabel = jumpButtonLabel;
   global.syncJumpButtonLabel = syncJumpButtonLabel;
