@@ -2009,3 +2009,127 @@ describe('Space on a focused button (A2)', () => {
     assertEquals(calls, 2);
   });
 });
+
+describe('Fullscreen button (S4)', () => {
+  // A stand-in document and screen, so no test touches the real page.
+  const fakeFsDoc = (opts = {}) => {
+    const calls = [];
+    const classes = new Set();
+    const doc = {
+      fullscreenEnabled: opts.enabled !== false,
+      fullscreenElement: opts.on ? {} : null,
+      body: {
+        classList: {
+          toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)),
+          contains: (c) => classes.has(c),
+        },
+      },
+      documentElement: {
+        requestFullscreen(o) {
+          calls.push(['request', o]);
+          return Promise.resolve();
+        },
+      },
+      exitFullscreen() {
+        calls.push(['exit']);
+        return Promise.resolve();
+      },
+    };
+    return { doc, calls };
+  };
+  const fakeFsScreen = () => {
+    const calls = [];
+    return {
+      calls,
+      orientation: {
+        lock: (o) => {
+          calls.push(['lock', o]);
+          return Promise.reject(new Error('not allowed'));
+        },
+        unlock: () => calls.push(['unlock']),
+      },
+    };
+  };
+
+  it('is supported only where the Fullscreen API exists', () => {
+    assert(fullscreenSupported({ fullscreenEnabled: true }));
+    assert(fullscreenSupported({ webkitFullscreenEnabled: true }), 'older WebKit');
+    assert(!fullscreenSupported({}), 'iPhone Safari has neither');
+    assert(isFullscreen({ webkitFullscreenElement: {} }));
+    assert(!isFullscreen({ fullscreenElement: null }));
+  });
+
+  it('enters fullscreen with the browser bars hidden', () => {
+    const { doc, calls } = fakeFsDoc();
+    toggleFullscreen(doc, fakeFsScreen());
+    assertEquals(calls.length, 1);
+    assertEquals(calls[0][0], 'request');
+    assertEquals(calls[0][1].navigationUI, 'hide');
+  });
+
+  it('asks for landscape on a touch phone, never on a desktop, and survives a refusal', () => {
+    const origMatch = window.matchMedia;
+    try {
+      window.matchMedia = (q) => ({ matches: q === '(pointer: coarse)', addEventListener() {} });
+      const phone = fakeFsScreen();
+      lockLandscape(phone); // its promise rejects: caught inside
+      assertEquals(JSON.stringify(phone.calls), JSON.stringify([['lock', 'landscape']]));
+      const throwing = {
+        orientation: {
+          lock: () => {
+            throw new Error('no');
+          },
+        },
+      };
+      lockLandscape(throwing); // must not throw
+      lockLandscape({}); // no orientation API at all
+      window.matchMedia = () => ({ matches: false, addEventListener() {} });
+      const desk = fakeFsScreen();
+      lockLandscape(desk);
+      assertEquals(desk.calls.length, 0);
+    } finally {
+      window.matchMedia = origMatch;
+    }
+  });
+
+  it('exits cleanly and unlocks the orientation', () => {
+    const { doc, calls } = fakeFsDoc({ on: true });
+    const scr = fakeFsScreen();
+    toggleFullscreen(doc, scr);
+    assertEquals(calls[0][0], 'exit');
+    assertEquals(scr.calls[0][0], 'unlock');
+  });
+
+  it('does nothing where fullscreen is not supported', () => {
+    const { doc, calls } = fakeFsDoc({ enabled: false });
+    toggleFullscreen(doc, fakeFsScreen());
+    assertEquals(calls.length, 0);
+  });
+
+  it('the button shows only when supported and says what a press will do', () => {
+    const btn = document.getElementById('fullscreen-btn');
+    const origHidden = btn.hidden;
+    const labels = {};
+    const origSet = btn.setAttribute;
+    btn.setAttribute = (k, v) => (labels[k] = v);
+    try {
+      const off = fakeFsDoc();
+      syncFullscreenButton(off.doc);
+      assert(!btn.hidden, 'shown');
+      assertEquals(labels['aria-pressed'], 'false');
+      assertEquals(labels['aria-label'], 'Play fullscreen');
+      assert(off.doc.body.classList.contains('has-fullscreen'), 'mode toggle makes room');
+      const on = fakeFsDoc({ on: true });
+      syncFullscreenButton(on.doc);
+      assertEquals(labels['aria-pressed'], 'true');
+      assertEquals(labels['aria-label'], 'Exit fullscreen');
+      const none = fakeFsDoc({ enabled: false });
+      syncFullscreenButton(none.doc);
+      assert(btn.hidden, 'hidden without the API');
+      assert(!none.doc.body.classList.contains('has-fullscreen'));
+    } finally {
+      btn.setAttribute = origSet;
+      btn.hidden = origHidden;
+    }
+  });
+});

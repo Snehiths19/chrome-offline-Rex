@@ -164,6 +164,9 @@ _Avoid_: disable zoom, user-scalable=no
 **Focused control keys** — Space or Enter while a button, link or field has keyboard focus belongs to that control: the game ignores it, so tabbing to Mute and pressing Space mutes without starting, jumping or restarting. Only focus the keyboard put there counts: after a mouse click or tap on a button, Space jumps as usual. Up arrow and W still jump from anywhere (#117).
 _Avoid_: key capture, global Space
 
+**Fullscreen button** — the corner button in the top row that puts the whole page in fullscreen with the browser bars hidden and, on a touch phone, asks for landscape, where the canvas is biggest (S4, #120). It only shows where the Fullscreen API exists, so not on an iPhone (Safari there has no page fullscreen; the turn-sideways hint and Add to Home Screen remain). Leaving fullscreen by the button, Escape or the back gesture unlocks the orientation. A refused lock is ignored.
+_Avoid_: immersive mode, kiosk
+
 **Readable label** — a small canvas label (11-16 logical px: Game Over and Daily captions, hints, the start and countdown lines, PAUSED). The canvas is 600 logical px wide and shrinks on a phone, so `labelPx()` raises such a label until it is about 12 CSS px on screen, capped at 20 logical px so the layout still fits. Desktop, where the canvas is drawn at full size or larger, keeps the designed sizes. Big numbers (the score, the countdown digit) are already readable and never change.
 _Avoid_: font scaling, responsive text
 

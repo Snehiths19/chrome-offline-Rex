@@ -442,3 +442,80 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     }
   });
 }
+
+// Fullscreen (S4). The button shows only where the Fullscreen API exists
+// (Android Chrome, desktop; not an iPhone). On a phone it also asks for
+// landscape, where the canvas is biggest. Leaving fullscreen (the button,
+// Escape or the system back gesture) unlocks the orientation. The functions
+// take the document and screen so tests can pass stand-ins.
+function fullscreenSupported(doc = document) {
+  return Boolean(doc && (doc.fullscreenEnabled || doc.webkitFullscreenEnabled));
+}
+
+function isFullscreen(doc = document) {
+  return Boolean(doc && (doc.fullscreenElement || doc.webkitFullscreenElement));
+}
+
+function lockLandscape(scr) {
+  const orientation = scr && scr.orientation;
+  if (!orientation || typeof orientation.lock !== 'function') return;
+  if (!mediaMatches('(pointer: coarse)')) return; // desktop: never lock
+  try {
+    const p = orientation.lock('landscape');
+    if (p && typeof p.catch === 'function') p.catch(() => {}); // not allowed here: fine
+  } catch {
+    // Some browsers throw instead of rejecting. Fullscreen still works.
+  }
+}
+
+function unlockOrientation(scr) {
+  const orientation = scr && scr.orientation;
+  if (!orientation || typeof orientation.unlock !== 'function') return;
+  try {
+    orientation.unlock();
+  } catch {
+    // Nothing locked.
+  }
+}
+
+function toggleFullscreen(doc = document, scr = window.screen || null) {
+  if (!fullscreenSupported(doc)) return;
+  if (isFullscreen(doc)) {
+    unlockOrientation(scr);
+    const exit = doc.exitFullscreen || doc.webkitExitFullscreen;
+    if (exit) {
+      const p = exit.call(doc);
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    }
+    return;
+  }
+  const el = doc.documentElement;
+  const request = el && (el.requestFullscreen || el.webkitRequestFullscreen);
+  if (!request) return;
+  const p = request.call(el, { navigationUI: 'hide' });
+  if (p && typeof p.then === 'function') p.then(() => lockLandscape(scr)).catch(() => {});
+  else lockLandscape(scr);
+}
+
+const fullscreenBtn = document.getElementById('fullscreen-btn');
+function syncFullscreenButton(doc = document) {
+  if (!fullscreenBtn) return;
+  const supported = fullscreenSupported(doc);
+  const on = isFullscreen(doc);
+  fullscreenBtn.hidden = !supported;
+  fullscreenBtn.setAttribute('aria-pressed', String(on));
+  fullscreenBtn.setAttribute('aria-label', on ? 'Exit fullscreen' : 'Play fullscreen');
+  if (doc.body && doc.body.classList) doc.body.classList.toggle('has-fullscreen', supported);
+}
+if (fullscreenBtn && fullscreenBtn.addEventListener) {
+  fullscreenBtn.addEventListener('click', () => toggleFullscreen());
+  syncFullscreenButton();
+}
+if (typeof document !== 'undefined' && document.addEventListener) {
+  const onFullscreenChange = () => {
+    syncFullscreenButton();
+    if (!isFullscreen()) unlockOrientation(window.screen || null);
+  };
+  document.addEventListener('fullscreenchange', onFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+}

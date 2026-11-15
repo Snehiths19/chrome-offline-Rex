@@ -199,6 +199,57 @@ body {
   outline-offset: 2px;
 }
 
+/* Fullscreen (S4): only shown where the Fullscreen API exists (not on an
+   iPhone), in the top-right corner. The mode toggle moves left to make room. */
+#fullscreen-btn {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 2;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.85);
+  color: #333;
+  border: 1px solid #999;
+  border-radius: 999px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#fullscreen-btn[hidden] {
+  display: none;
+}
+#fullscreen-btn svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#fullscreen-btn .fs-exit,
+#fullscreen-btn[aria-pressed='true'] .fs-enter {
+  display: none;
+}
+#fullscreen-btn[aria-pressed='true'] .fs-exit {
+  display: block;
+}
+#fullscreen-btn:focus-visible {
+  outline: 2px solid #4a90e2;
+  outline-offset: 2px;
+}
+.has-fullscreen #mode-toggle {
+  right: 58px;
+}
+@media (max-width: 340px) {
+  .has-fullscreen #mode-toggle {
+    right: 54px;
+  }
+}
+
 /* After the base toggle rules so the tighter padding wins on a narrow phone. */
 @media (max-width: 420px) {
   #mode-toggle button {

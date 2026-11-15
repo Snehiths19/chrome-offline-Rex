@@ -43,6 +43,11 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.notePointerDown = notePointerDown;
   global.clearPointerDown = clearPointerDown;
   global.noteFocusIn = noteFocusIn;
+  global.fullscreenSupported = fullscreenSupported;
+  global.isFullscreen = isFullscreen;
+  global.toggleFullscreen = toggleFullscreen;
+  global.lockLandscape = lockLandscape;
+  global.syncFullscreenButton = syncFullscreenButton;
   global.labelPx = labelPx;
   global.jumpButtonLabel = jumpButtonLabel;
   global.syncJumpButtonLabel = syncJumpButtonLabel;

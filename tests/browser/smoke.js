@@ -116,6 +116,21 @@ async function playOnDevice(browser, base, vp) {
     const box = await page.locator(sel).boundingBox();
     check(`${sel} fits on screen`, insideViewport(box, size), JSON.stringify(box));
   }
+  // Fullscreen button (S4): Chromium has the API, so it shows, fits and
+  // overlaps none of the top-row buttons.
+  const fsBtn = page.locator('#fullscreen-btn');
+  check('fullscreen button shows where the API exists', await fsBtn.isVisible());
+  const fsBox = await fsBtn.boundingBox();
+  check('fullscreen button fits on screen', insideViewport(fsBox, size), JSON.stringify(fsBox));
+  for (const sel of ['#mute-btn', '#daily-btn', '#mode-toggle']) {
+    const box = await page.locator(sel).boundingBox();
+    const apart =
+      box.x + box.width <= fsBox.x ||
+      fsBox.x + fsBox.width <= box.x ||
+      box.y + box.height <= fsBox.y ||
+      fsBox.y + fsBox.height <= box.y;
+    check(`fullscreen button clear of ${sel}`, apart, JSON.stringify({ box, fsBox }));
+  }
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > window.innerWidth + 1
   );
@@ -323,6 +338,21 @@ async function playOnDevice(browser, base, vp) {
     await mute.click();
     await mute.evaluate((el) => el.blur());
   }
+
+  // Fullscreen on and off again (S4).
+  await tapOrClick(fsBtn, vp.touch);
+  check(
+    'fullscreen button enters fullscreen',
+    (await waitFor(page, '!!document.fullscreenElement', 3000)) &&
+      (await fsBtn.getAttribute('aria-pressed')) === 'true'
+  );
+  await shot('4b-fullscreen');
+  await tapOrClick(fsBtn, vp.touch);
+  check(
+    'fullscreen button exits cleanly',
+    (await waitFor(page, '!document.fullscreenElement', 3000)) &&
+      (await fsBtn.getAttribute('aria-pressed')) === 'false'
+  );
 
   // Classic and back to Updated.
   await tapOrClick(page.locator('#mode-toggle [data-mode="classic"]'), vp.touch);
