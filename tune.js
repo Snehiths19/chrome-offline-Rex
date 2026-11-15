@@ -1,4 +1,4 @@
-// Live tuning panel (C7, #108). Dev only: script.js loads this file only
+// Live tuning panel (C7, #108). Dev only: src/09-init.js loads this file only
 // when the page has ?tune=1, and players never see it.
 //
 // It lists every key in TUNABLE_KEYS (the visual values read through cfg())
@@ -12,7 +12,7 @@
 //   Copy   copies the changed values as GAME_CONFIG lines, ready for a PR
 //
 // Workflow: open the game with ?tune=1, play, drag until it looks right,
-// Copy, paste the lines into GAME_CONFIG in script.js, then Reset.
+// Copy, paste the lines into GAME_CONFIG in src/02-config.js, then Reset.
 
 (function () {
   'use strict';

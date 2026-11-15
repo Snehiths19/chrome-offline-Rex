@@ -41,7 +41,7 @@ function check(label, ok, detail) {
 }
 
 // Read a game value. `game`, `dino`, `STATE` and `audio` are top-level
-// declarations in script.js, so they are reachable by name from the page.
+// declarations in the game files (src/), so they are reachable by name from the page.
 const read = (page, expr) => page.evaluate(expr);
 
 async function waitFor(page, expr, timeout = 15000) {

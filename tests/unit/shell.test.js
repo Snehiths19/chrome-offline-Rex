@@ -1156,19 +1156,19 @@ describe('Blocked storage (C2)', () => {
     cancelAnimationFrame(game.animationFrameId);
   });
 
-  it('script.js boots in a fresh Node process where every storage access throws', () => {
+  it('the game boots in a fresh Node process where every storage access throws', () => {
     if (typeof require !== 'function') return; // browser runner: Node-only check
     const { execFileSync } = require('child_process');
-    const scriptPath = require.resolve('../../script.js');
+    const filesPath = require.resolve('../../src/files.js');
     // The getter throws on every read, and the setter swallows the Node stub's
-    // assignment, so script.js sees storage exactly as a blocking browser does.
+    // assignment, so the game sees storage exactly as a blocking browser does.
     const code = [
       "Object.defineProperty(global, 'localStorage', {",
       '  configurable: true,',
       "  get() { throw new Error('SecurityError: storage blocked'); },",
       '  set() {},',
       '});',
-      'require(' + JSON.stringify(scriptPath) + ');',
+      'require(' + JSON.stringify(filesPath) + ').loadGame();',
       'ScoreStore.saveHighScore(4321);',
       'process.stdout.write(JSON.stringify({',
       '  mode: game.mode, muted: audio.muted, hi: ScoreStore.loadHighScore(),',
@@ -1369,12 +1369,10 @@ describe('Live tuning panel (C7)', () => {
     };
   }
 
-  it('TUNABLE_KEYS is exactly the keys script.js reads through cfg() or its helpers', () => {
-    // Node only: a browser test cannot read script.js from disk.
+  it('TUNABLE_KEYS is exactly the keys the game reads through cfg() or its helpers', () => {
+    // Node only: a browser test cannot read the game files from disk.
     if (!IN_NODE) return;
-    const fs = require('fs');
-    const path = require('path');
-    const src = fs.readFileSync(path.join(__dirname, '..', '..', 'script.js'), 'utf8');
+    const src = require('../../src/files.js').gameSource();
     const used = require('../tunable-keys.js').cfgKeysInSource(src);
     assertEquals(
       JSON.stringify([...TUNABLE_KEYS].sort()),
@@ -1424,6 +1422,63 @@ describe('Live tuning panel (C7)', () => {
   });
 });
 
+describe('Game files (C4)', () => {
+  // The browser, the test page, the offline cache and Node must all load the
+  // same game files in the same order. Static checks, so Node only.
+  const IN_NODE_FS = typeof require === 'function';
+  function gameFilesC4() {
+    const fs = require('fs');
+    const path = require('path');
+    const root = path.join(__dirname, '..', '..');
+    const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
+    const { GAME_FILES } = require('../../src/files.js');
+    const tags = (html) =>
+      [...html.matchAll(/<script src="(src\/[^"?]+)(\?[^"]*)?"><\/script>/g)].map((m) => ({
+        file: m[1],
+        query: m[2] || '',
+      }));
+    return { fs, path, root, read, GAME_FILES, tags };
+  }
+
+  it('index.html loads every game file in order, each with the deploy version', () => {
+    if (!IN_NODE_FS) return;
+    const { read, GAME_FILES, tags } = gameFilesC4();
+    const found = tags(read('index.html'));
+    assertEquals(JSON.stringify(found.map((t) => t.file)), JSON.stringify(GAME_FILES));
+    found.forEach((t) => assertEquals(t.query, '?v=__VERSION__', 'cache-bust on ' + t.file));
+    assert(!/script\.js/.test(read('index.html')), 'no old script.js tag');
+  });
+
+  it('the browser test page loads the same game files in the same order', () => {
+    if (!IN_NODE_FS) return;
+    const { read, GAME_FILES, tags } = gameFilesC4();
+    const found = tags(read('tests/test-runner.html')).map((t) => t.file);
+    assertEquals(JSON.stringify(found), JSON.stringify(GAME_FILES));
+  });
+
+  it('the offline cache lists the same game files in the same order', () => {
+    if (!IN_NODE_FS) return;
+    const { read, GAME_FILES } = gameFilesC4();
+    const m = read('sw.js').match(/const PRECACHE_URLS = (\[[\s\S]*?\]);/);
+    const urls = JSON.parse(m[1].replace(/'/g, '"').replace(/,\s*\]/, ']'));
+    assertEquals(
+      JSON.stringify(urls.filter((u) => u.startsWith('src/'))),
+      JSON.stringify(GAME_FILES)
+    );
+  });
+
+  it('every file in src/ is a listed game file (or the list itself)', () => {
+    if (!IN_NODE_FS) return;
+    const { fs, path, root, GAME_FILES } = gameFilesC4();
+    const onDisk = fs
+      .readdirSync(path.join(root, 'src'))
+      .filter((f) => f.endsWith('.js') && f !== 'files.js')
+      .map((f) => 'src/' + f)
+      .sort();
+    assertEquals(JSON.stringify(onDisk), JSON.stringify([...GAME_FILES].sort()));
+  });
+});
+
 describe('Installable and offline (PL1)', () => {
   // Static checks read files from disk, so they only run under Node.
   const fs = typeof require === 'function' ? require('fs') : null;
@@ -1470,13 +1525,12 @@ describe('Installable and offline (PL1)', () => {
     if (!fs) return;
     const urls = precacheUrls();
     urls.filter((u) => u !== './').forEach((u) => assert(exists(u), 'precached file exists: ' + u));
-    ['./', 'index.html', 'script.js', 'style.css', 'manifest.webmanifest'].forEach((u) =>
+    const { GAME_FILES, gameSource } = require('../../src/files.js');
+    ['./', 'index.html', ...GAME_FILES, 'style.css', 'manifest.webmanifest'].forEach((u) =>
       assert(urls.includes(u), 'shell file precached: ' + u)
     );
-    const sprites = (read('script.js').match(/'assets\/[^']+\.png'/g) || []).map((s) =>
-      s.slice(1, -1)
-    );
-    assertEquals(sprites.length, 6, 'script.js loads 6 sprites');
+    const sprites = (gameSource().match(/'assets\/[^']+\.png'/g) || []).map((s) => s.slice(1, -1));
+    assertEquals(sprites.length, 6, 'the game loads 6 sprites');
     sprites.forEach((s) => assert(urls.includes(s), 'sprite precached: ' + s));
     const html = read('index.html');
     (html.match(/href="(icons\/[^"]+)"/g) || []).forEach((h) => {

@@ -8,10 +8,10 @@
     "test:replay": "node tests/replay.test.js",
     "test:browser": "node tests/browser/smoke.js",
     "test:visual": "node tests/browser/visual.js",
-    "coverage": "c8 --include script.js --reporter=text-summary --reporter=html npm test",
-    "lint": "eslint script.js tune.js tests/harness.js tests/unit.test.js tests/unit/*.js tests/replay.test.js tests/tunable-keys.js tests/browser/*.js",
-    "format": "prettier --write script.js tune.js tests/harness.js tests/unit.test.js tests/unit/*.js tests/replay.test.js tests/tunable-keys.js tests/browser/*.js style.css index.html",
-    "format:check": "prettier --check script.js tune.js tests/harness.js tests/unit.test.js tests/unit/*.js tests/replay.test.js tests/tunable-keys.js tests/browser/*.js style.css index.html",
+    "coverage": "c8 --include 'src/[0-9]*.js' --reporter=text-summary --reporter=html npm test",
+    "lint": "eslint src/*.js tune.js tests/harness.js tests/unit.test.js tests/unit/*.js tests/replay.test.js tests/tunable-keys.js tests/browser/*.js",
+    "format": "prettier --write src/*.js tune.js tests/harness.js tests/unit.test.js tests/unit/*.js tests/replay.test.js tests/tunable-keys.js tests/browser/*.js style.css index.html",
+    "format:check": "prettier --check src/*.js tune.js tests/harness.js tests/unit.test.js tests/unit/*.js tests/replay.test.js tests/tunable-keys.js tests/browser/*.js style.css index.html",
     "serve": "python3 -m http.server 8080"
   },
   "devDependencies": {

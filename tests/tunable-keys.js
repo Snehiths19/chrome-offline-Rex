@@ -1,4 +1,4 @@
-// Finds every GAME_CONFIG key script.js reads through cfg(), for the tests
+// Finds every GAME_CONFIG key the game (src/*.js) reads through cfg(), for the tests
 // that must cover all of them (TUNABLE_KEYS in tests/unit/shell.test.js and
 // the determinism replay in tests/replay.test.js). Node only.
 //

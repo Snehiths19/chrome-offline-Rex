@@ -1,15 +1,15 @@
 // Shared test harness (C6, #121).
 //
-// Loads script.js once (Node) and defines the custom describe/it/assert
+// Loads the game files once (Node) and defines the custom describe/it/assert
 // harness and the Node/browser helpers every area file in tests/unit/ uses.
 // Node: tests/unit.test.js requires this, then each area file in the order
 // tests/unit/files.js gives. Browser: tests/test-runner.html loads this as a
-// classic script after script.js, then the same files in the same order.
+// classic script after the game files in src/, then the same files in the same order.
 // Each area file starts with beginTestFile('<area>') so the summary can say
 // how each file did.
 
 if (typeof window === 'undefined') {
-  require('../script.js');
+  require('../src/files.js').loadGame();
 }
 
 // --- Test Utilities ---
@@ -168,7 +168,7 @@ function overrideGlobalProp(name, value) {
 }
 
 // --- Mocking and Setup ---
-// The game script (script.js) is loaded by test-runner.html before this script
+// The game files (src/*.js) are loaded by test-runner.html before this script
 // (in browsers) or via require() above (in Node). Tests drive the game loop
 // manually and inspect state through the `game` object.
 

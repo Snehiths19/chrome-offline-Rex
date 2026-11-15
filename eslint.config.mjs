@@ -1,8 +1,43 @@
-// Flat-config for ESLint 9+. Covers the browser-facing game script and the
-// Node-run test file (both use the same script, loaded differently).
+// Flat-config for ESLint 9+. Covers the browser-facing game files in src/
+// and the Node-run tests (both use the same files, loaded differently).
+import fs from 'node:fs';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const { GAME_FILES } = require('./src/files.js');
+
+// The game files are classic scripts that share one global scope (C4, #109),
+// so each file may use the top-level names the other game files declare. Lint
+// each file with those names as globals, and count a top-level name another
+// game file uses as used.
+const TOP_LEVEL =
+  /^(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)|^(?:const|let|var|class)\s+([A-Za-z_$][\w$]*)/gm;
+const gameFiles = GAME_FILES.map((file) => {
+  const src = fs.readFileSync(path.join(import.meta.dirname, file), 'utf8');
+  const names = [...src.matchAll(TOP_LEVEL)].map((m) => m[1] || m[2]);
+  return { file, src, names };
+});
+const usedIn = (name, src) =>
+  new RegExp('(^|[^\\w$.])' + name.replace(/\$/g, '\\$') + '(?![\\w$])').test(src);
+function gameFileBlock({ file, names }) {
+  const others = gameFiles.filter((g) => g.file !== file);
+  const globals = {};
+  for (const g of others) for (const n of g.names) globals[n] = 'writable';
+  const shared = names.filter((n) => others.some((g) => usedIn(n, g.src)));
+  const rules = {};
+  if (shared.length) {
+    rules['no-unused-vars'] = [
+      'warn',
+      { args: 'none', varsIgnorePattern: '^(' + shared.join('|').replace(/\$/g, '\\$') + ')$' },
+    ];
+  }
+  return { files: [file], languageOptions: { globals }, rules };
+}
+
 export default [
   {
-    files: ['script.js'],
+    files: GAME_FILES,
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'script',
@@ -36,9 +71,20 @@ export default [
       'no-implicit-globals': 'off',
     },
   },
+  ...gameFiles.map(gameFileBlock),
   {
-    // Dev-only ?tune=1 panel: a classic script that runs after script.js and
-    // uses its top-level names.
+    // The ordered list of game files and the Node loader (a CommonJS module).
+    files: ['src/files.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'commonjs',
+      globals: { require: 'readonly', module: 'writable', __dirname: 'readonly' },
+    },
+    rules: { 'no-undef': 'error', 'no-var': 'error', 'no-unused-vars': 'warn' },
+  },
+  {
+    // Dev-only ?tune=1 panel: a classic script that runs after the game files
+    // and uses their top-level names.
     files: ['tune.js'],
     languageOptions: {
       ecmaVersion: 2022,
@@ -77,7 +123,7 @@ export default [
         requestAnimationFrame: 'readonly',
         localStorage: 'readonly',
         navigator: 'readonly',
-        // Exposed by script.js in test mode:
+        // Exposed by src/10-test-exposure.js in test mode:
         game: 'readonly',
         GAME_CONFIG: 'readonly',
         STATE: 'readonly',
@@ -248,7 +294,12 @@ export default [
   },
   {
     // The shared harness hands these to every area file in tests/unit/.
-    files: ['tests/harness.js', 'tests/unit.test.js', 'tests/unit/**/*.js', 'tests/tunable-keys.js'],
+    files: [
+      'tests/harness.js',
+      'tests/unit.test.js',
+      'tests/unit/**/*.js',
+      'tests/tunable-keys.js',
+    ],
     languageOptions: {
       globals: {
         module: 'writable',
