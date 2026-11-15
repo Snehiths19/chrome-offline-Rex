@@ -264,6 +264,8 @@ export default [
       globals: {
         URL: 'readonly',
         module: 'writable',
+        Image: 'readonly',
+        Buffer: 'readonly',
       },
     },
   },

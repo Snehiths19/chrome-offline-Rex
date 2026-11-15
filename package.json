@@ -7,6 +7,7 @@
     "test": "node tests/game.test.js && node tests/replay.test.js",
     "test:replay": "node tests/replay.test.js",
     "test:browser": "node tests/browser/smoke.js",
+    "test:visual": "node tests/browser/visual.js",
     "coverage": "c8 --include script.js --reporter=text-summary --reporter=html npm test",
     "lint": "eslint script.js tests/game.test.js tests/replay.test.js tests/browser/*.js",
     "format": "prettier --write script.js tests/game.test.js tests/replay.test.js tests/browser/*.js style.css index.html",

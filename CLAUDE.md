@@ -20,6 +20,7 @@ npm test                       # runs the full suite under Node (unit tests + go
 npm run test:replay            # only the golden-run replays
 npm run coverage               # same suite, plus line/branch coverage of script.js
 npm run test:browser           # plays the game in headless Chromium at desktop + phone sizes
+npm run test:visual            # compares key screens to tests/browser/references/ (-- --update to re-record)
 npm run lint                   # ESLint script.js + tests
 npm run format                 # Prettier: run before committing
 npm run format:check           # what CI checks
@@ -40,6 +41,7 @@ icons/                            # app icons built from assets/dino-stationary.
 tests/game.test.js                # custom describe/it; no JSDOM; canvas/document stubbed
 tests/replay.test.js              # golden-run replays (Node only), stored runs in tests/golden/
 tests/browser/smoke.js            # real-browser smoke test (Playwright); screenshots/ is git-ignored
+tests/browser/visual.js           # screenshot comparisons against tests/browser/references/*.png
 .github/workflows/pages.yml       # test → cache-bust → Pages deploy
 .github/workflows/ci.yml          # lint, format check, tests on every push/PR
 .github/workflows/automerge.yml   # merge queue for PRs labelled `automerge`
@@ -163,6 +165,12 @@ Keep a new test passing in both places. A browser will not let a test replace `l
 `npm run test:browser` serves the repo on a random local port and drives the real page in headless Chromium (Playwright, pinned in `package.json`) at four sizes: desktop 1280x800, iPhone 13 and Pixel 7 portrait, and iPhone 13 landscape. On each it starts a run, jumps, dies, restarts (skipping the countdown), toggles mute, Classic/Updated and Daily, and checks that the canvas, jump button (touch only; it stays hidden on desktop) and top-row buttons fit on screen with no sideways scroll. Any console error, page error or failed request fails it. It then checks the game reloads with the network off once the service worker is in, and opens `tests/test-runner.html` and fails unless every unit test passes there too.
 
 It reads game state by name (`game.state`, `dino.isJumping`, `audio.muted`), so renaming those top-level declarations means updating `tests/browser/smoke.js`. Screenshots of each step go to `tests/browser/screenshots/` (git-ignored). CI runs it as the `browser` job on every push and PR and uploads the screenshots as the `browser-screenshots` artifact, so a PR with a visible change can link those instead of hand-made ones. `pages.yml` runs the same job as a deploy gate. In this cloud environment Chromium is preinstalled; elsewhere run `npx playwright install chromium` once.
+
+### Screenshot comparisons
+
+`npm run test:visual` draws five key screens on the game canvas (start, running by day, night, Game Over, Daily result) at desktop 1280x800 (rendered at 2x) and iPhone 13 sizes, and compares each with `tests/browser/references/<size>-<screen>.png`. The comparison works on 2x2-pixel averages: a block counts as changed when a channel moves by more than 16/255 and no block within one step matches, and a screen fails when more than 0.2% of blocks changed. That absorbs the small glyph-edge differences between two Linux machines while a colour change, a moved sprite or a different digit still fails. On a failure it writes a side-by-side image (reference, now, changed blocks in red) to `tests/browser/visual-diffs/`, which CI uploads with the smoke screenshots.
+
+Each screen is made deterministic first: a fixed run seed per screen (`replayRunSeed`), a seeded `Math.random`, a fixed clock (`2026-07-01`, for the Daily number), no service worker, and the loop stopped and stepped by hand one 60Hz slice at a time. Only the canvas is compared, because the page buttons use system fonts that differ between machines. When a visual change is intended, run `npm run test:visual -- --update`, look at the new images, and commit them with the change. References recorded in this cloud environment match GitHub's runners (checked on the PR that added this); desktop renders at 2x because at 1x the two machines hint canvas text differently enough to fail.
 
 ### Coverage
 
