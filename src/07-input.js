@@ -15,6 +15,7 @@ function handleAction() {
     game.state = STATE.RUNNING;
     announce('Go!');
   } else if (game.state === STATE.RUNNING) {
+    dino.jumpHeld = true; // until the key, button or finger lets go (F3)
     jump();
   } else if (game.state === STATE.DEAD) {
     const countFrames = deathAnimFrames();
@@ -39,18 +40,68 @@ function keyBelongsToFocusedControl(event) {
   return Boolean(target.closest('button, a, input, select, textarea'));
 }
 
+const JUMP_KEYS = ['Space', 'ArrowUp', 'KeyW'];
+const DROP_KEYS = ['ArrowDown', 'KeyS'];
+
 function handleKeyDown(event) {
   if (keyBelongsToFocusedControl(event)) return;
-  if (event.code === 'Space' || event.code === 'ArrowUp' || event.code === 'KeyW') {
+  if (JUMP_KEYS.includes(event.code)) {
     event.preventDefault();
     handleAction();
+  } else if (DROP_KEYS.includes(event.code)) {
+    event.preventDefault();
+    dropDino();
   } else {
     handleDebugKey(event);
   }
 }
 document.addEventListener('keydown', handleKeyDown);
 
-canvas.addEventListener('click', handleAction);
+// Letting go of jump ends the hold (F3): updateRunning then cuts the rise.
+function releaseJump() {
+  dino.jumpHeld = false;
+}
+function handleKeyUp(event) {
+  if (JUMP_KEYS.includes(event.code)) releaseJump();
+}
+document.addEventListener('keyup', handleKeyUp);
+
+// The mouse jumps on press, not on click, so how long it is held counts.
+function handleMouseDown(event) {
+  if (event.button !== undefined && event.button !== 0) return;
+  handleAction();
+}
+canvas.addEventListener('mousedown', handleMouseDown);
+document.addEventListener('mouseup', releaseJump);
+
+// Touch: the hold ends when the last finger lifts, and a swipe down of
+// SWIPE_DOWN_CSS_PX or more from where the touch began is a fast fall.
+const SWIPE_DOWN_CSS_PX = 30;
+const touchSwipe = { startY: null, dropped: false };
+function handleSwipeStart(event) {
+  const touch = event.touches && event.touches[0];
+  if (!touch || event.touches.length > 1) return;
+  touchSwipe.startY = touch.clientY;
+  touchSwipe.dropped = false;
+}
+function handleSwipeMove(event) {
+  if (!bootGate.files || touchSwipe.startY === null || touchSwipe.dropped) return;
+  const touch = event.touches && event.touches[0];
+  if (!touch || event.touches.length > 1) return;
+  if (touch.clientY - touchSwipe.startY >= SWIPE_DOWN_CSS_PX) {
+    touchSwipe.dropped = true;
+    dropDino();
+  }
+}
+function handleTouchEnd(event) {
+  if (event.touches && event.touches.length > 0) return;
+  touchSwipe.startY = null;
+  releaseJump();
+}
+document.addEventListener('touchstart', handleSwipeStart, { passive: true });
+document.addEventListener('touchmove', handleSwipeMove, { passive: true });
+document.addEventListener('touchend', handleTouchEnd);
+document.addEventListener('touchcancel', handleTouchEnd);
 
 // A second finger is a pinch zoom (allowed since A1), not a tap: leave it
 // to the browser and don't count it as a jump.

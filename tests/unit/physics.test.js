@@ -1359,3 +1359,141 @@ describe('Sim clock (60Hz)', () => {
     }
   });
 });
+
+describe('Variable jump and fast fall (F3)', () => {
+  const f3Step = () => {
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+  };
+  const f3Start = () => {
+    resetGame();
+    game.state = STATE.RUNNING;
+    game.graceFrames = 100000; // no obstacles
+  };
+  // Jump, let go after `holdSlices` (Infinity = never), and fly to landing.
+  // Returns { air, peak } in slices and px above the ground.
+  const f3Flight = (holdSlices, dropAt) => {
+    f3Start();
+    const groundY = GAME_CONFIG.CANVAS_H - dino.height;
+    handleAction();
+    let air = 0;
+    let peak = 0;
+    while (dino.isJumping && air < 200) {
+      if (air === holdSlices) releaseJump();
+      if (air === dropAt) dropDino();
+      f3Step();
+      air++;
+      peak = Math.max(peak, groundY - dino.y);
+    }
+    return { air, peak };
+  };
+  const f3Key = (code) => ({ code, target: null, preventDefault() {} });
+
+  it('physics values live in GAME_CONFIG', () => {
+    assertEquals(GAME_CONFIG.JUMP_CUT_VELOCITY, -5);
+    assertEquals(GAME_CONFIG.JUMP_MIN_HEIGHT, 50);
+    assertEquals(GAME_CONFIG.FAST_FALL_START_VELOCITY, 2);
+    assertEquals(GAME_CONFIG.FAST_FALL_GRAVITY, 1.44);
+    for (const key of [
+      'JUMP_CUT_VELOCITY',
+      'JUMP_MIN_HEIGHT',
+      'FAST_FALL_START_VELOCITY',
+      'FAST_FALL_GRAVITY',
+    ]) {
+      assert(!TUNABLE_KEYS.includes(key), `${key} is never tunable through cfg()`);
+    }
+  });
+
+  it('a held press is the same full jump as before (49 slices)', () => {
+    const full = f3Flight(Infinity);
+    assertEquals(full.air, 49);
+    assert(full.peak > 140, 'full height');
+  });
+
+  it('a quick tap is a short hop that still clears the tallest obstacle', () => {
+    const hop = f3Flight(0);
+    assert(hop.air < 40 && hop.air > 28, `hop airtime ${hop.air}`);
+    assert(hop.peak > 70 && hop.peak < 90, `hop peak ${hop.peak}`);
+    const bigCactus = GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'big');
+    assert(hop.peak > bigCactus.height, 'higher than the big cactus');
+  });
+
+  it('releasing later gives a jump between a hop and a full jump', () => {
+    const hop = f3Flight(0).air;
+    const mid = f3Flight(10).air;
+    assert(mid > hop && mid < 49, `mid ${mid}`);
+  });
+
+  it('releasing on the way down changes nothing', () => {
+    assertEquals(f3Flight(30).air, 49);
+  });
+
+  it('fast fall lands sooner and clears the drop on landing', () => {
+    const dropped = f3Flight(Infinity, 24);
+    assert(dropped.air < 40, `dropped airtime ${dropped.air}`);
+    assert(!dino.dropping, 'dropping ends on landing');
+  });
+
+  it('fast fall drops a buffered jump and does nothing on the ground', () => {
+    f3Start();
+    dropDino();
+    assert(!dino.dropping && !dino.isJumping, 'no effect on the ground');
+    handleAction();
+    for (let i = 0; i < 10; i++) f3Step();
+    handleAction(); // buffered
+    dropDino();
+    assertEquals(dino.jumpBufferFrames, 0, 'buffer cleared');
+    assert(dino.velocityY >= GAME_CONFIG.FAST_FALL_START_VELOCITY, 'stops rising');
+    resetGame();
+  });
+
+  it('keyboard: Down or S drops, letting go of Space ends the hold', () => {
+    f3Start();
+    handleKeyDown(f3Key('Space'));
+    assert(dino.isJumping && dino.jumpHeld, 'held');
+    handleKeyUp(f3Key('Space'));
+    assert(!dino.jumpHeld, 'released');
+    for (const code of ['ArrowDown', 'KeyS']) {
+      f3Start();
+      handleKeyDown(f3Key('Space'));
+      f3Step();
+      handleKeyDown(f3Key(code));
+      assert(dino.dropping, `${code} drops`);
+    }
+    resetGame();
+  });
+
+  it('mouse jumps on press and only the main button counts', () => {
+    f3Start();
+    handleMouseDown({ button: 2 });
+    assert(!dino.isJumping, 'right button ignored');
+    handleMouseDown({ button: 0 });
+    assert(dino.isJumping && dino.jumpHeld, 'main button jumps and holds');
+    releaseJump();
+    assert(!dino.jumpHeld);
+    resetGame();
+  });
+
+  it('touch: a swipe down drops once, lifting the last finger releases', () => {
+    f3Start();
+    handleAction();
+    f3Step();
+    handleSwipeStart({ touches: [{ clientY: 100 }] });
+    handleSwipeMove({ touches: [{ clientY: 120 }] });
+    assert(!dino.dropping, 'a small move is not a swipe');
+    handleSwipeMove({ touches: [{ clientY: 135 }] });
+    assert(dino.dropping, 'swipe down drops');
+    handleTouchEnd({ touches: [{}] });
+    assert(dino.jumpHeld, 'a finger is still down');
+    handleTouchEnd({ touches: [] });
+    assert(!dino.jumpHeld, 'last finger lifted');
+    resetGame();
+  });
+
+  it('a new run starts with nothing held or dropping', () => {
+    dino.jumpHeld = true;
+    dino.dropping = true;
+    resetGame();
+    assert(!dino.jumpHeld && !dino.dropping);
+  });
+});

@@ -168,6 +168,43 @@ async function playOnDevice(browser, base, vp) {
   await shot('2-jump');
   check('dino lands again', await waitFor(page, 'dino.isJumping === false', 3000));
 
+  // Variable jump and fast fall with real input events (F3, desktop).
+  if (!vp.touch) {
+    // Height of the next flight above the ground, read every display frame.
+    const flightPeak = () =>
+      page.evaluate(
+        () =>
+          new Promise((resolve) => {
+            let min = dino.y;
+            const tick = () => {
+              min = Math.min(min, dino.y);
+              if (dino.isJumping) requestAnimationFrame(tick);
+              else resolve(GAME_CONFIG.CANVAS_H - dino.height - min);
+            };
+            requestAnimationFrame(tick);
+          })
+      );
+    await page.evaluate(() => (game.obstacles.length = 0)); // keep the lane clear
+    await page.keyboard.down('Space');
+    const heldPeak = await flightPeak();
+    await page.keyboard.up('Space');
+    await page.evaluate(() => (game.obstacles.length = 0));
+    const box = await page.locator('#gameCanvas').boundingBox();
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    const tapPeak = await flightPeak();
+    check(
+      `holding Space jumps higher than a quick click (${Math.round(heldPeak)} vs ${Math.round(tapPeak)}px)`,
+      heldPeak > 130 && tapPeak < 100 && tapPeak > 55
+    );
+    await page.evaluate(() => (game.obstacles.length = 0));
+    await page.keyboard.down('Space');
+    await waitFor(page, 'dino.isJumping && dino.velocityY > -6', 2000);
+    await page.keyboard.press('ArrowDown');
+    check('Down drops the dino fast', await read(page, 'dino.dropping === true'));
+    await page.keyboard.up('Space');
+    check('dino lands after the drop', await waitFor(page, 'dino.isJumping === false', 2000));
+  }
+
   // Portrait phones: the empty space below the canvas is a jump zone too.
   if (vp.portrait) {
     const box = await page.locator('#gameCanvas').boundingBox();

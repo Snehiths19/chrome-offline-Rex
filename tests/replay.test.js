@@ -23,6 +23,7 @@ const path = require('path');
 const GOLDEN_DIR = path.join(__dirname, 'golden');
 const UPDATE = process.argv.includes('--update');
 const MAX_FRAMES = 8000; // ~2 minutes of play (score ~780); a run that never dies stops here
+const HOP_LEAD = -6; // a hop peaks sooner than a full jump, so it starts later
 
 // The golden runs. `autopilot` only matters when re-recording: it is how
 // early the planner jumps (frames before contact) and how many obstacles it
@@ -34,6 +35,14 @@ const RUNS = [
   { name: 'updated-early-death', mode: 'updated', seed: 4242, autopilot: { lead: 0, clear: 4 } },
   // Daily uses a fixed seed (not today's), so the run is the same every day.
   { name: 'daily-fixed-seed', mode: 'daily', seed: 20260101, autopilot: { lead: 0 } },
+  // Variable jump and fast fall (F3): every jump is a quick tap (a short hop)
+  // and the dino drops once it is past the obstacle.
+  {
+    name: 'updated-hops-and-drops',
+    mode: 'updated',
+    seed: 9001,
+    autopilot: { lead: HOP_LEAD, hops: true, drops: true },
+  },
 ];
 
 // --- Running one run ------------------------------------------------------
@@ -58,9 +67,15 @@ function step() {
 }
 
 // Play a whole run. `jumpAt` is a Set of frames (game.animFrame values while
-// RUNNING) on which the player presses jump. `planner`, when given, decides
-// jumps live instead and its choices are returned so they can be stored.
+// RUNNING) on which the player presses jump; `spec.releases` and `spec.drops`
+// (optional) are the frames the player lets go of jump and fast-falls (F3).
+// With neither, every jump is held to the top. `planner`, when given, decides
+// live instead and its choices are returned so they can be stored.
 function playRun(spec, jumpAt, planner) {
+  const releaseAt = new Set(spec.releases || []);
+  const dropAt = new Set(spec.drops || []);
+  const releases = [];
+  const drops = [];
   startRun(spec.mode, spec.seed);
   const seen = new Set();
   const obstacles = [];
@@ -73,10 +88,21 @@ function playRun(spec, jumpAt, planner) {
 
   while (game.state === STATE.RUNNING && game.animFrame < MAX_FRAMES) {
     const frame = game.animFrame;
-    const press = planner ? planner(frame) : jumpAt.has(frame);
-    if (press && !dino.isJumping) {
+    let act = planner
+      ? planner(frame)
+      : { press: jumpAt.has(frame), release: releaseAt.has(frame), drop: dropAt.has(frame) };
+    if (typeof act === 'boolean') act = { press: act };
+    if (act.press && !dino.isJumping) {
       handleAction();
       jumps.push(frame);
+    }
+    if (act.release && dino.jumpHeld) {
+      releaseJump();
+      releases.push(frame);
+    }
+    if (act.drop && dino.isJumping && !dino.dropping) {
+      dropDino();
+      drops.push(frame);
     }
     step();
     for (const obs of game.obstacles) {
@@ -102,6 +128,8 @@ function playRun(spec, jumpAt, planner) {
     mode: spec.mode,
     seed: spec.seed,
     jumps,
+    releases,
+    drops,
     result: {
       died: game.state === STATE.DEAD,
       deathFrame: game.state === STATE.DEAD ? game.animFrame : null,
@@ -126,13 +154,18 @@ function makePlanner(opts) {
       cleared++;
       target = null;
     }
+    // Drop once past the top of the jump with the next obstacle well ahead.
+    if (opts.drops && dino.isJumping && !dino.dropping && dino.velocityY > 0) {
+      const clearAhead = !ahead || ahead.x > dino.x + dino.width + game.currentSpeed * 10;
+      return { drop: clearAhead };
+    }
     if (!ahead || dino.isJumping) return false;
     if (opts.clear != null && cleared >= opts.clear) return false;
     const framesToContact = (ahead.x - (dino.x + dino.width)) / game.currentSpeed;
     const trigger = 12 + (opts.lead || 0) + Math.ceil(ahead.width / game.currentSpeed / 2);
     if (framesToContact <= trigger) {
       target = ahead;
-      return true;
+      return opts.hops ? { press: true, release: true } : true;
     }
     return false;
   };
@@ -179,6 +212,8 @@ function writeGolden(name, run) {
     `  "mode": ${JSON.stringify(run.mode)},\n` +
     `  "seed": ${run.seed},\n` +
     `  "jumps": ${JSON.stringify(run.jumps)},\n` +
+    (run.releases.length ? `  "releases": ${JSON.stringify(run.releases)},\n` : '') +
+    (run.drops.length ? `  "drops": ${JSON.stringify(run.drops)},\n` : '') +
     '  "result": {\n' +
     Object.entries(rest)
       .map(([k, v]) => `    ${JSON.stringify(k)}: ${JSON.stringify(v)},\n`)
@@ -263,6 +298,10 @@ check(
 check(
   'at least one golden run dies early (before score 100)',
   all.some((g) => g.result.died && g.result.finalScore < 100)
+);
+check(
+  'a golden run uses short hops and fast falls (F3)',
+  all.some((g) => (g.releases || []).length > 0 && (g.drops || []).length > 0)
 );
 check(
   'Classic, Updated and Daily all have golden runs',

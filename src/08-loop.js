@@ -21,6 +21,8 @@ function resetGame() {
   dino.velocityY = 0;
   dino.isJumping = false;
   dino.jumpBufferFrames = 0;
+  dino.jumpHeld = false;
+  dino.dropping = false;
 
   Particles.reset();
 
@@ -416,12 +418,22 @@ function updateRunning() {
 
   // Apply gravity.
   if (dino.isJumping) {
-    dino.velocityY += dino.gravity;
+    // Let go while rising: cut the rise once the feet are high enough (F3).
+    const groundY = GAME_CONFIG.CANVAS_H - dino.height;
+    if (
+      !dino.jumpHeld &&
+      dino.velocityY < GAME_CONFIG.JUMP_CUT_VELOCITY &&
+      groundY - dino.y >= GAME_CONFIG.JUMP_MIN_HEIGHT
+    ) {
+      dino.velocityY = GAME_CONFIG.JUMP_CUT_VELOCITY;
+    }
+    dino.velocityY += dino.dropping ? GAME_CONFIG.FAST_FALL_GRAVITY : dino.gravity;
     dino.y += dino.velocityY;
 
     if (dino.y >= GAME_CONFIG.CANVAS_H - dino.height) {
       dino.y = GAME_CONFIG.CANVAS_H - dino.height;
       dino.isJumping = false;
+      dino.dropping = false;
       dino.velocityY = 0;
       Particles.emit('land', dino.x + dino.width / 2, dino.y + dino.height);
       audio.land();

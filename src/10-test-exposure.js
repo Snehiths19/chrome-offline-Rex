@@ -32,6 +32,13 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.drawDailyDeathHint = drawDailyDeathHint;
   global.handleKeyDown = handleKeyDown;
   global.handleTouchAction = handleTouchAction;
+  global.dropDino = dropDino;
+  global.releaseJump = releaseJump;
+  global.handleKeyUp = handleKeyUp;
+  global.handleMouseDown = handleMouseDown;
+  global.handleSwipeStart = handleSwipeStart;
+  global.handleSwipeMove = handleSwipeMove;
+  global.handleTouchEnd = handleTouchEnd;
   global.labelPx = labelPx;
   global.jumpButtonLabel = jumpButtonLabel;
   global.syncJumpButtonLabel = syncJumpButtonLabel;

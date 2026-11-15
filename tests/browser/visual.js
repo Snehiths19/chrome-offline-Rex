@@ -141,7 +141,10 @@ function pageSetup() {
             .sort((a, b) => a.x - b.x)[0];
           if (ahead) {
             const frames = (ahead.x - (dino.x + dino.width)) / game.currentSpeed;
-            if (frames <= 12 + Math.ceil(ahead.width / game.currentSpeed / 2)) jump();
+            if (frames <= 12 + Math.ceil(ahead.width / game.currentSpeed / 2)) {
+              dino.jumpHeld = true; // a held press: the full jump (F3)
+              jump();
+            }
           }
         }
         gameLoop();

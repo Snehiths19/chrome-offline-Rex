@@ -31,6 +31,12 @@ _Avoid_: freeze, suspend, menu
 **Jump buffer** — a jump pressed while the dino is still in the air, up to `JUMP_BUFFER_FRAMES` (6) sim frames before it lands, is kept and fires on the landing frame. A press earlier than that is dropped, as before. It counts sim frames, not display frames, reads `GAME_CONFIG` directly and never draws on the run seed. It serves Flow: at speed a press a hair early should not feel like the game missed it. Same in every mode.
 _Avoid_: input queue, coyote time (that is the opposite: a late jump after leaving a ledge)
 
+**Variable jump** — how long jump is held sets the height (F3). A held press is the full jump (49 frames, about 144px). Letting go while still rising fast cuts the rise to `JUMP_CUT_VELOCITY`, but not before the feet are `JUMP_MIN_HEIGHT` up, so a quick tap is a short hop (about 33 frames, 76px) that still clears every obstacle at every speed. Keys (keyup), mouse (press on the canvas, release anywhere) and touch (last finger lifted) all end the hold. Gameplay values: `GAME_CONFIG`, never `cfg()`. Spawns are untouched, so the Daily course stays the same for everyone; only the player's input differs.
+_Avoid_: charge jump, jump strength
+
+**Fast fall** — Down, S or a swipe down (30 CSS px) while airborne: the dino stops rising and falls at three times gravity until it lands, dropping any buffered jump. Does nothing on the ground (there is no duck).
+_Avoid_: dive, slam, duck
+
 **Obstacle** — any on-screen hazard the dino must jump over.
 _Avoid_: enemy, object
 

@@ -76,3 +76,13 @@ function jump() {
     dino.jumpBufferFrames = GAME_CONFIG.JUMP_BUFFER_FRAMES;
   }
 }
+
+// Fast fall (F3): Down, S or a swipe down while airborne. On the ground it
+// does nothing. A jump buffered during the same flight is dropped, so the
+// swipe that starts with a touch does not bounce straight back up.
+function dropDino() {
+  if (game.state !== STATE.RUNNING || !dino.isJumping) return;
+  dino.dropping = true;
+  dino.jumpBufferFrames = 0;
+  dino.velocityY = Math.max(dino.velocityY, GAME_CONFIG.FAST_FALL_START_VELOCITY);
+}
