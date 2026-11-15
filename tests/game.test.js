@@ -2164,7 +2164,7 @@ describe('PR-P1 bug fixes', () => {
     game.currentSpeed = 6;
     game.rng = () => 1.0;
     updateHills();
-    const maxX = GAME_CONFIG.CANVAS_W + cfg('HILL_RESPAWN_X_RANGE');
+    const maxX = GAME_CONFIG.CANVAS_W + GAME_CONFIG.HILL_RESPAWN_X_RANGE;
     assert(
       game.hills[0].x <= maxX,
       `Hill x (${game.hills[0].x}) must not exceed CANVAS_W + HILL_RESPAWN_X_RANGE (${maxX})`

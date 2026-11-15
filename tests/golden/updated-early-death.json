@@ -1,0 +1,26 @@
+{
+  "mode": "updated",
+  "seed": 4242,
+  "jumps": [382,588,814,998],
+  "result": {
+    "died": true,
+    "deathFrame": 1153,
+    "finalScore": 91,
+    "finalSpeed": 3.551834,
+    "obstacleCount": 6,
+    "flights": [
+      [382,431,6],
+      [588,637,6],
+      [814,863,6],
+      [998,1047,6]
+    ],
+    "obstacles": [
+      {"frame":241,"type":"small","gap":605},
+      {"frame":449,"type":"small","gap":678},
+      {"frame":678,"type":"small","gap":759},
+      {"frame":865,"type":"small","gap":632},
+      {"frame":1004,"type":"small","gap":478},
+      {"frame":1139,"type":"small","gap":471}
+    ]
+  }
+}
