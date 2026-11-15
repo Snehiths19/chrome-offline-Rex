@@ -52,22 +52,26 @@ document.addEventListener('keydown', handleKeyDown);
 
 canvas.addEventListener('click', handleAction);
 
-canvas.addEventListener(
-  'touchstart',
-  (event) => {
-    event.preventDefault();
-    handleAction();
-  },
-  { passive: false }
-);
+// A second finger is a pinch zoom (allowed since A1), not a tap: leave it
+// to the browser and don't count it as a jump.
+function isMultiTouch(event) {
+  return Boolean(event.touches && event.touches.length > 1);
+}
+
+function handleTouchAction(event) {
+  if (isMultiTouch(event)) return;
+  event.preventDefault();
+  handleAction();
+}
+
+canvas.addEventListener('touchstart', handleTouchAction, { passive: false });
 
 // Tap zone (S2): on a phone, a touch on the empty page below the canvas
 // works like tapping the canvas. Buttons (jump, share, the top row) keep
 // their own handlers, and the canvas has its own listener above.
 function handleTapZone(event) {
   if (!bootGate.files) return;
-  // Two fingers is a pinch zoom (allowed since A1), not a tap.
-  if (event.touches && event.touches.length > 1) return;
+  if (isMultiTouch(event)) return;
   const target = event.target;
   if (target === canvas) return;
   if (target && typeof target.closest === 'function' && target.closest('button, a, input')) return;
@@ -113,14 +117,7 @@ function syncJumpButtonLabel() {
 
 const jumpBtn = document.getElementById('jump-btn');
 if (jumpBtn) {
-  jumpBtn.addEventListener(
-    'touchstart',
-    (event) => {
-      event.preventDefault();
-      handleAction();
-    },
-    { passive: false }
-  );
+  jumpBtn.addEventListener('touchstart', handleTouchAction, { passive: false });
   jumpBtn.addEventListener('click', handleAction);
 }
 

@@ -148,6 +148,7 @@ export default [
         jump: 'readonly',
         drawDailyDeathHint: 'readonly',
         handleKeyDown: 'readonly',
+        handleTouchAction: 'readonly',
         labelPx: 'readonly',
         canvasCssScale: 'writable',
         jumpButtonLabel: 'readonly',

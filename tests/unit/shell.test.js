@@ -1911,6 +1911,28 @@ describe('Zoom and touch (A1)', () => {
     assert(!dino.isJumping && !ev.prevented, 'pinch left to the browser');
     resetGame();
   });
+
+  it('a second finger on the canvas or jump button is a pinch, not a jump', () => {
+    resetGame();
+    game.state = STATE.RUNNING;
+    const ev = {
+      touches: [{}, {}],
+      preventDefault() {
+        this.prevented = true;
+      },
+    };
+    handleTouchAction(ev);
+    assert(!dino.isJumping && !ev.prevented, 'pinch left to the browser');
+    const one = {
+      touches: [{}],
+      preventDefault() {
+        this.prevented = true;
+      },
+    };
+    handleTouchAction(one);
+    assert(dino.isJumping && one.prevented, 'one finger still jumps');
+    resetGame();
+  });
 });
 
 describe('Space on a focused button (A2)', () => {
