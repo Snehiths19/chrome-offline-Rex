@@ -1865,3 +1865,50 @@ describe('Big button label (S3)', () => {
     resetGame();
   });
 });
+
+describe('Zoom and touch (A1)', () => {
+  const IN_NODE_FS_A1 = typeof require === 'function';
+  const readA1 = (rel) => {
+    const fs = require('fs');
+    const path = require('path');
+    return fs.readFileSync(path.join(__dirname, '..', '..', rel), 'utf8');
+  };
+
+  it('the page allows pinch zoom', () => {
+    if (!IN_NODE_FS_A1) return;
+    const meta = readA1('index.html').match(/<meta\s+name="viewport"[^>]*>/s)[0];
+    assert(!/user-scalable\s*=\s*no/.test(meta), 'no user-scalable=no');
+    assert(!/maximum-scale/.test(meta), 'no maximum-scale');
+  });
+
+  it('the canvas and buttons stop double-tap zoom with touch-action: manipulation', () => {
+    if (!IN_NODE_FS_A1) return;
+    const css = readA1('style.css');
+    assert(/button\s*\{[^}]*touch-action:\s*manipulation/.test(css), 'buttons');
+    assert(/#gameCanvas\s*\{[^}]*touch-action:\s*manipulation/.test(css), 'canvas');
+  });
+
+  it('a two-finger touch below the canvas is a pinch, not a jump', () => {
+    resetGame();
+    game.state = STATE.RUNNING;
+    const orig = Object.getOwnPropertyDescriptor(canvas, 'getBoundingClientRect');
+    Object.defineProperty(canvas, 'getBoundingClientRect', {
+      configurable: true,
+      writable: true,
+      value: () => ({ top: 200, bottom: 300 }),
+    });
+    const ev = {
+      target: { closest: () => null },
+      touches: [{}, {}],
+      changedTouches: [{ clientY: 450 }],
+      preventDefault() {
+        this.prevented = true;
+      },
+    };
+    handleTapZone(ev);
+    delete canvas.getBoundingClientRect;
+    if (orig) Object.defineProperty(canvas, 'getBoundingClientRect', orig);
+    assert(!dino.isJumping && !ev.prevented, 'pinch left to the browser');
+    resetGame();
+  });
+});

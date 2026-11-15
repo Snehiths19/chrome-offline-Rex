@@ -146,6 +146,7 @@ export default [
         drawDino: 'readonly',
         checkCollision: 'readonly',
         jump: 'readonly',
+        drawDailyDeathHint: 'readonly',
         labelPx: 'readonly',
         canvasCssScale: 'writable',
         jumpButtonLabel: 'readonly',

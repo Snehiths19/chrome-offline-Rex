@@ -54,6 +54,8 @@ canvas.addEventListener(
 // their own handlers, and the canvas has its own listener above.
 function handleTapZone(event) {
   if (!bootGate.files) return;
+  // Two fingers is a pinch zoom (allowed since A1), not a tap.
+  if (event.touches && event.touches.length > 1) return;
   const target = event.target;
   if (target === canvas) return;
   if (target && typeof target.closest === 'function' && target.closest('button, a, input')) return;

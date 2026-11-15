@@ -149,6 +149,12 @@ _Avoid_: portrait mode (that is the phone's orientation, not a game mode)
 **Game Over backdrop** — the run's last frame (sky, hills, ground, clouds, obstacles, the dino), held still and dimmed with 0.6 black under the Game Over card, so the player can see what ended the run. Repainted on every frame of the card so the dim never stacks. The dim keeps white score text above 4.5:1 contrast even over the white day sky. Same in every mode.
 _Avoid_: death overlay, blackout
 
+**Game Over text** — every caption on the Game Over card and the Daily hint is drawn in an opaque colour (`GAME_OVER_LABEL_COLOR` light grey, `GAME_OVER_DAILY_COLOR` pale amber for Daily lines), never translucent white, so each stays at 4.5:1 contrast or better over the dimmed backdrop (#116).
+_Avoid_: faded text, alpha labels
+
+**Tap without zoom** — the page and its buttons use `touch-action: manipulation`, so a quick double tap on a phone jumps twice instead of zooming the page. Pinch zoom still works, and a two-finger touch never counts as a jump (#116).
+_Avoid_: disable zoom, user-scalable=no
+
 **Readable label** — a small canvas label (11-16 logical px: Game Over and Daily captions, hints, the start and countdown lines, PAUSED). The canvas is 600 logical px wide and shrinks on a phone, so `labelPx()` raises such a label until it is about 12 CSS px on screen, capped at 20 logical px so the layout still fits. Desktop, where the canvas is drawn at full size or larger, keeps the designed sizes. Big numbers (the score, the countdown digit) are already readable and never change.
 _Avoid_: font scaling, responsive text
 
