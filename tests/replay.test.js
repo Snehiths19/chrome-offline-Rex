@@ -15,7 +15,8 @@
 //
 // Node only: it reads and writes files. Uses only what Section 10 exposes.
 
-require('../script.js');
+const { loadGame, gameSource } = require('../src/files.js');
+loadGame();
 const fs = require('fs');
 const path = require('path');
 
@@ -269,10 +270,10 @@ check(
 );
 
 // Determinism contract: visual-only live-tuning overrides must not change a run.
-// Tune every key script.js reads through cfg() (or a cfg() helper) at once, far from its default,
+// Tune every key the game reads through cfg() (or a cfg() helper) at once, far from its default,
 // so a gameplay value that slips into cfg() later is caught here too.
 const { cfgKeysInSource } = require('./tunable-keys.js');
-const cfgKeys = cfgKeysInSource(fs.readFileSync(path.join(__dirname, '..', 'script.js'), 'utf8'));
+const cfgKeys = cfgKeysInSource(gameSource());
 const VISUAL_OVERRIDES = {};
 for (const key of cfgKeys) {
   const v = GAME_CONFIG[key];

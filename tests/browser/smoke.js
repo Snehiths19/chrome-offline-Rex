@@ -41,7 +41,7 @@ function check(label, ok, detail) {
 }
 
 // Read a game value. `game`, `dino`, `STATE` and `audio` are top-level
-// declarations in script.js, so they are reachable by name from the page.
+// declarations in the game files (src/), so they are reachable by name from the page.
 const read = (page, expr) => page.evaluate(expr);
 
 async function waitFor(page, expr, timeout = 15000) {
@@ -233,6 +233,30 @@ async function checkOffline(browser, base) {
   await context.close();
 }
 
+// --- A slow game file (C4) ------------------------------------------------
+
+// The sprites can finish loading while the browser still waits for a later
+// game file. The game must still start once that file arrives.
+async function checkSlowGameFile(browser, base) {
+  console.log('\nSlow game file (desktop)');
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (err) => errors.push(`page error: ${err.message}`));
+  await page.route('**/src/04-state.js*', async (route) => {
+    const response = await route.fetch();
+    await new Promise((r) => setTimeout(r, 2000));
+    await route.fulfill({ response });
+  });
+  await page.goto(`${base}/index.html`);
+  check(
+    'the game starts when a game file arrives after the sprites',
+    await waitFor(page, "game.state === 'IDLE'", 10000)
+  );
+  check('no page errors while a game file is slow', errors.length === 0, errors.join('; '));
+  await context.close();
+}
+
 // --- The ?tune=1 live tuning panel (dev only) -------------------------------
 
 async function checkTunePanel(browser, base) {
@@ -342,6 +366,7 @@ async function checkTestRunner(browser, base) {
   try {
     for (const vp of VIEWPORTS) await playOnDevice(browser, base, vp);
     await checkOffline(browser, base);
+    await checkSlowGameFile(browser, base);
     await checkTunePanel(browser, base);
     await checkTestRunner(browser, base);
   } catch (err) {

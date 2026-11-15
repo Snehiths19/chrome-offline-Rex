@@ -4,9 +4,9 @@ Architecture reference for contributors and future Claude Code sessions. Optimis
 
 ## Project at a glance
 
-Single-file vanilla-JS clone of Chrome's offline dino game. Render target is a `<canvas>` driven by `requestAnimationFrame`. No bundler, no framework, no runtime dependencies — `npm` is for ESLint/Prettier only.
+Vanilla-JS clone of Chrome's offline dino game. Render target is a `<canvas>` driven by `requestAnimationFrame`. No bundler, no framework, no runtime dependencies — `npm` is for ESLint/Prettier only.
 
-- Game logic: `script.js` (~4,800 lines, sectioned)
+- Game logic: `src/01-node-stubs.js` … `src/10-test-exposure.js` (~4,850 lines, one file per section, loaded in order as plain `<script>` tags; `src/files.js` is the list)
 - Tests: `tests/unit/*.test.js`, one file per area, on the shared `tests/harness.js` (custom harness, runs under Node and in a browser)
 - HTML shell: `index.html` (canvas + UI buttons)
 - Styles: `style.css`
@@ -18,10 +18,10 @@ Single-file vanilla-JS clone of Chrome's offline dino game. Render target is a `
 ```bash
 npm test                       # runs the full suite under Node (unit tests + golden-run replays)
 npm run test:replay            # only the golden-run replays
-npm run coverage               # same suite, plus line/branch coverage of script.js
+npm run coverage               # same suite, plus line/branch coverage of the game files in src/
 npm run test:browser           # plays the game in headless Chromium at desktop + phone sizes
 npm run test:visual            # compares key screens to tests/browser/references/ (-- --update to re-record)
-npm run lint                   # ESLint script.js + tests
+npm run lint                   # ESLint the game files (src/) + tests
 npm run format                 # Prettier: run before committing
 npm run format:check           # what CI checks
 npm run serve                  # local server on :8080
@@ -32,14 +32,16 @@ The lint, format and test gates also run in CI on pull requests and on pushes to
 ## File map
 
 ```
-script.js                         # game logic (single source of truth)
+src/files.js                      # GAME_FILES: the game files in load order, plus loadGame()/gameSource() for Node
+src/01-node-stubs.js              # Section 1 … one file per section (see the layout below)
+src/10-test-exposure.js           # Section 10
 index.html                        # canvas + UI buttons; cache-bust via __VERSION__
 style.css
-tune.js                           # dev-only ?tune=1 live tuning panel (loaded by script.js only with that flag; not precached)
+tune.js                           # dev-only ?tune=1 live tuning panel (loaded by src/09-init.js only with that flag; not precached)
 sw.js                             # service worker: precaches the offline shell (cache name = deploy SHA)
 manifest.webmanifest              # Add to Home Screen: name, fullscreen, landscape, icons
 icons/                            # app icons built from assets/dino-stationary.png (assets/ untouched)
-tests/harness.js                  # custom describe/it/assert + Node/browser helpers; loads script.js once
+tests/harness.js                  # custom describe/it/assert + Node/browser helpers; loads the game files once
 tests/unit.test.js                # Node runner: harness, then every area file, then a per-file summary
 tests/unit/files.js               # the area files and their order (Node and the browser page both read it)
 tests/unit/<area>.test.js         # physics, spawning, rendering, effects, daily, shell, qa
@@ -56,23 +58,30 @@ package.json                      # npm scripts: test, lint, format, serve
 eslint.config.mjs, .prettierrc.json
 ```
 
-## `script.js` section layout
+## Game files and section layout
 
-The file is divided into numbered sections. Add new code inside the section it belongs to; don't append at EOF.
+The game is ten plain classic scripts in `src/`, one per numbered section, with no bundler (C4, #109). `index.html` loads them with one `<script>` tag each, in order, and classic scripts share one global scope, so every file sees the top-level names of the others, as if it were still one file. Node loads the same list the same way: `require('./src/files.js').loadGame()` runs each file with `vm.runInThisContext`, in order, in one global scope. `gameSource()` returns all of it as one string for tests that scan the code.
 
-Line numbers drift as the file grows, so treat them as rough. Find the current ones with `grep -n "== SECTION" script.js` (headers look like `// == SECTION 5: RENDERING ==`).
+Rules that come with the split:
 
-1. **Section 1 — Node stubs** (~line 1). Browser-API shims so `script.js` can be `require`d under Node. Browsers skip this block.
-2. **Section 2 — Configuration** (~line 80). `GAME_CONFIG` (frozen), the `cfg`/`loadTuning`/`saveTuning` live-tuning hook, `ScoreStore` (all localStorage score persistence), the `STATE` enum, `reducedMotion`/`setReducedMotion`, the QA switchboard (`QA_FLAGS`: one row per `?qaX=1` playtest flag, with its hold, gate and draw; `qa.x` says whether a flag is on, tests flip one with `setQaFlag('x', on)` and parse with `readQaFlag('x', search)`; the per-flag `drawQa*` overlays sit just above it; ~lines 600–1550, the bulk of this section), and the `audio` object.
-3. **Section 3 — Asset loading** (~line 1780). `canvas`/`ctx`, `a11yLive`/`announce`, `dino`, sprite preload with timeout fallback, and the canvas-sizing shell helpers (`computeCanvasCssWidth`, `fitCanvasCssSize`, `initCanvasScale`, `handleResize`).
-4. **Section 4 — Game state** (~line 2010). The `mulberry32` seeded RNG, `DifficultyProfile.nextObstacle()` (type + gap; `pickObstacleType` and `computeNextSpawnGap` are internal helpers, not exported), `MODES`/`loadMode`, daily seed helpers, the `game` object, `Animations`, `setMode`, daily share, and the death-log debug tools.
-5. **Section 5 — Rendering** (~line 2440). Pure draw functions: `drawBackground`, `drawDino`, `drawObstacles`, `drawClouds`, `drawHills`, `drawSkyTint`, `drawDeathFlash`, `drawScore`, `drawMilestoneFlash`, `drawNewBestBadge`, etc. Also `isDailyMode`/`isUpdatedMode` and `Particles`.
-6. **Feature registry** (~line 3620). `FEATURES` array + `runFeatureUpdates` + `runFeatureDraws(layer)`. Declarative ordering for ambient features (hills, clouds, particles, skyTint).
-7. **Section 6 — Physics & game logic** (~line 3640). `spawnObstacle`, `updateObstacles`, `checkCollision`, `computeRunResult`, `jump`.
-8. **Section 7 — Input handlers** (~line 3715). `handleAction`, keyboard + mouse + touch. Jump, mute, mode-toggle, share and daily buttons live here too.
-9. **Section 8 — Game loop** (~line 3975). `resetGame`, each state's update step (`updateIdle`, `updateWaiting`, `updateRunning`, `updateDead`: counters, physics, spawning, scoring, collision, emits, no canvas) and draw step (`drawIdle`, `drawWaiting`, `drawRunning`, `drawDead`: paint only) in `STATE_STEPS`, the 60Hz sim clock (`SIM_FRAME_MS`, `simStepsForFrame`), `runSimFrame` (QA holds + one update), `drawFrame` (one draw + QA overlays) and `gameLoop`. `gameLoop` spends rAF time in 60Hz sim slices, runs one update per slice, then draws once; a display frame that owes no slice neither updates nor draws. The slice that dies draws the death scene. RUNNING uses the feature registry (`runFeatureUpdates` in the update, `runFeatureDraws` in the draw). `handleX()` / `STATE_HANDLERS` run one update then one draw, which is what tests drive. New gameplay goes in an update step; anything that touches `ctx` or the page goes in a draw step.
-10. **Section 9 — Initialisation** (~line 4560). Loads assets, sets state, kicks off the loop.
-11. **Section 10 — Test exposure** (~line 4565). Node-only globals so tests can poke internals.
+- **No load-time calls into a later file.** A function declaration is only hoisted within its own file, so top-level code (a table, a constant, a call at load) may only use names from its own file or an earlier one. Inside a function body anything goes, because everything has loaded before it runs. `QA_FLAGS` in `02-config.js` wraps the two draws that live in `05-rendering.js` in arrow functions for this reason. Breaking the rule throws a `ReferenceError` the moment the tests load the game.
+- **Events can run between files.** A browser may fire an image's `onload`, a timer or an input event after one game file and before the next. So nothing starts the game until both the sprites and the files are ready: `bootWhenReady('assets')` in `03-assets.js` and `bootWhenReady('files')` at the end of `09-init.js`, through `bootGate`. The smoke test delays `04-state.js` to check it. For the same reason an event handler registered at load (resize, the mode and Daily buttons) checks `bootGate.files` before it reaches a later file.
+- **A new game file** goes in `GAME_FILES` (`src/files.js`), `index.html` (with `?v=__VERSION__`), `tests/test-runner.html` and `sw.js` `PRECACHE_URLS`, in the same order. The `Game files (C4)` tests in `tests/unit/shell.test.js` fail until all four agree.
+- **Lint knows the shared scope.** `eslint.config.mjs` reads `GAME_FILES` and gives each file the other files' top-level names as globals, and counts a name another file uses as used.
+
+Add new code to the file for the section it belongs to; don't start a new file for a small change.
+
+1. **`src/01-node-stubs.js` — Section 1, Node stubs.** Browser-API shims so the game files can run under Node. Browsers skip this block.
+2. **`src/02-config.js` — Section 2, Configuration.** `GAME_CONFIG` (frozen), the `cfg`/`loadTuning`/`saveTuning` live-tuning hook, `ScoreStore` (all localStorage score persistence), the `STATE` enum, `reducedMotion`/`setReducedMotion`, the QA switchboard (`QA_FLAGS`: one row per `?qaX=1` playtest flag, with its hold, gate and draw; `qa.x` says whether a flag is on, tests flip one with `setQaFlag('x', on)` and parse with `readQaFlag('x', search)`; the per-flag `drawQa*` overlays sit just above it; the bulk of this file), and the `audio` object.
+3. **`src/03-assets.js` — Section 3, Asset loading.** `canvas`/`ctx`, `a11yLive`/`announce`, `dino`, sprite preload with timeout fallback, and the canvas-sizing shell helpers (`computeCanvasCssWidth`, `fitCanvasCssSize`, `initCanvasScale`, `handleResize`).
+4. **`src/04-state.js` — Section 4, Game state.** The `mulberry32` seeded RNG, `DifficultyProfile.nextObstacle()` (type + gap; `pickObstacleType` and `computeNextSpawnGap` are internal helpers, not exported), `MODES`/`loadMode`, daily seed helpers, the `game` object, `Animations`, `setMode`, daily share, and the death-log debug tools.
+5. **`src/05-rendering.js` — Section 5, Rendering.** Pure draw functions: `drawBackground`, `drawDino`, `drawObstacles`, `drawClouds`, `drawHills`, `drawSkyTint`, `drawDeathFlash`, `drawScore`, `drawMilestoneFlash`, `drawNewBestBadge`, etc. Also `isDailyMode`/`isUpdatedMode` and `Particles`.
+6. **Feature registry** (end of `src/05-rendering.js`). `FEATURES` array + `runFeatureUpdates` + `runFeatureDraws(layer)`. Declarative ordering for ambient features (hills, clouds, particles, skyTint).
+7. **`src/06-physics.js` — Section 6, Physics & game logic.** `spawnObstacle`, `updateObstacles`, `checkCollision`, `computeRunResult`, `jump`.
+8. **`src/07-input.js` — Section 7, Input handlers.** `handleAction`, keyboard + mouse + touch. Jump, mute, mode-toggle, share and daily buttons live here too.
+9. **`src/08-loop.js` — Section 8, Game loop.** `resetGame`, each state's update step (`updateIdle`, `updateWaiting`, `updateRunning`, `updateDead`: counters, physics, spawning, scoring, collision, emits, no canvas) and draw step (`drawIdle`, `drawWaiting`, `drawRunning`, `drawDead`: paint only) in `STATE_STEPS`, the 60Hz sim clock (`SIM_FRAME_MS`, `simStepsForFrame`), `runSimFrame` (QA holds + one update), `drawFrame` (one draw + QA overlays) and `gameLoop`. `gameLoop` spends rAF time in 60Hz sim slices, runs one update per slice, then draws once; a display frame that owes no slice neither updates nor draws. The slice that dies draws the death scene. RUNNING uses the feature registry (`runFeatureUpdates` in the update, `runFeatureDraws` in the draw). `handleX()` / `STATE_HANDLERS` run one update then one draw, which is what tests drive. New gameplay goes in an update step; anything that touches `ctx` or the page goes in a draw step.
+10. **`src/09-init.js` — Section 9, Initialisation.** Registers the service worker and loads the `?tune=1` panel. (Sprites, state and the first loop start from the asset loaders in `03-assets.js`.)
+11. **`src/10-test-exposure.js` — Section 10, Test exposure.** Node-only globals so tests can poke internals.
 
 ### Adding a visual tunable
 
@@ -117,7 +126,7 @@ it('does the thing', () => {
 });
 ```
 
-The harness has no JSDOM. Canvas and document are stubbed at the top of `script.js`. Spying on `ctx` methods works via direct property assignment; restore at end of test. The Node canvas stub's `save()`/`restore()` do nothing, so a test that draws and then reads `ctx.globalAlpha` (or leaves it changed) should set or put back the value itself; area files run in a different order than they would if they were one file, and must not depend on what an earlier file left behind.
+The harness has no JSDOM. Canvas and document are stubbed in `src/01-node-stubs.js`. Spying on `ctx` methods works via direct property assignment; restore at end of test. The Node canvas stub's `save()`/`restore()` do nothing, so a test that draws and then reads `ctx.globalAlpha` (or leaves it changed) should set or put back the value itself; area files run in a different order than they would if they were one file, and must not depend on what an earlier file left behind.
 
 ## Determinism contract
 
@@ -162,9 +171,9 @@ Every read and write goes through `safeStorage.get(key, fallback)` / `safeStorag
 
 ## Test harness
 
-Custom `describe`/`it` with `assert`/`assertEquals`/`assertNotEquals`. No Jest, no Mocha, no JSDOM. Unit tests live in one file per area under `tests/unit/`, on the shared `tests/harness.js`. `node tests/unit.test.js` loads the harness (which loads `script.js` once), runs each area file in the order `tests/unit/files.js` gives, and prints one line per file then the totals; `npm test` runs it and then the golden-run replays.
+Custom `describe`/`it` with `assert`/`assertEquals`/`assertNotEquals`. No Jest, no Mocha, no JSDOM. Unit tests live in one file per area under `tests/unit/`, on the shared `tests/harness.js`. `node tests/unit.test.js` loads the harness (which loads the game files once), runs each area file in the order `tests/unit/files.js` gives, and prints one line per file then the totals; `npm test` runs it and then the golden-run replays.
 
-The Node stubs at the top of `script.js` provide just enough of `window`, `document`, `Image`, `localStorage`, `requestAnimationFrame`, and `matchMedia` to let the rest of the file load. Canvas methods are no-ops; tests assert against `game.*` state, not pixels.
+The Node stubs in `src/01-node-stubs.js` provide just enough of `window`, `document`, `Image`, `localStorage`, `requestAnimationFrame`, and `matchMedia` to let the rest of the file load. Canvas methods are no-ops; tests assert against `game.*` state, not pixels.
 
 The same suite also runs in a real browser: `npm run serve`, then open http://localhost:8080/tests/test-runner.html and read the console (it ends with the same Test Summary). The page carries the `index.html` shell so the game finds its buttons, and loads the harness and the same area files, in the same order, after the sprites finish loading. Console output uses CSS styling for pass/fail.
 
@@ -184,7 +193,7 @@ Each screen is made deterministic first: a fixed run seed per screen (`replayRun
 
 ### Coverage
 
-`npm run coverage` runs `npm test` (unit tests and replays) under `c8` and prints line, branch and function coverage for `script.js`; an HTML report with per-line detail lands in `coverage/index.html` (git-ignored). CI prints the same summary on every push and PR, in the log and on the run's summary page. It is information only: there is no threshold and it never fails the build. V8 counts comment and blank lines as covered, so read the per-function view in the HTML report, not just the headline number.
+`npm run coverage` runs `npm test` (unit tests and replays) under `c8` and prints line, branch and function coverage for the game files in `src/`; an HTML report with per-line detail lands in `coverage/index.html` (git-ignored). CI prints the same summary on every push and PR, in the log and on the run's summary page. It is information only: there is no threshold and it never fails the build. V8 counts comment and blank lines as covered, so read the per-function view in the HTML report, not just the headline number.
 ### Golden-run replays
 
 `tests/replay.test.js` (run by `npm test`, or alone with `npm run test:replay`) plays whole runs through the real `gameLoop()`, one 60Hz slice at a time, from the files in `tests/golden/`. Each file holds a mode, a fixed run seed and the frames the player jumps on, then what must happen: every obstacle's spawn frame, type and gap, each jump's take-off/landing/peak, the death frame and the final score. A mismatch prints the changed values and fails. The set covers Classic, Updated and a fixed-seed Daily, a run past the plateau (score 640+) and runs that die early. It also replays with every `cfg()` key overridden in `GAME_TUNING` and expects an identical run, which is how the determinism contract is enforced.
@@ -193,7 +202,7 @@ When a gameplay change is intended, re-record with `npm run test:replay -- --upd
 
 ### Using `/tdd` in this project
 
-When running `/tdd`, tests must only use globals exported in the `Section 10 — Test exposure` block at the bottom of `script.js` (the `if (typeof process !== 'undefined' ...)` block). Canvas draw calls are no-ops — assert against `game.*` state, not pixels. `ctx.drawImage` and similar can be spied on by reassigning the property and restoring after the test.
+When running `/tdd`, tests must only use globals exported in the `Section 10 — Test exposure` block in `src/10-test-exposure.js` (the `if (typeof process !== 'undefined' ...)` block). Canvas draw calls are no-ops — assert against `game.*` state, not pixels. `ctx.drawImage` and similar can be spied on by reassigning the property and restoring after the test.
 
 ## How pull requests merge
 
@@ -211,7 +220,7 @@ Merges made by the queue use the workflow token, which does not fire `push` work
 `.github/workflows/pages.yml`:
 
 1. **Test job** — under Node 20, runs `npm ci`, then `npm run lint`, `npm run format:check` and `npm test`. A lint error, unformatted code or a failing test blocks deploy. Lint warnings print but do not block. A parallel **browser job** runs `npm run test:browser`; deploy waits for both.
-2. **Deploy job** — runs `sed` to inject `${GITHUB_SHA::7}` into `script.js?v=__VERSION__` and `style.css?v=__VERSION__` in `index.html`, and into the offline cache name in `sw.js`. This forces browsers to re-fetch on every deploy.
+2. **Deploy job** — runs `sed` to inject `${GITHUB_SHA::7}` into every `src/*.js?v=__VERSION__` and `style.css?v=__VERSION__` in `index.html`, and into the offline cache name in `sw.js`. This forces browsers to re-fetch on every deploy.
 3. **Pages publish** — uploads the repo root as an artifact and deploys to GitHub Pages.
 
 Local dev keeps `__VERSION__` literal in the URL — browsers ignore the unknown query string and serve normally.
@@ -235,7 +244,7 @@ localStorage.removeItem('dino-tuning')
 location.reload()
 ```
 
-Read the `cfg()` block at the top of `script.js` Section 2 for the full list of safe-to-tune keys (and the explicit "do not tune physics" warning).
+Read the `cfg()` block in `src/02-config.js` for the full list of safe-to-tune keys (and the explicit "do not tune physics" warning).
 
 ## Known invariants
 
@@ -251,7 +260,7 @@ Rules that apply across all call sites. Violating these silently misbehaves rath
 
 **Sim steps are 60Hz, not the display refresh.** `gameLoop(timestamp)` accumulates rAF time and runs the state's update step once per `SIM_FRAME_MS` (1/60s) slice, at most `MAX_SIM_STEPS` slices per animation frame, then draws once. A frame that owes nothing neither updates nor draws, so a 120Hz display does not double score, speed, spawn timing, jump physics, or particle emits. `gameLoop()` with no timestamp — the test harness, and the kickoff after `resetGame()` — is exactly one slice and does not write the rAF clock. `resetGame()` clears the accumulator so a hitch cannot burst into the next run.
 
-**New boot files go in `sw.js` `PRECACHE_URLS`.** Any file the game fetches at boot (a new sprite, stylesheet, or script) must be added to the precache list, or the installed app breaks offline. The `Installable and offline (PL1)` tests check that every sprite `script.js` loads and every icon is precached. `pages.yml` rewrites `__VERSION__` in both `index.html` and `sw.js`.
+**New boot files go in `sw.js` `PRECACHE_URLS`.** Any file the game fetches at boot (a new sprite, stylesheet, or script) must be added to the precache list, or the installed app breaks offline. The `Installable and offline (PL1)` tests check that every sprite the game loads and every icon is precached, and the `Game files (C4)` tests check every game file is. `pages.yml` rewrites `__VERSION__` in both `index.html` and `sw.js`.
 
 ## Where design history lives
 

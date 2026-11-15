@@ -17,12 +17,21 @@ const IS_DEPLOYED = CACHE_VERSION !== '__VER' + 'SION__';
 
 // Every file the game needs to boot with the network off. Paths are relative
 // to this file so the same list works at / locally and at /chrome-offline-Rex/
-// on GitHub Pages. Keep in sync with index.html and the sprite loads in
-// script.js Section 3 (tests/unit/shell.test.js checks this).
+// on GitHub Pages. Keep in sync with index.html, src/files.js and the sprite
+// loads in src/03-assets.js (tests/unit/shell.test.js checks this).
 const PRECACHE_URLS = [
   './',
   'index.html',
-  'script.js',
+  'src/01-node-stubs.js',
+  'src/02-config.js',
+  'src/03-assets.js',
+  'src/04-state.js',
+  'src/05-rendering.js',
+  'src/06-physics.js',
+  'src/07-input.js',
+  'src/08-loop.js',
+  'src/09-init.js',
+  'src/10-test-exposure.js',
   'style.css',
   'manifest.webmanifest',
   'assets/cactus.png',
@@ -43,7 +52,9 @@ self.addEventListener('install', (event) => {
       .open(CACHE_NAME)
       // cache: 'reload' skips the HTTP cache so a deploy never precaches a
       // stale copy that GitHub Pages' max-age left in the browser.
-      .then((cache) => cache.addAll(PRECACHE_URLS.map((url) => new Request(url, { cache: 'reload' }))))
+      .then((cache) =>
+        cache.addAll(PRECACHE_URLS.map((url) => new Request(url, { cache: 'reload' })))
+      )
       .then(() => self.skipWaiting())
   );
 });
@@ -68,7 +79,7 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
   if (new URL(request.url).origin !== self.location.origin) return;
 
-  // ignoreSearch: index.html asks for script.js?v=<sha> and style.css?v=<sha>,
+  // ignoreSearch: index.html asks for src/*.js?v=<sha> and style.css?v=<sha>,
   // and a launch may carry ?qaHz=1 or similar flags.
   const fromCache = () =>
     caches.match(request, { ignoreSearch: true, cacheName: CACHE_NAME }).then((cached) => {

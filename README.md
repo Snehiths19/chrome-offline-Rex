@@ -62,7 +62,7 @@ Then open `http://localhost:8080`.
 ```bash
 npm install         # install ESLint + Prettier (optional, for local dev)
 npm test            # run the game test suite under Node
-npm run lint        # lint script.js and tests
+npm run lint        # lint the game files (src/) and tests
 npm run format      # auto-format source files
 ```
 

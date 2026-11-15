@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>Dino Game Tests</title>
   <!-- Resolve every relative URL against the repo root, the same as index.html,
-       so script.js finds assets/*.png instead of tests/assets/*.png. -->
+       so the game finds assets/*.png instead of tests/assets/*.png. -->
   <base href="../">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -12,7 +12,7 @@
   <h1>Dino Game Test Runner</h1>
   <p>Open the browser console to see test results.</p>
 
-  <!-- The same game shell as index.html. script.js looks these nodes up by id
+  <!-- The same game shell as index.html. The game looks these nodes up by id
        at load, and the tests drive them (a11y live region, share button, the
        Daily and mode buttons, the wrapper the canvas is measured against).
        It is hidden so the wrapper has no layout width, like the Node stub:
@@ -31,7 +31,7 @@
   </div>
 
   <!-- Record every listener on the element it was added to, as the Node stub
-       nodes in script.js Section 1 do, so tests can call a button's click
+       nodes in src/01-node-stubs.js do, so tests can call a button's click
        handler directly (btn._listeners.click[0]). Test page only. -->
   <script>
     (function () {
@@ -71,8 +71,17 @@
     })();
   </script>
 
-  <!-- Main game script -->
-  <script src="script.js"></script>
+  <!-- The game, in load order (src/files.js lists the same files). -->
+  <script src="src/01-node-stubs.js"></script>
+  <script src="src/02-config.js"></script>
+  <script src="src/03-assets.js"></script>
+  <script src="src/04-state.js"></script>
+  <script src="src/05-rendering.js"></script>
+  <script src="src/06-physics.js"></script>
+  <script src="src/07-input.js"></script>
+  <script src="src/08-loop.js"></script>
+  <script src="src/09-init.js"></script>
+  <script src="src/10-test-exposure.js"></script>
 
   <!-- Test scripts. Loaded after window "load" so the sprites in assets/ have
        finished decoding; under Node the Image stub is always complete. The

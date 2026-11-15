@@ -36,7 +36,7 @@ body {
   width: 100%;
   /* 56px holds the 44px mute / Daily / mode row (top 6px) with a 6px gap
      above the canvas, clear of the score. It is SHELL_CHROME_ROW in
-     script.js. 8px each side is SHELL_GUTTER_X. */
+     src/03-assets.js. 8px each side is SHELL_GUTTER_X. */
   padding: 56px 8px 0;
 }
 
@@ -327,7 +327,7 @@ html.qa-safe body {
 }
 
 /* Disable non-essential CSS transitions when the user opts out of motion.
-   Gameplay animations live in the canvas and are handled in script.js. */
+   Gameplay animations live in the canvas and are handled in src/*.js. */
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.001ms !important;

@@ -45,7 +45,7 @@ _Avoid_: velocity, game speed, scroll speed
 
 **Tuning panel** — the dev-only `?tune=1` overlay (`tune.js`). It edits the visual values in `TUNABLE_KEYS` live through `GAME_TUNING`, never gameplay values, and copies the final numbers for a PR. Players never load it.
 
-**QA switchboard** — the `QA_FLAGS` table in script.js Section 2. Each row is one `?qaX=1` playtest flag (QA/debug only, never for players): its URL name, how long its overlay holds, when it may act, and what it draws. `qa.x` is whether the flag is on this run. Flags only show things; with none set a run plays exactly as it would otherwise.
+**QA switchboard** — the `QA_FLAGS` table in `src/02-config.js` (Section 2). Each row is one `?qaX=1` playtest flag (QA/debug only, never for players): its URL name, how long its overlay holds, when it may act, and what it draws. `qa.x` is whether the flag is on this run. Flags only show things; with none set a run plays exactly as it would otherwise.
 
 **Sim clock** — the fixed 60Hz step that advances score, speed, spawn timing, jump physics, the restart countdown, and frame-tied juice. Display refresh may be faster (a 120Hz phone fires animation frames twice as often). Real time from those frames accumulates and is spent in 1/60s slices, at most a few slices per animation frame, so a hitch does not fast-forward the run. A call with no timestamp (the test harness, and the kickoff that starts the loop) is one slice. Classic and Updated/Daily share this clock. DifficultyProfile and the run seed do not read it. `?qaHz=1` paints the measured sim rate and the display rate for Playtest; off, it counts nothing and draws nothing. Each slice runs the current state's update step (simulation only); the display frame then runs one draw step for whatever state the game ended in, so a frame that owes two slices still paints once.
 _Avoid_: delta time, fps cap, frame skip
@@ -134,11 +134,14 @@ _Avoid_: daily record, new daily high, today record
 
 ## Platform
 
-**Offline shell** — the files a phone needs to boot the game with no connection: `index.html`, `script.js`, `style.css`, the web manifest, the six sprites in `assets/`, and the app icons. `sw.js` precaches exactly that list on first visit and then serves it cache-first. The cache is named after the deploy's commit SHA, so each deploy installs a fresh shell and deletes the old one. The new version shows on the next launch; the page is never reloaded mid-run, because that would break Flow. A file the game loads at boot that is missing from the list breaks offline play silently.
+**Offline shell** — the files a phone needs to boot the game with no connection: `index.html`, the game files in `src/`, `style.css`, the web manifest, the six sprites in `assets/`, and the app icons. `sw.js` precaches exactly that list on first visit and then serves it cache-first. The cache is named after the deploy's commit SHA, so each deploy installs a fresh shell and deletes the old one. The new version shows on the next launch; the page is never reloaded mid-run, because that would break Flow. A file the game loads at boot that is missing from the list breaks offline play silently.
 _Avoid_: PWA cache, app cache
 
 **Installed app** — the game added to a home screen through the web manifest. It opens fullscreen, landscape first, with the dino icon, and runs the same modes, scores, and Daily Challenge as the browser tab. It shares `localStorage` with the site, so best scores carry over. Installing is a browser feature at the edges of play; the game never prompts for it mid-run.
 _Avoid_: native app, PWA mode
+
+**Game files** — the game's code: ten plain classic scripts in `src/`, one per numbered section, listed in load order by `GAME_FILES` in `src/files.js`. The page, the browser test page, the offline cache and the Node tests all load exactly that list in that order, and the scripts share one global scope, so the split changes where code lives, never how it runs. Top-level code may only use names from its own file or an earlier one. Chosen over a bundler to keep the no-build rule, and so two changes to different sections no longer edit the same file.
+_Avoid_: modules (they are not ES modules), script.js (the old single file)
 
 **Merge queue** — `.github/workflows/automerge.yml`. A finished pull request gets the `automerge` label; the queue tests it combined with the latest `initial-chrome-dino-game`, squash-merges it, and starts the deploy. One PR at a time, so each change goes live on top of the one before. A PR that fails is taken out of the queue with a comment. Chosen because the owner does not review code; passing checks are the gate.
 _Avoid_: auto-merge (GitHub's own feature, which is off in this repo)

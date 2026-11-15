@@ -86,7 +86,7 @@ const SCENES = [
   },
 ];
 
-// Installed in the page before script.js runs.
+// Installed in the page before the game files run.
 function pageSetup() {
   // Seeded Math.random so cosmetic randomness draws the same every time.
   let s = 1;

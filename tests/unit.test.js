@@ -1,5 +1,5 @@
 // Runs every unit-test area file under Node: the shared harness (which loads
-// script.js once), then tests/unit/<area>.test.js in the order
+// the game files once), then tests/unit/<area>.test.js in the order
 // tests/unit/files.js gives, then one summary with a line per file.
 // The same files run in a real browser from tests/test-runner.html.
 

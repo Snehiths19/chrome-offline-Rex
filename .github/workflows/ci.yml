@@ -29,10 +29,10 @@ jobs:
 
       - name: Coverage report (information only, never fails the build)
         run: |
-          npx c8 --include script.js --reporter=text-summary npm test > coverage.txt
+          npx c8 --include 'src/[0-9]*.js' --reporter=text-summary npm test > coverage.txt
           sed -n '/Coverage summary/,$p' coverage.txt
           {
-            echo '### Test coverage of script.js'
+            echo '### Test coverage of the game files'
             echo '```'
             sed -n '/Coverage summary/,$p' coverage.txt
             echo '```'

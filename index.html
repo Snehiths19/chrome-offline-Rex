@@ -40,6 +40,16 @@
       </button>
       <div id="a11y-live" class="sr-only" aria-live="polite" aria-atomic="true"></div>
     </div>
-    <script src="script.js?v=__VERSION__"></script>
+    <!-- The game, in load order (src/files.js lists the same files). -->
+    <script src="src/01-node-stubs.js?v=__VERSION__"></script>
+    <script src="src/02-config.js?v=__VERSION__"></script>
+    <script src="src/03-assets.js?v=__VERSION__"></script>
+    <script src="src/04-state.js?v=__VERSION__"></script>
+    <script src="src/05-rendering.js?v=__VERSION__"></script>
+    <script src="src/06-physics.js?v=__VERSION__"></script>
+    <script src="src/07-input.js?v=__VERSION__"></script>
+    <script src="src/08-loop.js?v=__VERSION__"></script>
+    <script src="src/09-init.js?v=__VERSION__"></script>
+    <script src="src/10-test-exposure.js?v=__VERSION__"></script>
   </body>
 </html>
