@@ -2096,7 +2096,6 @@ describe('Live-tuning hook (PR-P3)', () => {
     Animations.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
 
     const fillStyles = [];
-    const proto = Object.getPrototypeOf(ctx);
     let captured = '';
     Object.defineProperty(ctx, 'fillStyle', {
       configurable: true,
@@ -2956,7 +2955,7 @@ describe('DifficultyProfile', () => {
 describe('Idle screen', () => {
   it('drawIdleScreen does not throw', () => {
     let threw = false;
-    try { drawIdleScreen(); } catch (e) { threw = true; }
+    try { drawIdleScreen(); } catch { threw = true; }
     assert(!threw, 'drawIdleScreen should not throw');
   });
 
@@ -3074,7 +3073,7 @@ describe('Orientation resize', () => {
     [STATE.IDLE, STATE.WAITING, STATE.RUNNING, STATE.DEAD].forEach(state => {
       game.state = state;
       let threw = false;
-      try { handleResize(); } catch (e) { threw = true; }
+      try { handleResize(); } catch { threw = true; }
       assert(!threw, `handleResize should not throw in STATE.${state}`);
     });
 
@@ -3614,7 +3613,7 @@ describe('Share result', () => {
     const origDailyBest = game.dailyBest;
     game.dailyBest = 0;
     let threw = false;
-    try { shareDailyResult(); } catch (e) { threw = true; }
+    try { shareDailyResult(); } catch { threw = true; }
     assert(!threw, 'shareDailyResult() should not throw even with no clipboard');
     game.dailyBest = origDailyBest;
   });
