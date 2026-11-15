@@ -1,0 +1,282 @@
+// Real-browser smoke test (T2, #131).
+//
+// Serves the repo over HTTP, opens the game in headless Chromium at desktop
+// and phone sizes, and plays it the way a person would: start a run, jump,
+// die, restart, toggle mute, Classic/Updated and Daily. It checks that the
+// jump button and canvas fit on screen, that nothing logs a console error or
+// throws, that the game still loads offline once the service worker is in,
+// and that tests/test-runner.html passes every unit test in a real browser.
+//
+// Run locally: npm run test:browser
+// Screenshots of each step land in tests/browser/screenshots/ (git-ignored);
+// CI uploads them as a build artifact.
+
+const fs = require('fs');
+const path = require('path');
+const { chromium, devices } = require('playwright');
+const { startServer } = require('./server');
+
+const SHOTS = path.join(__dirname, 'screenshots');
+
+const VIEWPORTS = [
+  { name: 'desktop', options: { viewport: { width: 1280, height: 800 } }, touch: false },
+  { name: 'iphone-portrait', options: devices['iPhone 13'], touch: true },
+  { name: 'pixel-portrait', options: devices['Pixel 7'], touch: true },
+  { name: 'iphone-landscape', options: devices['iPhone 13 landscape'], touch: true },
+];
+
+// --- Tiny reporting harness -------------------------------------------------
+
+let passed = 0;
+let failed = 0;
+function check(label, ok, detail) {
+  if (ok) {
+    passed++;
+    console.log(`  ✓ ${label}`);
+  } else {
+    failed++;
+    console.log(`  ✗ ${label}${detail ? `\n      ${detail}` : ''}`);
+  }
+  return ok;
+}
+
+// Read a game value. `game`, `dino`, `STATE` and `audio` are top-level
+// declarations in script.js, so they are reachable by name from the page.
+const read = (page, expr) => page.evaluate(expr);
+
+async function waitFor(page, expr, timeout = 15000) {
+  try {
+    await page.waitForFunction(expr, null, { timeout, polling: 50 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function insideViewport(box, vp) {
+  return (
+    box &&
+    box.x >= -0.5 &&
+    box.y >= -0.5 &&
+    box.x + box.width <= vp.width + 0.5 &&
+    box.y + box.height <= vp.height + 0.5
+  );
+}
+
+// Press the game's action the way this device would: Space on desktop, a tap
+// on the big button on phones.
+async function act(page, touch) {
+  if (touch) await page.locator('#jump-btn').tap();
+  else await page.keyboard.press('Space');
+}
+
+async function tapOrClick(locator, touch) {
+  if (touch) await locator.tap();
+  else await locator.click();
+}
+
+// --- One device size --------------------------------------------------------
+
+async function playOnDevice(browser, base, vp) {
+  console.log(`\n${vp.name} (${vp.options.viewport.width}x${vp.options.viewport.height})`);
+  const context = await browser.newContext({ ...vp.options });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') errors.push(`console: ${msg.text()}`);
+  });
+  page.on('pageerror', (err) => errors.push(`page error: ${err.message}`));
+  page.on('requestfailed', (req) => errors.push(`request failed: ${req.url()}`));
+  const shot = (step) => page.screenshot({ path: path.join(SHOTS, `${vp.name}-${step}.png`) });
+
+  await page.goto(`${base}/index.html`);
+  check(
+    'page loads and the game reaches the start screen',
+    await waitFor(page, "game.state === 'IDLE'")
+  );
+  await shot('1-start');
+
+  // Layout: the canvas and the jump button must be fully on screen.
+  const size = page.viewportSize();
+  const canvasBox = await page.locator('#gameCanvas').boundingBox();
+  const jumpBox = await page.locator('#jump-btn').boundingBox();
+  check('canvas fits on screen', insideViewport(canvasBox, size), JSON.stringify(canvasBox));
+  // The big button only shows on touch screens; desktop uses Space or a click.
+  const jumpVisible = await page.locator('#jump-btn').isVisible();
+  if (vp.touch) {
+    check(
+      'jump button is visible and fits on screen',
+      jumpVisible && insideViewport(jumpBox, size),
+      JSON.stringify(jumpBox)
+    );
+  } else {
+    check('jump button stays hidden on desktop', !jumpVisible);
+  }
+  for (const sel of ['#mute-btn', '#daily-btn', '#mode-toggle']) {
+    const box = await page.locator(sel).boundingBox();
+    check(`${sel} fits on screen`, insideViewport(box, size), JSON.stringify(box));
+  }
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > window.innerWidth + 1
+  );
+  check('no sideways scrolling', !overflow);
+
+  // Start a run. The first visit keeps the full countdown.
+  await act(page, vp.touch);
+  check('action starts the countdown', await waitFor(page, "game.state === 'WAITING'", 3000));
+  check(
+    'countdown ends and the run starts',
+    await waitFor(page, "game.state === 'RUNNING'", 10000)
+  );
+
+  // Jump straight away (nothing has spawned yet, so it is safe).
+  await act(page, vp.touch);
+  check('jump lifts the dino', await waitFor(page, 'dino.isJumping === true', 2000));
+  await shot('2-jump');
+  check('dino lands again', await waitFor(page, 'dino.isJumping === false', 3000));
+
+  // Do nothing until an obstacle hits.
+  check('the run ends on an obstacle', await waitFor(page, "game.state === 'DEAD'", 30000));
+  const score = await read(page, 'Math.floor(game.score)');
+  check('the run scored points', score > 0, `score ${score}`);
+  // Let the Game Over card finish so the next press restarts.
+  await waitFor(
+    page,
+    'Animations.deathShakeFrames <= 0 && Animations.deathAnimFrame >= deathAnimFrames()',
+    5000
+  );
+  await shot('3-game-over');
+
+  // Restart: after a death the countdown can be skipped.
+  await act(page, vp.touch);
+  const restarted = await waitFor(
+    page,
+    "game.state === 'WAITING' || game.state === 'RUNNING'",
+    3000
+  );
+  check('action restarts after Game Over', restarted);
+  await act(page, vp.touch);
+  check(
+    'a second press skips the countdown',
+    await waitFor(page, "game.state === 'RUNNING'", 2000)
+  );
+  await shot('4-restart');
+
+  // Mute toggles on and off.
+  const mute = page.locator('#mute-btn');
+  const wasMuted = await read(page, 'audio.muted');
+  await tapOrClick(mute, vp.touch);
+  check(
+    'mute button toggles sound',
+    (await read(page, 'audio.muted')) === !wasMuted &&
+      (await mute.getAttribute('aria-pressed')) === String(!wasMuted)
+  );
+  await tapOrClick(mute, vp.touch);
+  check('mute button toggles back', (await read(page, 'audio.muted')) === wasMuted);
+
+  // Classic and back to Updated.
+  await tapOrClick(page.locator('#mode-toggle [data-mode="classic"]'), vp.touch);
+  check('Classic button switches mode', await waitFor(page, "game.mode === 'classic'", 2000));
+  await shot('5-classic');
+  await tapOrClick(page.locator('#mode-toggle [data-mode="updated"]'), vp.touch);
+  check('Updated button switches mode back', await waitFor(page, "game.mode === 'updated'", 2000));
+
+  // Daily on and off.
+  const daily = page.locator('#daily-btn');
+  await tapOrClick(daily, vp.touch);
+  check(
+    'Daily button starts the Daily Challenge',
+    (await waitFor(page, "game.mode === 'daily'", 2000)) &&
+      (await daily.getAttribute('aria-pressed')) === 'true'
+  );
+  await shot('6-daily');
+  await tapOrClick(daily, vp.touch);
+  check(
+    'Daily button leaves the Daily Challenge',
+    await waitFor(page, "game.mode === 'updated'", 2000)
+  );
+
+  check(
+    'no console errors, page errors or failed requests',
+    errors.length === 0,
+    errors.slice(0, 5).join('\n      ')
+  );
+  await context.close();
+}
+
+// --- Offline: the service worker keeps the game playable ---------------------
+
+async function checkOffline(browser, base) {
+  console.log('\noffline (desktop)');
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  await page.goto(`${base}/index.html`);
+  const ready = await page
+    .evaluate(() =>
+      Promise.race([
+        navigator.serviceWorker.ready.then(() => true),
+        new Promise((r) => setTimeout(() => r(false), 10000)),
+      ])
+    )
+    .catch(() => false);
+  // `ready` resolves once the worker is active, i.e. its precache is filled.
+  check('service worker installs', ready);
+  await context.setOffline(true);
+  let loaded = false;
+  try {
+    await page.reload();
+    loaded = await waitFor(page, "typeof game !== 'undefined' && game.state === 'IDLE'", 10000);
+  } catch {
+    loaded = false;
+  }
+  check('game loads again with the network off', loaded);
+  await context.close();
+}
+
+// --- The unit-test page in a real browser -----------------------------------
+
+async function checkTestRunner(browser, base) {
+  console.log('\ntests/test-runner.html');
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  let summary = false;
+  page.on('console', (msg) => {
+    if (msg.text().includes('--- Test Summary ---')) summary = true;
+  });
+  await page.goto(`${base}/tests/test-runner.html`);
+  const start = Date.now();
+  while (!summary && Date.now() - start < 60000) await page.waitForTimeout(100);
+  check('the page prints its Test Summary', summary);
+  // `let` globals in a classic script are reachable by name, not via window.
+  const totals = await page
+    .evaluate('({ run: testsRun, passed: testsPassed })')
+    .catch(() => ({ run: 0, passed: 0 }));
+  check(
+    `every unit test passes in the browser (${totals.passed}/${totals.run})`,
+    totals.run > 0 && totals.passed === totals.run
+  );
+  await context.close();
+}
+
+// --- Main -------------------------------------------------------------------
+
+(async () => {
+  fs.rmSync(SHOTS, { recursive: true, force: true });
+  fs.mkdirSync(SHOTS, { recursive: true });
+  const server = await startServer();
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const browser = await chromium.launch();
+  try {
+    for (const vp of VIEWPORTS) await playOnDevice(browser, base, vp);
+    await checkOffline(browser, base);
+    await checkTestRunner(browser, base);
+  } catch (err) {
+    check('smoke test ran to the end', false, err.stack);
+  } finally {
+    await browser.close();
+    server.close();
+  }
+  console.log(`\n--- Browser Smoke Summary ---\nPassed: ${passed}\nFailed: ${failed}`);
+  console.log(`Screenshots: ${path.relative(process.cwd(), SHOTS)}/`);
+  process.exit(failed > 0 ? 1 : 0);
+})();

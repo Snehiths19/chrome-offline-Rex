@@ -19,6 +19,7 @@ Single-file vanilla-JS clone of Chrome's offline dino game. Render target is a `
 npm test                       # runs the full suite under Node (unit tests + golden-run replays)
 npm run test:replay            # only the golden-run replays
 npm run coverage               # same suite, plus line/branch coverage of script.js
+npm run test:browser           # plays the game in headless Chromium at desktop + phone sizes
 npm run lint                   # ESLint script.js + tests
 npm run format                 # Prettier: run before committing
 npm run format:check           # what CI checks
@@ -38,6 +39,7 @@ manifest.webmanifest              # Add to Home Screen: name, fullscreen, landsc
 icons/                            # app icons built from assets/dino-stationary.png (assets/ untouched)
 tests/game.test.js                # custom describe/it; no JSDOM; canvas/document stubbed
 tests/replay.test.js              # golden-run replays (Node only), stored runs in tests/golden/
+tests/browser/smoke.js            # real-browser smoke test (Playwright); screenshots/ is git-ignored
 .github/workflows/pages.yml       # test → cache-bust → Pages deploy
 .github/workflows/ci.yml          # lint, format check, tests on every push/PR
 .github/workflows/automerge.yml   # merge queue for PRs labelled `automerge`
@@ -156,6 +158,12 @@ The same suite also runs in a real browser: `npm run serve`, then open http://lo
 
 Keep a new test passing in both places. A browser will not let a test replace `location`, `document.body`, `document.documentElement`, an element's `style`, or `navigator.clipboard` by plain assignment, so use the helpers at the top of `tests/game.test.js`: `setPageQuery()`/`savePageQuery()` for `?qa…` flags, `overrideDocumentProp()`, `stubElementStyle()`/`restoreElementStyle()`, and `Object.defineProperty` for other getters. Use `testGlobal`, not Node's `global`.
 
+### Real-browser smoke test
+
+`npm run test:browser` serves the repo on a random local port and drives the real page in headless Chromium (Playwright, pinned in `package.json`) at four sizes: desktop 1280x800, iPhone 13 and Pixel 7 portrait, and iPhone 13 landscape. On each it starts a run, jumps, dies, restarts (skipping the countdown), toggles mute, Classic/Updated and Daily, and checks that the canvas, jump button (touch only; it stays hidden on desktop) and top-row buttons fit on screen with no sideways scroll. Any console error, page error or failed request fails it. It then checks the game reloads with the network off once the service worker is in, and opens `tests/test-runner.html` and fails unless every unit test passes there too.
+
+It reads game state by name (`game.state`, `dino.isJumping`, `audio.muted`), so renaming those top-level declarations means updating `tests/browser/smoke.js`. Screenshots of each step go to `tests/browser/screenshots/` (git-ignored). CI runs it as the `browser` job on every push and PR and uploads the screenshots as the `browser-screenshots` artifact, so a PR with a visible change can link those instead of hand-made ones. `pages.yml` runs the same job as a deploy gate. In this cloud environment Chromium is preinstalled; elsewhere run `npx playwright install chromium` once.
+
 ### Coverage
 
 `npm run coverage` runs `npm test` (unit tests and replays) under `c8` and prints line, branch and function coverage for `script.js`; an HTML report with per-line detail lands in `coverage/index.html` (git-ignored). CI prints the same summary on every push and PR, in the log and on the run's summary page. It is information only: there is no threshold and it never fails the build. V8 counts comment and blank lines as covered, so read the per-function view in the HTML report, not just the headline number.
@@ -184,7 +192,7 @@ Merges made by the queue use the workflow token, which does not fire `push` work
 
 `.github/workflows/pages.yml`:
 
-1. **Test job** — under Node 20, runs `npm ci`, then `npm run lint`, `npm run format:check` and `node tests/game.test.js`. A lint error, unformatted code or a failing test blocks deploy. Lint warnings print but do not block.
+1. **Test job** — under Node 20, runs `npm ci`, then `npm run lint`, `npm run format:check` and `node tests/game.test.js`. A lint error, unformatted code or a failing test blocks deploy. Lint warnings print but do not block. A parallel **browser job** runs `npm run test:browser`; deploy waits for both.
 2. **Deploy job** — runs `sed` to inject `${GITHUB_SHA::7}` into `script.js?v=__VERSION__` and `style.css?v=__VERSION__` in `index.html`, and into the offline cache name in `sw.js`. This forces browsers to re-fetch on every deploy.
 3. **Pages publish** — uploads the repo root as an artifact and deploys to GitHub Pages.
 
