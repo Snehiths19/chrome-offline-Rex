@@ -5,6 +5,7 @@
 
 const { printSummary } = require('./harness.js');
 const UNIT_TEST_FILES = require('./unit/files.js');
+testGlobal.UNIT_TEST_FILES = UNIT_TEST_FILES; // so printSummary can spot a missing file
 
 for (const name of UNIT_TEST_FILES) require(`./unit/${name}.test.js`);
 

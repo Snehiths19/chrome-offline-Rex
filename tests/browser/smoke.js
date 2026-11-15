@@ -240,8 +240,13 @@ async function checkTestRunner(browser, base) {
   const context = await browser.newContext();
   const page = await context.newPage();
   let summary = false;
+  const errors = [];
   page.on('console', (msg) => {
     if (msg.text().includes('--- Test Summary ---')) summary = true;
+  });
+  page.on('pageerror', (err) => errors.push(`page error: ${err.message}`));
+  page.on('response', (res) => {
+    if (res.status() >= 400) errors.push(`${res.status()} ${res.url()}`);
   });
   await page.goto(`${base}/tests/test-runner.html`);
   const start = Date.now();
@@ -254,6 +259,20 @@ async function checkTestRunner(browser, base) {
   check(
     `every unit test passes in the browser (${totals.passed}/${totals.run})`,
     totals.run > 0 && totals.passed === totals.run
+  );
+  // Every area file in tests/unit/files.js began, so none was silently skipped.
+  const files = await page
+    .evaluate('({ ran: testFiles.map((f) => f.name), want: UNIT_TEST_FILES })')
+    .catch(() => ({ ran: [], want: ['?'] }));
+  check(
+    `every unit-test area file ran in the browser (${files.ran.length}/${files.want.length})`,
+    files.want.length > 0 && files.want.every((name) => files.ran.includes(name)),
+    `ran: ${files.ran.join(', ')}`
+  );
+  check(
+    'the test page loads with no errors',
+    errors.length === 0,
+    errors.slice(0, 5).join('\n      ')
   );
   await context.close();
 }

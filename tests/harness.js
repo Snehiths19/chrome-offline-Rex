@@ -187,10 +187,15 @@ function printSummary() {
     const mark = f.passed === f.run ? 'ok  ' : 'FAIL';
     console.log(`${mark} ${f.name.padEnd(10)} ${f.passed}/${f.run}`);
   }
+  // An area file that never began (it failed to load, or threw before its
+  // first line) would otherwise just be missing from a green summary.
+  const expected = typeof UNIT_TEST_FILES !== 'undefined' ? UNIT_TEST_FILES : [];
+  const missing = expected.filter((name) => !testFiles.some((f) => f.name === name));
+  for (const name of missing) console.log(`%cMISSING ${name}: the file did not run`, 'color: red;');
   console.log(`Total tests: ${testsRun}`);
   console.log(`%cPassed: ${testsPassed}`, 'color: green;');
   const failed = testsRun - testsPassed;
-  if (failed > 0) {
+  if (failed > 0 || missing.length > 0) {
     console.log(`%cFailed: ${failed}`, 'color: red;');
     if (typeof process !== 'undefined' && process.exit) process.exitCode = 1;
   } else {
