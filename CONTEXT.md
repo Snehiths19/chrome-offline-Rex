@@ -170,6 +170,9 @@ _Avoid_: key capture, global Space
 **Fullscreen button** — the corner button in the top row that puts the whole page in fullscreen with the browser bars hidden and, on a touch phone, asks for landscape, where the canvas is biggest (S4, #120). It only shows where the Fullscreen API exists, so not on an iPhone (Safari there has no page fullscreen; the turn-sideways hint and Add to Home Screen remain). Leaving fullscreen by the button, Escape or the back gesture unlocks the orientation. A refused lock is ignored.
 _Avoid_: immersive mode, kiosk
 
+**Death buzz** — one short 30 ms vibration when the dino dies, on phones whose browser supports it (most Android browsers; not iPhone Safari, and not desktop). It follows the sound: Updated and Daily only, never in Classic, never when muted, and never under reduced motion. Where vibration is missing or blocked, nothing happens (S5, #123).
+_Avoid_: haptics (too broad; there is only this one buzz), rumble
+
 **Readable label** — a small canvas label (11-16 logical px: Game Over and Daily captions, hints, the start and countdown lines, PAUSED). The canvas is 600 logical px wide and shrinks on a phone, so `labelPx()` raises such a label until it is about 12 CSS px on screen, capped at 20 logical px so the layout still fits. Desktop, where the canvas is drawn at full size or larger, keeps the designed sizes. Big numbers (the score, the countdown digit) are already readable and never change.
 _Avoid_: font scaling, responsive text
 

@@ -2133,3 +2133,126 @@ describe('Fullscreen button (S4)', () => {
     }
   });
 });
+
+describe('Death buzz (S5)', () => {
+  // A stand-in for navigator that records each vibrate() call.
+  function fakeVibrateNav(result = true) {
+    const calls = [];
+    return {
+      calls,
+      vibrate(ms) {
+        calls.push(ms);
+        return result;
+      },
+    };
+  }
+
+  // Runs fn with the given settings, then puts every one of them back.
+  function withBuzzSettings({ mode, muted, reduced }, fn) {
+    const origMode = game.mode;
+    const origMuted = audio.muted;
+    game.mode = mode;
+    audio.muted = muted;
+    setReducedMotion(reduced);
+    try {
+      fn();
+    } finally {
+      game.mode = origMode;
+      audio.muted = origMuted;
+      setReducedMotion(false);
+    }
+  }
+
+  it('buzzes once for DEATH_VIBRATE_MS in Updated and Daily', () => {
+    [MODES.UPDATED, MODES.DAILY].forEach((mode) => {
+      withBuzzSettings({ mode, muted: false, reduced: false }, () => {
+        const nav = fakeVibrateNav();
+        assertEquals(vibrateOnDeath(nav), true, `${mode}: should report a buzz`);
+        assertEquals(nav.calls.length, 1, `${mode}: one vibrate call`);
+        assertEquals(nav.calls[0], GAME_CONFIG.DEATH_VIBRATE_MS, `${mode}: buzz length`);
+      });
+    });
+    assertEquals(GAME_CONFIG.DEATH_VIBRATE_MS, 30, 'the buzz is 30ms');
+  });
+
+  it('stays still in Classic, when muted, and under reduced motion', () => {
+    const cases = [
+      { mode: MODES.CLASSIC, muted: false, reduced: false, why: 'Classic' },
+      { mode: MODES.UPDATED, muted: true, reduced: false, why: 'muted' },
+      { mode: MODES.UPDATED, muted: false, reduced: true, why: 'reduced motion' },
+    ];
+    cases.forEach((c) => {
+      withBuzzSettings(c, () => {
+        const nav = fakeVibrateNav();
+        assertEquals(vibrateOnDeath(nav), false, `${c.why}: no buzz`);
+        assertEquals(nav.calls.length, 0, `${c.why}: vibrate not called`);
+      });
+    });
+  });
+
+  it('does nothing where vibrate is missing or throws', () => {
+    withBuzzSettings({ mode: MODES.UPDATED, muted: false, reduced: false }, () => {
+      assertEquals(vibrateOnDeath(undefined), false, 'no navigator');
+      assertEquals(vibrateOnDeath({}), false, 'no vibrate function');
+      const throwing = {
+        vibrate() {
+          throw new Error('blocked');
+        },
+      };
+      assertEquals(vibrateOnDeath(throwing), false, 'a throwing vibrate is swallowed');
+      assertEquals(vibrateOnDeath(fakeVibrateNav(false)), false, 'a refused buzz reports false');
+    });
+  });
+
+  it('a death in a running Updated game calls navigator.vibrate once', () => {
+    // Put a recording vibrate on the real navigator (or a stand-in navigator
+    // where the runtime has none), let the game die once, then take it away.
+    const nav = fakeVibrateNav();
+    const hadNavigator = typeof testGlobal.navigator !== 'undefined';
+    const savedNavDesc = Object.getOwnPropertyDescriptor(testGlobal, 'navigator');
+    const target = hadNavigator ? testGlobal.navigator : {};
+    const savedVibrate = Object.getOwnPropertyDescriptor(target, 'vibrate');
+    Object.defineProperty(target, 'vibrate', {
+      value: nav.vibrate,
+      configurable: true,
+      writable: true,
+    });
+    if (!hadNavigator) {
+      Object.defineProperty(testGlobal, 'navigator', { value: target, configurable: true });
+    }
+    const origMuted = audio.muted;
+    const origHigh = game.highScore;
+    const origSave = ScoreStore.saveHighScore;
+    try {
+      setMode(MODES.UPDATED);
+      cancelAnimationFrame(game.animationFrameId);
+      resetGame();
+      audio.muted = false;
+      setReducedMotion(false);
+      ScoreStore.saveHighScore = () => {};
+      game.obstacles.push({ x: dino.x, y: dino.y, width: 20, height: 40 });
+      game.state = STATE.RUNNING;
+      game.graceFrames = 0;
+      gameLoop();
+      cancelAnimationFrame(game.animationFrameId);
+      assertEquals(game.state, STATE.DEAD, 'the run should have ended');
+      assertEquals(nav.calls.length, 1, 'one buzz on death');
+      gameLoop();
+      cancelAnimationFrame(game.animationFrameId);
+      assertEquals(nav.calls.length, 1, 'no further buzz while dead');
+    } finally {
+      delete target.vibrate;
+      if (savedVibrate) Object.defineProperty(target, 'vibrate', savedVibrate);
+      if (!hadNavigator) {
+        delete testGlobal.navigator;
+        if (savedNavDesc) Object.defineProperty(testGlobal, 'navigator', savedNavDesc);
+      }
+      audio.muted = origMuted;
+      game.highScore = origHigh;
+      ScoreStore.saveHighScore = origSave;
+      setMode(MODES.CLASSIC);
+      cancelAnimationFrame(game.animationFrameId);
+      resetGame();
+    }
+  });
+});
