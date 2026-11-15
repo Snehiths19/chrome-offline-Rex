@@ -890,10 +890,12 @@ describe('Death screen', () => {
     assertEquals(r.previousHighScore, 1050, 'previousHighScore is old highScore');
   });
 
-  it('computeRunResult: first run (highScore=0) is always a new best', () => {
+  it('computeRunResult: first run (highScore=0) is a first run, not a new best (R3)', () => {
     const r = computeRunResult(500, 0);
-    assertEquals(r.isNewBest, true, 'first run with highScore=0 is a new best');
+    assertEquals(r.isNewBest, false, 'nothing was beaten');
+    assertEquals(r.isFirst, true, 'flagged as the first run');
     assertEquals(r.previousHighScore, 0, 'previousHighScore is 0 on first run');
+    assertEquals(computeRunResult(10, 5).isFirst, false, 'a later run is not first');
   });
 
   it('computeRunResult: tie (score === highScore) is not a new best', () => {
@@ -2835,5 +2837,88 @@ describe('Game Over text contrast (A1)', () => {
       const ratio = contrastA1(hex);
       assert(ratio >= 4.5, '"' + text + '" ' + style + ' is ' + ratio.toFixed(2) + ':1');
     });
+  });
+});
+
+describe('First run shows the plain score (R3)', () => {
+  const dieWithR3 = (score) => {
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    game.score = score;
+    game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+  };
+  const gameOverTextR3 = () => {
+    const texts = [];
+    const orig = ctx.fillText;
+    ctx.fillText = (t) => texts.push(String(t));
+    const anim = Animations.deathAnimFrame;
+    Animations.deathAnimFrame = deathAnimFrames();
+    try {
+      drawGameOverScreen();
+    } finally {
+      ctx.fillText = orig;
+      Animations.deathAnimFrame = anim;
+    }
+    return texts;
+  };
+
+  it('a first-ever run shows SCORE, not NEW BEST; the next record does', () => {
+    const origMode = game.mode;
+    const origHigh = game.highScore;
+    try {
+      game.mode = 'updated';
+      resetGame();
+      game.highScore = 0;
+      dieWithR3(16);
+      assert(game.isFirstRun && !game.isNewBest, 'first run, not a new best');
+      assertEquals(game.highScore, 16, 'the score is still saved as the best');
+      const first = gameOverTextR3();
+      assert(first.includes('SCORE'), 'plain score label');
+      assert(!first.some((t) => t.includes('NEW BEST')), 'no NEW BEST');
+      assert(first.includes('00016'), 'the score');
+
+      resetGame();
+      dieWithR3(40);
+      assert(game.isNewBest && !game.isFirstRun, 'a real record is a new best');
+      assert(
+        gameOverTextR3().some((t) => t.includes('NEW BEST')),
+        'NEW BEST shows'
+      );
+
+      resetGame();
+      dieWithR3(5);
+      assert(!game.isNewBest && !game.isFirstRun, 'a worse run is a normal death');
+    } finally {
+      game.highScore = origHigh;
+      ScoreStore.saveHighScore(origHigh);
+      game.mode = origMode;
+      resetGame();
+    }
+  });
+
+  it('Daily still counts the first run of the day as a new today best', () => {
+    const origMode = game.mode;
+    const origHigh = game.highScore;
+    const origDaily = game.dailyBest;
+    const storedDate = safeStorage.get('dino-daily-date', '0');
+    const storedBest = safeStorage.get('dino-daily-best', '0');
+    try {
+      game.mode = 'daily';
+      resetGame();
+      game.dailyBest = 0;
+      safeStorage.set('dino-daily-best', '0');
+      dieWithR3(12);
+      assert(game.isNewTodayBest, 'first run today is a new today best');
+    } finally {
+      game.highScore = origHigh;
+      ScoreStore.saveHighScore(origHigh);
+      game.dailyBest = origDaily;
+      safeStorage.set('dino-daily-date', storedDate);
+      safeStorage.set('dino-daily-best', storedBest);
+      game.mode = origMode;
+      resetGame();
+    }
   });
 });

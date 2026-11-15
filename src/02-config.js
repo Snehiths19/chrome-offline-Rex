@@ -1220,6 +1220,7 @@ function drawQaCountUp() {
     score: game.score,
     highScore: game.highScore,
     isNewBest: game.isNewBest,
+    isFirstRun: game.isFirstRun,
     anim: Animations.deathAnimFrame,
     dailyBest: game.dailyBest,
     isNewTodayBest: game.isNewTodayBest,
@@ -1228,6 +1229,7 @@ function drawQaCountUp() {
     game.score = QA_COUNT_UP_SCORE;
     game.highScore = Math.max(saved.highScore, QA_COUNT_UP_SCORE + 150);
     game.isNewBest = false;
+    game.isFirstRun = false;
     game.isNewTodayBest = false;
     if (isDailyMode()) {
       game.dailyBest = Math.max(saved.dailyBest, QA_COUNT_UP_SCORE + 150);
@@ -1239,6 +1241,7 @@ function drawQaCountUp() {
     game.score = saved.score;
     game.highScore = saved.highScore;
     game.isNewBest = saved.isNewBest;
+    game.isFirstRun = saved.isFirstRun;
     Animations.deathAnimFrame = saved.anim;
     game.dailyBest = saved.dailyBest;
     game.isNewTodayBest = saved.isNewTodayBest;

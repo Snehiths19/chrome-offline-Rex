@@ -822,7 +822,23 @@ function drawGameOverScreen() {
     }
     if (t >= 1) drawDailyDeathHint();
   } else {
-    if (game.isNewBest) {
+    if (game.isFirstRun) {
+      // First run ever (R3): nothing to beat yet, so just the score.
+      ctx.fillStyle = GAME_OVER_LABEL_COLOR;
+      ctx.font = labelPx(15) + 'px ' + font;
+      ctx.fillText(
+        'SCORE',
+        GAME_CONFIG.CANVAS_W / 2,
+        GAME_CONFIG.CANVAS_H / 2 - 36 - (labelPx(15) - 15)
+      );
+      ctx.fillStyle = 'white';
+      ctx.font = '42px ' + font;
+      ctx.fillText(
+        String(displayScore).padStart(5, '0'),
+        GAME_CONFIG.CANVAS_W / 2,
+        GAME_CONFIG.CANVAS_H / 2 - 4
+      );
+    } else if (game.isNewBest) {
       // New record — celebration takeover
       ctx.fillStyle = 'white';
       ctx.font = labelPx(15) + 'px ' + font;

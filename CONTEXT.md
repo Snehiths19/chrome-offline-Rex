@@ -82,6 +82,9 @@ _Avoid_: slope, sigmoid slope
 **New-best badge** — the in-run gold "NEW BEST!" under the score, shown the first time this run passes the stored high score. It sits in the corner, not in the jump band. In Updated and Daily it is a short, quiet read, then it leaves so it does not keep pulling the eye off the obstacle lane. Classic keeps today's full-size badge for the full countdown. Under prefers-reduced-motion the Updated and Daily badge is shorter still. It is not the Game Over "★ NEW BEST ★" line, and it is not **New today best**.
 _Avoid_: high score popup, record banner
 
+**First run** — the very first run on a device (no stored best yet). It beats nothing, so neither the in-run badge nor the Game Over "★ NEW BEST ★" line shows: Game Over shows the plain SCORE and the number, and the score is saved as the best (R3, #122). From the second run on, beating the best shows NEW BEST as before. Daily is separate: the first run of the day still counts as a **New today best**.
+_Avoid_: debut, first best
+
 **Particles** — the module that owns the particle pool, kind definitions, and all emit/update/draw/reset behaviour. Callers invoke `Particles.emit(kind, x, y)` without knowing pool size, reduced-motion rules, or mode gating — all suppression logic lives inside. Visual-only: uses `Math.random()`, never `game.rng()`. The level gold is a short puff at the score in Updated and Daily. Classic never emits it.
 
 **Land dust** — the jump and land foot puffs in Updated and Daily. By day they are a quieter brown whisper at the feet, still the familiar brown, so early-run Atmosphere stays off the obstacle lane. As the sky eases into night they cool to quiet ground dust, in the same family as the soft night clouds, and stay at the feet. Once the sky is fully night the puff is softer and shorter, so it does not sparkle on the road. Classic never shows them. Trail, collision, confetti, and the plateau cue are not land dust.

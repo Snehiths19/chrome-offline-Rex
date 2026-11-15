@@ -52,6 +52,7 @@ function resetGame() {
   readQaFlags();
   applyQaSafeShell();
   game.isNewBest = false;
+  game.isFirstRun = false;
   game.previousHighScore = 0;
   game.isNewTodayBest = false;
   game.previousDailyBest = 0;
@@ -377,6 +378,7 @@ function updateRunning() {
       const finalScore = Math.floor(game.score);
       const runResult = computeRunResult(finalScore, game.highScore);
       game.isNewBest = runResult.isNewBest;
+      game.isFirstRun = runResult.isFirst;
       game.previousHighScore = runResult.previousHighScore;
       if (finalScore > game.highScore) {
         game.highScore = finalScore;
@@ -386,7 +388,7 @@ function updateRunning() {
         // Compare before saving, same as computeRunResult / isNewBest.
         // A tie is not a new today best. No prior today best (0) is.
         const todayResult = computeRunResult(finalScore, game.dailyBest);
-        game.isNewTodayBest = todayResult.isNewBest;
+        game.isNewTodayBest = todayResult.isNewBest || todayResult.isFirst;
         game.previousDailyBest = todayResult.previousHighScore;
         ScoreStore.saveDailyBest(finalScore);
         game.dailyBest = ScoreStore.loadDailyBest();
