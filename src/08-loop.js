@@ -20,6 +20,7 @@ function resetGame() {
   dino.y = GAME_CONFIG.CANVAS_H - dino.height;
   dino.velocityY = 0;
   dino.isJumping = false;
+  dino.jumpBufferFrames = 0;
 
   Particles.reset();
 
@@ -419,6 +420,13 @@ function updateRunning() {
       dino.velocityY = 0;
       Particles.emit('land', dino.x + dino.width / 2, dino.y + dino.height);
       audio.land();
+      // A press kept from the last few airborne frames jumps on this frame.
+      if (dino.jumpBufferFrames > 0) {
+        dino.jumpBufferFrames = 0;
+        jump();
+      }
+    } else if (dino.jumpBufferFrames > 0) {
+      dino.jumpBufferFrames--;
     }
   }
 
