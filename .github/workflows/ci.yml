@@ -26,3 +26,14 @@ jobs:
 
       - name: Run game tests
         run: node tests/game.test.js
+
+      - name: Coverage report (information only, never fails the build)
+        run: |
+          npx c8 --include script.js --reporter=text-summary node tests/game.test.js > coverage.txt
+          sed -n '/Coverage summary/,$p' coverage.txt
+          {
+            echo '### Test coverage of script.js'
+            echo '```'
+            sed -n '/Coverage summary/,$p' coverage.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
