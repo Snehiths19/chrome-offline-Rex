@@ -295,6 +295,7 @@ async function playOnDevice(browser, base, vp) {
 
   // Space on a focused button presses that button and nothing else (A2).
   if (!vp.touch) {
+    await mute.evaluate((el) => el.blur()); // arrive by keyboard, as Tab would
     await mute.focus();
     // A run still going may end on its own; only a jump or a restart fails.
     const before = await read(page, '({ s: game.state, j: dino.isJumping })');
@@ -307,6 +308,19 @@ async function playOnDevice(browser, base, vp) {
       (await read(page, 'audio.muted')) === !wasMuted && noJump && noRestart
     );
     await page.keyboard.press('Space');
+    await mute.evaluate((el) => el.blur());
+  }
+
+  // After a mouse click on Mute, Space is a game key again (A2 follow-up).
+  if (!vp.touch) {
+    const mutedNow = await read(page, 'audio.muted');
+    await mute.click();
+    await page.keyboard.press('Space');
+    check(
+      'Space after clicking Mute does not press Mute again',
+      (await read(page, 'audio.muted')) === !mutedNow
+    );
+    await mute.click();
     await mute.evaluate((el) => el.blur());
   }
 

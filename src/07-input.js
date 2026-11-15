@@ -37,8 +37,32 @@ function keyBelongsToFocusedControl(event) {
   if (event.code !== 'Space' && event.code !== 'Enter') return false;
   const target = event.target;
   if (!target || typeof target.closest !== 'function') return false;
-  return Boolean(target.closest('button, a, input, select, textarea'));
+  if (!target.closest('button, a, input, select, textarea')) return false;
+  // A mouse click or tap also focuses a button in Chrome and Firefox. Only
+  // focus the keyboard put there keeps Space; after a click, Space jumps.
+  return !focusSource.byPointer;
 }
+
+// How the focused control got focus: a pointer press (mouse or touch) just
+// before the focus moved, or the keyboard. :focus-visible can't tell, since
+// Chrome marks a clicked button keyboard-focused as soon as a key is pressed.
+const focusSource = { pointerDown: false, byPointer: false };
+function notePointerDown() {
+  focusSource.pointerDown = true;
+}
+function clearPointerDown() {
+  focusSource.pointerDown = false;
+}
+function noteFocusIn() {
+  focusSource.byPointer = focusSource.pointerDown;
+  focusSource.pointerDown = false;
+}
+document.addEventListener('mousedown', notePointerDown, true);
+document.addEventListener('touchstart', notePointerDown, { capture: true, passive: true });
+document.addEventListener('keydown', clearPointerDown, true);
+// A press on something already focused moves no focus: its click ends it.
+document.addEventListener('click', clearPointerDown, true);
+document.addEventListener('focusin', noteFocusIn);
 
 const JUMP_KEYS = ['Space', 'ArrowUp', 'KeyW'];
 const DROP_KEYS = ['ArrowDown', 'KeyS'];

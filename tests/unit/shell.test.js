@@ -1988,6 +1988,19 @@ describe('Space on a focused button (A2)', () => {
     assert(ev.prevented, 'page does not scroll');
   });
 
+  it('Space after a mouse click on a button still jumps', () => {
+    const button = { closest: () => ({}) };
+    const calls = withActionSpyA2(() => {
+      notePointerDown(); // clicked: the press comes just before the focus
+      noteFocusIn();
+      handleKeyDown(keyEventA2('Space', button));
+      clearPointerDown(); // Tab to the next button: focus by keyboard
+      noteFocusIn();
+      handleKeyDown(keyEventA2('Space', button));
+    });
+    assertEquals(calls, 1, 'only the clicked one jumps');
+  });
+
   it('Up arrow and W still jump while a button has focus', () => {
     const calls = withActionSpyA2(() => {
       handleKeyDown(keyEventA2('ArrowUp', focusedA2('button')));

@@ -39,6 +39,9 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.handleSwipeStart = handleSwipeStart;
   global.handleSwipeMove = handleSwipeMove;
   global.handleTouchEnd = handleTouchEnd;
+  global.notePointerDown = notePointerDown;
+  global.clearPointerDown = clearPointerDown;
+  global.noteFocusIn = noteFocusIn;
   global.labelPx = labelPx;
   global.jumpButtonLabel = jumpButtonLabel;
   global.syncJumpButtonLabel = syncJumpButtonLabel;
