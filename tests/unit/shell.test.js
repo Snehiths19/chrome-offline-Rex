@@ -1802,5 +1802,66 @@ describe('Phone play area (S2)', () => {
       withMedia(LANDSCAPE, () => handleResize());
       assert(rotateHintSeen(), 'turning to landscape marks it seen');
     });
+    withHintStore(null, () => {
+      withMedia(PORTRAIT, () => {
+        refreshRotateHint();
+        resetGame(); // the path Daily and the mode toggle take
+      });
+      assert(rotateHintSeen(), 'a Daily or mode-toggle start marks it seen');
+      assertEquals(hintEl().hidden, true, 'and hides it');
+    });
+  });
+});
+
+describe('Big button label (S3)', () => {
+  const labelFor = (state, skippable) => {
+    const origState = game.state;
+    const origSkip = game.countdownSkippable;
+    game.state = state;
+    game.countdownSkippable = skippable;
+    const label = jumpButtonLabel();
+    game.state = origState;
+    game.countdownSkippable = origSkip;
+    return label;
+  };
+
+  it('says Start on the start screen, Jump in a run, Restart on Game Over', () => {
+    assertEquals(labelFor(STATE.IDLE, false).text, 'TAP TO START', 'IDLE text');
+    assertEquals(labelFor(STATE.IDLE, false).aria, 'Start', 'IDLE name');
+    assertEquals(labelFor(STATE.RUNNING, false).text, 'TAP TO JUMP', 'RUNNING text');
+    assertEquals(labelFor(STATE.RUNNING, false).aria, 'Jump', 'RUNNING name');
+    assertEquals(labelFor(STATE.DEAD, true).text, 'TAP TO RESTART', 'DEAD text');
+    assertEquals(labelFor(STATE.DEAD, true).aria, 'Restart', 'DEAD name');
+  });
+
+  it('the countdown says Get ready, or Start when a tap can skip it', () => {
+    assertEquals(labelFor(STATE.WAITING, false).text, 'GET READY', 'first countdown');
+    assertEquals(labelFor(STATE.WAITING, true).text, 'TAP TO START', 'skippable countdown');
+    assertEquals(labelFor(STATE.PAUSED, true).text, 'PAUSED', 'paused run');
+  });
+
+  it('drawing a frame puts the label and its name on the button', () => {
+    const btn = document.getElementById('jump-btn');
+    const origText = btn.textContent;
+    const origSet = btn.setAttribute;
+    let aria = null;
+    btn.setAttribute = (name, value) => {
+      if (name === 'aria-label') aria = value;
+    };
+    resetGame();
+    game.state = STATE.DEAD;
+    syncJumpButtonLabel();
+    assertEquals(btn.textContent, 'TAP TO RESTART', 'DEAD label written');
+    assertEquals(aria, 'Restart', 'DEAD name written');
+    game.state = STATE.RUNNING;
+    syncJumpButtonLabel();
+    assertEquals(btn.textContent, 'TAP TO JUMP', 'RUNNING label written');
+    assertEquals(aria, 'Jump', 'RUNNING name written');
+    aria = null;
+    syncJumpButtonLabel();
+    assertEquals(aria, null, 'an unchanged label is not written again');
+    btn.setAttribute = origSet;
+    btn.textContent = origText;
+    resetGame();
   });
 });

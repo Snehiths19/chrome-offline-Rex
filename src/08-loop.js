@@ -33,6 +33,9 @@ function resetGame() {
   game.lastObstacleX = -300;
   game.graceFrames = GAME_CONFIG.GRACE_FRAMES;
   game.state = STATE.WAITING;
+  // Every run start retires the portrait hint, including Daily and the mode
+  // toggle, which start a countdown here without passing through IDLE.
+  markRotateHintSeen();
   game.pauseHidden = false;
   game.resumeFrames = 0;
   if (restartAfterDeath) game.countdownSkippable = true;
@@ -675,6 +678,7 @@ function drawFrame() {
   endQaShake(shakeHeld);
   drawQaFlags();
   applyQaCopyButton();
+  syncJumpButtonLabel();
 }
 
 function gameLoop(timestamp) {

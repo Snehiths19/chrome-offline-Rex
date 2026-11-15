@@ -124,6 +124,12 @@ async function playOnDevice(browser, base, vp) {
   // Portrait phones (S2): the one-time turn-sideways hint shows on a first
   // visit, and the canvas sits lower with the jump button near the bottom.
   const hintVisible = await page.locator('#rotate-hint').isVisible();
+  if (vp.touch) {
+    check(
+      'big button says TAP TO START on the start screen',
+      (await page.locator('#jump-btn').textContent()).trim() === 'TAP TO START'
+    );
+  }
   if (vp.portrait) {
     check('turn-sideways hint shows on a first portrait visit', hintVisible);
     check(
@@ -148,6 +154,13 @@ async function playOnDevice(browser, base, vp) {
     await waitFor(page, "game.state === 'RUNNING'", 10000)
   );
   check('the hint is gone once a run starts', !(await page.locator('#rotate-hint').isVisible()));
+  // The big button says what a tap does now, at a fixed size (S3).
+  const btnLabel = () => page.locator('#jump-btn').textContent();
+  const btnBox = () => page.locator('#jump-btn').boundingBox();
+  if (vp.touch) {
+    check('big button says TAP TO JUMP in a run', (await btnLabel()).trim() === 'TAP TO JUMP');
+  }
+  const runBtnBox = vp.touch ? await btnBox() : null;
 
   // Jump straight away (nothing has spawned yet, so it is safe).
   await act(page, vp.touch);
@@ -174,6 +187,19 @@ async function playOnDevice(browser, base, vp) {
     5000
   );
   await shot('3-game-over');
+  if (vp.touch) {
+    check(
+      'big button says TAP TO RESTART on Game Over',
+      (await btnLabel()).trim() === 'TAP TO RESTART'
+    );
+    const deadBox = await btnBox();
+    check(
+      'the button keeps its size when the label changes',
+      Math.abs(deadBox.width - runBtnBox.width) < 0.5 &&
+        Math.abs(deadBox.height - runBtnBox.height) < 0.5,
+      JSON.stringify([runBtnBox, deadBox])
+    );
+  }
 
   // Restart: after a death the countdown can be skipped.
   await act(page, vp.touch);

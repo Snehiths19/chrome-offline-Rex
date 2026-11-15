@@ -146,6 +146,8 @@ export default [
         drawDino: 'readonly',
         checkCollision: 'readonly',
         jump: 'readonly',
+        jumpButtonLabel: 'readonly',
+        syncJumpButtonLabel: 'readonly',
         handleTapZone: 'readonly',
         refreshRotateHint: 'readonly',
         markRotateHintSeen: 'readonly',

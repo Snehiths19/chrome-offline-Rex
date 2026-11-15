@@ -146,6 +146,9 @@ _Avoid_: PWA cache, app cache
 **Phone play area** — on a phone held upright, the canvas sits in the middle of the screen and a full-width jump button sits at the bottom under the thumb. The empty page below the canvas is a **tap zone**: a touch there works like tapping the canvas (jump, start, restart). Buttons keep their own taps. The canvas stays 3:1, so upright it is limited by the screen width.
 _Avoid_: portrait mode (that is the phone's orientation, not a game mode)
 
+**Big button** — the touch-only button under the canvas (`#jump-btn`). Its label says what a tap does now: TAP TO START on the start screen and a skippable countdown, GET READY on the first countdown, TAP TO JUMP in a run, PAUSED while paused, TAP TO RESTART on Game Over. It keeps one size for every label so nothing shifts. Hidden on desktop.
+_Avoid_: jump button (it does more than jump), CTA
+
 **Turn-sideways hint** — the one line under the canvas on a phone held upright, "Turn your phone sideways for a bigger view". Page text, never on the canvas. Shown on the start screen only, and retired for good (`dino-rotate-hint-seen`) once the player starts a run or turns the phone to landscape, so it never appears mid-run.
 _Avoid_: rotate prompt, orientation warning
 
