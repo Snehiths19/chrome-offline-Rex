@@ -2689,3 +2689,73 @@ describe('Readable labels on phones (R1)', () => {
     canvasCssScale = orig;
   });
 });
+
+describe('Game Over keeps the run scene (R2)', () => {
+  const recordGameOverPaint = () => {
+    const calls = [];
+    const orig = { fillRect: ctx.fillRect, drawImage: ctx.drawImage };
+    ctx.fillRect = (x, y, w, h) => calls.push(['fillRect', ctx.fillStyle, w, h]);
+    ctx.drawImage = () => calls.push(['drawImage']);
+    try {
+      drawGameOverScreen();
+    } finally {
+      ctx.fillRect = orig.fillRect;
+      ctx.drawImage = orig.drawImage;
+    }
+    return calls;
+  };
+  const dimIndex = (calls) =>
+    calls.findIndex(
+      (c) =>
+        c[0] === 'fillRect' &&
+        String(c[1]).replace(/\s/g, '') === 'rgba(0,0,0,0.6)' &&
+        c[2] === GAME_CONFIG.CANVAS_W &&
+        c[3] === GAME_CONFIG.CANVAS_H
+    );
+
+  ['classic', 'updated'].forEach((mode) => {
+    it(mode + ': the last frame is painted, then dimmed, under the card', () => {
+      const origMode = game.mode;
+      const origFill = ctx.fillStyle;
+      resetGame();
+      game.mode = mode;
+      game.state = STATE.DEAD;
+      game.obstacles.push({ x: 120, y: 150, width: 20, height: 40, type: 'small' });
+      Animations.deathAnimFrame = deathAnimFrames();
+      const calls = recordGameOverPaint();
+      const dim = dimIndex(calls);
+      assert(dim > 0, 'one full-canvas 0.6 dim is painted');
+      const sceneDraws = calls.slice(0, dim).filter((c) => c[0] === 'drawImage').length;
+      assert(sceneDraws >= 2, 'dino and obstacle are drawn before the dim (' + sceneDraws + ')');
+      assertEquals(
+        calls.filter((c) => c[0] === 'fillRect' && c[2] === GAME_CONFIG.CANVAS_W).length >= 1,
+        true,
+        'background painted'
+      );
+      game.mode = origMode;
+      ctx.fillStyle = origFill;
+      resetGame();
+    });
+  });
+
+  it('repainting twice does not stack the dim (one dim per paint)', () => {
+    resetGame();
+    game.state = STATE.DEAD;
+    Animations.deathAnimFrame = deathAnimFrames();
+    const first = recordGameOverPaint().filter((c) => dimIndex([c]) === 0).length;
+    const second = recordGameOverPaint().filter((c) => dimIndex([c]) === 0).length;
+    assertEquals(first, 1, 'one dim in the first paint');
+    assertEquals(second, 1, 'one dim in the second paint');
+    resetGame();
+  });
+
+  it('white score text over the dimmed day sky keeps at least 4.5:1 contrast', () => {
+    const lum = (v) => {
+      const c = v / 255;
+      return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    };
+    const dimmedWhite = Math.round(255 * (1 - 0.6));
+    const ratio = (1 + 0.05) / (lum(dimmedWhite) + 0.05);
+    assert(ratio >= 4.5, 'contrast ' + ratio.toFixed(2) + ':1');
+  });
+});

@@ -681,12 +681,31 @@ function drawDailyPreRunLine() {
   ctx.fillText(dailyPreRunLine(), GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 46);
 }
 
+// The run's last frame, still, under the Game Over card (R2), so the player
+// can see which obstacle ended the run. No shake, no particles, no HUD (the
+// card shows the score).
+function drawDeathBackdrop() {
+  drawBackground();
+  drawHills();
+  drawGround();
+  drawClouds();
+  drawObstacles();
+  drawDino();
+}
+
+// Game Over dims the last frame instead of hiding it. 0.6 black keeps the
+// dino and the obstacle readable while white score text stays above 4.5:1
+// contrast even over the white day sky (white on #666 is about 5.7:1).
+const GAME_OVER_DIM_ALPHA = 0.6;
+
 function drawGameOverScreen() {
   const font = cfg('SCORE_FONT_FAMILY');
   const t = Math.min(Animations.deathAnimFrame / deathAnimFrames(), 1);
   const displayScore = Math.round(t * Math.floor(game.score));
 
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+  // Repaint the scene every time, so the dim never stacks frame on frame.
+  drawDeathBackdrop();
+  ctx.fillStyle = 'rgba(0, 0, 0, ' + GAME_OVER_DIM_ALPHA + ')';
   ctx.fillRect(0, 0, GAME_CONFIG.CANVAS_W, GAME_CONFIG.CANVAS_H);
   ctx.textAlign = 'center';
 
