@@ -305,6 +305,22 @@ describe('Pause on app switch (F2)', () => {
     resetGame();
   });
 
+  it('hiding again during the countdown holds the run and restarts the countdown', () => {
+    startPauseRun();
+    pauseRun();
+    resumeRun();
+    for (let i = 0; i < 100; i++) pauseStep();
+    const before = snapshot();
+    assert(pauseRun(), 'a second hide pauses again');
+    assert(game.pauseHidden, 'held while hidden');
+    for (let i = 0; i < 400; i++) pauseStep();
+    assertEquals(game.state, STATE.PAUSED, 'still paused after many hidden slices');
+    assert(resumeRun(), 'coming back resumes');
+    assertEquals(game.resumeFrames, GAME_CONFIG.RESUME_COUNTDOWN_FRAMES, 'full countdown again');
+    assertEquals(JSON.stringify(snapshot()), JSON.stringify(before), 'run untouched');
+    resetGame();
+  });
+
   it('resetGame clears a pause', () => {
     resetGame();
     game.state = STATE.RUNNING;

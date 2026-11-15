@@ -466,7 +466,10 @@ function drawRunning() {
 // press during the countdown skips nothing. The loop keeps running, so no
 // restart and no cancelAnimationFrame is needed.
 function pauseRun() {
-  if (game.state !== STATE.RUNNING) return false;
+  // Hiding again during the resume countdown holds the run again too, and
+  // the return gets a fresh full countdown.
+  const counting = game.state === STATE.PAUSED && !game.pauseHidden;
+  if (game.state !== STATE.RUNNING && !counting) return false;
   game.state = STATE.PAUSED;
   game.pauseHidden = true;
   game.resumeFrames = GAME_CONFIG.RESUME_COUNTDOWN_FRAMES;
