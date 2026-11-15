@@ -148,6 +148,9 @@ const game = {
   // QA/debug only. The share button was put back after the ?qaCountUp=1 card.
   qaCountUpShareCleared: false,
   isNewBest: false,
+  // The run that just ended was the first ever (no stored best): Game Over
+  // shows the plain score, not NEW BEST (R3).
+  isFirstRun: false,
   previousHighScore: 0,
   // Set on a Daily death before today best is saved. Mirrors isNewBest:
   // true when this run beats today, including the first run of the day.

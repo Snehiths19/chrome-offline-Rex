@@ -56,11 +56,15 @@ function checkCollision(dino, obstacle) {
   return dl < or_ && dr > ol && dt < ob && db > ot;
 }
 
+// isFirst: nothing stored yet (best 0). A first run beats nothing, so it is
+// not a new best (R3): free play shows the plain score instead. Daily still
+// counts the first run of the day as a new today best (see updateRunning).
 function computeRunResult(finalScore, currentHighScore) {
-  const isNewBest = finalScore > currentHighScore || currentHighScore === 0;
+  const isFirst = currentHighScore === 0;
+  const isNewBest = !isFirst && finalScore > currentHighScore;
   const previousHighScore = currentHighScore;
   const delta = isNewBest ? finalScore - previousHighScore : currentHighScore - finalScore;
-  return { isNewBest, previousHighScore, delta };
+  return { isNewBest, isFirst, previousHighScore, delta };
 }
 
 function jump() {

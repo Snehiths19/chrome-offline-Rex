@@ -84,12 +84,14 @@ const SCENES = [
     name: 'game-over',
     run: () => {
       window.__scene('updated', 4004);
+      game.highScore = 10; // a new record: NEW BEST and the improvement line
       window.__untilRunning();
       window.__untilDeadAndSettled();
     },
   },
   {
     name: 'classic-game-over',
+    // A first-ever run (stored best 0): the plain score, no NEW BEST (R3).
     run: () => {
       window.__scene('classic', 4004);
       window.__untilRunning();
