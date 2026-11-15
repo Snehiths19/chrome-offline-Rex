@@ -167,6 +167,10 @@ const game = {
   // False until the player has died once this session. First IDLE → WAITING
   // keeps the full countdown; restarts after death can skip it.
   countdownSkippable: false,
+  // Pause (F2): true while the page is hidden mid-run. resumeFrames is the
+  // resume countdown left once it is visible again. See pauseRun().
+  pauseHidden: false,
+  resumeFrames: 0,
 };
 
 // All per-run animation countdown timers. Kept separate from the game object

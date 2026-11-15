@@ -635,6 +635,26 @@ function drawGetReadyOverlay() {
   drawDailyPreRunLine();
 }
 
+// The paused run's overlay (F2): PAUSED, and once the page is back the
+// 3 2 1 before the run carries on. Static text, no pulse, so reduced
+// motion sees the same thing. Light ink once the sky is night.
+function drawResumeOverlay() {
+  if (game.state !== STATE.PAUSED) return;
+  const font = cfg('SCORE_FONT_FAMILY');
+  const night = game.score >= GAME_CONFIG.DAY_NIGHT_START;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = night ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.55)';
+  ctx.font = '14px ' + font;
+  ctx.fillText('PAUSED', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 30);
+  if (game.pauseHidden) return;
+  ctx.font = '48px ' + font;
+  ctx.fillText(
+    String(resumeCountdownNumber()),
+    GAME_CONFIG.CANVAS_W / 2,
+    GAME_CONFIG.CANVAS_H / 2 + 16
+  );
+}
+
 // One shared run, at the edge of the run only. Static text — no pulse — so
 // prefers-reduced-motion has nothing extra to suppress. The RUNNING loop
 // never calls this overlay, and the state check keeps it off if it did.

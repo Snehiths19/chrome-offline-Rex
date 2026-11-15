@@ -278,8 +278,14 @@ if (dailyBtn && dailyBtn.addEventListener) {
 // Resume the AudioContext when the tab becomes visible again. Browsers
 // suspend the ctx when the page is hidden; without this, audio dies silently
 // on tab-switch even though no error is thrown.
+// The same event pauses a run when the page is hidden and starts the resume
+// countdown when it is back (F2, pauseRun/resumeRun in src/08-loop.js).
 if (typeof document !== 'undefined' && document.addEventListener) {
   document.addEventListener('visibilitychange', () => {
+    if (bootGate.files) {
+      if (document.visibilityState === 'hidden') pauseRun();
+      else resumeRun();
+    }
     if (
       document.visibilityState === 'visible' &&
       audio.ctx &&

@@ -161,6 +161,160 @@ describe('Jump buffer (F1)', () => {
   });
 });
 
+describe('Pause on app switch (F2)', () => {
+  const pauseStep = () => {
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+  };
+  // A run some way in, with an obstacle on screen and the dino mid-air.
+  const startPauseRun = () => {
+    resetGame();
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    for (let i = 0; i < 400 && game.obstacles.length === 0; i++) pauseStep();
+    jump();
+    pauseStep();
+  };
+  const snapshot = () => ({
+    score: game.score,
+    speed: game.currentSpeed,
+    animFrame: game.animFrame,
+    lastObstacleX: game.lastObstacleX,
+    nextSpawnGap: game.nextSpawnGap,
+    obstacles: game.obstacles.map((o) => [o.x, o.type]),
+    dinoY: dino.y,
+    velocityY: dino.velocityY,
+  });
+
+  it('pauses only a RUNNING run', () => {
+    resetGame();
+    game.state = STATE.WAITING;
+    assert(!pauseRun(), 'WAITING is not paused');
+    assertEquals(game.state, STATE.WAITING, 'state unchanged');
+    game.state = STATE.DEAD;
+    assert(!pauseRun(), 'DEAD is not paused');
+    game.state = STATE.RUNNING;
+    assert(pauseRun(), 'RUNNING pauses');
+    assertEquals(game.state, STATE.PAUSED, 'now PAUSED');
+    resetGame();
+  });
+
+  it('nothing moves while hidden, however many slices pass', () => {
+    startPauseRun();
+    pauseRun();
+    const before = snapshot();
+    for (let i = 0; i < 300; i++) pauseStep();
+    assertEquals(JSON.stringify(snapshot()), JSON.stringify(before), 'run frozen while hidden');
+    assertEquals(game.state, STATE.PAUSED, 'still paused');
+    resetGame();
+  });
+
+  it('back on the page, a 3 2 1 countdown runs, then the run carries on', () => {
+    startPauseRun();
+    pauseRun();
+    assert(resumeRun(), 'resume starts');
+    assertEquals(resumeCountdownNumber(), 3, 'starts at 3');
+    const before = snapshot();
+    for (let i = 0; i < GAME_CONFIG.RESUME_COUNTDOWN_FRAMES - 1; i++) pauseStep();
+    assertEquals(game.state, STATE.PAUSED, 'countdown still running one slice before the end');
+    assertEquals(resumeCountdownNumber(), 1, 'last second shows 1');
+    assertEquals(JSON.stringify(snapshot()), JSON.stringify(before), 'nothing moved during it');
+    pauseStep();
+    assertEquals(game.state, STATE.RUNNING, 'running again');
+    pauseStep();
+    assert(game.score > before.score, 'score moves again once running');
+    resetGame();
+  });
+
+  it('a paused run plays on exactly as if it had never paused', () => {
+    const play = (withPause) => {
+      replayRunSeed(4242);
+      startPauseRun();
+      for (let i = 0; i < 30; i++) pauseStep();
+      if (withPause) {
+        pauseRun();
+        for (let i = 0; i < 50; i++) pauseStep();
+        resumeRun();
+        while (game.state === STATE.PAUSED) pauseStep();
+      }
+      for (let i = 0; i < 200 && game.state === STATE.RUNNING; i++) pauseStep();
+      const out = JSON.stringify(snapshot()) + game.state + game.rng();
+      resetGame();
+      return out;
+    };
+    assertEquals(play(true), play(false), 'same run with and without a pause');
+  });
+
+  it('a press during the countdown skips nothing and does not jump', () => {
+    startPauseRun();
+    while (dino.isJumping) pauseStep();
+    pauseRun();
+    resumeRun();
+    pauseStep();
+    const left = game.resumeFrames;
+    handleAction();
+    assertEquals(game.state, STATE.PAUSED, 'still counting down');
+    assertEquals(game.resumeFrames, left, 'countdown not shortened');
+    assert(!dino.isJumping, 'no jump during the countdown');
+    resetGame();
+  });
+
+  it('resume does nothing unless the run was paused by hiding', () => {
+    resetGame();
+    game.state = STATE.RUNNING;
+    assert(!resumeRun(), 'resume on a running run is a no-op');
+    pauseRun();
+    resumeRun();
+    const left = game.resumeFrames;
+    pauseStep();
+    assert(!resumeRun(), 'a second resume does not restart the countdown');
+    assertEquals(game.resumeFrames, left - 1, 'countdown kept going');
+    resetGame();
+  });
+
+  it('pause and resume are announced through the live region', () => {
+    const orig = a11yLive.textContent;
+    resetGame();
+    game.state = STATE.RUNNING;
+    pauseRun();
+    assertEquals(a11yLive.textContent, 'Paused.', 'pause announced');
+    resumeRun();
+    assertEquals(a11yLive.textContent, 'Back. Resuming in 3.', 'resume announced');
+    while (game.state === STATE.PAUSED) pauseStep();
+    assertEquals(a11yLive.textContent, 'Go!', 'go announced');
+    a11yLive.textContent = orig;
+    resetGame();
+  });
+
+  it('draws PAUSED, then the countdown number, only while paused', () => {
+    const origFill = ctx.fillText;
+    const drawn = [];
+    ctx.fillText = (t) => drawn.push(String(t));
+    resetGame();
+    game.state = STATE.RUNNING;
+    drawResumeOverlay();
+    assertEquals(drawn.length, 0, 'nothing while running');
+    pauseRun();
+    drawResumeOverlay();
+    assertEquals(drawn.join('|'), 'PAUSED', 'only PAUSED while hidden');
+    drawn.length = 0;
+    resumeRun();
+    drawResumeOverlay();
+    assertEquals(drawn.join('|'), 'PAUSED|3', 'PAUSED and 3 once back');
+    ctx.fillText = origFill;
+    resetGame();
+  });
+
+  it('resetGame clears a pause', () => {
+    resetGame();
+    game.state = STATE.RUNNING;
+    pauseRun();
+    resetGame();
+    assert(!game.pauseHidden, 'pauseHidden cleared');
+    assertEquals(game.resumeFrames, 0, 'resumeFrames cleared');
+  });
+});
+
 describe('Collision Detection', () => {
   it('should return true when dino and obstacle are colliding', () => {
     resetGame();

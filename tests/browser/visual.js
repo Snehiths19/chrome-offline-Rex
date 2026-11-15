@@ -69,6 +69,18 @@ const SCENES = [
     },
   },
   {
+    name: 'resume-countdown',
+    run: () => {
+      window.__scene('updated', 6006);
+      window.__untilRunning();
+      window.__step(150, true);
+      /* global pauseRun, resumeRun */
+      pauseRun();
+      resumeRun();
+      window.__step(30);
+    },
+  },
+  {
     name: 'game-over',
     run: () => {
       window.__scene('updated', 4004);
