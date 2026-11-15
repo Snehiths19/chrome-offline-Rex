@@ -37,6 +37,29 @@ export default [
     },
   },
   {
+    // Dev-only ?tune=1 panel: a classic script that runs after script.js and
+    // uses its top-level names.
+    files: ['tune.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'script',
+      globals: {
+        window: 'readonly',
+        document: 'readonly',
+        navigator: 'readonly',
+        TUNABLE_KEYS: 'readonly',
+        GAME_CONFIG: 'readonly',
+        saveTuning: 'readonly',
+      },
+    },
+    rules: {
+      'no-unused-vars': ['warn', { args: 'none' }],
+      'no-undef': 'error',
+      'no-var': 'error',
+      eqeqeq: ['error', 'smart'],
+    },
+  },
+  {
     files: ['tests/**/*.js'],
     languageOptions: {
       ecmaVersion: 2022,
@@ -118,6 +141,8 @@ export default [
         SHELL_JUMP_BLOCK: 'readonly',
         SHELL_SHARE_BLOCK: 'readonly',
         QA_FLAGS: 'readonly',
+        TUNABLE_KEYS: 'readonly',
+        loadTunePanel: 'readonly',
         qa: 'readonly',
         readQaFlag: 'readonly',
         readQaFlags: 'readonly',
@@ -219,7 +244,7 @@ export default [
   },
   {
     // The shared harness hands these to every area file in tests/unit/.
-    files: ['tests/harness.js', 'tests/unit.test.js', 'tests/unit/**/*.js'],
+    files: ['tests/harness.js', 'tests/unit.test.js', 'tests/unit/**/*.js', 'tests/tunable-keys.js'],
     languageOptions: {
       globals: {
         module: 'writable',

@@ -269,17 +269,10 @@ check(
 );
 
 // Determinism contract: visual-only live-tuning overrides must not change a run.
-// Tune every key script.js reads through cfg() at once, far from its default,
+// Tune every key script.js reads through cfg() (or a cfg() helper) at once, far from its default,
 // so a gameplay value that slips into cfg() later is caught here too.
-const cfgKeys = [
-  ...new Set(
-    [
-      ...fs
-        .readFileSync(path.join(__dirname, '..', 'script.js'), 'utf8')
-        .matchAll(/cfg\('([A-Z0-9_]+)'\)/g),
-    ].map((m) => m[1])
-  ),
-];
+const { cfgKeysInSource } = require('./tunable-keys.js');
+const cfgKeys = cfgKeysInSource(fs.readFileSync(path.join(__dirname, '..', 'script.js'), 'utf8'));
 const VISUAL_OVERRIDES = {};
 for (const key of cfgKeys) {
   const v = GAME_CONFIG[key];
