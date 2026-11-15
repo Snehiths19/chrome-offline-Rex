@@ -37,3 +37,29 @@ jobs:
             sed -n '/Coverage summary/,$p' coverage.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install headless Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Play the game in a real browser (desktop and phone sizes)
+        run: npm run test:browser
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-screenshots
+          path: tests/browser/screenshots/
+          if-no-files-found: ignore

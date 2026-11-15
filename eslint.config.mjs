@@ -257,4 +257,14 @@ export default [
       'no-undef': 'error',
     },
   },
+  {
+    // Playwright scripts: run under Node, with callbacks that run in the page.
+    files: ['tests/browser/**/*.js'],
+    languageOptions: {
+      globals: {
+        URL: 'readonly',
+        module: 'writable',
+      },
+    },
+  },
 ];

@@ -3,3 +3,4 @@ npm-debug.log
 .DS_Store
 .superpowers/
 coverage/
+tests/browser/screenshots/
