@@ -17,6 +17,7 @@ Single-file vanilla-JS clone of Chrome's offline dino game. Render target is a `
 
 ```bash
 npm test                       # runs the full suite under Node
+npm run coverage               # same suite, plus line/branch coverage of script.js
 npm run lint                   # ESLint script.js + tests
 npm run format                 # Prettier: run before committing
 npm run format:check           # what CI checks
@@ -152,6 +153,10 @@ The Node stubs at the top of `script.js` provide just enough of `window`, `docum
 The same suite also runs in a real browser: `npm run serve`, then open http://localhost:8080/tests/test-runner.html and read the console (it ends with the same Test Summary). The page carries the `index.html` shell so the game finds its buttons, and loads the tests after the sprites finish loading. Console output uses CSS styling for pass/fail.
 
 Keep a new test passing in both places. A browser will not let a test replace `location`, `document.body`, `document.documentElement`, an element's `style`, or `navigator.clipboard` by plain assignment, so use the helpers at the top of `tests/game.test.js`: `setPageQuery()`/`savePageQuery()` for `?qa…` flags, `overrideDocumentProp()`, `stubElementStyle()`/`restoreElementStyle()`, and `Object.defineProperty` for other getters. Use `testGlobal`, not Node's `global`.
+
+### Coverage
+
+`npm run coverage` runs the Node suite under `c8` and prints line, branch and function coverage for `script.js`; an HTML report with per-line detail lands in `coverage/index.html` (git-ignored). CI prints the same summary on every push and PR, in the log and on the run's summary page. It is information only: there is no threshold and it never fails the build. V8 counts comment and blank lines as covered, so read the per-function view in the HTML report, not just the headline number.
 
 ### Using `/tdd` in this project
 
