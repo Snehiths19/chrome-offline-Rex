@@ -991,8 +991,8 @@ describe('QA level flag (?qaLevel=1)', () => {
       );
       assertEquals(
         Animations.milestoneFrames,
-        GAME_CONFIG.MILESTONE_FRAMES - 1,
-        'the wash starts a full milestone and then counts down one frame'
+        GAME_CONFIG.MILESTONE_FRAMES,
+        'the wash starts a full milestone (it counts down from the next slice)'
       );
       assertEquals(
         game.score,
@@ -1019,7 +1019,7 @@ describe('QA level flag (?qaLevel=1)', () => {
       tick();
       assertEquals(
         Animations.milestoneFrames,
-        GAME_CONFIG.MILESTONE_FRAMES - 2,
+        GAME_CONFIG.MILESTONE_FRAMES - 1,
         'the next frame continues the same wash instead of restarting it'
       );
       assertEquals(game.score, GAME_CONFIG.SCORE_INCREMENT * 2, 'scoring keeps its normal step');
@@ -1029,7 +1029,7 @@ describe('QA level flag (?qaLevel=1)', () => {
       assertEquals(game.milestoneText, 'LEVEL 2', 'a real level-up still flashes with the flag on');
       assertEquals(
         Animations.milestoneFrames,
-        GAME_CONFIG.MILESTONE_FRAMES - 1,
+        GAME_CONFIG.MILESTONE_FRAMES,
         'crossing 100 still starts a full wash'
       );
       assert(game.score >= GAME_CONFIG.SCORE_PER_LEVEL, 'the real level still arrives by score');
@@ -1055,7 +1055,7 @@ describe('QA level flag (?qaLevel=1)', () => {
       tick();
       assertEquals(
         Animations.milestoneFrames,
-        GAME_CONFIG.MILESTONE_FRAMES - 1,
+        GAME_CONFIG.MILESTONE_FRAMES,
         'Daily shares the Updated early wash'
       );
       assertEquals(
@@ -1138,7 +1138,7 @@ describe('QA level flag (?qaLevel=1)', () => {
       assertEquals(game.milestoneText, 'LEVEL 2', 'score 100 still uses the real level label');
       assertEquals(
         Animations.milestoneFrames,
-        GAME_CONFIG.MILESTONE_FRAMES - 1,
+        GAME_CONFIG.MILESTONE_FRAMES,
         'score 100 still starts the full wash'
       );
       assert(game.score >= GAME_CONFIG.SCORE_PER_LEVEL, 'the level still unlocks at 100');
@@ -1173,7 +1173,7 @@ describe('QA level flag (?qaLevel=1)', () => {
       );
       assertEquals(
         Animations.milestoneFrames,
-        GAME_CONFIG.MILESTONE_FRAMES - 1,
+        GAME_CONFIG.MILESTONE_FRAMES,
         'the re-read flag still fires on the first running frame'
       );
       assert(game.score < 1, 're-reading the flag must not change the score');
@@ -1336,11 +1336,16 @@ describe('QA death shake flag (?qaShake=1)', () => {
       spy.calls.length = 0;
       tick();
       assertEquals(game.state, STATE.DEAD, 'the cactus still ends the run');
-      assertEquals(spy.calls.length, 1, 'the hold still shifts the hit frame');
-      assertEquals(
-        spy.calls[0].x,
-        GAME_CONFIG.UPDATED_DEATH_SHAKE_AMPLITUDE,
-        'the hit frame uses the quiet peak'
+      // The hit frame paints the death scene since update and draw were
+      // split (C5), so its shift is the real shake's opening offset. The QA
+      // hold only shifts RUNNING frames, so it does not stack on top.
+      assert(spy.calls.length >= 1, 'the hit frame is still shifted');
+      assert(
+        Math.abs(
+          spy.calls[0].x -
+            Math.sin(Animations.deathShakeFrames * deathShakeFreq()) * deathShakeAmplitude()
+        ) < 1e-9,
+        'the hit frame opens the real death shake'
       );
       assertEquals(
         Animations.deathShakeFrames,
@@ -1688,10 +1693,11 @@ describe('QA collision flag (?qaCollision=1)', () => {
       spy.calls.length = 0;
       tick();
       assertEquals(game.state, STATE.DEAD, 'the cactus still ends the run');
+      // The hit frame also paints the real collision burst now (C5), in the
+      // same red, so the hold's marks are at least that many fills.
       const reds = redFills(spy.calls);
-      assertEquals(
-        reds.length,
-        qaCollisionMarks().length,
+      assert(
+        reds.length >= qaCollisionMarks().length,
         'the hold still paints after the collision return'
       );
       assert(reds.every(onBody), 'the death-frame hold stays on the dino');
@@ -2897,9 +2903,9 @@ describe('QA flash flag (?qaFlash=1)', () => {
       tick();
       const dayAlpha = GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA.toFixed(3);
       assertEquals(game.state, STATE.DEAD, 'the cactus still ends the run');
-      assertEquals(
-        flashFills(spy.calls, dayAlpha).length,
-        1,
+      // The real death blink paints on the hit frame too now (C5).
+      assert(
+        flashFills(spy.calls, dayAlpha).length >= 1,
         'the hold still paints after the collision return'
       );
       assertEquals(
@@ -3243,9 +3249,9 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
       spy.calls.length = 0;
       tick();
       assertEquals(game.state, STATE.DEAD, 'the cactus still ends the run');
-      assertEquals(
-        scalesNear(spy.calls, GAME_CONFIG.SCORE_POP_PEAK_SCALE).length,
-        1,
+      // The real score pop paints on the hit frame too now (C5).
+      assert(
+        scalesNear(spy.calls, GAME_CONFIG.SCORE_POP_PEAK_SCALE).length >= 1,
         'the hold still paints after the collision return'
       );
       assertEquals(

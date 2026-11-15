@@ -2651,7 +2651,10 @@ describe('Soft death shake', () => {
       Animations.deathFlashFrames = 0;
       Animations.scorePopFrames = 0;
       game.state = STATE.DEAD;
-      for (let i = 0; i < frames; i++) {
+      // The slice that dies paints the first shake frame (C5); each later
+      // slice counts down, then paints the next one.
+      drawFrame();
+      for (let i = 1; i < frames; i++) {
         STATE_HANDLERS[STATE.DEAD]();
       }
       assertEquals(samples.length, frames, 'each shake frame translates once');
@@ -2986,6 +2989,11 @@ describe('Soft death shake', () => {
         game.graceFrames = 0;
         game.obstacles.length = 0;
         game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
+        // The slice that dies already paints the first pop frame (C5).
+        const scales = [];
+        ctx.scale = (x) => {
+          scales.push(x);
+        };
         gameLoop();
         cancelAnimationFrame(game.animationFrameId);
         assertEquals(game.state, STATE.DEAD, mode + ' collision still ends the run');
@@ -2999,11 +3007,7 @@ describe('Soft death shake', () => {
           QUIET_FRAMES,
           mode + ' score pop starts on that same window'
         );
-        const scales = [];
-        ctx.scale = (x) => {
-          scales.push(x);
-        };
-        for (let i = 0; i < QUIET_FRAMES; i++) STATE_HANDLERS[STATE.DEAD]();
+        for (let i = 1; i < QUIET_FRAMES; i++) STATE_HANDLERS[STATE.DEAD]();
         assertEquals(scales.length, QUIET_FRAMES, mode + ' scales once per shake frame');
         assertEquals(
           scales[0],
@@ -3016,9 +3020,10 @@ describe('Soft death shake', () => {
           last > 1 && last < 1 + (peak - 1) * 0.25,
           mode + ' last shake frame has nearly settled the score'
         );
+        // The next slice counts the last frame down and opens Game Over.
+        STATE_HANDLERS[STATE.DEAD]();
         assertEquals(Animations.scorePopFrames, 0, mode + ' pop is done when the shake is');
         assertEquals(Animations.deathShakeFrames, 0, mode + ' shake is done');
-        STATE_HANDLERS[STATE.DEAD]();
         assertEquals(
           scales.length,
           QUIET_FRAMES,
@@ -4393,8 +4398,8 @@ describe('Quieter LEVEL label', () => {
       );
       assertEquals(
         first.framesAfter,
-        GAME_CONFIG.MILESTONE_FRAMES - 1,
-        'Classic still counts the shared wash timer down by one'
+        GAME_CONFIG.MILESTONE_FRAMES,
+        'drawing leaves the shared wash timer to updateRunning (C5)'
       );
 
       const late = paintLabel(1);
@@ -4477,8 +4482,8 @@ describe('Quieter LEVEL label', () => {
         );
         assertEquals(
           first.framesAfter,
-          GAME_CONFIG.MILESTONE_FRAMES - 1,
-          mode + ' still counts the shared wash timer'
+          GAME_CONFIG.MILESTONE_FRAMES,
+          mode + ' drawing leaves the shared wash timer to updateRunning (C5)'
         );
 
         const still = paintLabel(
@@ -4496,8 +4501,8 @@ describe('Quieter LEVEL label', () => {
         assertEquals(gone.calls.length, 0, mode + ' word is gone while the wash timer remains');
         assertEquals(
           gone.framesAfter,
-          GAME_CONFIG.MILESTONE_FRAMES - GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES - 1,
-          mode + ' keeps counting the wash after the word leaves'
+          GAME_CONFIG.MILESTONE_FRAMES - GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES,
+          mode + ' the wash timer outlasts the word; drawing does not move it (C5)'
         );
       }
     } finally {
@@ -4749,8 +4754,8 @@ describe('Quieter LEVEL label', () => {
         assertEquals(game.milestoneText, 'LEVEL 2', 'the hold uses the same early label');
         assertEquals(
           Animations.milestoneFrames,
-          GAME_CONFIG.MILESTONE_FRAMES - 1,
-          'the hold does not change the wash length'
+          GAME_CONFIG.MILESTONE_FRAMES,
+          'the hold does not change the wash length (it counts down from the next slice)'
         );
         const live = levelCalls(spy.calls);
         assertEquals(live.length, 1, 'the first frame paints the live word once');
@@ -4935,8 +4940,8 @@ describe('Quieter NEW BEST badge', () => {
       assertEquals(first.calls[0].y, 70, 'the badge stays at the corner baseline');
       assertEquals(
         first.framesAfter,
-        GAME_CONFIG.NEW_BEST_FRAMES - 1,
-        'Classic still counts the shared timer down by one'
+        GAME_CONFIG.NEW_BEST_FRAMES,
+        'drawing leaves the shared timer to updateRunning (C5)'
       );
 
       const mid = paintBadge(GAME_CONFIG.NEW_BEST_FRAMES / 2);
@@ -5029,8 +5034,8 @@ describe('Quieter NEW BEST badge', () => {
         assertEquals(first.calls[0].y, 70, mode + ' stays in the corner');
         assertEquals(
           first.framesAfter,
-          GAME_CONFIG.UPDATED_NEW_BEST_FRAMES - 1,
-          mode + ' counts its own shorter timer'
+          GAME_CONFIG.UPDATED_NEW_BEST_FRAMES,
+          mode + ' drawing leaves its shorter timer to updateRunning (C5)'
         );
 
         const mid = paintBadge(GAME_CONFIG.UPDATED_NEW_BEST_FRAMES / 2);
@@ -5221,8 +5226,8 @@ describe('Quieter NEW BEST badge', () => {
           assertEquals(game.newBestShown, true, mode + ' still latches the once-per-run badge');
           assertEquals(
             Animations.newBestFrames,
-            expected - 1,
-            mode + ' starts the mode countdown and paints the first frame'
+            expected,
+            mode + ' starts the full mode countdown and paints the first frame'
           );
           assertEquals(
             a11yLive.textContent,
@@ -5263,7 +5268,7 @@ describe('Quieter NEW BEST badge', () => {
           );
           const again = rngCalls;
           tick();
-          assertEquals(Animations.newBestFrames, expected - 2, mode + ' keeps counting down');
+          assertEquals(Animations.newBestFrames, expected - 1, mode + ' keeps counting down');
           assert(rngCalls >= again, mode + ' later frames do not rewind gameplay rng');
         } finally {
           spy.restore();
@@ -5442,8 +5447,8 @@ describe('Quieter NEW BEST badge', () => {
         assertEquals(painted[0].font, QUIET_FONT, 'the stacked frame stays on the quiet type');
         assertEquals(
           Animations.newBestFrames,
-          GAME_CONFIG.UPDATED_NEW_BEST_FRAMES - 1,
-          'the live countdown still runs under the hold'
+          GAME_CONFIG.UPDATED_NEW_BEST_FRAMES,
+          'drawing under the hold does not move the live countdown (C5)'
         );
         assertEquals(game.qaNewBestHold, 40, 'drawing does not spend the hold');
       } finally {
