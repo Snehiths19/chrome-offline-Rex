@@ -253,6 +253,48 @@ body {
   }
 }
 
+/* One-time portrait hint (S2). JS clears [hidden] only on a portrait phone
+   that has not seen it yet, and sets it again once a run starts. */
+#rotate-hint {
+  margin: 12px 0 0;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  font-size: 14px;
+  color: #666;
+  text-align: center;
+}
+#rotate-hint[hidden] {
+  display: none;
+}
+
+/* Portrait phones (S2): use the spare height. The stack fills the screen,
+   the canvas sits in the middle, and a wide jump button sits at the bottom
+   under the thumb. The empty space below the canvas is a jump zone too
+   (handleTapZone in src/07-input.js). */
+@media (hover: none) and (pointer: coarse) and (orientation: portrait) {
+  #game-wrapper {
+    flex: 1;
+  }
+  #gameCanvas {
+    margin-top: auto;
+  }
+  #rotate-hint,
+  #share-btn {
+    order: 1;
+  }
+  #jump-btn {
+    order: 2;
+    margin-top: auto;
+    margin-bottom: 16px;
+    width: 100%;
+    padding: 28px 0;
+  }
+}
+
 #share-btn {
   margin-top: 10px;
   padding: 10px 28px;

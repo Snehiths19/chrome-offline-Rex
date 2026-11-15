@@ -188,10 +188,45 @@ function initCanvasScale() {
 
 initCanvasScale();
 
+// One-time "turn sideways" hint for portrait phones (S2). Shown under the
+// canvas on the start screen until the player starts a run or turns the
+// phone to landscape, then never again (dino-rotate-hint-seen). It is page
+// text at the edge of play, never drawn on the canvas or shown mid-run.
+const ROTATE_HINT_KEY = 'dino-rotate-hint-seen';
+const PORTRAIT_TOUCH_QUERY = '(hover: none) and (pointer: coarse) and (orientation: portrait)';
+const LANDSCAPE_TOUCH_QUERY = '(hover: none) and (pointer: coarse) and (orientation: landscape)';
+
+function mediaMatches(query) {
+  return !!(
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia(query).matches
+  );
+}
+
+function rotateHintSeen() {
+  return safeStorage.get(ROTATE_HINT_KEY, '0') === '1';
+}
+
+function refreshRotateHint() {
+  const el = document.getElementById('rotate-hint');
+  if (!el) return;
+  el.hidden = rotateHintSeen() || !mediaMatches(PORTRAIT_TOUCH_QUERY);
+}
+
+function markRotateHintSeen() {
+  if (!rotateHintSeen()) safeStorage.set(ROTATE_HINT_KEY, '1');
+  refreshRotateHint();
+}
+
+refreshRotateHint();
+
 // A resize can fire while later game files are still loading, before `game`
 // exists, so only repaint once every file is in (bootGate.files).
 function handleResize() {
   initCanvasScale();
+  if (mediaMatches(LANDSCAPE_TOUCH_QUERY)) markRotateHintSeen();
+  else refreshRotateHint();
   if (bootGate.files && game.state === STATE.DEAD) drawGameOverScreen();
 }
 

@@ -29,6 +29,11 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.drawDino = drawDino;
   global.checkCollision = checkCollision;
   global.jump = jump;
+  global.handleTapZone = handleTapZone;
+  global.refreshRotateHint = refreshRotateHint;
+  global.markRotateHintSeen = markRotateHintSeen;
+  global.rotateHintSeen = rotateHintSeen;
+  global.ROTATE_HINT_KEY = ROTATE_HINT_KEY;
   global.pauseRun = pauseRun;
   global.resumeRun = resumeRun;
   global.resumeCountdownNumber = resumeCountdownNumber;
