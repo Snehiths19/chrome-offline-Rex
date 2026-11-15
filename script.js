@@ -686,7 +686,7 @@ function setReducedMotion(enabled) {
 // Day fill is the dark QA kind. ?qaNight=1 uses the pale production color.
 // Read at boot and again in resetGame() so a mode toggle still honors the
 // query. Does not change speed, gaps, or game.rng(). Tests flip it through
-// setQaPlateau(); a normal visit leaves this false.
+// setQaFlag('plateau'); a normal visit leaves this false.
 const QA_PLATEAU_SCORE = 1;
 const QA_PLATEAU_HOLD = 180;
 const QA_PLATEAU_SIZE = 2;
@@ -698,67 +698,16 @@ const QA_PLATEAU_OFFSETS = Object.freeze([
   Object.freeze([-1, -5]),
 ]);
 
-function readQaPlateauFlag(search) {
-  const query =
-    search !== undefined
-      ? search
-      : typeof location !== 'undefined' && location && typeof location.search === 'string'
-        ? location.search
-        : '';
-  if (!query) return false;
-  return new URLSearchParams(query).get('qaPlateau') === '1';
-}
-
-let qaPlateau = readQaPlateauFlag();
-
-function setQaPlateau(enabled) {
-  qaPlateau = !!enabled;
-}
-
 // QA/debug only — not for players. ?qaCluster=1 forces the first Updated/Daily
 // obstacle to be a cluster so playtest can see the silhouette without
 // reaching score 250. The type roll is still consumed, so gaps and later
 // picks keep their RNG order. Classic never takes the override. Re-read in
-// resetGame() like ?qaPlateau=1. Tests flip it through setQaCluster().
-function readQaClusterFlag(search) {
-  const query =
-    search !== undefined
-      ? search
-      : typeof location !== 'undefined' && location && typeof location.search === 'string'
-        ? location.search
-        : '';
-  if (!query) return false;
-  return new URLSearchParams(query).get('qaCluster') === '1';
-}
-
-let qaCluster = readQaClusterFlag();
-
-function setQaCluster(enabled) {
-  qaCluster = !!enabled;
-}
-
+// resetGame() like ?qaPlateau=1. Tests flip it through setQaFlag('cluster').
 // QA/debug only — not for players. ?qaBig=1 forces the first Updated/Daily
 // obstacle to be a big cactus so playtest can see the tall silhouette
 // without reaching score 100. The type roll is still consumed, so gaps and
 // later picks keep their RNG order. Classic never takes the override.
-// Re-read in resetGame() like ?qaCluster=1. Tests flip it through setQaBig().
-function readQaBigFlag(search) {
-  const query =
-    search !== undefined
-      ? search
-      : typeof location !== 'undefined' && location && typeof location.search === 'string'
-        ? location.search
-        : '';
-  if (!query) return false;
-  return new URLSearchParams(query).get('qaBig') === '1';
-}
-
-let qaBig = readQaBigFlag();
-
-function setQaBig(enabled) {
-  qaBig = !!enabled;
-}
-
+// Re-read in resetGame() like ?qaCluster=1. Tests flip it through setQaFlag('big').
 // QA/debug only — not for players. ?qaNight=1 paints full night from the
 // first frame so the star fade can be seen without a score-400 run.
 // Sky, hills, HUD ink, star init, the Updated/Daily night cactus and dino
@@ -768,25 +717,8 @@ function setQaBig(enabled) {
 // scoreForNightSky. Speed, gaps, scoring, and game.rng() do not. Pair
 // with ?qaFlash=1 to see the quieter night blink without colliding.
 // Re-read in resetGame()
-// like the other QA flags. Tests flip it through setQaNight(); a normal
+// like the other QA flags. Tests flip it through setQaFlag('night'); a normal
 // visit leaves this false.
-function readQaNightFlag(search) {
-  const query =
-    search !== undefined
-      ? search
-      : typeof location !== 'undefined' && location && typeof location.search === 'string'
-        ? location.search
-        : '';
-  if (!query) return false;
-  return new URLSearchParams(query).get('qaNight') === '1';
-}
-
-let qaNight = readQaNightFlag();
-
-function setQaNight(enabled) {
-  qaNight = !!enabled;
-}
-
 // QA/debug only — not for players. ?qaLevel=1 fires the first Updated/Daily
 // milestone flash on the opening RUNNING frames so the sky wash and the
 // quiet LEVEL word can be seen without a score-100 run. The word also
@@ -797,55 +729,16 @@ function setQaNight(enabled) {
 // wash. Classic never takes it, so Classic still has no gold tint and
 // no early word. The day wash stays the day peak; pair with ?qaNight=1
 // for the quiet night peak. Re-read in resetGame() like the other QA
-// flags. Tests flip it through setQaLevel(); a normal visit leaves this
+// flags. Tests flip it through setQaFlag('level'); a normal visit leaves this
 // false.
 const QA_LEVEL_HOLD = 180;
-function readQaLevelFlag(search) {
-  const query =
-    search !== undefined
-      ? search
-      : typeof location !== 'undefined' && location && typeof location.search === 'string'
-        ? location.search
-        : '';
-  if (!query) return false;
-  return new URLSearchParams(query).get('qaLevel') === '1';
-}
-
-let qaLevel = readQaLevelFlag();
-
-function setQaLevel(enabled) {
-  qaLevel = !!enabled;
-}
-
-function qaLevelHoldFrames() {
-  if (!reducedMotion) return QA_LEVEL_HOLD;
-  return Math.max(2, Math.round(QA_LEVEL_HOLD * 0.5));
-}
-
 // QA/debug only — not for players. ?qaTrail=1 emits the late-run heel
 // whisper from the first Updated/Daily RUNNING frame, so playtest can see
 // it without a score-~570 run. It does not write the score, speed, gaps,
 // or game.rng(). Classic never takes it. Pair with ?qaNight=1 to put that
 // whisper on the night sky it actually lives on. Re-read in resetGame()
-// like the other QA flags. Tests flip it through setQaTrail(); a normal
+// like the other QA flags. Tests flip it through setQaFlag('trail'); a normal
 // visit leaves this false.
-function readQaTrailFlag(search) {
-  const query =
-    search !== undefined
-      ? search
-      : typeof location !== 'undefined' && location && typeof location.search === 'string'
-        ? location.search
-        : '';
-  if (!query) return false;
-  return new URLSearchParams(query).get('qaTrail') === '1';
-}
-
-let qaTrail = readQaTrailFlag();
-
-function setQaTrail(enabled) {
-  qaTrail = !!enabled;
-}
-
 // QA/debug only — not for players. ?qaConfetti=1 shows an early gold block
 // in Updated/Daily so playtest can see it without a score-100 run.
 // The block is its own overlay. It does not emit, restyle, or read the
@@ -854,35 +747,13 @@ function setQaTrail(enabled) {
 // It does not write the score, speed, gaps, or game.rng().
 // Classic never takes it. One hold per run. Re-read in resetGame().
 // Reduced motion halves the hold and halves the ink, so the debug block
-// is shorter and softer too. Tests flip it through setQaConfetti(); a
+// is shorter and softer too. Tests flip it through setQaFlag('confetti'); a
 // normal visit leaves this false.
 const QA_CONFETTI_HOLD = 180;
 const QA_CONFETTI_BLOCK_W = 88;
 const QA_CONFETTI_BLOCK_H = 36;
 const QA_CONFETTI_COLOR = '#b45309';
 const QA_CONFETTI_RIM = '#3f2a12';
-function readQaConfettiFlag(search) {
-  const query =
-    search !== undefined
-      ? search
-      : typeof location !== 'undefined' && location && typeof location.search === 'string'
-        ? location.search
-        : '';
-  if (!query) return false;
-  return new URLSearchParams(query).get('qaConfetti') === '1';
-}
-
-let qaConfetti = readQaConfettiFlag();
-
-function setQaConfetti(enabled) {
-  qaConfetti = !!enabled;
-}
-
-function qaConfettiHoldFrames() {
-  if (!reducedMotion) return QA_CONFETTI_HOLD;
-  return Math.max(2, Math.round(QA_CONFETTI_HOLD * 0.5));
-}
-
 // Motion-allowed playtest is full ink so a capture cannot miss the block.
 // Reduced motion paints at half ink, matching the shorter hold.
 function qaConfettiPaintAlpha() {
@@ -903,7 +774,7 @@ function qaConfettiPaintAlpha() {
 // brown. Night paint uses the night takeoff peak instead of solid ink,
 // and reduced motion halves that night ink without shortening the hold.
 // Re-read in resetGame(). Tests flip it through
-// setQaDust(); a normal visit leaves this false.
+// setQaFlag('dust'); a normal visit leaves this false.
 const QA_DUST_HOLD = 180;
 const QA_DUST_SIZE = 4;
 const QA_DUST_RIM = '#2a241e';
@@ -914,23 +785,6 @@ const QA_DUST_OFFSETS = Object.freeze([
   Object.freeze([-5, -9]),
   Object.freeze([1, -8]),
 ]);
-function readQaDustFlag(search) {
-  const query =
-    search !== undefined
-      ? search
-      : typeof location !== 'undefined' && location && typeof location.search === 'string'
-        ? location.search
-        : '';
-  if (!query) return false;
-  return new URLSearchParams(query).get('qaDust') === '1';
-}
-
-let qaDust = readQaDustFlag();
-
-function setQaDust(enabled) {
-  qaDust = !!enabled;
-}
-
 function qaDustMarks() {
   const fx = dino.x + dino.width / 2;
   const fy = dino.y + dino.height;
@@ -946,11 +800,6 @@ function qaDustMarks() {
 // full cluster when the player prefers reduced motion.
 function qaPlateauReducedCount(fullCount) {
   return Math.max(1, Math.round(fullCount * 0.25));
-}
-
-function qaPlateauHoldFrames() {
-  if (!reducedMotion) return QA_PLATEAU_HOLD;
-  return Math.max(2, Math.round(QA_PLATEAU_HOLD * 0.5));
 }
 
 // Held specks just behind the heel. Game coordinates, not pool slots.
@@ -973,7 +822,7 @@ function qaPlateauMarks() {
 // capture uses the pale production color, the one the player sees at the
 // real plateau. The rim keeps either fill from disappearing into the sky.
 function qaPlateauFill() {
-  return qaNight ? Particles.KINDS.plateau.color : Particles.KINDS.plateauQa.color;
+  return qa.night ? Particles.KINDS.plateau.color : Particles.KINDS.plateauQa.color;
 }
 
 // Overdraw after the whole frame. The production puff lives 12 frames and
@@ -1040,16 +889,6 @@ function drawQaDust() {
 // Latch on the first Updated/Daily frame of the run, including idle, so
 // the marks are already up before GET READY ends. Count down only while
 // the run is moving.
-function advanceQaDust() {
-  if (!isUpdatedMode()) return;
-  if (qaDust && !game.qaDustShown) {
-    game.qaDustShown = true;
-    game.qaDustHold = QA_DUST_HOLD;
-    return;
-  }
-  if (game.state === STATE.RUNNING && game.qaDustHold > 0) game.qaDustHold--;
-}
-
 // QA/debug only — not for players. ?qaCollision=1 holds the quieter
 // Updated/Daily death puff on the dino from the first RUNNING frame, so
 // playtest can see it after GET READY without dying. The marks are their
@@ -1058,7 +897,7 @@ function advanceQaDust() {
 // collision stays the quieter kind. It does not write the score, speed,
 // gaps, or game.rng(). Classic never takes it. Reduced motion halves the
 // hold and paints fewer motes at half ink. Re-read in resetGame().
-// Tests flip it through setQaCollision(); a normal visit leaves this false.
+// Tests flip it through setQaFlag('collision'); a normal visit leaves this false.
 const QA_COLLISION_HOLD = 180;
 const QA_COLLISION_SIZE = 4;
 const QA_COLLISION_RIM = '#3d1610';
@@ -1071,28 +910,6 @@ const QA_COLLISION_OFFSETS = Object.freeze([
   Object.freeze([-5, 6]),
   Object.freeze([6, 4]),
 ]);
-
-function readQaCollisionFlag(search) {
-  const query =
-    search !== undefined
-      ? search
-      : typeof location !== 'undefined' && location && typeof location.search === 'string'
-        ? location.search
-        : '';
-  if (!query) return false;
-  return new URLSearchParams(query).get('qaCollision') === '1';
-}
-
-let qaCollision = readQaCollisionFlag();
-
-function setQaCollision(enabled) {
-  qaCollision = !!enabled;
-}
-
-function qaCollisionHoldFrames() {
-  if (!reducedMotion) return QA_COLLISION_HOLD;
-  return Math.max(2, Math.round(QA_COLLISION_HOLD * 0.5));
-}
 
 function qaCollisionPaintAlpha() {
   if (!reducedMotion) return 1;
@@ -1117,16 +934,6 @@ function qaCollisionMarks() {
     w: QA_COLLISION_SIZE,
     h: QA_COLLISION_SIZE,
   }));
-}
-
-function advanceQaCollision() {
-  if (!isUpdatedMode()) return;
-  if (qaCollision && !game.qaCollisionShown && game.state === STATE.RUNNING) {
-    game.qaCollisionShown = true;
-    game.qaCollisionHold = qaCollisionHoldFrames();
-    return;
-  }
-  if (game.state === STATE.RUNNING && game.qaCollisionHold > 0) game.qaCollisionHold--;
 }
 
 // Overdraw after the whole frame, from the hold counter only. A collision
@@ -1158,30 +965,8 @@ function drawQaCollision() {
 // ?qaNight=1. It does not write the score, speed, gaps, or game.rng().
 // Classic never takes it. Reduced motion halves the hold and halves the
 // ink, so the debug wash is shorter and softer too. Re-read in resetGame().
-// Tests flip it through setQaFlash(); a normal visit leaves this false.
+// Tests flip it through setQaFlag('flash'); a normal visit leaves this false.
 const QA_FLASH_HOLD = 180;
-
-function readQaFlashFlag(search) {
-  const query =
-    search !== undefined
-      ? search
-      : typeof location !== 'undefined' && location && typeof location.search === 'string'
-        ? location.search
-        : '';
-  if (!query) return false;
-  return new URLSearchParams(query).get('qaFlash') === '1';
-}
-
-let qaFlash = readQaFlashFlag();
-
-function setQaFlash(enabled) {
-  qaFlash = !!enabled;
-}
-
-function qaFlashHoldFrames() {
-  if (!reducedMotion) return QA_FLASH_HOLD;
-  return Math.max(2, Math.round(QA_FLASH_HOLD * 0.5));
-}
 
 // Motion-allowed playtest shows the real peak. Reduced motion still paints,
 // at half that peak, so a long hold cannot stay a full-strength blink.
@@ -1189,16 +974,6 @@ function qaFlashPaintAlpha() {
   const peak = deathFlashPeakAlpha();
   if (!reducedMotion) return peak;
   return peak * 0.5;
-}
-
-function advanceQaFlash() {
-  if (!isUpdatedMode()) return;
-  if (qaFlash && !game.qaFlashShown && game.state === STATE.RUNNING) {
-    game.qaFlashShown = true;
-    game.qaFlashHold = qaFlashHoldFrames();
-    return;
-  }
-  if (game.state === STATE.RUNNING && game.qaFlashHold > 0) game.qaFlashHold--;
 }
 
 // Overdraw after the whole frame, from the hold counter only. handleDead
@@ -1225,31 +1000,9 @@ function drawQaFlash() {
 // cannot ghost under a slightly larger copy. It does not write the score,
 // speed, gaps, or game.rng(). Classic never takes it. Reduced motion
 // halves the hold and halves the extra scale, and still paints. Re-read
-// in resetGame(). Tests flip it through setQaScorePop(); a normal visit
+// in resetGame(). Tests flip it through setQaFlag('scorePop'); a normal visit
 // leaves this false.
 const QA_SCORE_POP_HOLD = 180;
-
-function readQaScorePopFlag(search) {
-  const query =
-    search !== undefined
-      ? search
-      : typeof location !== 'undefined' && location && typeof location.search === 'string'
-        ? location.search
-        : '';
-  if (!query) return false;
-  return new URLSearchParams(query).get('qaScorePop') === '1';
-}
-
-let qaScorePop = readQaScorePopFlag();
-
-function setQaScorePop(enabled) {
-  qaScorePop = !!enabled;
-}
-
-function qaScorePopHoldFrames() {
-  if (!reducedMotion) return QA_SCORE_POP_HOLD;
-  return Math.max(2, Math.round(QA_SCORE_POP_HOLD * 0.5));
-}
 
 // Motion-allowed playtest shows the real peak. Reduced motion keeps half
 // of the extra scale, still above 1, so the hold cannot sit at rest size.
@@ -1271,16 +1024,6 @@ function qaScorePopCover() {
     w: GAME_CONFIG.CANVAS_W - left,
     h: GAME_CONFIG.SCORE_Y + 28,
   };
-}
-
-function advanceQaScorePop() {
-  if (!isUpdatedMode()) return;
-  if (qaScorePop && !game.qaScorePopShown && game.state === STATE.RUNNING) {
-    game.qaScorePopShown = true;
-    game.qaScorePopHold = qaScorePopHoldFrames();
-    return;
-  }
-  if (game.state === STATE.RUNNING && game.qaScorePopHold > 0) game.qaScorePopHold--;
 }
 
 // Overdraw after the whole frame, from the hold counter only. handleDead
@@ -1314,30 +1057,8 @@ function drawQaScorePop() {
 // deathShakeFrames, and it does not write the score, speed, gaps, or
 // game.rng(). Classic never takes it. Reduced motion halves the hold and
 // halves the shift, and still paints. Re-read in resetGame(). Tests flip
-// it through setQaShake(); a normal visit leaves this false.
+// it through setQaFlag('shake'); a normal visit leaves this false.
 const QA_SHAKE_HOLD = 180;
-
-function readQaShakeFlag(search) {
-  const query =
-    search !== undefined
-      ? search
-      : typeof location !== 'undefined' && location && typeof location.search === 'string'
-        ? location.search
-        : '';
-  if (!query) return false;
-  return new URLSearchParams(query).get('qaShake') === '1';
-}
-
-let qaShake = readQaShakeFlag();
-
-function setQaShake(enabled) {
-  qaShake = !!enabled;
-}
-
-function qaShakeHoldFrames() {
-  if (!reducedMotion) return QA_SHAKE_HOLD;
-  return Math.max(2, Math.round(QA_SHAKE_HOLD * 0.5));
-}
 
 // Motion-allowed playtest shows the real quiet peak. Reduced motion keeps
 // half of that shift, so a long hold cannot sit at the full nudge.
@@ -1346,16 +1067,6 @@ function qaShakeOffset() {
   if (!isUpdatedMode()) return 0;
   if (!reducedMotion) return peak;
   return peak * 0.5;
-}
-
-function advanceQaShake() {
-  if (!isUpdatedMode()) return;
-  if (qaShake && !game.qaShakeShown && game.state === STATE.RUNNING) {
-    game.qaShakeShown = true;
-    game.qaShakeHold = qaShakeHoldFrames();
-    return;
-  }
-  if (game.state === STATE.RUNNING && game.qaShakeHold > 0) game.qaShakeHold--;
 }
 
 // The running draw is already on screen. Shift that frame by the quiet
@@ -1379,40 +1090,8 @@ function endQaShake(active) {
 // start newBestFrames, and does not write the score, speed, gaps, high
 // score, or game.rng(). Classic never takes it. Reduced motion halves the
 // hold and halves its ink, and still paints. Re-read in resetGame().
-// Tests flip it through setQaNewBest(); a normal visit leaves this false.
+// Tests flip it through setQaFlag('newBest'); a normal visit leaves this false.
 const QA_NEW_BEST_HOLD = 180;
-
-function readQaNewBestFlag(search) {
-  const query =
-    search !== undefined
-      ? search
-      : typeof location !== 'undefined' && location && typeof location.search === 'string'
-        ? location.search
-        : '';
-  if (!query) return false;
-  return new URLSearchParams(query).get('qaNewBest') === '1';
-}
-
-let qaNewBest = readQaNewBestFlag();
-
-function setQaNewBest(enabled) {
-  qaNewBest = !!enabled;
-}
-
-function qaNewBestHoldFrames() {
-  if (!reducedMotion) return QA_NEW_BEST_HOLD;
-  return Math.max(2, Math.round(QA_NEW_BEST_HOLD * 0.5));
-}
-
-function advanceQaNewBest() {
-  if (!isUpdatedMode()) return;
-  if (qaNewBest && !game.qaNewBestShown && game.state === STATE.RUNNING) {
-    game.qaNewBestShown = true;
-    game.qaNewBestHold = qaNewBestHoldFrames();
-    return;
-  }
-  if (game.state === STATE.RUNNING && game.qaNewBestHold > 0) game.qaNewBestHold--;
-}
 
 // QA/debug only — not for players. ?qaCopy=1 holds the Daily Copy result
 // button on ✓ Copied! from the first WAITING, RUNNING, or DEAD frame, so
@@ -1422,43 +1101,8 @@ function advanceQaNewBest() {
 // score, speed, gaps, particles, or game.rng(). Classic and free-play
 // Updated never take it. Reduced motion halves the hold and adds the
 // quieter is-qa-damped paint. Re-read in resetGame(). Tests flip it through
-// setQaCopy(); a normal visit leaves this false.
+// setQaFlag('copy'); a normal visit leaves this false.
 const QA_COPY_HOLD = 180;
-
-function readQaCopyFlag(search) {
-  const query =
-    search !== undefined
-      ? search
-      : typeof location !== 'undefined' && location && typeof location.search === 'string'
-        ? location.search
-        : '';
-  if (!query) return false;
-  return new URLSearchParams(query).get('qaCopy') === '1';
-}
-
-let qaCopy = readQaCopyFlag();
-
-function setQaCopy(enabled) {
-  qaCopy = !!enabled;
-}
-
-function qaCopyHoldFrames() {
-  if (!reducedMotion) return QA_COPY_HOLD;
-  return Math.max(2, Math.round(QA_COPY_HOLD * 0.5));
-}
-
-function advanceQaCopy() {
-  if (!isDailyMode()) return;
-  const visible =
-    game.state === STATE.WAITING || game.state === STATE.RUNNING || game.state === STATE.DEAD;
-  if (!visible) return;
-  if (qaCopy && !game.qaCopyShown) {
-    game.qaCopyShown = true;
-    game.qaCopyHold = qaCopyHoldFrames();
-    return;
-  }
-  if (game.qaCopyHold > 0) game.qaCopyHold--;
-}
 
 function applyQaCopyButton() {
   const btn = document.getElementById('share-btn');
@@ -1498,30 +1142,8 @@ function applyQaCopyButton() {
 // does not write the score, speed, gaps, particles, or game.rng(). Classic
 // and free-play Updated never take it. Reduced motion latches the half
 // length and adds the quieter is-qa-damped paint. Re-read in resetGame().
-// Tests flip it through setQaShare(); a normal visit leaves this false.
+// Tests flip it through setQaFlag('share'); a normal visit leaves this false.
 const QA_SHARE_HOLD = 180;
-
-function readQaShareFlag(search) {
-  const query =
-    search !== undefined
-      ? search
-      : typeof location !== 'undefined' && location && typeof location.search === 'string'
-        ? location.search
-        : '';
-  if (!query) return false;
-  return new URLSearchParams(query).get('qaShare') === '1';
-}
-
-let qaShare = readQaShareFlag();
-
-function setQaShare(enabled) {
-  qaShare = !!enabled;
-}
-
-function qaShareHoldFrames() {
-  if (!reducedMotion) return QA_SHARE_HOLD;
-  return Math.max(2, Math.round(QA_SHARE_HOLD * 0.5));
-}
 
 // True on the frame the Copy result button becomes visible, and on every
 // settled Game Over frame after that. The count-up increments inside
@@ -1535,12 +1157,12 @@ function dailyShareButtonSettled() {
 }
 
 function advanceQaShare() {
-  if (!qaShare || !dailyShareButtonSettled()) return;
+  if (!qa.share || !dailyShareButtonSettled()) return;
   // Latch once, on the settled card. Do not spend frames before Copy
   // result is on screen, and do not count them down while it stays there.
   if (!game.qaShareShown || game.qaShareHold <= 0) {
     game.qaShareShown = true;
-    game.qaShareHold = qaShareHoldFrames();
+    game.qaShareHold = qaHoldFrames('share');
   }
 }
 
@@ -1553,31 +1175,9 @@ function advanceQaShare() {
 // until the player starts, so a capture does not have to win a race.
 // Reduced motion halves the hold once the run starts and paints the card
 // at half strength. Re-read in resetGame(). Tests flip it through
-// setQaCountUp(); a normal visit leaves this false.
+// setQaFlag('countUp'); a normal visit leaves this false.
 const QA_COUNT_UP_HOLD = 180;
 const QA_COUNT_UP_SCORE = 100;
-
-function readQaCountUpFlag(search) {
-  const query =
-    search !== undefined
-      ? search
-      : typeof location !== 'undefined' && location && typeof location.search === 'string'
-        ? location.search
-        : '';
-  if (!query) return false;
-  return new URLSearchParams(query).get('qaCountUp') === '1';
-}
-
-let qaCountUp = readQaCountUpFlag();
-
-function setQaCountUp(enabled) {
-  qaCountUp = !!enabled;
-}
-
-function qaCountUpHoldFrames() {
-  if (!reducedMotion) return QA_COUNT_UP_HOLD;
-  return Math.max(2, Math.round(QA_COUNT_UP_HOLD * 0.5));
-}
 
 // Freeze at the Updated length. That frame has finished the shorter roll
 // and is still inside the Classic 30. A reduced-motion length below 18
@@ -1594,30 +1194,8 @@ function qaCountUpPaintFrame() {
 // does not tick down in IDLE and does not start the countdown. Reduced
 // motion halves the hold and, in Updated and Daily, paints the static
 // midpoint at half ink. Re-read in resetGame(). Tests flip it through
-// setQaIdle(); a normal visit leaves this false.
+// setQaFlag('idle'); a normal visit leaves this false.
 const QA_IDLE_HOLD = 180;
-
-function readQaIdleFlag(search) {
-  const query =
-    search !== undefined
-      ? search
-      : typeof location !== 'undefined' && location && typeof location.search === 'string'
-        ? location.search
-        : '';
-  if (!query) return false;
-  return new URLSearchParams(query).get('qaIdle') === '1';
-}
-
-let qaIdle = readQaIdleFlag();
-
-function setQaIdle(enabled) {
-  qaIdle = !!enabled;
-}
-
-function qaIdleHoldFrames() {
-  if (!reducedMotion) return QA_IDLE_HOLD;
-  return Math.max(2, Math.round(QA_IDLE_HOLD * 0.5));
-}
 
 // QA/debug only — not for players. ?qaSafe=1 paints stand-in safe-area
 // bands (notch, side insets, home indicator) so Playtest can check that
@@ -1625,90 +1203,19 @@ function qaIdleHoldFrames() {
 // the notch and the home indicator. Off, this adds no class and changes
 // no gameplay. The bands do not animate, so reduced motion has nothing to
 // shorten. Re-read in resetGame() like the other QA flags. Tests flip it
-// through setQaSafe(); a normal visit leaves this false.
-function readQaSafeFlag(search) {
-  const query =
-    search !== undefined
-      ? search
-      : typeof location !== 'undefined' && location && typeof location.search === 'string'
-        ? location.search
-        : '';
-  if (!query) return false;
-  return new URLSearchParams(query).get('qaSafe') === '1';
-}
-
-let qaSafe = readQaSafeFlag();
-
-function setQaSafe(enabled) {
-  qaSafe = !!enabled;
-}
-
+// through setQaFlag('safe'); a normal visit leaves this false.
 function applyQaSafeShell() {
   const root = typeof document !== 'undefined' ? document.documentElement : null;
   if (!root || !root.classList || typeof root.classList.add !== 'function') return;
-  if (qaSafe) root.classList.add('qa-safe');
+  if (qa.safe) root.classList.add('qa-safe');
   else if (typeof root.classList.remove === 'function') root.classList.remove('qa-safe');
 }
 
-// QA/debug only — not for players. ?qaHz=1 paints a static corner readout
-// of the measured sim rate and the display rate (rAF) so Playtest can
-// confirm a 120Hz phone still runs near 60 sim steps per second. Off,
-// nothing is counted and nothing is drawn. The ink does not pulse or
-// shake, so reduced motion has no hold to shorten. Re-read in resetGame().
-// Tests flip it through setQaHz(); a normal visit leaves this false.
-function readQaHzFlag(search) {
-  const query =
-    search !== undefined
-      ? search
-      : typeof location !== 'undefined' && location && typeof location.search === 'string'
-        ? location.search
-        : '';
-  if (!query) return false;
-  return new URLSearchParams(query).get('qaHz') === '1';
-}
-
-let qaHz = readQaHzFlag();
-
-function setQaHz(enabled) {
-  qaHz = !!enabled;
-  if (!qaHz) resetQaHzMeter();
-}
-
-function advanceQaIdle() {
-  const visible =
-    game.state === STATE.IDLE ||
-    game.state === STATE.WAITING ||
-    game.state === STATE.RUNNING ||
-    game.state === STATE.DEAD;
-  if (!visible) return;
-  if (qaIdle && !game.qaIdleShown) {
-    game.qaIdleShown = true;
-    game.qaIdleHold = qaIdleHoldFrames();
-    return;
-  }
-  // Stay on the idle card until the player starts. A short hold from the
-  // first frame would expire before a slow capture.
-  if (game.state === STATE.IDLE) return;
-  if (game.qaIdleHold > 0) game.qaIdleHold--;
-}
-
-function advanceQaCountUp() {
-  const visible =
-    game.state === STATE.IDLE ||
-    game.state === STATE.WAITING ||
-    game.state === STATE.RUNNING ||
-    game.state === STATE.DEAD;
-  if (!visible) return;
-  if (qaCountUp && !game.qaCountUpShown) {
-    game.qaCountUpShown = true;
-    game.qaCountUpHold = qaCountUpHoldFrames();
-    return;
-  }
-  // Stay on the idle card until the player starts. A 3s hold from the
-  // first frame would expire before a slow capture.
-  if (game.state === STATE.IDLE) return;
-  if (game.qaCountUpHold > 0) game.qaCountUpHold--;
-}
+// ?qaHz=1 (see QA_FLAGS) paints a static corner readout of the measured
+// sim rate and the display rate (rAF) so Playtest can confirm a 120Hz
+// phone still runs near 60 sim steps per second. Off, nothing is counted
+// and nothing is drawn. The ink does not pulse or shake, so reduced motion
+// has no hold to shorten.
 
 function clearQaCountUpShare() {
   if (!game.qaCountUpShown || game.qaCountUpShareCleared || game.qaCountUpHold > 0) return;
@@ -1793,14 +1300,14 @@ function drawQaConfetti() {
 
 // Score the night sky consults. The QA flag pretends night has fully arrived.
 function scoreForNightSky(score) {
-  if (!qaNight) return score;
+  if (!qa.night) return score;
   return score < GAME_CONFIG.DAY_NIGHT_END ? GAME_CONFIG.DAY_NIGHT_END : score;
 }
 
 // Returns the rolled type, or the cluster type once per run when the QA flag
 // is on. Updated and Daily only. Does not call game.rng().
 function qaClusterOverride(rolledType) {
-  if (!qaCluster || game.qaClusterShown || !isUpdatedMode()) return rolledType;
+  if (!qa.cluster || game.qaClusterShown || !isUpdatedMode()) return rolledType;
   const cluster = GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'cluster');
   if (!cluster) return rolledType;
   game.qaClusterShown = true;
@@ -1810,11 +1317,234 @@ function qaClusterOverride(rolledType) {
 // Returns the rolled type, or the big cactus once per run when the QA flag
 // is on. Updated and Daily only. Does not call game.rng().
 function qaBigOverride(rolledType) {
-  if (!qaBig || game.qaBigShown || !isUpdatedMode()) return rolledType;
+  if (!qa.big || game.qaBigShown || !isUpdatedMode()) return rolledType;
   const big = GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'big');
   if (!big) return rolledType;
   game.qaBigShown = true;
   return big;
+}
+
+// --- QA switchboard (C3) -----------------------------------------------
+// QA/debug only — not for players. Every ?qaX=1 playtest flag is one row
+// here, instead of its own reader, variable and setter. Each row says:
+//   id       the key in `qa` (qa.night, qa.dust, ...) and in setQaFlag()
+//   param    the URL query name; only the exact value 1 turns it on
+//   hold     frames a held overlay stays up (the game.<param>Hold counter)
+//   reduced  share of that hold kept under reduced motion (min 2 frames)
+//   latch    when the hold starts: 'running' (first RUNNING frame) or
+//            'visible' (first frame the gate allows)
+//   count    when the hold counts down: 'running', 'notIdle' or 'always'
+//   gate     when the flag may act at all (mode or state)
+//   advance  custom per-frame step, for a flag the generic one can't express
+//   draw     overdraw after the frame, from the hold counter only
+//   onSet    side effect when a test or reader switches it
+// The table order is the order runSimFrame() advances and draws them.
+// No flag writes score, speed, gaps, hitboxes or game.rng(); with no flag
+// set a run plays exactly as before (the golden replays check this).
+// Flags whose holds are latched elsewhere (plateau, level, confetti in
+// handleRunning; cluster and big in the type overrides) list `hold` or
+// `latched` so resetGame() clears them, but have no generic advance.
+const updatedOnly = () => isUpdatedMode();
+const anyState = () =>
+  game.state === STATE.IDLE ||
+  game.state === STATE.WAITING ||
+  game.state === STATE.RUNNING ||
+  game.state === STATE.DEAD;
+const dailyCardStates = () =>
+  isDailyMode() &&
+  (game.state === STATE.WAITING || game.state === STATE.RUNNING || game.state === STATE.DEAD);
+
+const QA_FLAGS = Object.freeze([
+  // Forces the first Updated/Daily obstacle to be a cluster / big cactus.
+  { id: 'cluster', param: 'qaCluster', latched: true },
+  { id: 'big', param: 'qaBig', latched: true },
+  // Full night from the first frame (read through scoreForNightSky).
+  { id: 'night', param: 'qaNight' },
+  // Late-run heel whisper from the first Updated/Daily frame.
+  { id: 'trail', param: 'qaTrail' },
+  {
+    id: 'confetti',
+    param: 'qaConfetti',
+    hold: QA_CONFETTI_HOLD,
+    latched: true,
+    draw: drawQaConfetti,
+  },
+  {
+    id: 'dust',
+    param: 'qaDust',
+    hold: QA_DUST_HOLD,
+    reduced: 1,
+    latched: true,
+    gate: updatedOnly,
+    latch: 'visible',
+    count: 'running',
+    draw: drawQaDust,
+  },
+  {
+    id: 'collision',
+    param: 'qaCollision',
+    hold: QA_COLLISION_HOLD,
+    latched: true,
+    gate: updatedOnly,
+    latch: 'running',
+    count: 'running',
+    draw: drawQaCollision,
+  },
+  { id: 'plateau', param: 'qaPlateau', hold: QA_PLATEAU_HOLD, draw: drawQaPlateau },
+  {
+    id: 'flash',
+    param: 'qaFlash',
+    hold: QA_FLASH_HOLD,
+    latched: true,
+    gate: updatedOnly,
+    latch: 'running',
+    count: 'running',
+    draw: drawQaFlash,
+  },
+  { id: 'level', param: 'qaLevel', hold: QA_LEVEL_HOLD, latched: true, draw: drawQaLevelLabel },
+  {
+    id: 'scorePop',
+    param: 'qaScorePop',
+    hold: QA_SCORE_POP_HOLD,
+    latched: true,
+    gate: updatedOnly,
+    latch: 'running',
+    count: 'running',
+    draw: drawQaScorePop,
+  },
+  {
+    id: 'newBest',
+    param: 'qaNewBest',
+    hold: QA_NEW_BEST_HOLD,
+    latched: true,
+    gate: updatedOnly,
+    latch: 'running',
+    count: 'running',
+    draw: drawQaNewBest,
+  },
+  {
+    id: 'copy',
+    param: 'qaCopy',
+    hold: QA_COPY_HOLD,
+    latched: true,
+    gate: dailyCardStates,
+    latch: 'visible',
+    count: 'always',
+  },
+  { id: 'share', param: 'qaShare', hold: QA_SHARE_HOLD, latched: true, advance: advanceQaShare },
+  {
+    id: 'shake',
+    param: 'qaShake',
+    hold: QA_SHAKE_HOLD,
+    latched: true,
+    gate: updatedOnly,
+    latch: 'running',
+    count: 'running',
+  },
+  {
+    id: 'countUp',
+    param: 'qaCountUp',
+    hold: QA_COUNT_UP_HOLD,
+    latched: true,
+    gate: anyState,
+    latch: 'visible',
+    count: 'notIdle',
+    draw: drawQaCountUp,
+  },
+  {
+    id: 'idle',
+    param: 'qaIdle',
+    hold: QA_IDLE_HOLD,
+    latched: true,
+    gate: anyState,
+    latch: 'visible',
+    count: 'notIdle',
+  },
+  // Safe-area bands on the page shell (a class on <html>, not the canvas).
+  { id: 'safe', param: 'qaSafe' },
+  // Corner readout of measured sim and display rates (drawn from gameLoop).
+  {
+    id: 'hz',
+    param: 'qaHz',
+    onSet: (on) => {
+      if (!on) resetQaHzMeter();
+    },
+  },
+]);
+
+const QA_FLAG_BY_ID = Object.freeze(Object.fromEntries(QA_FLAGS.map((f) => [f.id, f])));
+
+// True when the page query (or `search`, for tests) has exactly <param>=1.
+function readQaFlag(id, search) {
+  const query =
+    search !== undefined
+      ? search
+      : typeof location !== 'undefined' && location && typeof location.search === 'string'
+        ? location.search
+        : '';
+  if (!query) return false;
+  return new URLSearchParams(query).get(QA_FLAG_BY_ID[id].param) === '1';
+}
+
+// Which flags are on this run. Read at boot and again in resetGame(), so a
+// mode toggle still honours the page query. Tests flip one with setQaFlag().
+const qa = {};
+function readQaFlags() {
+  for (const flag of QA_FLAGS) qa[flag.id] = readQaFlag(flag.id);
+}
+readQaFlags();
+
+function setQaFlag(id, enabled) {
+  const flag = QA_FLAG_BY_ID[id];
+  qa[id] = !!enabled;
+  if (flag.onSet) flag.onSet(qa[id]);
+}
+
+// Hold length for a flag's overlay. Reduced motion keeps `reduced` of it
+// (half unless the row says otherwise), never under 2 frames.
+function qaHoldFrames(id) {
+  const flag = QA_FLAG_BY_ID[id];
+  const share = flag.reduced === undefined ? 0.5 : flag.reduced;
+  if (!reducedMotion || share === 1) return flag.hold;
+  return Math.max(2, Math.round(flag.hold * share));
+}
+
+// The game.<param>Shown / game.<param>Hold fields, at their run-start values.
+function initialQaHolds() {
+  const holds = {};
+  for (const flag of QA_FLAGS) {
+    if (flag.latched) holds[flag.param + 'Shown'] = false;
+    if (flag.hold !== undefined) holds[flag.param + 'Hold'] = 0;
+  }
+  return holds;
+}
+
+// One sim slice for one flag: latch its hold once, then count it down.
+function advanceQaHold(flag) {
+  const shown = flag.param + 'Shown';
+  const hold = flag.param + 'Hold';
+  if (!flag.gate()) return;
+  const latchNow = flag.latch === 'visible' || game.state === STATE.RUNNING;
+  if (qa[flag.id] && !game[shown] && latchNow) {
+    game[shown] = true;
+    game[hold] = qaHoldFrames(flag.id);
+    return;
+  }
+  if (game[hold] <= 0) return;
+  if (flag.count === 'running' && game.state !== STATE.RUNNING) return;
+  if (flag.count === 'notIdle' && game.state === STATE.IDLE) return;
+  game[hold]--;
+}
+
+function advanceQaFlags() {
+  for (const flag of QA_FLAGS) {
+    if (flag.advance) flag.advance();
+    else if (flag.gate) advanceQaHold(flag);
+  }
+}
+
+function drawQaFlags() {
+  for (const flag of QA_FLAGS) if (flag.draw) flag.draw();
 }
 
 // --- Web Audio module (PR-B) ---
@@ -2275,57 +2005,12 @@ const game = {
   milestoneText: '',
   newBestShown: false,
   plateauCueShown: false,
-  // QA/debug only. Latches after ?qaCluster=1 spends its one early cluster.
-  qaClusterShown: false,
-  // QA/debug only. Latches after ?qaBig=1 spends its one early big cactus.
-  qaBigShown: false,
-  // QA/debug only. Latches after ?qaLevel=1 spends its one early milestone flash.
-  qaLevelShown: false,
-  // QA/debug only. Frames left on the ?qaLevel=1 quiet LEVEL label.
-  qaLevelHold: 0,
-  // QA/debug only. Latches after ?qaConfetti=1 spends its one early gold puff.
-  qaConfettiShown: false,
-  qaConfettiHold: 0,
-  // QA/debug only. Latches after ?qaDust=1 spends its one held foot cluster.
-  qaDustShown: false,
-  qaDustHold: 0,
-  // QA/debug only. Latches after ?qaCollision=1 spends its one held death puff.
-  qaCollisionShown: false,
-  qaCollisionHold: 0,
-  // QA/debug only. Frames left on the ?qaPlateau=1 heel cluster.
-  qaPlateauHold: 0,
-  // QA/debug only. Latches after ?qaFlash=1 spends its one early death blink.
-  qaFlashShown: false,
-  qaFlashHold: 0,
-  // QA/debug only. Latches after ?qaScorePop=1 spends its one early score swell.
-  qaScorePopShown: false,
-  qaScorePopHold: 0,
-  // QA/debug only. Latches after ?qaShake=1 spends its one early death nudge.
-  qaShakeShown: false,
-  qaShakeHold: 0,
-  // QA/debug only. Latches after ?qaNewBest=1 spends its one early badge.
-  qaNewBestShown: false,
-  // QA/debug only. Frames left on the ?qaNewBest=1 quiet NEW BEST badge.
-  qaNewBestHold: 0,
-  // QA/debug only. Latches after ?qaCopy=1 spends its one Copied hold.
-  qaCopyShown: false,
-  // QA/debug only. Frames left on the ?qaCopy=1 Copied label.
-  qaCopyHold: 0,
-  // QA/debug only. Latches after ?qaShare=1 spends its one Copied hold.
-  qaShareShown: false,
-  // QA/debug only. Frames left on the ?qaShare=1 Copied label.
-  qaShareHold: 0,
-  // QA/debug only. Latches after ?qaCountUp=1 spends its Game Over card.
-  qaCountUpShown: false,
-  // QA/debug only. Frames left on the ?qaCountUp=1 Game Over card.
-  qaCountUpHold: 0,
-  // QA/debug only. The share button was put back after that card.
+  // QA/debug only. game.qa<Flag>Shown latches once a ?qa<Flag>=1 overlay
+  // has been spent; game.qa<Flag>Hold counts its frames down. One pair per
+  // row of QA_FLAGS that needs it.
+  ...initialQaHolds(),
+  // QA/debug only. The share button was put back after the ?qaCountUp=1 card.
   qaCountUpShareCleared: false,
-  // QA/debug only. Latches after ?qaIdle=1 spends its idle-card hold.
-  qaIdleShown: false,
-  // QA/debug only. Frames left on the ?qaIdle=1 invite. Idle does not tick
-  // this down, so a capture can wait on the title card.
-  qaIdleHold: 0,
   isNewBest: false,
   previousHighScore: 0,
   // Set on a Daily death before today best is saved. Mirrors isNewBest:
@@ -2387,7 +2072,7 @@ function dailyShareText() {
 }
 
 function canOfferNativeShare() {
-  if (qaShare) return false;
+  if (qa.share) return false;
   if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') return false;
   // A browser can expose share() and still have no sheet (desktop Linux).
   // canShare() === false means the clipboard path, which flashes Copied.
@@ -2425,7 +2110,7 @@ function writeDailyShareClipboard(text) {
 // Returns the text so tests can assert its shape without touching clipboard.
 function shareDailyResult() {
   const text = dailyShareText();
-  if (!qaShare && !canOfferNativeShare()) writeDailyShareClipboard(text);
+  if (!qa.share && !canOfferNativeShare()) writeDailyShareClipboard(text);
   return text;
 }
 
@@ -3329,9 +3014,9 @@ function drawGameOverScreen() {
         // tap was put back to Copy result on the next Game Over frame.
         // ?qaShare=1 keeps ✓ Copied! for the whole settled screen.
         const qaHold = game.qaCopyHold > 0 || game.qaShareHold > 0;
-        const copied = qaHold || Animations.copyFlashFrames > 0 || qaShare;
+        const copied = qaHold || Animations.copyFlashFrames > 0 || qa.share;
         shareBtnEl.textContent = copied ? '✓ Copied!' : '📋 Copy result';
-        const damped = reducedMotion && copied && (qaHold || qaShare);
+        const damped = reducedMotion && copied && (qaHold || qa.share);
         markShareCopied(shareBtnEl, copied, damped);
       }
     }
@@ -4174,12 +3859,12 @@ if (shareBtn && shareBtn.addEventListener) {
     if (event) event.stopPropagation();
     // ?qaShare=1 never opens the OS sheet. The confirmation is in-page
     // so a capture can see it. Reduced motion quiets that QA paint.
-    if (qaShare) {
+    if (qa.share) {
       // Refresh the on-screen hold so a tap after the first window still
       // survives the next Game Over paint. No sheet, no clipboard.
       if (game.state === STATE.DEAD && isDailyMode()) {
         game.qaShareShown = true;
-        game.qaShareHold = qaShareHoldFrames();
+        game.qaShareHold = qaHoldFrames('share');
       }
       Animations.copyFlashFrames = copyFlashDuration();
       shareBtn.textContent = '✓ Copied!';
@@ -4333,54 +4018,10 @@ function resetGame() {
   Animations.reset();
   game.newBestShown = false;
   game.plateauCueShown = false;
-  game.qaClusterShown = false;
-  game.qaBigShown = false;
-  game.qaLevelShown = false;
-  game.qaLevelHold = 0;
-  game.qaConfettiShown = false;
-  game.qaConfettiHold = 0;
-  game.qaDustShown = false;
-  game.qaDustHold = 0;
-  game.qaCollisionShown = false;
-  game.qaCollisionHold = 0;
-  game.qaPlateauHold = 0;
-  game.qaFlashShown = false;
-  game.qaFlashHold = 0;
-  game.qaScorePopShown = false;
-  game.qaScorePopHold = 0;
-  game.qaShakeShown = false;
-  game.qaShakeHold = 0;
-  game.qaNewBestShown = false;
-  game.qaNewBestHold = 0;
-  game.qaCopyShown = false;
-  game.qaCopyHold = 0;
-  game.qaShareShown = false;
-  game.qaShareHold = 0;
-  game.qaCountUpShown = false;
-  game.qaCountUpHold = 0;
+  Object.assign(game, initialQaHolds());
   game.qaCountUpShareCleared = false;
-  game.qaIdleShown = false;
-  game.qaIdleHold = 0;
   // QA/debug only. Re-read so a mode toggle still honors the page query.
-  qaPlateau = readQaPlateauFlag();
-  qaCluster = readQaClusterFlag();
-  qaBig = readQaBigFlag();
-  qaNight = readQaNightFlag();
-  qaLevel = readQaLevelFlag();
-  qaTrail = readQaTrailFlag();
-  qaConfetti = readQaConfettiFlag();
-  qaDust = readQaDustFlag();
-  qaCollision = readQaCollisionFlag();
-  qaFlash = readQaFlashFlag();
-  qaScorePop = readQaScorePopFlag();
-  qaShake = readQaShakeFlag();
-  qaNewBest = readQaNewBestFlag();
-  qaCopy = readQaCopyFlag();
-  qaShare = readQaShareFlag();
-  qaCountUp = readQaCountUpFlag();
-  qaIdle = readQaIdleFlag();
-  qaSafe = readQaSafeFlag();
-  qaHz = readQaHzFlag();
+  readQaFlags();
   applyQaSafeShell();
   game.isNewBest = false;
   game.previousHighScore = 0;
@@ -4552,7 +4193,7 @@ function handleRunning() {
       GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30,
       GAME_CONFIG.SCORE_Y
     );
-  } else if (qaLevel && isUpdatedMode() && !game.qaLevelShown) {
+  } else if (qa.level && isUpdatedMode() && !game.qaLevelShown) {
     // QA/debug only. Same wash as the first real level, once, while the
     // score is still near zero. The hold keeps the quiet word up after
     // that fade. Does not touch speed, gaps, or game.rng().
@@ -4565,7 +4206,7 @@ function handleRunning() {
       GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET + 30,
       GAME_CONFIG.SCORE_Y
     );
-    game.qaLevelHold = qaLevelHoldFrames();
+    game.qaLevelHold = qaHoldFrames('level');
     latchedQaLevel = true;
   }
   if (!latchedQaLevel && game.qaLevelHold > 0) game.qaLevelHold--;
@@ -4576,9 +4217,9 @@ function handleRunning() {
   // level and keeps the small #ffd700 kind. Classic never enters.
   // Does not change speed, gaps, scoring, or game.rng(). Reduced motion
   // latches the shorter hold.
-  if (qaConfetti && isUpdatedMode() && !game.qaConfettiShown) {
+  if (qa.confetti && isUpdatedMode() && !game.qaConfettiShown) {
     game.qaConfettiShown = true;
-    game.qaConfettiHold = qaConfettiHoldFrames();
+    game.qaConfettiHold = qaHoldFrames('confetti');
   } else if (game.qaConfettiHold > 0) {
     game.qaConfettiHold--;
   }
@@ -4628,14 +4269,14 @@ function handleRunning() {
   // sit under the sprite. Reduced motion shortens that hold and draws fewer,
   // softer specks.
   // Classic never enters. Particles.emit uses Math.random(), not game.rng().
-  const plateauReached = qaPlateau
+  const plateauReached = qa.plateau
     ? game.score >= QA_PLATEAU_SCORE
     : game.currentSpeed >= GAME_CONFIG.PLATEAU_SPEED * GAME_CONFIG.PLATEAU_REACH_RATIO;
   if (isUpdatedMode() && !game.plateauCueShown && plateauReached) {
     game.plateauCueShown = true;
-    if (qaPlateau) {
-      game.qaPlateauHold = qaPlateauHoldFrames();
-      if (qaNight) {
+    if (qa.plateau) {
+      game.qaPlateauHold = qaHoldFrames('plateau');
+      if (qa.night) {
         Particles.emit('plateau', dino.x + 4, dino.y + dino.height - 4);
       } else {
         Particles.emit('plateauQa', dino.x - 8, dino.y + dino.height - 8);
@@ -4655,7 +4296,7 @@ function handleRunning() {
   // Math.random(), not game.rng(). The flag does not change speed, gaps,
   // or scoring.
   const trailOn =
-    qaTrail || game.currentSpeed >= GAME_CONFIG.PLATEAU_SPEED * GAME_CONFIG.TRAIL_SPEED_RATIO;
+    qa.trail || game.currentSpeed >= GAME_CONFIG.PLATEAU_SPEED * GAME_CONFIG.TRAIL_SPEED_RATIO;
   if (isUpdatedMode() && trailOn) {
     Particles.emit('trail', dino.x + 4, dino.y + dino.height - 4);
   }
@@ -4836,7 +4477,7 @@ function resetQaHzMeter() {
 }
 
 function noteQaHzFrame(steps, timestamp) {
-  if (!qaHz) return;
+  if (!qa.hz) return;
   if (typeof timestamp !== 'number' || !Number.isFinite(timestamp)) return;
   if (qaHzMeter.anchor === null) {
     qaHzMeter.anchor = timestamp;
@@ -4863,7 +4504,7 @@ function qaHzLabel() {
 }
 
 function drawQaHz() {
-  if (!qaHz) return;
+  if (!qa.hz) return;
   const label = qaHzLabel();
   const night = game.score >= GAME_CONFIG.DAY_NIGHT_START;
   ctx.save();
@@ -4883,16 +4524,7 @@ function drawQaHz() {
 // the canvas already shows the last slice, and a second pass would move
 // score, hills, and particles for time that was not owed.
 function runSimFrame() {
-  advanceQaDust();
-  advanceQaCollision();
-  advanceQaFlash();
-  advanceQaScorePop();
-  advanceQaNewBest();
-  advanceQaCopy();
-  advanceQaShare();
-  advanceQaShake();
-  advanceQaCountUp();
-  advanceQaIdle();
+  advanceQaFlags();
   const shakeHeld = beginQaShake();
   STATE_HANDLERS[game.state]();
   endQaShake(shakeHeld);
@@ -4901,15 +4533,7 @@ function runSimFrame() {
   // The flash sits above the earlier marks. The LEVEL hold sits above that
   // blink so the word stays readable. The NEW BEST hold is painted last,
   // above the score pop, so a swollen score cannot cover the corner badge.
-  drawQaConfetti();
-  drawQaDust();
-  drawQaCollision();
-  drawQaPlateau();
-  drawQaFlash();
-  drawQaLevelLabel();
-  drawQaScorePop();
-  drawQaNewBest();
-  drawQaCountUp();
+  drawQaFlags();
   applyQaCopyButton();
 }
 
@@ -4990,11 +4614,16 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.SHELL_CHROME_ROW = SHELL_CHROME_ROW;
   global.SHELL_JUMP_BLOCK = SHELL_JUMP_BLOCK;
   global.SHELL_SHARE_BLOCK = SHELL_SHARE_BLOCK;
-  global.readQaSafeFlag = readQaSafeFlag;
-  global.setQaSafe = setQaSafe;
+  global.QA_FLAGS = QA_FLAGS;
+  global.qa = qa;
+  global.readQaFlag = readQaFlag;
+  global.readQaFlags = readQaFlags;
+  global.setQaFlag = setQaFlag;
+  global.qaHoldFrames = qaHoldFrames;
+  global.initialQaHolds = initialQaHolds;
+  global.advanceQaFlags = advanceQaFlags;
+  global.drawQaFlags = drawQaFlags;
   global.applyQaSafeShell = applyQaSafeShell;
-  global.readQaHzFlag = readQaHzFlag;
-  global.setQaHz = setQaHz;
   global.qaHzLabel = qaHzLabel;
   global.drawQaHz = drawQaHz;
   global.SIM_FRAME_MS = SIM_FRAME_MS;
@@ -5042,100 +4671,55 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.dumpRun = dumpRun;
   global.copyDeathLog = copyDeathLog;
   global.handleDebugKey = handleDebugKey;
-  global.setQaPlateau = setQaPlateau;
-  global.readQaPlateauFlag = readQaPlateauFlag;
   global.QA_PLATEAU_SCORE = QA_PLATEAU_SCORE;
   global.QA_PLATEAU_HOLD = QA_PLATEAU_HOLD;
   global.QA_PLATEAU_SIZE = QA_PLATEAU_SIZE;
   global.QA_PLATEAU_RIM = QA_PLATEAU_RIM;
   global.qaPlateauMarks = qaPlateauMarks;
-  global.qaPlateauHoldFrames = qaPlateauHoldFrames;
   global.qaPlateauFill = qaPlateauFill;
   global.drawQaPlateau = drawQaPlateau;
-  global.setQaCluster = setQaCluster;
-  global.readQaClusterFlag = readQaClusterFlag;
-  global.setQaBig = setQaBig;
-  global.readQaBigFlag = readQaBigFlag;
-  global.setQaNight = setQaNight;
-  global.readQaNightFlag = readQaNightFlag;
-  global.setQaLevel = setQaLevel;
-  global.readQaLevelFlag = readQaLevelFlag;
-  global.setQaTrail = setQaTrail;
-  global.readQaTrailFlag = readQaTrailFlag;
-  global.setQaConfetti = setQaConfetti;
-  global.readQaConfettiFlag = readQaConfettiFlag;
   global.QA_CONFETTI_HOLD = QA_CONFETTI_HOLD;
   global.QA_CONFETTI_BLOCK_W = QA_CONFETTI_BLOCK_W;
   global.QA_CONFETTI_BLOCK_H = QA_CONFETTI_BLOCK_H;
   global.QA_CONFETTI_COLOR = QA_CONFETTI_COLOR;
   global.QA_CONFETTI_RIM = QA_CONFETTI_RIM;
   global.qaConfettiRect = qaConfettiRect;
-  global.qaConfettiHoldFrames = qaConfettiHoldFrames;
   global.qaConfettiPaintAlpha = qaConfettiPaintAlpha;
   global.drawQaConfetti = drawQaConfetti;
-  global.setQaDust = setQaDust;
-  global.readQaDustFlag = readQaDustFlag;
   global.QA_DUST_HOLD = QA_DUST_HOLD;
   global.QA_DUST_SIZE = QA_DUST_SIZE;
   global.QA_DUST_RIM = QA_DUST_RIM;
   global.qaDustMarks = qaDustMarks;
   global.drawQaDust = drawQaDust;
-  global.setQaCollision = setQaCollision;
-  global.readQaCollisionFlag = readQaCollisionFlag;
   global.QA_COLLISION_HOLD = QA_COLLISION_HOLD;
   global.QA_COLLISION_SIZE = QA_COLLISION_SIZE;
   global.QA_COLLISION_RIM = QA_COLLISION_RIM;
   global.QA_COLLISION_OFFSETS = QA_COLLISION_OFFSETS;
   global.qaCollisionMarks = qaCollisionMarks;
-  global.qaCollisionHoldFrames = qaCollisionHoldFrames;
   global.qaCollisionPaintAlpha = qaCollisionPaintAlpha;
   global.drawQaCollision = drawQaCollision;
-  global.setQaFlash = setQaFlash;
-  global.readQaFlashFlag = readQaFlashFlag;
   global.QA_FLASH_HOLD = QA_FLASH_HOLD;
-  global.qaFlashHoldFrames = qaFlashHoldFrames;
   global.qaFlashPaintAlpha = qaFlashPaintAlpha;
   global.drawQaFlash = drawQaFlash;
   global.scorePopScale = scorePopScale;
-  global.setQaScorePop = setQaScorePop;
-  global.readQaScorePopFlag = readQaScorePopFlag;
   global.QA_SCORE_POP_HOLD = QA_SCORE_POP_HOLD;
-  global.qaScorePopHoldFrames = qaScorePopHoldFrames;
   global.qaScorePopScale = qaScorePopScale;
   global.qaScorePopCover = qaScorePopCover;
   global.drawQaScorePop = drawQaScorePop;
-  global.setQaShake = setQaShake;
-  global.readQaShakeFlag = readQaShakeFlag;
   global.QA_SHAKE_HOLD = QA_SHAKE_HOLD;
-  global.qaShakeHoldFrames = qaShakeHoldFrames;
   global.qaShakeOffset = qaShakeOffset;
   global.updatedDeathShakeFrames = updatedDeathShakeFrames;
   global.deathShakeFrameCount = deathShakeFrameCount;
   global.scorePopWindow = scorePopWindow;
-  global.setQaNewBest = setQaNewBest;
-  global.readQaNewBestFlag = readQaNewBestFlag;
   global.QA_NEW_BEST_HOLD = QA_NEW_BEST_HOLD;
-  global.qaNewBestHoldFrames = qaNewBestHoldFrames;
   global.qaNewBestPaintAlpha = qaNewBestPaintAlpha;
   global.drawQaNewBest = drawQaNewBest;
   global.newBestDuration = newBestDuration;
   global.copyFlashDuration = copyFlashDuration;
-  global.setQaCopy = setQaCopy;
-  global.readQaCopyFlag = readQaCopyFlag;
   global.QA_COPY_HOLD = QA_COPY_HOLD;
-  global.qaCopyHoldFrames = qaCopyHoldFrames;
-  global.setQaShare = setQaShare;
-  global.readQaShareFlag = readQaShareFlag;
   global.QA_SHARE_HOLD = QA_SHARE_HOLD;
-  global.qaShareHoldFrames = qaShareHoldFrames;
-  global.setQaCountUp = setQaCountUp;
-  global.readQaCountUpFlag = readQaCountUpFlag;
   global.QA_COUNT_UP_HOLD = QA_COUNT_UP_HOLD;
-  global.qaCountUpHoldFrames = qaCountUpHoldFrames;
-  global.setQaIdle = setQaIdle;
-  global.readQaIdleFlag = readQaIdleFlag;
   global.QA_IDLE_HOLD = QA_IDLE_HOLD;
-  global.qaIdleHoldFrames = qaIdleHoldFrames;
   global.idleStartPulseAlpha = idleStartPulseAlpha;
   global.deathAnimFrames = deathAnimFrames;
   global.updatedDeathAnimFrames = updatedDeathAnimFrames;
