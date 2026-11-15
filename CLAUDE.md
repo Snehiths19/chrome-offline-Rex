@@ -58,7 +58,7 @@ The file is divided into numbered sections. Add new code inside the section it b
 Line numbers drift as the file grows, so treat them as rough. Find the current ones with `grep -n "== SECTION" script.js` (headers look like `// == SECTION 5: RENDERING ==`).
 
 1. **Section 1 — Node stubs** (~line 1). Browser-API shims so `script.js` can be `require`d under Node. Browsers skip this block.
-2. **Section 2 — Configuration** (~line 80). `GAME_CONFIG` (frozen), the `cfg`/`loadTuning`/`saveTuning` live-tuning hook, `ScoreStore` (all localStorage score persistence), the `STATE` enum, `reducedMotion`/`setReducedMotion`, the QA URL-flag helpers (`readQa*Flag`/`setQa*`, `drawQa*`; ~lines 600–1710, the bulk of this section), and the `audio` object.
+2. **Section 2 — Configuration** (~line 80). `GAME_CONFIG` (frozen), the `cfg`/`loadTuning`/`saveTuning` live-tuning hook, `ScoreStore` (all localStorage score persistence), the `STATE` enum, `reducedMotion`/`setReducedMotion`, the QA switchboard (`QA_FLAGS`: one row per `?qaX=1` playtest flag, with its hold, gate and draw; `qa.x` says whether a flag is on, tests flip one with `setQaFlag('x', on)` and parse with `readQaFlag('x', search)`; the per-flag `drawQa*` overlays sit just above it; ~lines 600–1550, the bulk of this section), and the `audio` object.
 3. **Section 3 — Asset loading** (~line 1780). `canvas`/`ctx`, `a11yLive`/`announce`, `dino`, sprite preload with timeout fallback, and the canvas-sizing shell helpers (`computeCanvasCssWidth`, `fitCanvasCssSize`, `initCanvasScale`, `handleResize`).
 4. **Section 4 — Game state** (~line 2010). The `mulberry32` seeded RNG, `DifficultyProfile.nextObstacle()` (type + gap; `pickObstacleType` and `computeNextSpawnGap` are internal helpers, not exported), `MODES`/`loadMode`, daily seed helpers, the `game` object, `Animations`, `setMode`, daily share, and the death-log debug tools.
 5. **Section 5 — Rendering** (~line 2440). Pure draw functions: `drawBackground`, `drawDino`, `drawObstacles`, `drawClouds`, `drawHills`, `drawSkyTint`, `drawDeathFlash`, `drawScore`, `drawMilestoneFlash`, `drawNewBestBadge`, etc. Also `isDailyMode`/`isUpdatedMode` and `Particles`.
@@ -76,6 +76,10 @@ Line numbers drift as the file grows, so treat them as rough. Find the current o
 3. Add a test in `describe('Live-tuning hook (PR-P3)', ...)` if behaviour-sensitive.
 
 **Never** route physics/spawning/scoring/hitbox values through `cfg()`. Determinism depends on those reading `GAME_CONFIG.X` directly.
+
+### Adding a QA playtest flag
+
+Add one row to `QA_FLAGS` (id, `?param`, and if it shows an overlay: `hold`, `gate`, `latch`, `count`, `draw`). `readQaFlags()`, `resetGame()`, `advanceQaFlags()` and `drawQaFlags()` pick it up; the row order is the advance and draw order. A flag must never touch score, speed, gaps, hitboxes or `game.rng()`.
 
 ### Adding a gameplay parameter
 

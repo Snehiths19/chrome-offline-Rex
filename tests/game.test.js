@@ -1750,7 +1750,7 @@ describe('Soft night stars', () => {
     const origMode = game.mode;
     const origScore = game.score;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       game.mode = MODES.UPDATED;
       game.score = 0;
@@ -1810,7 +1810,7 @@ describe('Soft night stars', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -1828,7 +1828,7 @@ describe('Soft night stars', () => {
       game.graceFrames = 0;
       game.obstacles.length = 0;
       game.lastObstacleX = GAME_CONFIG.CANVAS_W;
-      setQaNight(true);
+      setQaFlag('night', true);
       runRunningFrames(1);
       assert(game.score < 1, 'the whisper must not jump the score to night');
       assertEquals(
@@ -1861,7 +1861,7 @@ describe('Soft night stars', () => {
       assert(game.score < 1, 'Classic QA night must not write the score');
     } finally {
       game.mode = origMode;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -1874,7 +1874,7 @@ describe('Soft night stars', () => {
     const origStars = game.stars.slice();
     const origFade = game.starFadeFrames;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       game.starsInitialised = true;
       game.stars = [{ x: 4, y: 6 }];
@@ -1922,7 +1922,7 @@ describe('Soft night stars', () => {
       game.starsInitialised = origInit;
       game.stars = origStars;
       game.starFadeFrames = origFade;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
     }
   });
@@ -1947,7 +1947,7 @@ describe('Soft night stars', () => {
       return origRandom();
     };
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       game.mode = MODES.UPDATED;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
@@ -1991,7 +1991,7 @@ describe('Soft night stars', () => {
       game.stars = origStars;
       game.starFadeFrames = origFade;
       ctx.globalAlpha = origAlpha;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
     }
   });
@@ -2000,7 +2000,7 @@ describe('Soft night stars', () => {
     const origMode = game.mode;
     try {
       setReducedMotion(false);
-      setQaNight(false);
+      setQaFlag('night', false);
       game.mode = MODES.DAILY;
       enterNightRun();
       const total = GAME_CONFIG.UPDATED_STAR_FADE_FRAMES;
@@ -2031,7 +2031,7 @@ describe('Soft night stars', () => {
       });
     } finally {
       game.mode = origMode;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -3106,7 +3106,7 @@ describe('Soft day hills', () => {
   it('twilight still eases, and reduced motion holds the day colour until night', () => {
     try {
       setReducedMotion(false);
-      setQaNight(false);
+      setQaFlag('night', false);
       assertEquals(getHillColor(0), GAME_CONFIG.HILL_COLOR_DAY, 'opening run is the day fill');
       assertEquals(
         getHillColor(GAME_CONFIG.DAY_NIGHT_START - 1),
@@ -3140,7 +3140,7 @@ describe('Soft day hills', () => {
       );
     } finally {
       setReducedMotion(false);
-      setQaNight(false);
+      setQaFlag('night', false);
     }
   });
 
@@ -3153,7 +3153,7 @@ describe('Soft day hills', () => {
     const origRng = game.rng;
     const paint = hillFillStyles();
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       game.rng = mulberry32(1);
       initHills();
@@ -3198,7 +3198,7 @@ describe('Soft day hills', () => {
       game.animFrame = origFrame;
       game.rng = origRng;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
     }
   });
@@ -3214,7 +3214,7 @@ describe('Soft day hills', () => {
       initHills();
       game.mode = MODES.UPDATED;
       game.score = 0;
-      setQaNight(true);
+      setQaFlag('night', true);
       drawHills();
       assertEquals(paint.seen.length, GAME_CONFIG.HILL_COUNT, 'QA night still draws the mounds');
       assert(
@@ -3233,7 +3233,7 @@ describe('Soft day hills', () => {
       game.mode = origMode;
       game.score = origScore;
       game.rng = origRng;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
     }
   });
@@ -3286,7 +3286,7 @@ describe('Soft night hills', () => {
     const origTuning = window.GAME_TUNING;
     const origScore = game.score;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       window.GAME_TUNING = { HILL_COLOR_NIGHT: '#112233' };
       assertEquals(getHillColor(0), GAME_CONFIG.HILL_COLOR_DAY, 'day fill ignores the night tune');
@@ -3301,7 +3301,7 @@ describe('Soft night hills', () => {
       assertEquals(game.score, origScore, 'tuning the night fill must not write the score');
     } finally {
       window.GAME_TUNING = origTuning;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
     }
   });
@@ -4047,16 +4047,16 @@ function qaSafeClassList() {
 
 describe('QA safe shell (?qaSafe=1)', () => {
   it('?qaSafe=1 is off for any value other than 1', () => {
-    assert(readQaSafeFlag('?qaSafe=1') === true, '?qaSafe=1 should paint the stand-in insets');
+    assert(readQaFlag('safe', '?qaSafe=1') === true, '?qaSafe=1 should paint the stand-in insets');
     assert(
-      readQaSafeFlag('?qaNight=1&qaSafe=1') === true,
+      readQaFlag('safe', '?qaNight=1&qaSafe=1') === true,
       'the flag should work beside other params'
     );
-    assert(readQaSafeFlag('?qaSafe=1&qaCopy=1') === true, 'param order should not matter');
-    assert(readQaSafeFlag('?qaSafe=0') === false, 'only the value 1 enables the flag');
-    assert(readQaSafeFlag('?qaSafe=12') === false, 'qaSafe=12 must not count as the flag');
-    assert(readQaSafeFlag('') === false, 'an empty query leaves the flag off');
-    assert(readQaSafeFlag() === false, 'a normal visit leaves the flag off');
+    assert(readQaFlag('safe', '?qaSafe=1&qaCopy=1') === true, 'param order should not matter');
+    assert(readQaFlag('safe', '?qaSafe=0') === false, 'only the value 1 enables the flag');
+    assert(readQaFlag('safe', '?qaSafe=12') === false, 'qaSafe=12 must not count as the flag');
+    assert(readQaFlag('safe', '') === false, 'an empty query leaves the flag off');
+    assert(readQaFlag('safe') === false, 'a normal visit leaves the flag off');
   });
 
   it('applyQaSafeShell toggles the document class and does not touch the run', () => {
@@ -4066,10 +4066,10 @@ describe('QA safe shell (?qaSafe=1)', () => {
     const origRng = game.rng;
     const restoreRoot = overrideDocumentProp('documentElement', root);
     try {
-      setQaSafe(false);
+      setQaFlag('safe', false);
       applyQaSafeShell();
       assert(root.classList.contains('qa-safe') === false, 'off leaves the shell unmarked');
-      setQaSafe(true);
+      setQaFlag('safe', true);
       applyQaSafeShell();
       assert(
         root.classList.contains('qa-safe') === true,
@@ -4078,12 +4078,12 @@ describe('QA safe shell (?qaSafe=1)', () => {
       assertEquals(game.score, origScore, 'the flag must not change the score');
       assertEquals(game.mode, origMode, 'the flag must not change the mode');
       assert(game.rng === origRng, 'the flag must not reseed the run');
-      setQaSafe(false);
+      setQaFlag('safe', false);
       applyQaSafeShell();
       assert(root.classList.contains('qa-safe') === false, 'turning the flag off removes the mark');
     } finally {
       restoreRoot();
-      setQaSafe(false);
+      setQaFlag('safe', false);
     }
   });
 
@@ -4091,13 +4091,13 @@ describe('QA safe shell (?qaSafe=1)', () => {
     const restoreRoot = overrideDocumentProp('documentElement', undefined);
     let threw = false;
     try {
-      setQaSafe(true);
+      setQaFlag('safe', true);
       applyQaSafeShell();
     } catch {
       threw = true;
     }
     restoreRoot();
-    setQaSafe(false);
+    setQaFlag('safe', false);
     assert(!threw, 'missing documentElement should not throw');
   });
 
@@ -4108,7 +4108,7 @@ describe('QA safe shell (?qaSafe=1)', () => {
     const restoreRoot = overrideDocumentProp('documentElement', root);
     try {
       setPageQuery('');
-      setQaSafe(true);
+      setQaFlag('safe', true);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       resetGame();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -4118,7 +4118,7 @@ describe('QA safe shell (?qaSafe=1)', () => {
       );
 
       setPageQuery('?qaSafe=1');
-      setQaSafe(false);
+      setQaFlag('safe', false);
       game.mode = MODES.CLASSIC;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       resetGame();
@@ -4128,7 +4128,7 @@ describe('QA safe shell (?qaSafe=1)', () => {
     } finally {
       restorePageQuery();
       restoreRoot();
-      setQaSafe(false);
+      setQaFlag('safe', false);
       game.mode = origMode;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -5258,7 +5258,7 @@ describe('Plateau cue', () => {
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     // resetGame re-reads ?qaPlateau=1. Production cases force the flag off
     // after that so a leftover query cannot change plateau timing.
-    setQaPlateau(false);
+    setQaFlag('plateau', false);
     game.state = STATE.RUNNING;
     Particles.reset();
     game.plateauCueShown = false;
@@ -5451,16 +5451,19 @@ describe('Plateau cue', () => {
   });
 
   it('recognizes only ?qaPlateau=1', () => {
-    assert(readQaPlateauFlag('?qaPlateau=1') === true, '?qaPlateau=1 should enable the QA cue');
+    assert(readQaFlag('plateau', '?qaPlateau=1') === true, '?qaPlateau=1 should enable the QA cue');
     assert(
-      readQaPlateauFlag('?foo=1&qaPlateau=1') === true,
+      readQaFlag('plateau', '?foo=1&qaPlateau=1') === true,
       'the flag should work alongside other params'
     );
-    assert(readQaPlateauFlag('') === false, 'a normal visit should leave the QA cue off');
-    assert(readQaPlateauFlag('?qaPlateau=0') === false, 'only the value 1 enables the QA cue');
-    assert(readQaPlateauFlag('?qaPlateau=12') === false, 'qaPlateau=12 must not count as the flag');
+    assert(readQaFlag('plateau', '') === false, 'a normal visit should leave the QA cue off');
+    assert(readQaFlag('plateau', '?qaPlateau=0') === false, 'only the value 1 enables the QA cue');
     assert(
-      readQaPlateauFlag('?other=1') === false,
+      readQaFlag('plateau', '?qaPlateau=12') === false,
+      'qaPlateau=12 must not count as the flag'
+    );
+    assert(
+      readQaFlag('plateau', '?other=1') === false,
       'an unrelated param must not enable the QA cue'
     );
   });
@@ -5470,7 +5473,7 @@ describe('Plateau cue', () => {
     try {
       setReducedMotion(false);
       armUpdatedRun(MODES.UPDATED);
-      setQaPlateau(true);
+      setQaFlag('plateau', true);
       game.score = QA_PLATEAU_SCORE - GAME_CONFIG.SCORE_INCREMENT;
       tick();
 
@@ -5505,7 +5508,7 @@ describe('Plateau cue', () => {
         'QA cue must not repeat later in the run'
       );
     } finally {
-      setQaPlateau(false);
+      setQaFlag('plateau', false);
       setReducedMotion(false);
       game.mode = origMode;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -5518,7 +5521,7 @@ describe('Plateau cue', () => {
     try {
       setReducedMotion(false);
       armUpdatedRun(MODES.CLASSIC);
-      setQaPlateau(true);
+      setQaFlag('plateau', true);
       game.score = QA_PLATEAU_SCORE - GAME_CONFIG.SCORE_INCREMENT;
       tick();
       tick();
@@ -5530,7 +5533,7 @@ describe('Plateau cue', () => {
       );
       assert(!game.plateauCueShown, 'Classic should not latch a QA cue it did not show');
     } finally {
-      setQaPlateau(false);
+      setQaFlag('plateau', false);
       setReducedMotion(false);
       game.mode = origMode;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -5543,7 +5546,7 @@ describe('Plateau cue', () => {
     try {
       setReducedMotion(false);
       armUpdatedRun(MODES.DAILY);
-      setQaPlateau(true);
+      setQaFlag('plateau', true);
       game.score = QA_PLATEAU_SCORE - GAME_CONFIG.SCORE_INCREMENT;
       tick();
       assert(qaPlateauParticles().length > 0, 'Daily should show the early QA puff');
@@ -5554,7 +5557,7 @@ describe('Plateau cue', () => {
       );
       assert(game.plateauCueShown === true, 'Daily QA cue should still latch');
     } finally {
-      setQaPlateau(false);
+      setQaFlag('plateau', false);
       setReducedMotion(false);
       game.mode = origMode;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -5567,7 +5570,7 @@ describe('Plateau cue', () => {
     const restorePageQuery = savePageQuery();
     setPageQuery('?qaPlateau=1');
     try {
-      setQaPlateau(false);
+      setQaFlag('plateau', false);
       game.mode = MODES.UPDATED;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       resetGame();
@@ -5587,7 +5590,7 @@ describe('Plateau cue', () => {
       assert(game.plateauCueShown === true, 'the re-read flag should still latch after one puff');
     } finally {
       restorePageQuery();
-      setQaPlateau(false);
+      setQaFlag('plateau', false);
       game.mode = origMode;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       Particles.reset();
@@ -5599,7 +5602,7 @@ describe('Plateau cue', () => {
     try {
       setReducedMotion(false);
       armUpdatedRun(MODES.UPDATED);
-      setQaPlateau(false);
+      setQaFlag('plateau', false);
       game.score = QA_PLATEAU_SCORE - GAME_CONFIG.SCORE_INCREMENT;
       tick();
       assertEquals(
@@ -5614,7 +5617,7 @@ describe('Plateau cue', () => {
       );
       assert(!game.plateauCueShown, 'an early production frame must not consume the cue');
     } finally {
-      setQaPlateau(false);
+      setQaFlag('plateau', false);
       setReducedMotion(false);
       game.mode = origMode;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -5734,8 +5737,8 @@ describe('Quiet plateau cue', () => {
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     resetGame();
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
-    setQaPlateau(false);
-    setQaNight(false);
+    setQaFlag('plateau', false);
+    setQaFlag('night', false);
     game.state = STATE.RUNNING;
     Particles.reset();
     game.obstacles.length = 0;
@@ -5834,7 +5837,7 @@ describe('Quiet plateau cue', () => {
     try {
       setReducedMotion(false);
       armRun(MODES.UPDATED);
-      setQaPlateau(true);
+      setQaFlag('plateau', true);
       Particles.particles.forEach((p) => {
         p.life = 5;
         p.color = '#111111';
@@ -5863,7 +5866,7 @@ describe('Quiet plateau cue', () => {
       assertEquals(rims.length, marks.length, 'each speck has a rim so it reads on the day sky');
       spy.restore();
     } finally {
-      setQaPlateau(false);
+      setQaFlag('plateau', false);
       setReducedMotion(false);
       game.mode = origMode;
       Particles.reset();
@@ -5876,8 +5879,8 @@ describe('Quiet plateau cue', () => {
     try {
       setReducedMotion(false);
       armRun(MODES.UPDATED);
-      setQaPlateau(true);
-      setQaNight(true);
+      setQaFlag('plateau', true);
+      setQaFlag('night', true);
       game.score = QA_PLATEAU_SCORE - GAME_CONFIG.SCORE_INCREMENT;
       tick();
       const pale = Particles.particles.filter((p) => p.life > 0 && p.color === PUFF.color);
@@ -5902,8 +5905,8 @@ describe('Quiet plateau cue', () => {
       );
       spy.restore();
     } finally {
-      setQaPlateau(false);
-      setQaNight(false);
+      setQaFlag('plateau', false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       game.mode = origMode;
       Particles.reset();
@@ -5916,7 +5919,7 @@ describe('Quiet plateau cue', () => {
     try {
       setReducedMotion(false);
       armRun(MODES.CLASSIC);
-      setQaPlateau(true);
+      setQaFlag('plateau', true);
       game.score = QA_PLATEAU_SCORE - GAME_CONFIG.SCORE_INCREMENT;
       tick();
       tick();
@@ -5927,7 +5930,7 @@ describe('Quiet plateau cue', () => {
       assertEquals(game.qaPlateauHold, 0, 'Classic does not start the hold');
       assert(!game.plateauCueShown, 'Classic does not latch the cue');
     } finally {
-      setQaPlateau(false);
+      setQaFlag('plateau', false);
       setReducedMotion(false);
       game.mode = origMode;
       Particles.reset();
@@ -5944,8 +5947,8 @@ describe('Quiet plateau cue', () => {
       for (const night of [false, true]) {
         setReducedMotion(true);
         armRun(night ? MODES.DAILY : MODES.UPDATED);
-        setQaPlateau(true);
-        setQaNight(night);
+        setQaFlag('plateau', true);
+        setQaFlag('night', night);
         game.score = QA_PLATEAU_SCORE - GAME_CONFIG.SCORE_INCREMENT;
         tick();
         const color = night ? PUFF.color : QA.color;
@@ -5968,7 +5971,7 @@ describe('Quiet plateau cue', () => {
         );
         assertEquals(
           game.qaPlateauHold,
-          qaPlateauHoldFrames(),
+          qaHoldFrames('plateau'),
           (night ? 'night' : 'day') + ' hold uses the shorter window'
         );
         assert(
@@ -5998,8 +6001,8 @@ describe('Quiet plateau cue', () => {
         spy.restore();
       }
     } finally {
-      setQaPlateau(false);
-      setQaNight(false);
+      setQaFlag('plateau', false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       game.mode = origMode;
       Particles.reset();
@@ -7221,7 +7224,7 @@ describe('QA cluster flag (?qaCluster=1)', () => {
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     resetGame();
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
-    if (flag !== undefined) setQaCluster(flag);
+    if (flag !== undefined) setQaFlag('cluster', flag);
     game.state = STATE.RUNNING;
     game.obstacles.length = 0;
     dino.y = GAME_CONFIG.CANVAS_H - dino.height;
@@ -7245,21 +7248,27 @@ describe('QA cluster flag (?qaCluster=1)', () => {
 
   it('recognizes only ?qaCluster=1', () => {
     assert(
-      readQaClusterFlag('?qaCluster=1') === true,
+      readQaFlag('cluster', '?qaCluster=1') === true,
       '?qaCluster=1 should enable the early cluster'
     );
     assert(
-      readQaClusterFlag('?foo=1&qaCluster=1') === true,
+      readQaFlag('cluster', '?foo=1&qaCluster=1') === true,
       'the flag should work alongside other params'
     );
     assert(
-      readQaClusterFlag('?qaPlateau=1') === false,
+      readQaFlag('cluster', '?qaPlateau=1') === false,
       'the plateau flag must not enable the cluster'
     );
-    assert(readQaClusterFlag('') === false, 'a normal visit should leave the flag off');
-    assert(readQaClusterFlag('?qaCluster=0') === false, 'only the value 1 enables the flag');
-    assert(readQaClusterFlag('?qaCluster=12') === false, 'qaCluster=12 must not count as the flag');
-    assert(readQaClusterFlag('?other=1') === false, 'an unrelated param must not enable the flag');
+    assert(readQaFlag('cluster', '') === false, 'a normal visit should leave the flag off');
+    assert(readQaFlag('cluster', '?qaCluster=0') === false, 'only the value 1 enables the flag');
+    assert(
+      readQaFlag('cluster', '?qaCluster=12') === false,
+      'qaCluster=12 must not count as the flag'
+    );
+    assert(
+      readQaFlag('cluster', '?other=1') === false,
+      'an unrelated param must not enable the flag'
+    );
   });
 
   it('with ?qaCluster=1 the first Updated obstacle is a cluster while unlock stays 250', () => {
@@ -7292,7 +7301,7 @@ describe('QA cluster flag (?qaCluster=1)', () => {
       assertEquals(game.qaClusterShown, true, 'the second spawn must not re-arm the QA cluster');
     } finally {
       run.restore();
-      setQaCluster(false);
+      setQaFlag('cluster', false);
       game.mode = origMode;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -7310,7 +7319,7 @@ describe('QA cluster flag (?qaCluster=1)', () => {
     } finally {
       flagged.restore();
       plain.restore();
-      setQaCluster(false);
+      setQaFlag('cluster', false);
       game.mode = origMode;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -7325,7 +7334,7 @@ describe('QA cluster flag (?qaCluster=1)', () => {
       assert(!run.spawned.includes('cluster'), 'Classic obstacles stay small-only');
     } finally {
       run.restore();
-      setQaCluster(false);
+      setQaFlag('cluster', false);
       game.mode = origMode;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -7339,7 +7348,7 @@ describe('QA cluster flag (?qaCluster=1)', () => {
       assert(run.score < 50, `Daily cluster should be early, score was ${run.score}`);
     } finally {
       run.restore();
-      setQaCluster(false);
+      setQaFlag('cluster', false);
       game.mode = origMode;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -7361,7 +7370,7 @@ describe('QA cluster flag (?qaCluster=1)', () => {
       );
     } finally {
       run.restore();
-      setQaCluster(false);
+      setQaFlag('cluster', false);
       game.mode = origMode;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -7387,7 +7396,7 @@ describe('QA big cactus flag (?qaBig=1)', () => {
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     resetGame();
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
-    if (flag !== undefined) setQaBig(flag);
+    if (flag !== undefined) setQaFlag('big', flag);
     game.state = STATE.RUNNING;
     game.obstacles.length = 0;
     dino.y = GAME_CONFIG.CANVAS_H - dino.height;
@@ -7410,20 +7419,23 @@ describe('QA big cactus flag (?qaBig=1)', () => {
   }
 
   it('recognizes only ?qaBig=1', () => {
-    assert(readQaBigFlag('?qaBig=1') === true, '?qaBig=1 should enable the early big cactus');
-    assert(readQaBigFlag('?foo=1&qaBig=1') === true, 'the flag should work alongside other params');
+    assert(readQaFlag('big', '?qaBig=1') === true, '?qaBig=1 should enable the early big cactus');
     assert(
-      readQaBigFlag('?qaCluster=1') === false,
+      readQaFlag('big', '?foo=1&qaBig=1') === true,
+      'the flag should work alongside other params'
+    );
+    assert(
+      readQaFlag('big', '?qaCluster=1') === false,
       'the cluster flag must not enable the big cactus'
     );
     assert(
-      readQaBigFlag('?qaPlateau=1') === false,
+      readQaFlag('big', '?qaPlateau=1') === false,
       'the plateau flag must not enable the big cactus'
     );
-    assert(readQaBigFlag('') === false, 'a normal visit should leave the flag off');
-    assert(readQaBigFlag('?qaBig=0') === false, 'only the value 1 enables the flag');
-    assert(readQaBigFlag('?qaBig=12') === false, 'qaBig=12 must not count as the flag');
-    assert(readQaBigFlag('?other=1') === false, 'an unrelated param must not enable the flag');
+    assert(readQaFlag('big', '') === false, 'a normal visit should leave the flag off');
+    assert(readQaFlag('big', '?qaBig=0') === false, 'only the value 1 enables the flag');
+    assert(readQaFlag('big', '?qaBig=12') === false, 'qaBig=12 must not count as the flag');
+    assert(readQaFlag('big', '?other=1') === false, 'an unrelated param must not enable the flag');
   });
 
   it('with ?qaBig=1 the first Updated obstacle is a big cactus while unlock stays 100', () => {
@@ -7460,7 +7472,7 @@ describe('QA big cactus flag (?qaBig=1)', () => {
       assertEquals(game.qaBigShown, true, 'the second spawn must not re-arm the QA big cactus');
     } finally {
       run.restore();
-      setQaBig(false);
+      setQaFlag('big', false);
       game.mode = origMode;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -7478,7 +7490,7 @@ describe('QA big cactus flag (?qaBig=1)', () => {
     } finally {
       flagged.restore();
       plain.restore();
-      setQaBig(false);
+      setQaFlag('big', false);
       game.mode = origMode;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -7493,7 +7505,7 @@ describe('QA big cactus flag (?qaBig=1)', () => {
       assert(!run.spawned.includes('big'), 'Classic obstacles stay small-only');
     } finally {
       run.restore();
-      setQaBig(false);
+      setQaFlag('big', false);
       game.mode = origMode;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -7507,7 +7519,7 @@ describe('QA big cactus flag (?qaBig=1)', () => {
       assert(run.score < 50, `Daily big cactus should be early, score was ${run.score}`);
     } finally {
       run.restore();
-      setQaBig(false);
+      setQaFlag('big', false);
       game.mode = origMode;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -7529,7 +7541,7 @@ describe('QA big cactus flag (?qaBig=1)', () => {
       );
     } finally {
       run.restore();
-      setQaBig(false);
+      setQaFlag('big', false);
       game.mode = origMode;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -7571,7 +7583,7 @@ describe('Night obstacle contrast', () => {
     const origMode = game.mode;
     const origScore = game.score;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       assertEquals(
         GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
@@ -7615,7 +7627,7 @@ describe('Night obstacle contrast', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
     }
   });
@@ -7624,7 +7636,7 @@ describe('Night obstacle contrast', () => {
     const origMode = game.mode;
     const origScore = game.score;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       game.mode = MODES.UPDATED;
       setReducedMotion(true);
       game.score = 350;
@@ -7652,7 +7664,7 @@ describe('Night obstacle contrast', () => {
     try {
       game.mode = MODES.UPDATED;
       game.score = 0;
-      setQaNight(true);
+      setQaFlag('night', true);
       assertEquals(
         obstacleNightBrightness(),
         GAME_CONFIG.NIGHT_OBSTACLE_BRIGHTNESS,
@@ -7670,7 +7682,7 @@ describe('Night obstacle contrast', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
     }
   });
 
@@ -7679,7 +7691,7 @@ describe('Night obstacle contrast', () => {
     const origScore = game.score;
     const origFilter = ctx.filter;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       placeSmall();
       game.mode = MODES.UPDATED;
       game.score = 0;
@@ -7704,7 +7716,7 @@ describe('Night obstacle contrast', () => {
       game.score = origScore;
       ctx.filter = origFilter;
       game.obstacles = [];
-      setQaNight(false);
+      setQaFlag('night', false);
     }
   });
 
@@ -7769,7 +7781,7 @@ describe('Night dino contrast', () => {
     const origScore = game.score;
     const origFrame = game.animFrame;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       assertEquals(
         GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
@@ -7834,7 +7846,7 @@ describe('Night dino contrast', () => {
       game.mode = origMode;
       game.score = origScore;
       game.animFrame = origFrame;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
     }
   });
@@ -7844,7 +7856,7 @@ describe('Night dino contrast', () => {
     const origScore = game.score;
     const origFrame = game.animFrame;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       game.mode = MODES.UPDATED;
       setReducedMotion(true);
       game.score = 350;
@@ -7880,7 +7892,7 @@ describe('Night dino contrast', () => {
     try {
       game.mode = MODES.UPDATED;
       game.score = 0;
-      setQaNight(true);
+      setQaFlag('night', true);
       assertEquals(
         dinoNightBrightness(),
         GAME_CONFIG.NIGHT_DINO_BRIGHTNESS,
@@ -7894,7 +7906,7 @@ describe('Night dino contrast', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
     }
   });
 
@@ -7907,7 +7919,7 @@ describe('Night dino contrast', () => {
     const origW = dino.width;
     const origH = dino.height;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       game.mode = MODES.UPDATED;
       game.score = 0;
       ctx.filter = 'none';
@@ -7941,7 +7953,7 @@ describe('Night dino contrast', () => {
       game.mode = origMode;
       game.score = origScore;
       ctx.filter = origFilter;
-      setQaNight(false);
+      setQaFlag('night', false);
     }
   });
 
@@ -7959,7 +7971,7 @@ describe('Night dino contrast', () => {
       return origFill.apply(ctx, args);
     };
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       game.mode = MODES.UPDATED;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       dino.isJumping = true;
@@ -7985,7 +7997,7 @@ describe('Night dino contrast', () => {
       else delete dino.image.naturalWidth;
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
     }
   });
 });
@@ -8010,19 +8022,22 @@ describe('QA night flag (?qaNight=1)', () => {
   }
 
   it('recognizes only ?qaNight=1', () => {
-    assert(readQaNightFlag('?qaNight=1') === true, '?qaNight=1 should enable the early night sky');
     assert(
-      readQaNightFlag('?foo=1&qaNight=1') === true,
+      readQaFlag('night', '?qaNight=1') === true,
+      '?qaNight=1 should enable the early night sky'
+    );
+    assert(
+      readQaFlag('night', '?foo=1&qaNight=1') === true,
       'the flag should work alongside other params'
     );
     assert(
-      readQaNightFlag('') === false,
+      readQaFlag('night', '') === false,
       'a normal visit should leave the night fade on the real score'
     );
-    assert(readQaNightFlag('?qaNight=0') === false, 'only the value 1 enables the flag');
-    assert(readQaNightFlag('?qaNight=12') === false, 'qaNight=12 must not count as the flag');
+    assert(readQaFlag('night', '?qaNight=0') === false, 'only the value 1 enables the flag');
+    assert(readQaFlag('night', '?qaNight=12') === false, 'qaNight=12 must not count as the flag');
     assert(
-      readQaNightFlag('?qaPlateau=1') === false,
+      readQaFlag('night', '?qaPlateau=1') === false,
       'another QA flag must not start the night fade'
     );
   });
@@ -8031,7 +8046,7 @@ describe('QA night flag (?qaNight=1)', () => {
     try {
       setReducedMotion(false);
       armFreshRun();
-      setQaNight(true);
+      setQaFlag('night', true);
       const scoreBefore = game.score;
       tick();
       assert(game.score < 1, 'the QA flag must not jump the score to 400');
@@ -8046,7 +8061,7 @@ describe('QA night flag (?qaNight=1)', () => {
       assertEquals(getBackgroundColor(0), '#1a1a2e', 'the QA sky is already full night');
       assertEquals(getHillColor(0), GAME_CONFIG.HILL_COLOR_NIGHT, 'hills match the QA night sky');
     } finally {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -8054,14 +8069,14 @@ describe('QA night flag (?qaNight=1)', () => {
 
   it('without the flag a new run keeps the day sky and no stars', () => {
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       armFreshRun();
       tick();
       assert(!game.starsInitialised, 'stars still wait for score 400');
       assertEquals(game.starFadeFrames, 0);
       assertEquals(getBackgroundColor(0), '#ffffff', 'a normal visit stays on the day sky');
     } finally {
-      setQaNight(false);
+      setQaFlag('night', false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
   });
@@ -8069,7 +8084,7 @@ describe('QA night flag (?qaNight=1)', () => {
   it('reduced motion still skips star init when ?qaNight=1', () => {
     try {
       armFreshRun();
-      setQaNight(true);
+      setQaFlag('night', true);
       setReducedMotion(true);
       tick();
       assert(!game.starsInitialised, 'reduced motion still does not initialise stars');
@@ -8077,7 +8092,7 @@ describe('QA night flag (?qaNight=1)', () => {
       assertEquals(game.starFadeFrames, 0);
       assertEquals(getBackgroundColor(0), '#1a1a2e', 'the QA sky can still go night without stars');
     } finally {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -8087,7 +8102,7 @@ describe('QA night flag (?qaNight=1)', () => {
     const restorePageQuery = savePageQuery();
     setPageQuery('?qaNight=1');
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       resetGame();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -8102,7 +8117,7 @@ describe('QA night flag (?qaNight=1)', () => {
       assert(game.score < 1, 're-reading the flag must not change the score');
     } finally {
       restorePageQuery();
-      setQaNight(false);
+      setQaFlag('night', false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
   });
@@ -8153,7 +8168,7 @@ describe('Night cloud dim', () => {
     const origMode = game.mode;
     const origScore = game.score;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       const dayPeak = GAME_CONFIG.DAY_CLOUD_ALPHA;
       const fullInk = 0xff - 0xe8;
@@ -8234,7 +8249,7 @@ describe('Night cloud dim', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
     }
   });
@@ -8243,7 +8258,7 @@ describe('Night cloud dim', () => {
     const origMode = game.mode;
     const origScore = game.score;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       game.mode = MODES.UPDATED;
       setReducedMotion(true);
       game.score = 350;
@@ -8277,7 +8292,7 @@ describe('Night cloud dim', () => {
     try {
       game.mode = MODES.UPDATED;
       game.score = 0;
-      setQaNight(true);
+      setQaFlag('night', true);
       assertEquals(
         cloudPaintAlpha(),
         GAME_CONFIG.NIGHT_CLOUD_ALPHA,
@@ -8291,7 +8306,7 @@ describe('Night cloud dim', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
     }
   });
 
@@ -8299,7 +8314,7 @@ describe('Night cloud dim', () => {
     const origMode = game.mode;
     const origScore = game.score;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       game.mode = MODES.UPDATED;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
@@ -8334,7 +8349,7 @@ describe('Night cloud dim', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
     }
   });
@@ -8343,7 +8358,7 @@ describe('Night cloud dim', () => {
     const origMode = game.mode;
     const origScore = game.score;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       game.mode = MODES.UPDATED;
       game.score = 0;
@@ -8387,7 +8402,7 @@ describe('Night cloud dim', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
     }
   });
@@ -8406,7 +8421,7 @@ describe('Night cloud dim', () => {
       return origArc.apply(this, args);
     };
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       initClouds();
       game.mode = MODES.UPDATED;
@@ -8437,7 +8452,7 @@ describe('Night cloud dim', () => {
       game.graceFrames = origGrace;
       game.animFrame = origFrame;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
     }
   });
@@ -8452,7 +8467,7 @@ describe('Night cloud dim', () => {
       return origFill.apply(this, arguments);
     };
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       initClouds();
       game.mode = MODES.UPDATED;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
@@ -8470,7 +8485,7 @@ describe('Night cloud dim', () => {
       ctx.fill = origFill;
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
     }
   });
 
@@ -8485,7 +8500,7 @@ describe('Night cloud dim', () => {
       return origRng();
     };
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       initClouds();
       const before = game.clouds.map((c) => c.x + ',' + c.y + ',' + c.speed).join('|');
       game.mode = MODES.UPDATED;
@@ -8534,7 +8549,7 @@ describe('Night cloud dim', () => {
       game.mode = origMode;
       game.score = origScore;
       ctx.globalAlpha = origAlpha;
-      setQaNight(false);
+      setQaFlag('night', false);
     }
   });
 });
@@ -8622,7 +8637,7 @@ describe('Night land dust', () => {
     const origMode = game.mode;
     const origScore = game.score;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       assertEquals(Particles.KINDS.jump.color, DAY_DUST, 'jump kind stays the day brown');
       assertEquals(Particles.KINDS.land.color, DAY_DUST, 'land kind stays the day brown');
@@ -8702,7 +8717,7 @@ describe('Night land dust', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       Particles.reset();
     }
@@ -8712,7 +8727,7 @@ describe('Night land dust', () => {
     const origMode = game.mode;
     const origScore = game.score;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       game.mode = MODES.UPDATED;
       setReducedMotion(true);
       game.score = 350;
@@ -8746,7 +8761,7 @@ describe('Night land dust', () => {
       game.mode = origMode;
       game.score = origScore;
       setReducedMotion(false);
-      setQaNight(false);
+      setQaFlag('night', false);
       Particles.reset();
     }
   });
@@ -8757,7 +8772,7 @@ describe('Night land dust', () => {
     try {
       game.mode = MODES.UPDATED;
       game.score = 0;
-      setQaNight(true);
+      setQaFlag('night', true);
       assertEquals(
         landDustColor(DAY_DUST),
         GAME_CONFIG.NIGHT_LAND_DUST_COLOR,
@@ -8776,7 +8791,7 @@ describe('Night land dust', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
       Particles.reset();
     }
   });
@@ -8785,7 +8800,7 @@ describe('Night land dust', () => {
     const origMode = game.mode;
     const origScore = game.score;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       game.mode = MODES.UPDATED;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
@@ -8820,7 +8835,7 @@ describe('Night land dust', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       Particles.reset();
     }
@@ -8860,7 +8875,7 @@ describe('Night land dust', () => {
       return origRng();
     };
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       assertEquals(
         GAME_CONFIG.NIGHT_LAND_DUST_COLOR,
@@ -9049,7 +9064,7 @@ describe('Night land dust', () => {
       game.rng = origRng;
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       Particles.reset();
     }
@@ -9059,7 +9074,7 @@ describe('Night land dust', () => {
     const origMode = game.mode;
     const origScore = game.score;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       game.mode = MODES.UPDATED;
       setReducedMotion(true);
       game.score = 350;
@@ -9104,7 +9119,7 @@ describe('Night land dust', () => {
       game.mode = origMode;
       game.score = origScore;
       setReducedMotion(false);
-      setQaNight(false);
+      setQaFlag('night', false);
       Particles.reset();
     }
   });
@@ -9113,7 +9128,7 @@ describe('Night land dust', () => {
     const origMode = game.mode;
     const origScore = game.score;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       game.mode = MODES.UPDATED;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
@@ -9210,7 +9225,7 @@ describe('Night land dust', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       Particles.reset();
     }
@@ -9226,7 +9241,7 @@ describe('Night land dust', () => {
       return origRng();
     };
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       game.mode = MODES.UPDATED;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
@@ -9243,7 +9258,7 @@ describe('Night land dust', () => {
       game.rng = origRng;
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       Particles.reset();
     }
@@ -9285,7 +9300,7 @@ describe('Night ground cool', () => {
     const origMode = game.mode;
     const origScore = game.score;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       assert(GAME_CONFIG.NIGHT_GROUND_ALPHA < 1, 'night ground is dimmer than the day strip');
       assert(
@@ -9364,7 +9379,7 @@ describe('Night ground cool', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
     }
   });
@@ -9373,7 +9388,7 @@ describe('Night ground cool', () => {
     const origMode = game.mode;
     const origScore = game.score;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       game.mode = MODES.UPDATED;
       setReducedMotion(true);
       game.score = 350;
@@ -9403,7 +9418,7 @@ describe('Night ground cool', () => {
     try {
       game.mode = MODES.UPDATED;
       game.score = 0;
-      setQaNight(true);
+      setQaFlag('night', true);
       assertEquals(
         groundPaintAlpha(),
         GAME_CONFIG.NIGHT_GROUND_ALPHA,
@@ -9417,7 +9432,7 @@ describe('Night ground cool', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
     }
   });
 
@@ -9425,7 +9440,7 @@ describe('Night ground cool', () => {
     const origMode = game.mode;
     const origScore = game.score;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       game.mode = MODES.UPDATED;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
@@ -9456,7 +9471,7 @@ describe('Night ground cool', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
     }
   });
@@ -9480,7 +9495,7 @@ describe('Night ground cool', () => {
       return origDraw.apply(this, args);
     };
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       game.mode = MODES.UPDATED;
       game.groundX = -40;
@@ -9527,7 +9542,7 @@ describe('Night ground cool', () => {
       game.score = origScore;
       game.groundX = origGroundX;
       ctx.globalAlpha = origAlpha;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
     }
   });
@@ -9633,7 +9648,7 @@ describe('Night milestone tint', () => {
     const daySky = [255, 255, 255];
     const nightSky = [0x1a, 0x1a, 0x2e];
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       assertEquals(
         GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
@@ -9753,7 +9768,7 @@ describe('Night milestone tint', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
     }
   });
@@ -9762,7 +9777,7 @@ describe('Night milestone tint', () => {
     const origMode = game.mode;
     const origScore = game.score;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       game.mode = MODES.UPDATED;
       setReducedMotion(true);
       game.score = 350;
@@ -9796,7 +9811,7 @@ describe('Night milestone tint', () => {
     try {
       game.mode = MODES.UPDATED;
       game.score = 0;
-      setQaNight(true);
+      setQaFlag('night', true);
       assertEquals(
         skyTintPeakAlpha(),
         GAME_CONFIG.NIGHT_SKY_TINT_PEAK_ALPHA,
@@ -9814,7 +9829,7 @@ describe('Night milestone tint', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
     }
   });
 
@@ -9822,7 +9837,7 @@ describe('Night milestone tint', () => {
     const origMode = game.mode;
     const origScore = game.score;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       game.mode = MODES.UPDATED;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
@@ -9867,7 +9882,7 @@ describe('Night milestone tint', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
     }
   });
@@ -9884,7 +9899,7 @@ describe('Night milestone tint', () => {
       return origRng();
     };
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       game.mode = MODES.UPDATED;
       game.score = 0;
@@ -9948,7 +9963,7 @@ describe('Night milestone tint', () => {
       game.mode = origMode;
       game.score = origScore;
       Animations.milestoneFrames = origFrames;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
     }
   });
@@ -9997,27 +10012,33 @@ describe('QA level flag (?qaLevel=1)', () => {
   }
 
   it('recognizes only ?qaLevel=1', () => {
-    assert(readQaLevelFlag('?qaLevel=1') === true, '?qaLevel=1 should enable the early level wash');
     assert(
-      readQaLevelFlag('?qaNight=1&qaLevel=1') === true,
+      readQaFlag('level', '?qaLevel=1') === true,
+      '?qaLevel=1 should enable the early level wash'
+    );
+    assert(
+      readQaFlag('level', '?qaNight=1&qaLevel=1') === true,
       'the flag should work beside ?qaNight=1'
     );
-    assert(readQaLevelFlag('?qaLevel=1&qaNight=1') === true, 'param order should not matter');
-    assert(readQaLevelFlag('') === false, 'a normal visit should leave the wash on the real level');
-    assert(readQaLevelFlag('?qaLevel=0') === false, 'only the value 1 enables the flag');
-    assert(readQaLevelFlag('?qaLevel=12') === false, 'qaLevel=12 must not count as the flag');
-    assert(readQaLevelFlag('?qaNight=1') === false, 'night alone must not fire the early wash');
+    assert(readQaFlag('level', '?qaLevel=1&qaNight=1') === true, 'param order should not matter');
+    assert(
+      readQaFlag('level', '') === false,
+      'a normal visit should leave the wash on the real level'
+    );
+    assert(readQaFlag('level', '?qaLevel=0') === false, 'only the value 1 enables the flag');
+    assert(readQaFlag('level', '?qaLevel=12') === false, 'qaLevel=12 must not count as the flag');
+    assert(readQaFlag('level', '?qaNight=1') === false, 'night alone must not fire the early wash');
   });
 
   it('fires the Updated wash once at the start without moving score, speed, or the seed', () => {
     const origMode = game.mode;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       armFreshRun();
       game.mode = MODES.UPDATED;
       game.rng = mulberry32(7);
-      setQaLevel(false);
+      setQaFlag('level', false);
       tick();
       const rngAfterOff = game.rng();
       const speedOff = game.currentSpeed;
@@ -10027,7 +10048,7 @@ describe('QA level flag (?qaLevel=1)', () => {
       armFreshRun();
       game.mode = MODES.UPDATED;
       game.rng = mulberry32(7);
-      setQaLevel(true);
+      setQaFlag('level', true);
       const gold = goldWashDuring(tick);
       assertEquals(gold.length, 1, 'the first running frame paints one gold wash');
       assert(
@@ -10085,8 +10106,8 @@ describe('QA level flag (?qaLevel=1)', () => {
       assert(game.score >= GAME_CONFIG.SCORE_PER_LEVEL, 'the real level still arrives by score');
     } finally {
       game.mode = origMode;
-      setQaLevel(false);
-      setQaNight(false);
+      setQaFlag('level', false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       Particles.reset();
       Animations.reset();
@@ -10097,11 +10118,11 @@ describe('QA level flag (?qaLevel=1)', () => {
   it('Daily shares the early wash; Classic never paints the tint', () => {
     const origMode = game.mode;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       armFreshRun();
       game.mode = MODES.DAILY;
-      setQaLevel(true);
+      setQaFlag('level', true);
       tick();
       assertEquals(
         Animations.milestoneFrames,
@@ -10116,7 +10137,7 @@ describe('QA level flag (?qaLevel=1)', () => {
 
       armFreshRun();
       game.mode = MODES.CLASSIC;
-      setQaLevel(true);
+      setQaFlag('level', true);
       const gold = goldWashDuring(tick);
       assertEquals(gold.length, 0, 'Classic never paints the gold wash');
       assertEquals(Animations.milestoneFrames, 0, 'Classic does not take the early flash');
@@ -10128,7 +10149,7 @@ describe('QA level flag (?qaLevel=1)', () => {
       );
     } finally {
       game.mode = origMode;
-      setQaLevel(false);
+      setQaFlag('level', false);
       setReducedMotion(false);
       Particles.reset();
       Animations.reset();
@@ -10142,8 +10163,8 @@ describe('QA level flag (?qaLevel=1)', () => {
       setReducedMotion(false);
       armFreshRun();
       game.mode = MODES.UPDATED;
-      setQaNight(true);
-      setQaLevel(true);
+      setQaFlag('night', true);
+      setQaFlag('level', true);
       const gold = goldWashDuring(tick);
       assertEquals(gold.length, 1, 'night plus level still paints one wash');
       assert(
@@ -10162,8 +10183,8 @@ describe('QA level flag (?qaLevel=1)', () => {
       );
     } finally {
       game.mode = origMode;
-      setQaLevel(false);
-      setQaNight(false);
+      setQaFlag('level', false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       Particles.reset();
       Animations.reset();
@@ -10174,8 +10195,8 @@ describe('QA level flag (?qaLevel=1)', () => {
   it('without the flag the first frames stay quiet and score 100 still flashes', () => {
     const origMode = game.mode;
     try {
-      setQaLevel(false);
-      setQaNight(false);
+      setQaFlag('level', false);
+      setQaFlag('night', false);
       armFreshRun();
       game.mode = MODES.UPDATED;
       tick();
@@ -10194,7 +10215,7 @@ describe('QA level flag (?qaLevel=1)', () => {
       assert(game.score >= GAME_CONFIG.SCORE_PER_LEVEL, 'the level still unlocks at 100');
     } finally {
       game.mode = origMode;
-      setQaLevel(false);
+      setQaFlag('level', false);
       Particles.reset();
       Animations.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -10206,8 +10227,8 @@ describe('QA level flag (?qaLevel=1)', () => {
     const restorePageQuery = savePageQuery();
     setPageQuery('?qaNight=1&qaLevel=1');
     try {
-      setQaLevel(false);
-      setQaNight(false);
+      setQaFlag('level', false);
+      setQaFlag('night', false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       resetGame();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -10235,8 +10256,8 @@ describe('QA level flag (?qaLevel=1)', () => {
     } finally {
       restorePageQuery();
       game.mode = origMode;
-      setQaLevel(false);
-      setQaNight(false);
+      setQaFlag('level', false);
+      setQaFlag('night', false);
       Particles.reset();
       Animations.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -10300,7 +10321,7 @@ describe('Night death flash', () => {
     const nightSky = [0x1a, 0x1a, 0x2e];
     const dayDino = [0x53, 0x53, 0x53];
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       const dayPeak = GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA;
       assert(dayPeak < 1, 'day peak is quieter than a full white overlay');
@@ -10392,7 +10413,7 @@ describe('Night death flash', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
     }
   });
@@ -10401,7 +10422,7 @@ describe('Night death flash', () => {
     const origMode = game.mode;
     const origScore = game.score;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       game.mode = MODES.UPDATED;
       setReducedMotion(true);
       game.score = 350;
@@ -10435,7 +10456,7 @@ describe('Night death flash', () => {
     try {
       game.mode = MODES.UPDATED;
       game.score = 0;
-      setQaNight(true);
+      setQaFlag('night', true);
       assertEquals(
         deathFlashPeakAlpha(),
         GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA,
@@ -10453,7 +10474,7 @@ describe('Night death flash', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
     }
   });
 
@@ -10461,7 +10482,7 @@ describe('Night death flash', () => {
     const origMode = game.mode;
     const origScore = game.score;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       game.mode = MODES.UPDATED;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
@@ -10545,7 +10566,7 @@ describe('Night death flash', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
     }
   });
@@ -10562,7 +10583,7 @@ describe('Night death flash', () => {
       return origRng();
     };
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       game.mode = MODES.UPDATED;
       game.score = 0;
@@ -10623,7 +10644,7 @@ describe('Night death flash', () => {
       game.mode = origMode;
       game.score = origScore;
       Animations.deathFlashFrames = origFrames;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
     }
   });
@@ -10713,7 +10734,7 @@ describe('Soft death shake', () => {
     const origMode = game.mode;
     const origScore = game.score;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       assert(
         QUIET_AMPLITUDE < GAME_CONFIG.DEATH_SHAKE_AMPLITUDE / 2,
@@ -10792,7 +10813,7 @@ describe('Soft death shake', () => {
       game.score = GAME_CONFIG.DAY_NIGHT_END;
       assertWave(sampleShake(), QUIET_AMPLITUDE, QUIET_FREQ, 'Daily night');
 
-      setQaNight(true);
+      setQaFlag('night', true);
       game.mode = MODES.UPDATED;
       game.score = 0;
       assertWave(
@@ -10810,7 +10831,7 @@ describe('Soft death shake', () => {
       );
 
       setReducedMotion(true);
-      setQaNight(false);
+      setQaFlag('night', false);
       game.mode = MODES.UPDATED;
       game.score = 0;
       assertWave(
@@ -10840,7 +10861,7 @@ describe('Soft death shake', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
     }
   });
@@ -10849,7 +10870,7 @@ describe('Soft death shake', () => {
     const origMode = game.mode;
     const origScore = game.score;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       game.score = 0;
 
@@ -10960,7 +10981,7 @@ describe('Soft death shake', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
     }
   });
@@ -11001,7 +11022,7 @@ describe('Soft death shake', () => {
     const origScale = ctx.scale;
     try {
       setReducedMotion(false);
-      setQaNight(false);
+      setQaFlag('night', false);
       for (const mode of [MODES.UPDATED, MODES.DAILY]) {
         game.mode = mode;
         if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -11070,7 +11091,7 @@ describe('Soft death shake', () => {
       ctx.scale = origScale;
       game.mode = origMode;
       setReducedMotion(false);
-      setQaNight(false);
+      setQaFlag('night', false);
       game.obstacles.length = 0;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -11102,15 +11123,15 @@ describe('QA death shake flag (?qaShake=1)', () => {
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     resetGame();
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
-    setQaLevel(false);
-    setQaNight(false);
-    setQaPlateau(false);
-    setQaTrail(false);
-    setQaConfetti(false);
-    setQaDust(false);
-    setQaFlash(false);
-    setQaScorePop(false);
-    setQaShake(false);
+    setQaFlag('level', false);
+    setQaFlag('night', false);
+    setQaFlag('plateau', false);
+    setQaFlag('trail', false);
+    setQaFlag('confetti', false);
+    setQaFlag('dust', false);
+    setQaFlag('flash', false);
+    setQaFlag('scorePop', false);
+    setQaFlag('shake', false);
     setReducedMotion(false);
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
@@ -11127,16 +11148,19 @@ describe('QA death shake flag (?qaShake=1)', () => {
   }
 
   it('recognizes only ?qaShake=1', () => {
-    assert(readQaShakeFlag('?qaShake=1') === true, '?qaShake=1 should hold the death nudge');
+    assert(readQaFlag('shake', '?qaShake=1') === true, '?qaShake=1 should hold the death nudge');
     assert(
-      readQaShakeFlag('?qaNight=1&qaShake=1') === true,
+      readQaFlag('shake', '?qaNight=1&qaShake=1') === true,
       'the flag should work beside ?qaNight=1'
     );
-    assert(readQaShakeFlag('?qaShake=1&qaFlash=1') === true, 'param order should not matter');
-    assert(readQaShakeFlag('') === false, 'a normal visit should leave the nudge for a real death');
-    assert(readQaShakeFlag('?qaShake=0') === false, 'only the value 1 enables the flag');
-    assert(readQaShakeFlag('?qaShake=8') === false, 'qaShake=8 must not count as the flag');
-    assert(readQaShakeFlag('?qaScorePop=1') === false, 'the score pop must not hold the shake');
+    assert(readQaFlag('shake', '?qaShake=1&qaFlash=1') === true, 'param order should not matter');
+    assert(
+      readQaFlag('shake', '') === false,
+      'a normal visit should leave the nudge for a real death'
+    );
+    assert(readQaFlag('shake', '?qaShake=0') === false, 'only the value 1 enables the flag');
+    assert(readQaFlag('shake', '?qaShake=8') === false, 'qaShake=8 must not count as the flag');
+    assert(readQaFlag('shake', '?qaScorePop=1') === false, 'the score pop must not hold the shake');
   });
 
   it('holds the quieter peak from the first frame without arming the real shake', () => {
@@ -11147,7 +11171,7 @@ describe('QA death shake flag (?qaShake=1)', () => {
       for (const mode of [MODES.UPDATED, MODES.DAILY]) {
         armFreshRun(mode);
         game.rng = mulberry32(11);
-        setQaShake(false);
+        setQaFlag('shake', false);
         spy.calls.length = 0;
         tick();
         const rngAfterOff = game.rng();
@@ -11159,7 +11183,7 @@ describe('QA death shake flag (?qaShake=1)', () => {
 
         armFreshRun(mode);
         game.rng = mulberry32(11);
-        setQaShake(true);
+        setQaFlag('shake', true);
         game.score = 0;
         spy.calls.length = 0;
         tick();
@@ -11197,8 +11221,8 @@ describe('QA death shake flag (?qaShake=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaShake(false);
-      setQaNight(false);
+      setQaFlag('shake', false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       Particles.reset();
       Animations.reset();
@@ -11211,7 +11235,7 @@ describe('QA death shake flag (?qaShake=1)', () => {
     const spy = spyTranslate();
     try {
       armFreshRun(MODES.UPDATED);
-      setQaShake(true);
+      setQaFlag('shake', true);
       game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
       spy.calls.length = 0;
       tick();
@@ -11236,7 +11260,7 @@ describe('QA death shake flag (?qaShake=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaShake(false);
+      setQaFlag('shake', false);
       game.obstacles.length = 0;
       Particles.reset();
       Animations.reset();
@@ -11249,7 +11273,7 @@ describe('QA death shake flag (?qaShake=1)', () => {
     const spy = spyTranslate();
     try {
       armFreshRun(MODES.CLASSIC);
-      setQaShake(true);
+      setQaFlag('shake', true);
       spy.calls.length = 0;
       tick();
       tick();
@@ -11261,7 +11285,7 @@ describe('QA death shake flag (?qaShake=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaShake(false);
+      setQaFlag('shake', false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -11274,14 +11298,18 @@ describe('QA death shake flag (?qaShake=1)', () => {
       for (const mode of [MODES.UPDATED, MODES.DAILY]) {
         armFreshRun(mode);
         setReducedMotion(true);
-        setQaShake(true);
+        setQaFlag('shake', true);
         spy.calls.length = 0;
         tick();
         const damped = qaShakeOffset();
         const peak = GAME_CONFIG.UPDATED_DEATH_SHAKE_AMPLITUDE;
-        assertEquals(game.qaShakeHold, qaShakeHoldFrames(), mode + ' hold uses the shorter window');
+        assertEquals(
+          game.qaShakeHold,
+          qaHoldFrames('shake'),
+          mode + ' hold uses the shorter window'
+        );
         assert(game.qaShakeHold < QA_SHAKE_HOLD, mode + ' hold is shorter than the full capture');
-        assert(qaShakeHoldFrames() >= 2, mode + ' hold still lasts long enough to see');
+        assert(qaHoldFrames('shake') >= 2, mode + ' hold still lasts long enough to see');
         assert(damped > 0, mode + ' damped hold still moves the lane');
         assert(damped < peak, mode + ' damped hold is softer than the motion-allowed peak');
         assertEquals(damped, peak * 0.5, mode + ' reduced motion halves the shift');
@@ -11293,7 +11321,7 @@ describe('QA death shake flag (?qaShake=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaShake(false);
+      setQaFlag('shake', false);
       setReducedMotion(false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -11306,7 +11334,7 @@ describe('QA death shake flag (?qaShake=1)', () => {
     const spy = spyTranslate();
     setPageQuery('?qaShake=1');
     try {
-      setQaShake(false);
+      setQaFlag('shake', false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       resetGame();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -11332,7 +11360,7 @@ describe('QA death shake flag (?qaShake=1)', () => {
       spy.restore();
       restorePageQuery();
       game.mode = origMode;
-      setQaShake(false);
+      setQaFlag('shake', false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -11686,16 +11714,16 @@ describe('QA collision flag (?qaCollision=1)', () => {
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     resetGame();
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
-    setQaLevel(false);
-    setQaNight(false);
-    setQaPlateau(false);
-    setQaTrail(false);
-    setQaConfetti(false);
-    setQaDust(false);
-    setQaFlash(false);
-    setQaScorePop(false);
-    setQaNewBest(false);
-    setQaCollision(false);
+    setQaFlag('level', false);
+    setQaFlag('night', false);
+    setQaFlag('plateau', false);
+    setQaFlag('trail', false);
+    setQaFlag('confetti', false);
+    setQaFlag('dust', false);
+    setQaFlag('flash', false);
+    setQaFlag('scorePop', false);
+    setQaFlag('newBest', false);
+    setQaFlag('collision', false);
     setReducedMotion(false);
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
@@ -11710,28 +11738,31 @@ describe('QA collision flag (?qaCollision=1)', () => {
 
   it('recognizes only ?qaCollision=1', () => {
     assert(
-      readQaCollisionFlag('?qaCollision=1') === true,
+      readQaFlag('collision', '?qaCollision=1') === true,
       '?qaCollision=1 should hold the death puff'
     );
     assert(
-      readQaCollisionFlag('?qaNight=1&qaCollision=1') === true,
+      readQaFlag('collision', '?qaNight=1&qaCollision=1') === true,
       'the flag should work beside ?qaNight=1'
     );
     assert(
-      readQaCollisionFlag('?qaCollision=1&qaDust=1') === true,
+      readQaFlag('collision', '?qaCollision=1&qaDust=1') === true,
       'param order should not matter'
     );
     assert(
-      readQaCollisionFlag('') === false,
+      readQaFlag('collision', '') === false,
       'a normal visit should leave the puff for a real death'
     );
-    assert(readQaCollisionFlag('?qaCollision=0') === false, 'only the value 1 enables the flag');
     assert(
-      readQaCollisionFlag('?qaCollision=12') === false,
+      readQaFlag('collision', '?qaCollision=0') === false,
+      'only the value 1 enables the flag'
+    );
+    assert(
+      readQaFlag('collision', '?qaCollision=12') === false,
       'qaCollision=12 must not count as the flag'
     );
     assert(
-      readQaCollisionFlag('?qaFlash=1') === false,
+      readQaFlag('collision', '?qaFlash=1') === false,
       'the flash flag must not hold the death puff'
     );
   });
@@ -11752,7 +11783,7 @@ describe('QA collision flag (?qaCollision=1)', () => {
       for (const mode of [MODES.UPDATED, MODES.DAILY]) {
         armFreshRun(mode);
         game.rng = mulberry32(11);
-        setQaCollision(false);
+        setQaFlag('collision', false);
         spy.calls.length = 0;
         tick();
         const rngAfterOff = game.rng();
@@ -11769,7 +11800,7 @@ describe('QA collision flag (?qaCollision=1)', () => {
 
         armFreshRun(mode);
         game.rng = mulberry32(11);
-        setQaCollision(true);
+        setQaFlag('collision', true);
         Particles.particles.forEach((p) => {
           p.life = 8;
           p.maxLife = 8;
@@ -11811,7 +11842,7 @@ describe('QA collision flag (?qaCollision=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaCollision(false);
+      setQaFlag('collision', false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -11822,7 +11853,7 @@ describe('QA collision flag (?qaCollision=1)', () => {
     const spy = spyPaint();
     try {
       armFreshRun(MODES.UPDATED);
-      setQaCollision(true);
+      setQaFlag('collision', true);
       game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
       spy.calls.length = 0;
       tick();
@@ -11843,7 +11874,7 @@ describe('QA collision flag (?qaCollision=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaCollision(false);
+      setQaFlag('collision', false);
       game.obstacles.length = 0;
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -11855,7 +11886,7 @@ describe('QA collision flag (?qaCollision=1)', () => {
     const spy = spyPaint();
     try {
       armFreshRun(MODES.CLASSIC);
-      setQaCollision(true);
+      setQaFlag('collision', true);
       tick();
       tick();
       assertEquals(redFills(spy.calls).length, 0, 'Classic never paints the debug cluster');
@@ -11875,7 +11906,7 @@ describe('QA collision flag (?qaCollision=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaCollision(false);
+      setQaFlag('collision', false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -11886,16 +11917,16 @@ describe('QA collision flag (?qaCollision=1)', () => {
     const spy = spyPaint();
     try {
       armFreshRun(MODES.UPDATED);
-      setQaCollision(true);
+      setQaFlag('collision', true);
       setReducedMotion(false);
       const fullMarks = qaCollisionMarks().length;
       assert(fullMarks > 1, 'motion-on capture is a cluster, not one mote');
       setReducedMotion(true);
       spy.calls.length = 0;
       tick();
-      assertEquals(game.qaCollisionHold, qaCollisionHoldFrames(), 'hold uses the shorter window');
+      assertEquals(game.qaCollisionHold, qaHoldFrames('collision'), 'hold uses the shorter window');
       assert(game.qaCollisionHold < QA_COLLISION_HOLD, 'hold is shorter than the full capture');
-      assert(qaCollisionHoldFrames() >= 2, 'hold still lasts long enough to see');
+      assert(qaHoldFrames('collision') >= 2, 'hold still lasts long enough to see');
       assertEquals(qaCollisionPaintAlpha(), 0.5, 'reduced motion halves the hold ink');
       assertCluster(spy.calls, 'reduced motion', 0.5);
       assert(
@@ -11912,7 +11943,7 @@ describe('QA collision flag (?qaCollision=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaCollision(false);
+      setQaFlag('collision', false);
       setReducedMotion(false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -11925,7 +11956,7 @@ describe('QA collision flag (?qaCollision=1)', () => {
     const spy = spyPaint();
     setPageQuery('?qaCollision=1');
     try {
-      setQaCollision(false);
+      setQaFlag('collision', false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       resetGame();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -11944,7 +11975,7 @@ describe('QA collision flag (?qaCollision=1)', () => {
       spy.restore();
       restorePageQuery();
       game.mode = origMode;
-      setQaCollision(false);
+      setQaFlag('collision', false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -12058,10 +12089,10 @@ describe('Quiet late-run heel trail', () => {
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     resetGame();
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
-    setQaTrail(false);
-    setQaLevel(false);
-    setQaNight(false);
-    setQaPlateau(false);
+    setQaFlag('trail', false);
+    setQaFlag('level', false);
+    setQaFlag('night', false);
+    setQaFlag('plateau', false);
     setReducedMotion(false);
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
@@ -12179,7 +12210,7 @@ describe('Quiet late-run heel trail', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
-      setQaTrail(false);
+      setQaFlag('trail', false);
       setReducedMotion(false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -12204,7 +12235,7 @@ describe('Quiet late-run heel trail', () => {
 
       armRun(MODES.UPDATED);
       setReducedMotion(true);
-      setQaTrail(true);
+      setQaFlag('trail', true);
       tick();
       assertEquals(trailMotes().length, expectedCount, 'a running frame still damps the whisper');
       trailMotes().forEach((p) => {
@@ -12218,7 +12249,7 @@ describe('Quiet late-run heel trail', () => {
       );
     } finally {
       game.mode = origMode;
-      setQaTrail(false);
+      setQaFlag('trail', false);
       setReducedMotion(false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -12243,9 +12274,9 @@ describe('QA trail flag (?qaTrail=1)', () => {
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     resetGame();
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
-    setQaLevel(false);
-    setQaNight(false);
-    setQaPlateau(false);
+    setQaFlag('level', false);
+    setQaFlag('night', false);
+    setQaFlag('plateau', false);
     setReducedMotion(false);
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
@@ -12259,16 +12290,22 @@ describe('QA trail flag (?qaTrail=1)', () => {
   }
 
   it('recognizes only ?qaTrail=1', () => {
-    assert(readQaTrailFlag('?qaTrail=1') === true, '?qaTrail=1 should enable the early heel trail');
     assert(
-      readQaTrailFlag('?qaNight=1&qaTrail=1') === true,
+      readQaFlag('trail', '?qaTrail=1') === true,
+      '?qaTrail=1 should enable the early heel trail'
+    );
+    assert(
+      readQaFlag('trail', '?qaNight=1&qaTrail=1') === true,
       'the flag should work beside ?qaNight=1'
     );
-    assert(readQaTrailFlag('?qaTrail=1&qaNight=1') === true, 'param order should not matter');
-    assert(readQaTrailFlag('') === false, 'a normal visit should leave the trail on real speed');
-    assert(readQaTrailFlag('?qaTrail=0') === false, 'only the value 1 enables the flag');
-    assert(readQaTrailFlag('?qaTrail=12') === false, 'qaTrail=12 must not count as the flag');
-    assert(readQaTrailFlag('?qaNight=1') === false, 'night alone must not force the trail');
+    assert(readQaFlag('trail', '?qaTrail=1&qaNight=1') === true, 'param order should not matter');
+    assert(
+      readQaFlag('trail', '') === false,
+      'a normal visit should leave the trail on real speed'
+    );
+    assert(readQaFlag('trail', '?qaTrail=0') === false, 'only the value 1 enables the flag');
+    assert(readQaFlag('trail', '?qaTrail=12') === false, 'qaTrail=12 must not count as the flag');
+    assert(readQaFlag('trail', '?qaNight=1') === false, 'night alone must not force the trail');
   });
 
   it('emits the whisper on the first Updated and Daily frame without moving score or speed', () => {
@@ -12277,7 +12314,7 @@ describe('QA trail flag (?qaTrail=1)', () => {
       for (const mode of [MODES.UPDATED, MODES.DAILY]) {
         armFreshRun(mode);
         game.rng = mulberry32(11);
-        setQaTrail(false);
+        setQaFlag('trail', false);
         tick();
         const rngAfterOff = game.rng();
         const speedOff = game.currentSpeed;
@@ -12289,7 +12326,7 @@ describe('QA trail flag (?qaTrail=1)', () => {
 
         armFreshRun(mode);
         game.rng = mulberry32(11);
-        setQaTrail(true);
+        setQaFlag('trail', true);
         tick();
         const motes = trailMotes();
         assertEquals(
@@ -12326,7 +12363,7 @@ describe('QA trail flag (?qaTrail=1)', () => {
       }
     } finally {
       game.mode = origMode;
-      setQaTrail(false);
+      setQaFlag('trail', false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -12336,7 +12373,7 @@ describe('QA trail flag (?qaTrail=1)', () => {
     const origMode = game.mode;
     try {
       armFreshRun(MODES.CLASSIC);
-      setQaTrail(true);
+      setQaFlag('trail', true);
       tick();
       tick();
       assertEquals(trailMotes().length, 0, 'Classic never trails, even with the flag');
@@ -12347,7 +12384,7 @@ describe('QA trail flag (?qaTrail=1)', () => {
       );
     } finally {
       game.mode = origMode;
-      setQaTrail(false);
+      setQaFlag('trail', false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -12358,8 +12395,8 @@ describe('QA trail flag (?qaTrail=1)', () => {
     const restorePageQuery = savePageQuery();
     setPageQuery('?qaNight=1&qaTrail=1');
     try {
-      setQaTrail(false);
-      setQaNight(false);
+      setQaFlag('trail', false);
+      setQaFlag('night', false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       resetGame();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -12383,8 +12420,8 @@ describe('QA trail flag (?qaTrail=1)', () => {
     } finally {
       restorePageQuery();
       game.mode = origMode;
-      setQaTrail(false);
-      setQaNight(false);
+      setQaFlag('trail', false);
+      setQaFlag('night', false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -12539,7 +12576,7 @@ describe('Quiet new-best confetti', () => {
     const origMode = game.mode;
     try {
       setReducedMotion(false);
-      setQaConfetti(false);
+      setQaFlag('confetti', false);
       for (const mode of [MODES.UPDATED, MODES.DAILY, MODES.CLASSIC]) {
         game.mode = mode;
         if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -12580,7 +12617,7 @@ describe('Quiet new-best confetti', () => {
       }
     } finally {
       game.mode = origMode;
-      setQaConfetti(false);
+      setQaFlag('confetti', false);
       setReducedMotion(false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -12676,11 +12713,11 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     resetGame();
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
-    setQaLevel(false);
-    setQaNight(false);
-    setQaPlateau(false);
-    setQaTrail(false);
-    setQaConfetti(false);
+    setQaFlag('level', false);
+    setQaFlag('night', false);
+    setQaFlag('plateau', false);
+    setQaFlag('trail', false);
+    setQaFlag('confetti', false);
     setReducedMotion(false);
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
@@ -12695,24 +12732,30 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
 
   it('recognizes only ?qaConfetti=1', () => {
     assert(
-      readQaConfettiFlag('?qaConfetti=1') === true,
+      readQaFlag('confetti', '?qaConfetti=1') === true,
       '?qaConfetti=1 should enable the early gold puff'
     );
     assert(
-      readQaConfettiFlag('?qaNight=1&qaConfetti=1') === true,
+      readQaFlag('confetti', '?qaNight=1&qaConfetti=1') === true,
       'the flag should work beside ?qaNight=1'
     );
-    assert(readQaConfettiFlag('?qaConfetti=1&qaTrail=1') === true, 'param order should not matter');
     assert(
-      readQaConfettiFlag('') === false,
+      readQaFlag('confetti', '?qaConfetti=1&qaTrail=1') === true,
+      'param order should not matter'
+    );
+    assert(
+      readQaFlag('confetti', '') === false,
       'a normal visit should leave confetti on the real level'
     );
-    assert(readQaConfettiFlag('?qaConfetti=0') === false, 'only the value 1 enables the flag');
+    assert(readQaFlag('confetti', '?qaConfetti=0') === false, 'only the value 1 enables the flag');
     assert(
-      readQaConfettiFlag('?qaConfetti=12') === false,
+      readQaFlag('confetti', '?qaConfetti=12') === false,
       'qaConfetti=12 must not count as the flag'
     );
-    assert(readQaConfettiFlag('?qaLevel=1') === false, 'the level flag must not force this latch');
+    assert(
+      readQaFlag('confetti', '?qaLevel=1') === false,
+      'the level flag must not force this latch'
+    );
   });
 
   it('paints a dark-gold block from the hold, even when the pool cannot emit', () => {
@@ -12744,7 +12787,7 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
       for (const mode of [MODES.UPDATED, MODES.DAILY]) {
         armFreshRun(mode);
         game.rng = mulberry32(11);
-        setQaConfetti(false);
+        setQaFlag('confetti', false);
         spy.calls.length = 0;
         tick();
         const rngAfterOff = game.rng();
@@ -12763,7 +12806,7 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
 
         armFreshRun(mode);
         game.rng = mulberry32(11);
-        setQaConfetti(true);
+        setQaFlag('confetti', true);
         Particles.particles.forEach((p) => {
           p.life = 8;
           p.maxLife = 8;
@@ -12809,7 +12852,7 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaConfetti(false);
+      setQaFlag('confetti', false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -12820,7 +12863,7 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
     const spy = spyPaint();
     try {
       armFreshRun(MODES.UPDATED);
-      setQaConfetti(true);
+      setQaFlag('confetti', true);
       tick();
       assertEquals(game.qaConfettiHold, QA_CONFETTI_HOLD, 'the hold is up before the hit');
       game.obstacles.push({
@@ -12849,7 +12892,7 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaConfetti(false);
+      setQaFlag('confetti', false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -12860,7 +12903,7 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
     const spy = spyPaint();
     try {
       armFreshRun(MODES.CLASSIC);
-      setQaConfetti(true);
+      setQaFlag('confetti', true);
       tick();
       tick();
       assertEquals(goldAfterScore(spy.calls).length, 0, 'Classic never paints the debug block');
@@ -12879,7 +12922,7 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaConfetti(false);
+      setQaFlag('confetti', false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -12892,19 +12935,19 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
       for (const mode of [MODES.UPDATED, MODES.DAILY]) {
         armFreshRun(mode);
         setReducedMotion(true);
-        setQaConfetti(true);
+        setQaFlag('confetti', true);
         spy.calls.length = 0;
         tick();
         assertEquals(
           game.qaConfettiHold,
-          qaConfettiHoldFrames(),
+          qaHoldFrames('confetti'),
           mode + ' hold uses the shorter window'
         );
         assert(
           game.qaConfettiHold < QA_CONFETTI_HOLD,
           mode + ' hold is shorter than the full capture'
         );
-        assert(qaConfettiHoldFrames() >= 2, mode + ' hold still lasts long enough to see');
+        assert(qaHoldFrames('confetti') >= 2, mode + ' hold still lasts long enough to see');
         assertEquals(qaConfettiPaintAlpha(), 0.5, mode + ' reduced motion halves the hold ink');
         assertBlock(spy.calls, mode + ' reduced motion', 0.5);
         assertEquals(
@@ -12918,7 +12961,7 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaConfetti(false);
+      setQaFlag('confetti', false);
       setReducedMotion(false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -12931,7 +12974,7 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
     const spy = spyPaint();
     setPageQuery('?qaConfetti=1');
     try {
-      setQaConfetti(false);
+      setQaFlag('confetti', false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       resetGame();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -12950,7 +12993,7 @@ describe('QA confetti flag (?qaConfetti=1)', () => {
       spy.restore();
       restorePageQuery();
       game.mode = origMode;
-      setQaConfetti(false);
+      setQaFlag('confetti', false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -13119,7 +13162,7 @@ describe('Quiet day land dust', () => {
     const origRng = game.rng;
     try {
       setReducedMotion(false);
-      setQaNight(false);
+      setQaFlag('night', false);
       for (const mode of [MODES.UPDATED, MODES.DAILY]) {
         for (const spec of [
           ['jump', JUMP],
@@ -13170,7 +13213,7 @@ describe('Quiet day land dust', () => {
       game.score = origScore;
       game.rng = origRng;
       setReducedMotion(false);
-      setQaNight(false);
+      setQaFlag('night', false);
       Particles.reset();
     }
   });
@@ -13184,7 +13227,7 @@ describe('Quiet day land dust', () => {
     };
     try {
       setReducedMotion(false);
-      setQaNight(false);
+      setQaFlag('night', false);
       game.mode = MODES.UPDATED;
       game.score = 0;
       Particles.reset();
@@ -13319,12 +13362,12 @@ describe('QA dust flag (?qaDust=1)', () => {
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     resetGame();
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
-    setQaLevel(false);
-    setQaNight(false);
-    setQaPlateau(false);
-    setQaTrail(false);
-    setQaConfetti(false);
-    setQaDust(false);
+    setQaFlag('level', false);
+    setQaFlag('night', false);
+    setQaFlag('plateau', false);
+    setQaFlag('trail', false);
+    setQaFlag('confetti', false);
+    setQaFlag('dust', false);
     setReducedMotion(false);
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
@@ -13338,19 +13381,19 @@ describe('QA dust flag (?qaDust=1)', () => {
   }
 
   it('recognizes only ?qaDust=1', () => {
-    assert(readQaDustFlag('?qaDust=1') === true, '?qaDust=1 should enable the held foot dust');
+    assert(readQaFlag('dust', '?qaDust=1') === true, '?qaDust=1 should enable the held foot dust');
     assert(
-      readQaDustFlag('?qaNight=1&qaDust=1') === true,
+      readQaFlag('dust', '?qaNight=1&qaDust=1') === true,
       'the flag should work beside ?qaNight=1'
     );
-    assert(readQaDustFlag('?qaDust=1&qaConfetti=1') === true, 'param order should not matter');
+    assert(readQaFlag('dust', '?qaDust=1&qaConfetti=1') === true, 'param order should not matter');
     assert(
-      readQaDustFlag('') === false,
+      readQaFlag('dust', '') === false,
       'a normal visit should leave dust on a real jump and land'
     );
-    assert(readQaDustFlag('?qaDust=0') === false, 'only the value 1 enables the flag');
-    assert(readQaDustFlag('?qaDust=12') === false, 'qaDust=12 must not count as the flag');
-    assert(readQaDustFlag('?qaNight=1') === false, 'night alone must not force the held dust');
+    assert(readQaFlag('dust', '?qaDust=0') === false, 'only the value 1 enables the flag');
+    assert(readQaFlag('dust', '?qaDust=12') === false, 'qaDust=12 must not count as the flag');
+    assert(readQaFlag('dust', '?qaNight=1') === false, 'night alone must not force the held dust');
   });
 
   it('paints held foot motes from the first frame, even when the pool cannot emit', () => {
@@ -13362,7 +13405,7 @@ describe('QA dust flag (?qaDust=1)', () => {
       for (const mode of [MODES.UPDATED, MODES.DAILY]) {
         armFreshRun(mode);
         game.rng = mulberry32(11);
-        setQaDust(false);
+        setQaFlag('dust', false);
         spy.calls.length = 0;
         tick();
         const rngAfterOff = game.rng();
@@ -13377,7 +13420,7 @@ describe('QA dust flag (?qaDust=1)', () => {
 
         armFreshRun(mode);
         game.rng = mulberry32(11);
-        setQaDust(true);
+        setQaFlag('dust', true);
         Particles.particles.forEach((p) => {
           p.life = 8;
           p.maxLife = 8;
@@ -13422,7 +13465,7 @@ describe('QA dust flag (?qaDust=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaDust(false);
+      setQaFlag('dust', false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -13433,7 +13476,7 @@ describe('QA dust flag (?qaDust=1)', () => {
     const spy = spyPaint();
     try {
       armFreshRun(MODES.UPDATED);
-      setQaDust(true);
+      setQaFlag('dust', true);
       tick();
       assertEquals(game.qaDustHold, QA_DUST_HOLD, 'the hold is up before the hit');
       game.obstacles.push({
@@ -13455,7 +13498,7 @@ describe('QA dust flag (?qaDust=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaDust(false);
+      setQaFlag('dust', false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -13468,7 +13511,7 @@ describe('QA dust flag (?qaDust=1)', () => {
     try {
       armFreshRun(MODES.UPDATED);
       game.state = STATE.IDLE;
-      setQaDust(true);
+      setQaFlag('dust', true);
       spy.calls.length = 0;
       tick();
       assertMarks(spy.calls, '#9c8770', 'idle');
@@ -13482,7 +13525,7 @@ describe('QA dust flag (?qaDust=1)', () => {
       spy.restore();
       game.mode = origMode;
       game.state = origState;
-      setQaDust(false);
+      setQaFlag('dust', false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -13493,8 +13536,8 @@ describe('QA dust flag (?qaDust=1)', () => {
     const spy = spyPaint();
     try {
       armFreshRun(MODES.UPDATED);
-      setQaDust(true);
-      setQaNight(true);
+      setQaFlag('dust', true);
+      setQaFlag('night', true);
       spy.calls.length = 0;
       tick();
       assertMarks(spy.calls, GAME_CONFIG.NIGHT_LAND_DUST_COLOR, 'night', 0.42);
@@ -13518,8 +13561,8 @@ describe('QA dust flag (?qaDust=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaDust(false);
-      setQaNight(false);
+      setQaFlag('dust', false);
+      setQaFlag('night', false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -13530,7 +13573,7 @@ describe('QA dust flag (?qaDust=1)', () => {
     const spy = spyPaint();
     try {
       armFreshRun(MODES.CLASSIC);
-      setQaDust(true);
+      setQaFlag('dust', true);
       tick();
       tick();
       assertEquals(dustFills(spy.calls, '#9c8770').length, 0, 'Classic never paints the held dust');
@@ -13549,7 +13592,7 @@ describe('QA dust flag (?qaDust=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaDust(false);
+      setQaFlag('dust', false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -13561,7 +13604,7 @@ describe('QA dust flag (?qaDust=1)', () => {
     try {
       armFreshRun(MODES.UPDATED);
       setReducedMotion(true);
-      setQaDust(true);
+      setQaFlag('dust', true);
       tick();
       assertMarks(spy.calls, '#9c8770', 'reduced motion');
       assertEquals(
@@ -13573,7 +13616,7 @@ describe('QA dust flag (?qaDust=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaDust(false);
+      setQaFlag('dust', false);
       setReducedMotion(false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -13586,8 +13629,8 @@ describe('QA dust flag (?qaDust=1)', () => {
     try {
       armFreshRun(MODES.UPDATED);
       setReducedMotion(true);
-      setQaNight(true);
-      setQaDust(true);
+      setQaFlag('night', true);
+      setQaFlag('dust', true);
       tick();
       assertMarks(spy.calls, '#6a686e', 'reduced motion night', 0.21);
       assertEquals(
@@ -13604,8 +13647,8 @@ describe('QA dust flag (?qaDust=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaDust(false);
-      setQaNight(false);
+      setQaFlag('dust', false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -13618,8 +13661,8 @@ describe('QA dust flag (?qaDust=1)', () => {
     const spy = spyPaint();
     setPageQuery('?qaNight=1&qaDust=1');
     try {
-      setQaDust(false);
-      setQaNight(false);
+      setQaFlag('dust', false);
+      setQaFlag('night', false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       resetGame();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -13643,8 +13686,8 @@ describe('QA dust flag (?qaDust=1)', () => {
       spy.restore();
       restorePageQuery();
       game.mode = origMode;
-      setQaDust(false);
-      setQaNight(false);
+      setQaFlag('dust', false);
+      setQaFlag('night', false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -13701,14 +13744,14 @@ describe('QA flash flag (?qaFlash=1)', () => {
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     resetGame();
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
-    setQaLevel(false);
-    setQaNight(false);
-    setQaPlateau(false);
-    setQaTrail(false);
-    setQaConfetti(false);
-    setQaDust(false);
-    setQaFlash(false);
-    setQaScorePop(false);
+    setQaFlag('level', false);
+    setQaFlag('night', false);
+    setQaFlag('plateau', false);
+    setQaFlag('trail', false);
+    setQaFlag('confetti', false);
+    setQaFlag('dust', false);
+    setQaFlag('flash', false);
+    setQaFlag('scorePop', false);
     setReducedMotion(false);
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
@@ -13723,16 +13766,22 @@ describe('QA flash flag (?qaFlash=1)', () => {
   }
 
   it('recognizes only ?qaFlash=1', () => {
-    assert(readQaFlashFlag('?qaFlash=1') === true, '?qaFlash=1 should hold the death blink');
+    assert(readQaFlag('flash', '?qaFlash=1') === true, '?qaFlash=1 should hold the death blink');
     assert(
-      readQaFlashFlag('?qaNight=1&qaFlash=1') === true,
+      readQaFlag('flash', '?qaNight=1&qaFlash=1') === true,
       'the flag should work beside ?qaNight=1'
     );
-    assert(readQaFlashFlag('?qaFlash=1&qaDust=1') === true, 'param order should not matter');
-    assert(readQaFlashFlag('') === false, 'a normal visit should leave the flash for a real death');
-    assert(readQaFlashFlag('?qaFlash=0') === false, 'only the value 1 enables the flag');
-    assert(readQaFlashFlag('?qaFlash=12') === false, 'qaFlash=12 must not count as the flag');
-    assert(readQaFlashFlag('?qaNight=1') === false, 'night alone must not hold the death blink');
+    assert(readQaFlag('flash', '?qaFlash=1&qaDust=1') === true, 'param order should not matter');
+    assert(
+      readQaFlag('flash', '') === false,
+      'a normal visit should leave the flash for a real death'
+    );
+    assert(readQaFlag('flash', '?qaFlash=0') === false, 'only the value 1 enables the flag');
+    assert(readQaFlag('flash', '?qaFlash=12') === false, 'qaFlash=12 must not count as the flag');
+    assert(
+      readQaFlag('flash', '?qaNight=1') === false,
+      'night alone must not hold the death blink'
+    );
   });
 
   it('paints the quieter day blink from the first frame even when the flash timer is zero', () => {
@@ -13744,7 +13793,7 @@ describe('QA flash flag (?qaFlash=1)', () => {
       for (const mode of [MODES.UPDATED, MODES.DAILY]) {
         armFreshRun(mode);
         game.rng = mulberry32(11);
-        setQaFlash(false);
+        setQaFlag('flash', false);
         spy.calls.length = 0;
         tick();
         const rngAfterOff = game.rng();
@@ -13759,7 +13808,7 @@ describe('QA flash flag (?qaFlash=1)', () => {
 
         armFreshRun(mode);
         game.rng = mulberry32(11);
-        setQaFlash(true);
+        setQaFlag('flash', true);
         Animations.deathFlashFrames = 0;
         Particles.reset();
         for (let i = 0; i < Particles.POOL_SIZE; i++) Particles.particles[i].life = 8;
@@ -13793,7 +13842,7 @@ describe('QA flash flag (?qaFlash=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaFlash(false);
+      setQaFlag('flash', false);
       setReducedMotion(false);
       Particles.reset();
       Animations.reset();
@@ -13806,7 +13855,7 @@ describe('QA flash flag (?qaFlash=1)', () => {
     const spy = spyPaint();
     try {
       armFreshRun(MODES.UPDATED);
-      setQaFlash(true);
+      setQaFlag('flash', true);
       game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
       spy.calls.length = 0;
       tick();
@@ -13826,7 +13875,7 @@ describe('QA flash flag (?qaFlash=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaFlash(false);
+      setQaFlag('flash', false);
       game.obstacles.length = 0;
       Particles.reset();
       Animations.reset();
@@ -13839,8 +13888,8 @@ describe('QA flash flag (?qaFlash=1)', () => {
     const spy = spyPaint();
     try {
       armFreshRun(MODES.UPDATED);
-      setQaFlash(true);
-      setQaNight(true);
+      setQaFlag('flash', true);
+      setQaFlag('night', true);
       spy.calls.length = 0;
       tick();
       const nightAlpha = GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA.toFixed(3);
@@ -13860,8 +13909,8 @@ describe('QA flash flag (?qaFlash=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaFlash(false);
-      setQaNight(false);
+      setQaFlag('flash', false);
+      setQaFlag('night', false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -13872,7 +13921,7 @@ describe('QA flash flag (?qaFlash=1)', () => {
     const spy = spyPaint();
     try {
       armFreshRun(MODES.CLASSIC);
-      setQaFlash(true);
+      setQaFlag('flash', true);
       tick();
       tick();
       assertEquals(flashFills(spy.calls, '0.500').length, 0, 'Classic never paints the day hold');
@@ -13883,7 +13932,7 @@ describe('QA flash flag (?qaFlash=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaFlash(false);
+      setQaFlag('flash', false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -13896,8 +13945,8 @@ describe('QA flash flag (?qaFlash=1)', () => {
       for (const night of [false, true]) {
         armFreshRun(MODES.UPDATED);
         setReducedMotion(true);
-        setQaFlash(true);
-        setQaNight(night);
+        setQaFlag('flash', true);
+        setQaFlag('night', night);
         const peak = night
           ? GAME_CONFIG.NIGHT_DEATH_FLASH_PEAK_ALPHA
           : GAME_CONFIG.DAY_DEATH_FLASH_PEAK_ALPHA;
@@ -13907,11 +13956,11 @@ describe('QA flash flag (?qaFlash=1)', () => {
         const label = night ? 'night' : 'day';
         assertEquals(
           game.qaFlashHold,
-          qaFlashHoldFrames(),
+          qaHoldFrames('flash'),
           label + ' hold uses the shorter window'
         );
         assert(game.qaFlashHold < QA_FLASH_HOLD, label + ' hold is shorter than the full capture');
-        assert(qaFlashHoldFrames() >= 2, label + ' hold still lasts long enough to see');
+        assert(qaHoldFrames('flash') >= 2, label + ' hold still lasts long enough to see');
         assertEquals(
           flashFills(spy.calls, damped).length,
           1,
@@ -13928,8 +13977,8 @@ describe('QA flash flag (?qaFlash=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaFlash(false);
-      setQaNight(false);
+      setQaFlag('flash', false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -13942,8 +13991,8 @@ describe('QA flash flag (?qaFlash=1)', () => {
     const spy = spyPaint();
     setPageQuery('?qaNight=1&qaFlash=1');
     try {
-      setQaFlash(false);
-      setQaNight(false);
+      setQaFlag('flash', false);
+      setQaFlag('night', false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       resetGame();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -13972,8 +14021,8 @@ describe('QA flash flag (?qaFlash=1)', () => {
       spy.restore();
       restorePageQuery();
       game.mode = origMode;
-      setQaFlash(false);
-      setQaNight(false);
+      setQaFlag('flash', false);
+      setQaFlag('night', false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -14231,14 +14280,14 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     resetGame();
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
-    setQaLevel(false);
-    setQaNight(false);
-    setQaPlateau(false);
-    setQaTrail(false);
-    setQaConfetti(false);
-    setQaDust(false);
-    setQaFlash(false);
-    setQaScorePop(false);
+    setQaFlag('level', false);
+    setQaFlag('night', false);
+    setQaFlag('plateau', false);
+    setQaFlag('trail', false);
+    setQaFlag('confetti', false);
+    setQaFlag('dust', false);
+    setQaFlag('flash', false);
+    setQaFlag('scorePop', false);
     setReducedMotion(false);
     game.state = STATE.RUNNING;
     game.graceFrames = 0;
@@ -14254,23 +14303,29 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
   }
 
   it('recognizes only ?qaScorePop=1', () => {
-    assert(readQaScorePopFlag('?qaScorePop=1') === true, '?qaScorePop=1 should hold the score pop');
     assert(
-      readQaScorePopFlag('?qaNight=1&qaScorePop=1') === true,
+      readQaFlag('scorePop', '?qaScorePop=1') === true,
+      '?qaScorePop=1 should hold the score pop'
+    );
+    assert(
+      readQaFlag('scorePop', '?qaNight=1&qaScorePop=1') === true,
       'the flag should work beside ?qaNight=1'
     );
-    assert(readQaScorePopFlag('?qaScorePop=1&qaFlash=1') === true, 'param order should not matter');
     assert(
-      readQaScorePopFlag('') === false,
+      readQaFlag('scorePop', '?qaScorePop=1&qaFlash=1') === true,
+      'param order should not matter'
+    );
+    assert(
+      readQaFlag('scorePop', '') === false,
       'a normal visit should leave the pop for a real death'
     );
-    assert(readQaScorePopFlag('?qaScorePop=0') === false, 'only the value 1 enables the flag');
+    assert(readQaFlag('scorePop', '?qaScorePop=0') === false, 'only the value 1 enables the flag');
     assert(
-      readQaScorePopFlag('?qaScorePop=12') === false,
+      readQaFlag('scorePop', '?qaScorePop=12') === false,
       'qaScorePop=12 must not count as the flag'
     );
     assert(
-      readQaScorePopFlag('?qaFlash=1') === false,
+      readQaFlag('scorePop', '?qaFlash=1') === false,
       'the death blink must not hold the score pop'
     );
   });
@@ -14285,7 +14340,7 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
       for (const mode of [MODES.UPDATED, MODES.DAILY]) {
         armFreshRun(mode);
         game.rng = mulberry32(11);
-        setQaScorePop(false);
+        setQaFlag('scorePop', false);
         spy.calls.length = 0;
         tick();
         const rngAfterOff = game.rng();
@@ -14300,7 +14355,7 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
 
         armFreshRun(mode);
         game.rng = mulberry32(11);
-        setQaScorePop(true);
+        setQaFlag('scorePop', true);
         Animations.scorePopFrames = 0;
         Particles.reset();
         for (let i = 0; i < Particles.POOL_SIZE; i++) Particles.particles[i].life = 8;
@@ -14336,7 +14391,7 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaScorePop(false);
+      setQaFlag('scorePop', false);
       setReducedMotion(false);
       Particles.reset();
       Animations.reset();
@@ -14349,7 +14404,7 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
     const spy = spyPaint();
     try {
       armFreshRun(MODES.UPDATED);
-      setQaScorePop(true);
+      setQaFlag('scorePop', true);
       game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
       spy.calls.length = 0;
       tick();
@@ -14378,7 +14433,7 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaScorePop(false);
+      setQaFlag('scorePop', false);
       game.obstacles.length = 0;
       Particles.reset();
       Animations.reset();
@@ -14391,7 +14446,7 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
     const spy = spyPaint();
     try {
       armFreshRun(MODES.CLASSIC);
-      setQaScorePop(true);
+      setQaFlag('scorePop', true);
       tick();
       tick();
       assertEquals(
@@ -14405,7 +14460,7 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaScorePop(false);
+      setQaFlag('scorePop', false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -14418,21 +14473,21 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
       for (const mode of [MODES.UPDATED, MODES.DAILY]) {
         armFreshRun(mode);
         setReducedMotion(true);
-        setQaScorePop(true);
+        setQaFlag('scorePop', true);
         spy.calls.length = 0;
         tick();
         const damped = qaScorePopScale();
         const peak = GAME_CONFIG.SCORE_POP_PEAK_SCALE;
         assertEquals(
           game.qaScorePopHold,
-          qaScorePopHoldFrames(),
+          qaHoldFrames('scorePop'),
           mode + ' hold uses the shorter window'
         );
         assert(
           game.qaScorePopHold < QA_SCORE_POP_HOLD,
           mode + ' hold is shorter than the full capture'
         );
-        assert(qaScorePopHoldFrames() >= 2, mode + ' hold still lasts long enough to see');
+        assert(qaHoldFrames('scorePop') >= 2, mode + ' hold still lasts long enough to see');
         assert(damped > 1, mode + ' damped hold still grows the number');
         assert(damped < peak, mode + ' damped hold is softer than the motion-allowed peak');
         assertEquals(
@@ -14451,7 +14506,7 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaScorePop(false);
+      setQaFlag('scorePop', false);
       setReducedMotion(false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -14464,7 +14519,7 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
     const spy = spyPaint();
     setPageQuery('?qaScorePop=1');
     try {
-      setQaScorePop(false);
+      setQaFlag('scorePop', false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       resetGame();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -14489,7 +14544,7 @@ describe('QA score pop flag (?qaScorePop=1)', () => {
       spy.restore();
       restorePageQuery();
       game.mode = origMode;
-      setQaScorePop(false);
+      setQaFlag('scorePop', false);
       Particles.reset();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -14557,7 +14612,7 @@ describe('Quieter LEVEL label', () => {
     const origText = game.milestoneText;
     try {
       setReducedMotion(false);
-      setQaLevel(false);
+      setQaFlag('level', false);
       game.mode = MODES.CLASSIC;
       game.score = 40;
       game.milestoneText = 'LEVEL 2';
@@ -14608,7 +14663,7 @@ describe('Quieter LEVEL label', () => {
       game.milestoneText = origText;
       Animations.milestoneFrames = 0;
       setReducedMotion(false);
-      setQaLevel(false);
+      setQaFlag('level', false);
       ctx.globalAlpha = 1;
     }
   });
@@ -14619,7 +14674,7 @@ describe('Quieter LEVEL label', () => {
     const origText = game.milestoneText;
     try {
       setReducedMotion(false);
-      setQaNight(false);
+      setQaFlag('night', false);
       game.score = 40;
       game.milestoneText = 'LEVEL 3';
       assertEquals(GAME_CONFIG.UPDATED_MILESTONE_FONT_PX, 16, 'the quiet word is 16px');
@@ -14686,7 +14741,7 @@ describe('Quieter LEVEL label', () => {
       game.score = origScore;
       game.milestoneText = origText;
       Animations.milestoneFrames = 0;
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       ctx.globalAlpha = 1;
     }
@@ -14698,7 +14753,7 @@ describe('Quieter LEVEL label', () => {
     const origText = game.milestoneText;
     try {
       setReducedMotion(false);
-      setQaNight(false);
+      setQaFlag('night', false);
       game.mode = MODES.UPDATED;
       game.score = 40;
       game.milestoneText = 'LEVEL 2';
@@ -14745,7 +14800,7 @@ describe('Quieter LEVEL label', () => {
     const origText = game.milestoneText;
     try {
       setReducedMotion(false);
-      setQaNight(false);
+      setQaFlag('night', false);
       game.score = GAME_CONFIG.DAY_NIGHT_START;
       game.milestoneText = 'LEVEL 5';
       game.mode = MODES.UPDATED;
@@ -14918,11 +14973,11 @@ describe('Quieter LEVEL label', () => {
     const origMode = game.mode;
     const origScore = game.score;
     try {
-      setQaNight(false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       armFreshRun();
       game.mode = MODES.UPDATED;
-      setQaLevel(true);
+      setQaFlag('level', true);
       const spy = spyText();
       try {
         tick();
@@ -14960,7 +15015,7 @@ describe('Quieter LEVEL label', () => {
 
       armFreshRun();
       game.mode = MODES.CLASSIC;
-      setQaLevel(true);
+      setQaFlag('level', true);
       const classicSpy = spyText();
       try {
         tick();
@@ -14978,7 +15033,7 @@ describe('Quieter LEVEL label', () => {
         setReducedMotion(true);
         armFreshRun();
         game.mode = mode;
-        setQaLevel(true);
+        setQaFlag('level', true);
         const rmSpy = spyText();
         try {
           tick();
@@ -15002,8 +15057,8 @@ describe('Quieter LEVEL label', () => {
     } finally {
       game.mode = origMode;
       game.score = origScore;
-      setQaLevel(false);
-      setQaNight(false);
+      setQaFlag('level', false);
+      setQaFlag('night', false);
       setReducedMotion(false);
       Animations.milestoneFrames = 0;
       game.qaLevelHold = 0;
@@ -15098,7 +15153,7 @@ describe('Quieter NEW BEST badge', () => {
     const origScore = game.score;
     try {
       setReducedMotion(false);
-      setQaNewBest(false);
+      setQaFlag('newBest', false);
       game.qaNewBestHold = 0;
       game.mode = MODES.CLASSIC;
       Animations.milestoneFrames = 0;
@@ -15165,7 +15220,7 @@ describe('Quieter NEW BEST badge', () => {
       Animations.newBestFrames = 0;
       game.qaNewBestHold = 0;
       setReducedMotion(false);
-      setQaNewBest(false);
+      setQaFlag('newBest', false);
       ctx.globalAlpha = 1;
     }
   });
@@ -15174,7 +15229,7 @@ describe('Quieter NEW BEST badge', () => {
     const origMode = game.mode;
     try {
       setReducedMotion(false);
-      setQaNewBest(false);
+      setQaFlag('newBest', false);
       game.qaNewBestHold = 0;
       assertEquals(GAME_CONFIG.UPDATED_NEW_BEST_FONT_PX, 11, 'the quiet badge is 11px');
       assertEquals(
@@ -15378,7 +15433,7 @@ describe('Quieter NEW BEST badge', () => {
     const origText = a11yLive.textContent;
     try {
       setReducedMotion(false);
-      setQaNewBest(false);
+      setQaFlag('newBest', false);
       for (const mode of [MODES.UPDATED, MODES.DAILY, MODES.CLASSIC]) {
         armFreshRun();
         game.mode = mode;
@@ -15454,7 +15509,7 @@ describe('Quieter NEW BEST badge', () => {
     } finally {
       game.mode = origMode;
       a11yLive.textContent = origText;
-      setQaNewBest(false);
+      setQaFlag('newBest', false);
       setReducedMotion(false);
       Animations.newBestFrames = 0;
       game.newBestShown = false;
@@ -15467,33 +15522,42 @@ describe('Quieter NEW BEST badge', () => {
     const origMode = game.mode;
     try {
       setReducedMotion(false);
-      setQaNewBest(false);
-      assert(readQaNewBestFlag('?qaNewBest=1') === true, '?qaNewBest=1 should hold the badge');
+      setQaFlag('newBest', false);
+      assert(readQaFlag('newBest', '?qaNewBest=1') === true, '?qaNewBest=1 should hold the badge');
       assert(
-        readQaNewBestFlag('?qaLevel=1&qaNewBest=1') === true,
+        readQaFlag('newBest', '?qaLevel=1&qaNewBest=1') === true,
         'the flag should work beside other params'
       );
       assert(
-        readQaNewBestFlag('?qaNewBest=1&qaScorePop=1') === true,
+        readQaFlag('newBest', '?qaNewBest=1&qaScorePop=1') === true,
         'param order should not matter'
       );
-      assert(readQaNewBestFlag('?qaNewBest=0') === false, 'only the value 1 enables the flag');
+      assert(readQaFlag('newBest', '?qaNewBest=0') === false, 'only the value 1 enables the flag');
       assert(
-        readQaNewBestFlag('?qaNewBest=12') === false,
+        readQaFlag('newBest', '?qaNewBest=12') === false,
         'qaNewBest=12 must not count as the flag'
       );
-      assert(readQaNewBestFlag('?qaLevel=1') === false, 'the level flag must not hold this badge');
       assert(
-        readQaNewBestFlag('?qaScorePop=1') === false,
+        readQaFlag('newBest', '?qaLevel=1') === false,
+        'the level flag must not hold this badge'
+      );
+      assert(
+        readQaFlag('newBest', '?qaScorePop=1') === false,
         'the score-pop flag must not hold this badge'
       );
-      assert(readQaLevelFlag('?qaNewBest=1') === false, 'this flag must not fire the level wash');
-      assert(readQaScorePopFlag('?qaNewBest=1') === false, 'this flag must not swell the score');
+      assert(
+        readQaFlag('level', '?qaNewBest=1') === false,
+        'this flag must not fire the level wash'
+      );
+      assert(
+        readQaFlag('scorePop', '?qaNewBest=1') === false,
+        'this flag must not swell the score'
+      );
 
       for (const mode of [MODES.UPDATED, MODES.DAILY]) {
         armFreshRun();
         game.mode = mode;
-        setQaNewBest(true);
+        setQaFlag('newBest', true);
         const seed = game.runSeed;
         const gap = game.nextSpawnGap;
         const high = game.highScore;
@@ -15564,7 +15628,7 @@ describe('Quieter NEW BEST badge', () => {
 
       armFreshRun();
       game.mode = MODES.CLASSIC;
-      setQaNewBest(true);
+      setQaFlag('newBest', true);
       const classicSpy = spyText();
       try {
         tick();
@@ -15582,7 +15646,7 @@ describe('Quieter NEW BEST badge', () => {
       }
     } finally {
       game.mode = origMode;
-      setQaNewBest(false);
+      setQaFlag('newBest', false);
       setReducedMotion(false);
       game.qaNewBestHold = 0;
       game.qaNewBestShown = false;
@@ -15638,13 +15702,13 @@ describe('Quieter NEW BEST badge', () => {
         armFreshRun();
         game.mode = mode;
         setReducedMotion(true);
-        setQaNewBest(true);
+        setQaFlag('newBest', true);
         const spy = spyText();
         try {
           tick();
           assertEquals(
             game.qaNewBestHold,
-            qaNewBestHoldFrames(),
+            qaHoldFrames('newBest'),
             mode + ' hold uses the shorter window'
           );
           assertEquals(game.qaNewBestHold, 90, mode + ' reduced motion halves the 180-frame hold');
@@ -15652,7 +15716,7 @@ describe('Quieter NEW BEST badge', () => {
             game.qaNewBestHold < QA_NEW_BEST_HOLD,
             mode + ' hold is shorter than the full capture'
           );
-          assert(qaNewBestHoldFrames() >= 2, mode + ' hold still lasts long enough to see');
+          assert(qaHoldFrames('newBest') >= 2, mode + ' hold still lasts long enough to see');
           const painted = badgeCalls(spy.calls);
           assertEquals(painted.length, 1, mode + ' reduced motion still paints the badge');
           assertEquals(
@@ -15684,7 +15748,7 @@ describe('Quieter NEW BEST badge', () => {
       }
     } finally {
       game.mode = origMode;
-      setQaNewBest(false);
+      setQaFlag('newBest', false);
       setReducedMotion(false);
       game.qaNewBestHold = 0;
       ctx.globalAlpha = 1;
@@ -15698,7 +15762,7 @@ describe('Quieter NEW BEST badge', () => {
     const spy = spyText();
     setPageQuery('?qaNewBest=1');
     try {
-      setQaNewBest(false);
+      setQaFlag('newBest', false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       resetGame();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -15727,7 +15791,7 @@ describe('Quieter NEW BEST badge', () => {
       spy.restore();
       restorePageQuery();
       game.mode = origMode;
-      setQaNewBest(false);
+      setQaFlag('newBest', false);
       ctx.globalAlpha = 1;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     }
@@ -15739,7 +15803,7 @@ describe('Quieter NEW BEST badge', () => {
     try {
       armFreshRun();
       game.mode = MODES.UPDATED;
-      setQaNewBest(true);
+      setQaFlag('newBest', true);
       game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
       spy.calls.length = 0;
       tick();
@@ -15764,7 +15828,7 @@ describe('Quieter NEW BEST badge', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      setQaNewBest(false);
+      setQaFlag('newBest', false);
       game.obstacles.length = 0;
       Particles.reset();
       Animations.reset();
@@ -15951,24 +16015,27 @@ describe('QA copy flag (?qaCopy=1)', () => {
     game.mode = MODES.DAILY;
     resetGame();
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
-    if (typeof setQaCopy === 'function') setQaCopy(true);
+    if (typeof setQaFlag === 'function') setQaFlag('copy', true);
     return prepareButton();
   }
 
   it('?qaCopy=1 is Daily-only and off for any other value', () => {
-    assert(readQaCopyFlag('?qaCopy=1') === true, '?qaCopy=1 should hold Copied');
+    assert(readQaFlag('copy', '?qaCopy=1') === true, '?qaCopy=1 should hold Copied');
     assert(
-      readQaCopyFlag('?qaNight=1&qaCopy=1') === true,
+      readQaFlag('copy', '?qaNight=1&qaCopy=1') === true,
       'the flag should work beside other params'
     );
-    assert(readQaCopyFlag('?qaCopy=1&qaNewBest=1') === true, 'param order should not matter');
-    assert(readQaCopyFlag('?qaCopy=0') === false, 'only the value 1 enables the flag');
-    assert(readQaCopyFlag('?qaCopy=12') === false, 'qaCopy=12 must not count as the flag');
-    assert(readQaCopyFlag('') === false, 'an empty query leaves the flag off');
-    assert(readQaCopyFlag('?qaNewBest=1') === false, 'the badge flag must not hold Copied');
-    assert(readQaNewBestFlag('?qaCopy=1') === false, 'this flag must not hold the badge');
-    assert(readQaFlashFlag('?qaCopy=1') === false, 'this flag must not flash the death blink');
-    assert(readQaCollisionFlag('?qaCopy=1') === false, 'this flag must not hold the death puff');
+    assert(readQaFlag('copy', '?qaCopy=1&qaNewBest=1') === true, 'param order should not matter');
+    assert(readQaFlag('copy', '?qaCopy=0') === false, 'only the value 1 enables the flag');
+    assert(readQaFlag('copy', '?qaCopy=12') === false, 'qaCopy=12 must not count as the flag');
+    assert(readQaFlag('copy', '') === false, 'an empty query leaves the flag off');
+    assert(readQaFlag('copy', '?qaNewBest=1') === false, 'the badge flag must not hold Copied');
+    assert(readQaFlag('newBest', '?qaCopy=1') === false, 'this flag must not hold the badge');
+    assert(readQaFlag('flash', '?qaCopy=1') === false, 'this flag must not flash the death blink');
+    assert(
+      readQaFlag('collision', '?qaCopy=1') === false,
+      'this flag must not hold the death puff'
+    );
   });
 
   it('holds Copied on a Daily waiting screen without a death or a clipboard write', () => {
@@ -15993,7 +16060,7 @@ describe('QA copy flag (?qaCopy=1)', () => {
       tick();
       assertEquals(game.state, STATE.WAITING, 'the hold starts before the run');
       assertEquals(game.qaCopyHold, QA_COPY_HOLD, 'Daily latches the full capture window');
-      assertEquals(qaCopyHoldFrames(), QA_COPY_HOLD, 'the helper matches the full window');
+      assertEquals(qaHoldFrames('copy'), QA_COPY_HOLD, 'the helper matches the full window');
       assertEquals(game.qaCopyShown, true, 'Daily spends the latch once');
       assertEquals(Animations.copyFlashFrames, 0, 'the hold does not start the live flash');
       assertEquals(shareBtn.style.display, 'block', 'Copied stays visible before Game Over');
@@ -16016,7 +16083,7 @@ describe('QA copy flag (?qaCopy=1)', () => {
     } finally {
       game.mode = origMode;
       game.rng = origRng;
-      if (typeof setQaCopy === 'function') setQaCopy(false);
+      if (typeof setQaFlag === 'function') setQaFlag('copy', false);
       setReducedMotion(false);
       game.qaCopyHold = 0;
       game.qaCopyShown = false;
@@ -16036,7 +16103,7 @@ describe('QA copy flag (?qaCopy=1)', () => {
         game.mode = mode;
         resetGame();
         if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
-        if (typeof setQaCopy === 'function') setQaCopy(true);
+        if (typeof setQaFlag === 'function') setQaFlag('copy', true);
         const shareBtn = prepareButton();
         tick();
         assertEquals(game.qaCopyHold, 0, mode + ' does not start the hold');
@@ -16048,7 +16115,7 @@ describe('QA copy flag (?qaCopy=1)', () => {
       }
     } finally {
       game.mode = origMode;
-      if (typeof setQaCopy === 'function') setQaCopy(false);
+      if (typeof setQaFlag === 'function') setQaFlag('copy', false);
       setReducedMotion(false);
       game.qaCopyHold = 0;
       game.qaCopyShown = false;
@@ -16066,9 +16133,9 @@ describe('QA copy flag (?qaCopy=1)', () => {
       tick();
       const half = Math.max(2, Math.round(QA_COPY_HOLD * 0.5));
       assertEquals(game.qaCopyHold, half, 'reduced motion halves the 180-frame hold');
-      assertEquals(game.qaCopyHold, qaCopyHoldFrames(), 'the helper matches the damped hold');
+      assertEquals(game.qaCopyHold, qaHoldFrames('copy'), 'the helper matches the damped hold');
       assert(game.qaCopyHold < QA_COPY_HOLD, 'the damped hold is shorter');
-      assert(qaCopyHoldFrames() >= 2, 'the hold still lasts long enough to see');
+      assert(qaHoldFrames('copy') >= 2, 'the hold still lasts long enough to see');
       assertEquals(shareBtn.style.display, 'block', 'the damped hold stays visible');
       assertEquals(shareBtn.textContent, '✓ Copied!', 'the label still says Copied');
       assert(shareBtn.classList.contains('is-copied'), 'Copied is still readable');
@@ -16076,7 +16143,7 @@ describe('QA copy flag (?qaCopy=1)', () => {
       assertEquals(Animations.copyFlashFrames, 0, 'the damped hold does not start the live flash');
     } finally {
       game.mode = origMode;
-      if (typeof setQaCopy === 'function') setQaCopy(false);
+      if (typeof setQaFlag === 'function') setQaFlag('copy', false);
       setReducedMotion(false);
       game.qaCopyHold = 0;
       game.qaCopyShown = false;
@@ -16117,7 +16184,7 @@ describe('QA copy flag (?qaCopy=1)', () => {
       game.state = origState;
       Animations.deathAnimFrame = origAnim;
       Animations.deathShakeFrames = origShake;
-      if (typeof setQaCopy === 'function') setQaCopy(false);
+      if (typeof setQaFlag === 'function') setQaFlag('copy', false);
       setReducedMotion(false);
       game.qaCopyHold = 0;
       game.qaCopyShown = false;
@@ -16133,7 +16200,7 @@ describe('QA copy flag (?qaCopy=1)', () => {
     try {
       setReducedMotion(false);
       setPageQuery('');
-      if (typeof setQaCopy === 'function') setQaCopy(true);
+      if (typeof setQaFlag === 'function') setQaFlag('copy', true);
       game.qaCopyShown = true;
       game.qaCopyHold = 40;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -16144,7 +16211,7 @@ describe('QA copy flag (?qaCopy=1)', () => {
       assertEquals(game.qaCopyShown, false, 'a visit without the flag clears the latch');
 
       setPageQuery('?qaCopy=1');
-      if (typeof setQaCopy === 'function') setQaCopy(false);
+      if (typeof setQaFlag === 'function') setQaFlag('copy', false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       resetGame();
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -16165,7 +16232,7 @@ describe('QA copy flag (?qaCopy=1)', () => {
     } finally {
       restorePageQuery();
       game.mode = origMode;
-      if (typeof setQaCopy === 'function') setQaCopy(false);
+      if (typeof setQaFlag === 'function') setQaFlag('copy', false);
       setReducedMotion(false);
       game.qaCopyHold = 0;
       game.qaCopyShown = false;
@@ -16595,7 +16662,7 @@ describe('QA death count-up flag (?qaCountUp=1)', () => {
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     game.mode = mode;
     setReducedMotion(false);
-    if (typeof setQaCountUp === 'function') setQaCountUp(false);
+    if (typeof setQaFlag === 'function') setQaFlag('countUp', false);
     game.state = STATE.WAITING;
     game.graceFrames = GAME_CONFIG.GRACE_FRAMES;
     game.score = 0;
@@ -16626,25 +16693,28 @@ describe('QA death count-up flag (?qaCountUp=1)', () => {
   }
 
   it('recognizes only ?qaCountUp=1', () => {
+    assert(typeof readQaFlag === 'function', 'readQaFlag should parse the playtest query');
+    assert(typeof setQaFlag === 'function', 'setQaFlag should be exposed for tests');
+    assert(readQaFlag('countUp', '?qaCountUp=1') === true, '?qaCountUp=1 should hold the count-up');
     assert(
-      typeof readQaCountUpFlag === 'function',
-      'readQaCountUpFlag should parse the playtest query'
-    );
-    assert(typeof setQaCountUp === 'function', 'setQaCountUp should be exposed for tests');
-    assert(readQaCountUpFlag('?qaCountUp=1') === true, '?qaCountUp=1 should hold the count-up');
-    assert(
-      readQaCountUpFlag('?qaNight=1&qaCountUp=1') === true,
+      readQaFlag('countUp', '?qaNight=1&qaCountUp=1') === true,
       'the flag should work beside ?qaNight=1'
     );
-    assert(readQaCountUpFlag('?qaCountUp=1&qaShake=1') === true, 'param order should not matter');
     assert(
-      readQaCountUpFlag('') === false,
+      readQaFlag('countUp', '?qaCountUp=1&qaShake=1') === true,
+      'param order should not matter'
+    );
+    assert(
+      readQaFlag('countUp', '') === false,
       'a normal visit should leave the roll for a real death'
     );
-    assert(readQaCountUpFlag('?qaCountUp=0') === false, 'only the value 1 enables the flag');
-    assert(readQaCountUpFlag('?qaCountUp=18') === false, 'qaCountUp=18 must not count as the flag');
+    assert(readQaFlag('countUp', '?qaCountUp=0') === false, 'only the value 1 enables the flag');
     assert(
-      readQaCountUpFlag('?qaScorePop=1') === false,
+      readQaFlag('countUp', '?qaCountUp=18') === false,
+      'qaCountUp=18 must not count as the flag'
+    );
+    assert(
+      readQaFlag('countUp', '?qaScorePop=1') === false,
       'the score pop must not hold the count-up'
     );
   });
@@ -16655,7 +16725,7 @@ describe('QA death count-up flag (?qaCountUp=1)', () => {
     const storedDaily = localStorage.getItem('dino-daily-best');
     const storedHigh = localStorage.getItem('dino-high-score');
     try {
-      assert(typeof setQaCountUp === 'function', 'setQaCountUp should be exposed for tests');
+      assert(typeof setQaFlag === 'function', 'setQaFlag should be exposed for tests');
       assert(QA_COUNT_UP_HOLD >= 120, 'the debug hold must outlast a quick capture');
       for (const mode of [MODES.UPDATED, MODES.DAILY]) {
         armWaiting(mode);
@@ -16665,7 +16735,7 @@ describe('QA death count-up flag (?qaCountUp=1)', () => {
           rngCalls++;
           return origRng();
         };
-        setQaCountUp(true);
+        setQaFlag('countUp', true);
         spy.calls.length = 0;
         tick();
         const expectFull = mode === MODES.DAILY;
@@ -16712,7 +16782,7 @@ describe('QA death count-up flag (?qaCountUp=1)', () => {
       }
 
       armWaiting(MODES.CLASSIC);
-      setQaCountUp(true);
+      setQaFlag('countUp', true);
       spy.calls.length = 0;
       tick();
       assert(
@@ -16733,7 +16803,7 @@ describe('QA death count-up flag (?qaCountUp=1)', () => {
       assertEquals(game.score, 0, 'Classic hold must not write the score');
 
       armWaiting(MODES.UPDATED);
-      setQaCountUp(true);
+      setQaFlag('countUp', true);
       game.state = STATE.IDLE;
       tick();
       const held = game.qaCountUpHold;
@@ -16746,7 +16816,7 @@ describe('QA death count-up flag (?qaCountUp=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      if (typeof setQaCountUp === 'function') setQaCountUp(false);
+      if (typeof setQaFlag === 'function') setQaFlag('countUp', false);
       setReducedMotion(false);
       if (game.qaCountUpHold) game.qaCountUpHold = 0;
       if (game.qaCountUpShown) game.qaCountUpShown = false;
@@ -16758,15 +16828,15 @@ describe('QA death count-up flag (?qaCountUp=1)', () => {
     const origMode = game.mode;
     const spy = spyScoreText();
     try {
-      assert(typeof setQaCountUp === 'function', 'setQaCountUp should be exposed for tests');
+      assert(typeof setQaFlag === 'function', 'setQaFlag should be exposed for tests');
       armWaiting(MODES.UPDATED);
       setReducedMotion(true);
-      setQaCountUp(true);
+      setQaFlag('countUp', true);
       spy.calls.length = 0;
       tick();
-      assertEquals(game.qaCountUpHold, qaCountUpHoldFrames(), 'the hold uses the shorter window');
+      assertEquals(game.qaCountUpHold, qaHoldFrames('countUp'), 'the hold uses the shorter window');
       assert(game.qaCountUpHold < QA_COUNT_UP_HOLD, 'the hold is shorter than the full capture');
-      assert(qaCountUpHoldFrames() >= 2, 'the hold still lasts long enough to see');
+      assert(qaHoldFrames('countUp') >= 2, 'the hold still lasts long enough to see');
       assertEquals(
         game.qaCountUpHold,
         Math.max(2, Math.round(QA_COUNT_UP_HOLD * 0.5)),
@@ -16779,7 +16849,7 @@ describe('QA death count-up flag (?qaCountUp=1)', () => {
 
       armWaiting(MODES.CLASSIC);
       setReducedMotion(true);
-      setQaCountUp(true);
+      setQaFlag('countUp', true);
       spy.calls.length = 0;
       tick();
       assert(
@@ -16790,7 +16860,7 @@ describe('QA death count-up flag (?qaCountUp=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      if (typeof setQaCountUp === 'function') setQaCountUp(false);
+      if (typeof setQaFlag === 'function') setQaFlag('countUp', false);
       setReducedMotion(false);
       if (game.qaCountUpHold) game.qaCountUpHold = 0;
       if (game.qaCountUpShown) game.qaCountUpShown = false;
@@ -16804,8 +16874,8 @@ describe('QA death count-up flag (?qaCountUp=1)', () => {
     const spy = spyScoreText();
     setPageQuery('?qaCountUp=1');
     try {
-      assert(typeof setQaCountUp === 'function', 'setQaCountUp should be exposed for tests');
-      setQaCountUp(false);
+      assert(typeof setQaFlag === 'function', 'setQaFlag should be exposed for tests');
+      setQaFlag('countUp', false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       game.mode = MODES.UPDATED;
       resetGame();
@@ -16827,7 +16897,7 @@ describe('QA death count-up flag (?qaCountUp=1)', () => {
       spy.restore();
       restorePageQuery();
       game.mode = origMode;
-      if (typeof setQaCountUp === 'function') setQaCountUp(false);
+      if (typeof setQaFlag === 'function') setQaFlag('countUp', false);
       setReducedMotion(false);
       if (game.qaCountUpHold) game.qaCountUpHold = 0;
       if (game.qaCountUpShown) game.qaCountUpShown = false;
@@ -17119,7 +17189,7 @@ describe('QA idle pulse flag (?qaIdle=1)', () => {
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
     game.mode = mode;
     setReducedMotion(false);
-    if (typeof setQaIdle === 'function') setQaIdle(false);
+    if (typeof setQaFlag === 'function') setQaFlag('idle', false);
     game.state = STATE.IDLE;
     game.score = 0;
     game.animFrame = 0;
@@ -17157,25 +17227,28 @@ describe('QA idle pulse flag (?qaIdle=1)', () => {
   }
 
   it('recognizes only ?qaIdle=1', () => {
-    assert(typeof readQaIdleFlag === 'function', 'readQaIdleFlag should parse the playtest query');
-    assert(typeof setQaIdle === 'function', 'setQaIdle should be exposed for tests');
-    assert(readQaIdleFlag('?qaIdle=1') === true, '?qaIdle=1 should hold the idle invite');
+    assert(typeof readQaFlag === 'function', 'readQaFlag should parse the playtest query');
+    assert(typeof setQaFlag === 'function', 'setQaFlag should be exposed for tests');
+    assert(readQaFlag('idle', '?qaIdle=1') === true, '?qaIdle=1 should hold the idle invite');
     assert(
-      readQaIdleFlag('?qaNight=1&qaIdle=1') === true,
+      readQaFlag('idle', '?qaNight=1&qaIdle=1') === true,
       'the flag should work beside ?qaNight=1'
     );
-    assert(readQaIdleFlag('?qaIdle=1&qaCountUp=1') === true, 'param order should not matter');
-    assert(readQaIdleFlag('') === false, 'a normal visit should leave the live breath');
-    assert(readQaIdleFlag('?qaIdle=0') === false, 'only the value 1 enables the flag');
-    assert(readQaIdleFlag('?qaIdle=true') === false, 'qaIdle=true must not count as the flag');
-    assert(readQaIdleFlag('?qaCountUp=1') === false, 'the count-up flag must not hold the invite');
+    assert(readQaFlag('idle', '?qaIdle=1&qaCountUp=1') === true, 'param order should not matter');
+    assert(readQaFlag('idle', '') === false, 'a normal visit should leave the live breath');
+    assert(readQaFlag('idle', '?qaIdle=0') === false, 'only the value 1 enables the flag');
+    assert(readQaFlag('idle', '?qaIdle=true') === false, 'qaIdle=true must not count as the flag');
+    assert(
+      readQaFlag('idle', '?qaCountUp=1') === false,
+      'the count-up flag must not hold the invite'
+    );
   });
 
   it('holds the quieter peak on the idle card without starting a run', () => {
     const origMode = game.mode;
     const spy = spyPrompt();
     try {
-      assert(typeof setQaIdle === 'function', 'setQaIdle should be exposed for tests');
+      assert(typeof setQaFlag === 'function', 'setQaFlag should be exposed for tests');
       assert(QA_IDLE_HOLD >= 120, 'the debug hold must outlast a quick capture');
       for (const mode of [MODES.UPDATED, MODES.DAILY]) {
         armIdle(mode);
@@ -17186,7 +17259,7 @@ describe('QA idle pulse flag (?qaIdle=1)', () => {
           return origRng();
         };
         const speed = game.currentSpeed;
-        setQaIdle(true);
+        setQaFlag('idle', true);
         spy.calls.length = 0;
         tick();
         const first = promptFillAlpha(spy);
@@ -17226,7 +17299,7 @@ describe('QA idle pulse flag (?qaIdle=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      if (typeof setQaIdle === 'function') setQaIdle(false);
+      if (typeof setQaFlag === 'function') setQaFlag('idle', false);
       setReducedMotion(false);
       if (game.qaIdleHold) game.qaIdleHold = 0;
       if (game.qaIdleShown) game.qaIdleShown = false;
@@ -17238,9 +17311,9 @@ describe('QA idle pulse flag (?qaIdle=1)', () => {
     const origMode = game.mode;
     const spy = spyPrompt();
     try {
-      assert(typeof setQaIdle === 'function', 'setQaIdle should be exposed for tests');
+      assert(typeof setQaFlag === 'function', 'setQaFlag should be exposed for tests');
       armIdle(MODES.CLASSIC);
-      setQaIdle(true);
+      setQaFlag('idle', true);
       spy.calls.length = 0;
       tick();
       const frame = game.animFrame;
@@ -17255,7 +17328,7 @@ describe('QA idle pulse flag (?qaIdle=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      if (typeof setQaIdle === 'function') setQaIdle(false);
+      if (typeof setQaFlag === 'function') setQaFlag('idle', false);
       setReducedMotion(false);
       if (game.qaIdleHold) game.qaIdleHold = 0;
       if (game.qaIdleShown) game.qaIdleShown = false;
@@ -17267,18 +17340,18 @@ describe('QA idle pulse flag (?qaIdle=1)', () => {
     const origMode = game.mode;
     const spy = spyPrompt();
     try {
-      assert(typeof setQaIdle === 'function', 'setQaIdle should be exposed for tests');
+      assert(typeof setQaFlag === 'function', 'setQaFlag should be exposed for tests');
       for (const mode of [MODES.UPDATED, MODES.DAILY]) {
         armIdle(mode);
         setReducedMotion(true);
-        setQaIdle(true);
+        setQaFlag('idle', true);
         spy.calls.length = 0;
         tick();
         const first = promptFillAlpha(spy);
         tick();
-        assertEquals(game.qaIdleHold, qaIdleHoldFrames(), mode + ' uses the shorter window');
+        assertEquals(game.qaIdleHold, qaHoldFrames('idle'), mode + ' uses the shorter window');
         assert(game.qaIdleHold < QA_IDLE_HOLD, mode + ' hold is shorter than the full capture');
-        assert(qaIdleHoldFrames() >= 2, mode + ' hold still lasts long enough to see');
+        assert(qaHoldFrames('idle') >= 2, mode + ' hold still lasts long enough to see');
         assertEquals(
           game.qaIdleHold,
           Math.max(2, Math.round(QA_IDLE_HOLD * 0.5)),
@@ -17298,7 +17371,7 @@ describe('QA idle pulse flag (?qaIdle=1)', () => {
 
       armIdle(MODES.CLASSIC);
       setReducedMotion(true);
-      setQaIdle(true);
+      setQaFlag('idle', true);
       spy.calls.length = 0;
       tick();
       const frame = game.animFrame;
@@ -17315,7 +17388,7 @@ describe('QA idle pulse flag (?qaIdle=1)', () => {
     } finally {
       spy.restore();
       game.mode = origMode;
-      if (typeof setQaIdle === 'function') setQaIdle(false);
+      if (typeof setQaFlag === 'function') setQaFlag('idle', false);
       setReducedMotion(false);
       if (game.qaIdleHold) game.qaIdleHold = 0;
       if (game.qaIdleShown) game.qaIdleShown = false;
@@ -17329,8 +17402,8 @@ describe('QA idle pulse flag (?qaIdle=1)', () => {
     const spy = spyPrompt();
     setPageQuery('?qaIdle=1');
     try {
-      assert(typeof setQaIdle === 'function', 'setQaIdle should be exposed for tests');
-      setQaIdle(false);
+      assert(typeof setQaFlag === 'function', 'setQaFlag should be exposed for tests');
+      setQaFlag('idle', false);
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
       game.mode = MODES.UPDATED;
       resetGame();
@@ -17349,7 +17422,7 @@ describe('QA idle pulse flag (?qaIdle=1)', () => {
       spy.restore();
       restorePageQuery();
       game.mode = origMode;
-      if (typeof setQaIdle === 'function') setQaIdle(false);
+      if (typeof setQaFlag === 'function') setQaFlag('idle', false);
       setReducedMotion(false);
       if (game.qaIdleHold) game.qaIdleHold = 0;
       if (game.qaIdleShown) game.qaIdleShown = false;
@@ -17864,22 +17937,28 @@ describe('QA share flag (?qaShare=1)', () => {
     game.mode = MODES.DAILY;
     resetGame();
     if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
-    setQaShare(true);
+    setQaFlag('share', true);
     return prepareButton();
   }
 
   it('?qaShare=1 is Daily-only and off for any other value', () => {
-    assert(readQaShareFlag('?qaShare=1') === true, '?qaShare=1 should hold the share confirmation');
     assert(
-      readQaShareFlag('?qaCopy=1&qaShare=1') === true,
+      readQaFlag('share', '?qaShare=1') === true,
+      '?qaShare=1 should hold the share confirmation'
+    );
+    assert(
+      readQaFlag('share', '?qaCopy=1&qaShare=1') === true,
       'the flag should work beside other params'
     );
-    assert(readQaShareFlag('?qaShare=0') === false, 'only the value 1 enables the flag');
-    assert(readQaShareFlag('?qaShare=12') === false, 'qaShare=12 must not count as the flag');
-    assert(readQaShareFlag('') === false, 'an empty query leaves the flag off');
-    assert(readQaShareFlag('?qaCopy=1') === false, 'the copy hold must not force the share stub');
+    assert(readQaFlag('share', '?qaShare=0') === false, 'only the value 1 enables the flag');
+    assert(readQaFlag('share', '?qaShare=12') === false, 'qaShare=12 must not count as the flag');
+    assert(readQaFlag('share', '') === false, 'an empty query leaves the flag off');
     assert(
-      readQaCopyFlag('?qaShare=1') === false,
+      readQaFlag('share', '?qaCopy=1') === false,
+      'the copy hold must not force the share stub'
+    );
+    assert(
+      readQaFlag('copy', '?qaShare=1') === false,
       'this flag must not hold the clipboard confirmation'
     );
   });
@@ -17952,7 +18031,7 @@ describe('QA share flag (?qaShare=1)', () => {
       settleDailyDeath();
       tick();
       assertEquals(game.qaShareHold, QA_SHARE_HOLD, 'Game Over latches the full capture window');
-      assertEquals(qaShareHoldFrames(), QA_SHARE_HOLD, 'the helper matches the full window');
+      assertEquals(qaHoldFrames('share'), QA_SHARE_HOLD, 'the helper matches the full window');
       assertEquals(game.qaShareShown, true, 'Game Over spends the latch once');
       assertEquals(shareBtn.style.display, 'block', 'Copied is on the visible Copy result control');
       assertEquals(shareBtn.textContent, '✓ Copied!', 'the hold shows the share confirmation');
@@ -17970,7 +18049,7 @@ describe('QA share flag (?qaShare=1)', () => {
       if (origDesc) Object.defineProperty(testGlobal, 'navigator', origDesc);
       game.rng = origRng;
       game.mode = origMode;
-      setQaShare(false);
+      setQaFlag('share', false);
       setReducedMotion(false);
       game.qaShareHold = 0;
       game.qaShareShown = false;
@@ -18030,7 +18109,7 @@ describe('QA share flag (?qaShare=1)', () => {
     } finally {
       if (origDesc) Object.defineProperty(testGlobal, 'navigator', origDesc);
       game.mode = origMode;
-      setQaShare(false);
+      setQaFlag('share', false);
       setReducedMotion(false);
       game.qaShareHold = 0;
       game.qaShareShown = false;
@@ -18048,7 +18127,7 @@ describe('QA share flag (?qaShare=1)', () => {
     const origFlash = Animations.copyFlashFrames;
     try {
       setReducedMotion(false);
-      setQaShare(false);
+      setQaFlag('share', false);
       game.mode = MODES.DAILY;
       game.state = STATE.DEAD;
       Animations.deathShakeFrames = 0;
@@ -18066,7 +18145,7 @@ describe('QA share flag (?qaShare=1)', () => {
       Animations.copyFlashFrames = 0;
       game.qaShareHold = 30;
       setReducedMotion(true);
-      setQaShare(true);
+      setQaFlag('share', true);
       drawGameOverScreen();
       assertEquals(shareBtn.textContent, '✓ Copied!', 'a QA hold survives the Game Over paint');
       assert(
@@ -18081,7 +18160,7 @@ describe('QA share flag (?qaShare=1)', () => {
       Animations.copyFlashFrames = origFlash;
       game.qaShareHold = 0;
       game.qaCopyHold = 0;
-      setQaShare(false);
+      setQaFlag('share', false);
       setReducedMotion(false);
       restoreButton(origBtn);
     }
@@ -18097,16 +18176,16 @@ describe('QA share flag (?qaShare=1)', () => {
       tick();
       const half = Math.max(2, Math.round(QA_SHARE_HOLD * 0.5));
       assertEquals(game.qaShareHold, half, 'reduced motion halves the 180-frame hold');
-      assertEquals(game.qaShareHold, qaShareHoldFrames(), 'the helper matches the damped hold');
+      assertEquals(game.qaShareHold, qaHoldFrames('share'), 'the helper matches the damped hold');
       assert(game.qaShareHold < QA_SHARE_HOLD, 'the damped hold is shorter');
-      assert(qaShareHoldFrames() >= 2, 'the hold still lasts long enough to see');
+      assert(qaHoldFrames('share') >= 2, 'the hold still lasts long enough to see');
       assertEquals(shareBtn.textContent, '✓ Copied!', 'Copied is still readable');
       assert(shareBtn.classList.contains('is-copied'), 'the damped hold still paints Copied');
       assert(shareBtn.classList.contains('is-qa-damped'), 'reduced motion quiets the paint');
       assertEquals(Animations.copyFlashFrames, 0, 'the damped hold does not start the live flash');
     } finally {
       game.mode = origMode;
-      setQaShare(false);
+      setQaFlag('share', false);
       setReducedMotion(false);
       game.qaShareHold = 0;
       game.qaShareShown = false;
@@ -18124,7 +18203,7 @@ describe('QA share flag (?qaShare=1)', () => {
         game.mode = mode;
         resetGame();
         if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
-        setQaShare(true);
+        setQaFlag('share', true);
         const shareBtn = prepareButton();
         tick();
         assertEquals(game.mode, mode, mode + ' stays put — the flag does not enter Daily');
@@ -18140,11 +18219,11 @@ describe('QA share flag (?qaShare=1)', () => {
         assertEquals(shareBtn.textContent, '📋 Copy result', mode + ' keeps the resting label');
         game.qaShareHold = 0;
         game.qaShareShown = false;
-        setQaShare(false);
+        setQaFlag('share', false);
       });
     } finally {
       game.mode = origMode;
-      setQaShare(false);
+      setQaFlag('share', false);
       game.qaShareHold = 0;
       game.qaShareShown = false;
       restoreButton(origBtn);
@@ -18161,7 +18240,7 @@ describe('QA share flag (?qaShare=1)', () => {
     const classes = installClassList(shareBtn);
     Animations.copyFlashFrames = 0;
     shareBtn.textContent = '📋 Copy result';
-    setQaShare(true);
+    setQaFlag('share', true);
     let shared = 0;
     let wrote = 0;
     const origDesc = Object.getOwnPropertyDescriptor(testGlobal, 'navigator');
@@ -18208,7 +18287,7 @@ describe('QA share flag (?qaShare=1)', () => {
     } finally {
       if (origDesc) Object.defineProperty(testGlobal, 'navigator', origDesc);
       setReducedMotion(false);
-      setQaShare(false);
+      setQaFlag('share', false);
       Animations.copyFlashFrames = origFlash;
       shareBtn.textContent = origText;
     }
@@ -18219,7 +18298,7 @@ describe('QA share flag (?qaShare=1)', () => {
     const restorePageQuery = savePageQuery();
     try {
       setPageQuery('');
-      setQaShare(true);
+      setQaFlag('share', true);
       game.qaShareShown = true;
       game.qaShareHold = 40;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -18246,7 +18325,7 @@ describe('QA share flag (?qaShare=1)', () => {
     } finally {
       restorePageQuery();
       game.mode = origMode;
-      setQaShare(false);
+      setQaFlag('share', false);
       game.qaShareHold = 0;
       game.qaShareShown = false;
       if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
@@ -18503,7 +18582,7 @@ describe('Sim clock (60Hz)', () => {
     const origScore = game.score;
     const origFill = ctx.fillText;
     try {
-      setQaHz(false);
+      setQaFlag('hz', false);
       resetSimClock();
       game.state = STATE.RUNNING;
       game.score = 4;
@@ -18521,7 +18600,7 @@ describe('Sim clock (60Hz)', () => {
       );
     } finally {
       ctx.fillText = origFill;
-      setQaHz(false);
+      setQaFlag('hz', false);
       game.state = origState;
       game.score = origScore;
       cancelLoop();
@@ -18536,19 +18615,25 @@ describe('QA pace readout (?qaHz=1)', () => {
   }
 
   it('only qaHz=1 enables the readout', () => {
-    assert(readQaHzFlag('?qaHz=1') === true, '?qaHz=1 should enable the readout');
-    assert(readQaHzFlag('?foo=1&qaHz=1') === true, 'the flag should work alongside other params');
-    assert(readQaHzFlag('') === false, 'a normal visit should leave the readout off');
-    assert(readQaHzFlag('?qaHz=0') === false, 'only the value 1 enables the readout');
-    assert(readQaHzFlag('?qaHz=12') === false, 'qaHz=12 must not count as the flag');
-    assert(readQaHzFlag('?other=1') === false, 'an unrelated param must not enable the readout');
+    assert(readQaFlag('hz', '?qaHz=1') === true, '?qaHz=1 should enable the readout');
+    assert(
+      readQaFlag('hz', '?foo=1&qaHz=1') === true,
+      'the flag should work alongside other params'
+    );
+    assert(readQaFlag('hz', '') === false, 'a normal visit should leave the readout off');
+    assert(readQaFlag('hz', '?qaHz=0') === false, 'only the value 1 enables the readout');
+    assert(readQaFlag('hz', '?qaHz=12') === false, 'qaHz=12 must not count as the flag');
+    assert(
+      readQaFlag('hz', '?other=1') === false,
+      'an unrelated param must not enable the readout'
+    );
   });
 
   it('off, the readout draws nothing and does not change a sim step', () => {
     const origFill = ctx.fillText;
     const origState = game.state;
     try {
-      setQaHz(false);
+      setQaFlag('hz', false);
       const texts = [];
       ctx.fillText = (text) => {
         texts.push(String(text));
@@ -18558,14 +18643,14 @@ describe('QA pace readout (?qaHz=1)', () => {
 
       resetGame();
       cancelLoop();
-      setQaHz(false);
+      setQaFlag('hz', false);
       game.state = STATE.RUNNING;
       game.score = 0;
       gameLoop();
       const offScore = game.score;
       resetGame();
       cancelLoop();
-      setQaHz(true);
+      setQaFlag('hz', true);
       game.state = STATE.RUNNING;
       game.score = 0;
       gameLoop();
@@ -18573,7 +18658,7 @@ describe('QA pace readout (?qaHz=1)', () => {
       assertEquals(offScore, GAME_CONFIG.SCORE_INCREMENT);
     } finally {
       ctx.fillText = origFill;
-      setQaHz(false);
+      setQaFlag('hz', false);
       game.state = origState;
       cancelLoop();
       resetGame();
@@ -18587,7 +18672,7 @@ describe('QA pace readout (?qaHz=1)', () => {
     const origMode = game.mode;
     try {
       setReducedMotion(true);
-      setQaHz(true);
+      setQaFlag('hz', true);
       const texts = [];
       ctx.fillText = (text) => {
         texts.push(String(text));
@@ -18601,7 +18686,7 @@ describe('QA pace readout (?qaHz=1)', () => {
       game.mode = MODES.CLASSIC;
       resetGame();
       cancelLoop();
-      setQaHz(true);
+      setQaFlag('hz', true);
       game.state = STATE.RUNNING;
       let t = 0;
       for (let i = 0; i <= 120; i++) {
@@ -18612,7 +18697,7 @@ describe('QA pace readout (?qaHz=1)', () => {
 
       resetGame();
       cancelLoop();
-      setQaHz(true);
+      setQaFlag('hz', true);
       game.state = STATE.RUNNING;
       t = 0;
       for (let i = 0; i <= 60; i++) {
@@ -18623,7 +18708,7 @@ describe('QA pace readout (?qaHz=1)', () => {
     } finally {
       ctx.fillText = origFill;
       setReducedMotion(false);
-      setQaHz(false);
+      setQaFlag('hz', false);
       game.mode = origMode;
       game.state = origState;
       cancelLoop();
@@ -18654,7 +18739,7 @@ describe('QA pace readout (?qaHz=1)', () => {
     } finally {
       restorePageQuery();
       ctx.fillText = origFill;
-      setQaHz(false);
+      setQaFlag('hz', false);
       cancelLoop();
       resetGame();
       cancelLoop();
