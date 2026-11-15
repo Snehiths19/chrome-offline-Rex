@@ -3203,11 +3203,10 @@ function drawMilestoneFlash() {
   if (Animations.milestoneFrames <= 0) return;
   // The playtest hold paints the quiet peak itself. Skip the live word
   // on those frames so the two inks do not stack. The wash timer still
-  // counts down.
+  // counts down (in updateRunning, once per sim slice).
   const holdCoversWord = isUpdatedMode() && game.qaLevelHold > 0;
   const paint = milestoneLabelForFrame(Animations.milestoneFrames);
   if (paint && !holdCoversWord) paintMilestoneLabel(paint);
-  Animations.milestoneFrames--;
 }
 
 // Steady quiet peak while ?qaLevel=1's hold is running, so the short
@@ -3295,10 +3294,10 @@ function paintNewBestBadge(paint) {
 function drawNewBestBadge() {
   if (Animations.newBestFrames <= 0) return;
   // The playtest hold paints the quiet peak itself. Skip the live word
-  // on those frames so the two golds do not stack. The countdown still runs.
+  // on those frames so the two golds do not stack. The countdown still runs
+  // (in updateRunning, once per sim slice).
   const holdCovers = isUpdatedMode() && game.qaNewBestHold > 0;
   if (!holdCovers) paintNewBestBadge(newBestBadgePaint(Animations.newBestFrames));
-  Animations.newBestFrames--;
 }
 
 // Steady quiet peak while ?qaNewBest=1's hold is running, so the short
@@ -4239,6 +4238,12 @@ function drawWaiting() {
 }
 
 function updateRunning() {
+  // The LEVEL wash and NEW BEST badge count down once per slice, before
+  // anything can start them again, so a fresh start paints its full first
+  // frame and the draw (once per display frame) never moves a timer.
+  if (Animations.milestoneFrames > 0) Animations.milestoneFrames--;
+  if (Animations.newBestFrames > 0) Animations.newBestFrames--;
+
   const prevLevel = Math.floor(game.score / GAME_CONFIG.SCORE_PER_LEVEL);
   game.score += GAME_CONFIG.SCORE_INCREMENT;
   game.animFrame++;

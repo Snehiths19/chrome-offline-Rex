@@ -991,8 +991,8 @@ describe('QA level flag (?qaLevel=1)', () => {
       );
       assertEquals(
         Animations.milestoneFrames,
-        GAME_CONFIG.MILESTONE_FRAMES - 1,
-        'the wash starts a full milestone and then counts down one frame'
+        GAME_CONFIG.MILESTONE_FRAMES,
+        'the wash starts a full milestone (it counts down from the next slice)'
       );
       assertEquals(
         game.score,
@@ -1019,7 +1019,7 @@ describe('QA level flag (?qaLevel=1)', () => {
       tick();
       assertEquals(
         Animations.milestoneFrames,
-        GAME_CONFIG.MILESTONE_FRAMES - 2,
+        GAME_CONFIG.MILESTONE_FRAMES - 1,
         'the next frame continues the same wash instead of restarting it'
       );
       assertEquals(game.score, GAME_CONFIG.SCORE_INCREMENT * 2, 'scoring keeps its normal step');
@@ -1029,7 +1029,7 @@ describe('QA level flag (?qaLevel=1)', () => {
       assertEquals(game.milestoneText, 'LEVEL 2', 'a real level-up still flashes with the flag on');
       assertEquals(
         Animations.milestoneFrames,
-        GAME_CONFIG.MILESTONE_FRAMES - 1,
+        GAME_CONFIG.MILESTONE_FRAMES,
         'crossing 100 still starts a full wash'
       );
       assert(game.score >= GAME_CONFIG.SCORE_PER_LEVEL, 'the real level still arrives by score');
@@ -1055,7 +1055,7 @@ describe('QA level flag (?qaLevel=1)', () => {
       tick();
       assertEquals(
         Animations.milestoneFrames,
-        GAME_CONFIG.MILESTONE_FRAMES - 1,
+        GAME_CONFIG.MILESTONE_FRAMES,
         'Daily shares the Updated early wash'
       );
       assertEquals(
@@ -1138,7 +1138,7 @@ describe('QA level flag (?qaLevel=1)', () => {
       assertEquals(game.milestoneText, 'LEVEL 2', 'score 100 still uses the real level label');
       assertEquals(
         Animations.milestoneFrames,
-        GAME_CONFIG.MILESTONE_FRAMES - 1,
+        GAME_CONFIG.MILESTONE_FRAMES,
         'score 100 still starts the full wash'
       );
       assert(game.score >= GAME_CONFIG.SCORE_PER_LEVEL, 'the level still unlocks at 100');
@@ -1173,7 +1173,7 @@ describe('QA level flag (?qaLevel=1)', () => {
       );
       assertEquals(
         Animations.milestoneFrames,
-        GAME_CONFIG.MILESTONE_FRAMES - 1,
+        GAME_CONFIG.MILESTONE_FRAMES,
         'the re-read flag still fires on the first running frame'
       );
       assert(game.score < 1, 're-reading the flag must not change the score');

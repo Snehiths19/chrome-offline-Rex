@@ -1033,6 +1033,47 @@ describe('Sim clock (60Hz)', () => {
     }
   });
 
+  it('draw steps never move a timer, so one paint per display frame is safe (C5)', () => {
+    const snap = () =>
+      JSON.stringify({
+        anim: Object.keys(Animations)
+          .filter((k) => typeof Animations[k] === 'number')
+          .map((k) => [k, Animations[k]]),
+        score: game.score,
+        frame: game.animFrame,
+        grace: game.graceFrames,
+        holds: Object.keys(game)
+          .filter((k) => /^qa.*(Hold|Shown)$/.test(k))
+          .map((k) => [k, game[k]]),
+      });
+    const origMode = game.mode;
+    try {
+      for (const mode of [MODES.CLASSIC, MODES.UPDATED]) {
+        game.mode = mode;
+        for (const state of [STATE.IDLE, STATE.WAITING, STATE.RUNNING, STATE.DEAD]) {
+          resetGame();
+          cancelAnimationFrame(game.animationFrameId);
+          game.state = state;
+          game.score = 150;
+          Animations.milestoneFrames = 10;
+          Animations.newBestFrames = 10;
+          if (state === STATE.DEAD) {
+            Animations.deathShakeFrames = 3;
+            Animations.deathFlashFrames = 2;
+            Animations.scorePopFrames = 3;
+          }
+          const before = snap();
+          drawFrame();
+          assertEquals(snap(), before, `${mode} ${state} draw leaves every timer alone`);
+        }
+      }
+    } finally {
+      game.mode = origMode;
+      Animations.reset();
+      cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
   it('keeps every canvas call out of the update steps (C5)', () => {
     const names = ['fillRect', 'drawImage', 'fillText', 'translate', 'scale', 'save'];
     const orig = {};

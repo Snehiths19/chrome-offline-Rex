@@ -4398,8 +4398,8 @@ describe('Quieter LEVEL label', () => {
       );
       assertEquals(
         first.framesAfter,
-        GAME_CONFIG.MILESTONE_FRAMES - 1,
-        'Classic still counts the shared wash timer down by one'
+        GAME_CONFIG.MILESTONE_FRAMES,
+        'drawing leaves the shared wash timer to updateRunning (C5)'
       );
 
       const late = paintLabel(1);
@@ -4482,8 +4482,8 @@ describe('Quieter LEVEL label', () => {
         );
         assertEquals(
           first.framesAfter,
-          GAME_CONFIG.MILESTONE_FRAMES - 1,
-          mode + ' still counts the shared wash timer'
+          GAME_CONFIG.MILESTONE_FRAMES,
+          mode + ' drawing leaves the shared wash timer to updateRunning (C5)'
         );
 
         const still = paintLabel(
@@ -4501,8 +4501,8 @@ describe('Quieter LEVEL label', () => {
         assertEquals(gone.calls.length, 0, mode + ' word is gone while the wash timer remains');
         assertEquals(
           gone.framesAfter,
-          GAME_CONFIG.MILESTONE_FRAMES - GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES - 1,
-          mode + ' keeps counting the wash after the word leaves'
+          GAME_CONFIG.MILESTONE_FRAMES - GAME_CONFIG.UPDATED_MILESTONE_TEXT_FRAMES,
+          mode + ' the wash timer outlasts the word; drawing does not move it (C5)'
         );
       }
     } finally {
@@ -4754,8 +4754,8 @@ describe('Quieter LEVEL label', () => {
         assertEquals(game.milestoneText, 'LEVEL 2', 'the hold uses the same early label');
         assertEquals(
           Animations.milestoneFrames,
-          GAME_CONFIG.MILESTONE_FRAMES - 1,
-          'the hold does not change the wash length'
+          GAME_CONFIG.MILESTONE_FRAMES,
+          'the hold does not change the wash length (it counts down from the next slice)'
         );
         const live = levelCalls(spy.calls);
         assertEquals(live.length, 1, 'the first frame paints the live word once');
@@ -4940,8 +4940,8 @@ describe('Quieter NEW BEST badge', () => {
       assertEquals(first.calls[0].y, 70, 'the badge stays at the corner baseline');
       assertEquals(
         first.framesAfter,
-        GAME_CONFIG.NEW_BEST_FRAMES - 1,
-        'Classic still counts the shared timer down by one'
+        GAME_CONFIG.NEW_BEST_FRAMES,
+        'drawing leaves the shared timer to updateRunning (C5)'
       );
 
       const mid = paintBadge(GAME_CONFIG.NEW_BEST_FRAMES / 2);
@@ -5034,8 +5034,8 @@ describe('Quieter NEW BEST badge', () => {
         assertEquals(first.calls[0].y, 70, mode + ' stays in the corner');
         assertEquals(
           first.framesAfter,
-          GAME_CONFIG.UPDATED_NEW_BEST_FRAMES - 1,
-          mode + ' counts its own shorter timer'
+          GAME_CONFIG.UPDATED_NEW_BEST_FRAMES,
+          mode + ' drawing leaves its shorter timer to updateRunning (C5)'
         );
 
         const mid = paintBadge(GAME_CONFIG.UPDATED_NEW_BEST_FRAMES / 2);
@@ -5226,8 +5226,8 @@ describe('Quieter NEW BEST badge', () => {
           assertEquals(game.newBestShown, true, mode + ' still latches the once-per-run badge');
           assertEquals(
             Animations.newBestFrames,
-            expected - 1,
-            mode + ' starts the mode countdown and paints the first frame'
+            expected,
+            mode + ' starts the full mode countdown and paints the first frame'
           );
           assertEquals(
             a11yLive.textContent,
@@ -5268,7 +5268,7 @@ describe('Quieter NEW BEST badge', () => {
           );
           const again = rngCalls;
           tick();
-          assertEquals(Animations.newBestFrames, expected - 2, mode + ' keeps counting down');
+          assertEquals(Animations.newBestFrames, expected - 1, mode + ' keeps counting down');
           assert(rngCalls >= again, mode + ' later frames do not rewind gameplay rng');
         } finally {
           spy.restore();
@@ -5447,8 +5447,8 @@ describe('Quieter NEW BEST badge', () => {
         assertEquals(painted[0].font, QUIET_FONT, 'the stacked frame stays on the quiet type');
         assertEquals(
           Animations.newBestFrames,
-          GAME_CONFIG.UPDATED_NEW_BEST_FRAMES - 1,
-          'the live countdown still runs under the hold'
+          GAME_CONFIG.UPDATED_NEW_BEST_FRAMES,
+          'drawing under the hold does not move the live countdown (C5)'
         );
         assertEquals(game.qaNewBestHold, 40, 'drawing does not spend the hold');
       } finally {
