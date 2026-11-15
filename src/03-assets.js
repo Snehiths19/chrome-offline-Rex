@@ -25,6 +25,8 @@ const dino = {
   gravity: GAME_CONFIG.GRAVITY,
   jumpPower: GAME_CONFIG.JUMP_POWER,
   isJumping: false,
+  // Sim frames left on a jump pressed in the air (see JUMP_BUFFER_FRAMES).
+  jumpBufferFrames: 0,
   image: new Image(),
 };
 

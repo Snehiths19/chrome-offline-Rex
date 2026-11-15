@@ -71,5 +71,8 @@ function jump() {
     if (runDebug) game.lastJumpFrame = game.animFrame;
     Particles.emit('jump', dino.x + dino.width / 2, dino.y + dino.height);
     audio.jump();
+  } else {
+    // In the air: remember the press. updateRunning spends it on landing.
+    dino.jumpBufferFrames = GAME_CONFIG.JUMP_BUFFER_FRAMES;
   }
 }

@@ -78,6 +78,89 @@ describe('Dinosaur Jump', () => {
   });
 });
 
+describe('Jump buffer (F1)', () => {
+  // One 60Hz sim slice of RUNNING through the real loop, as the replays do.
+  const bufferStep = () => {
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+  };
+  const startBufferRun = () => {
+    resetGame();
+    game.state = STATE.RUNNING;
+    game.graceFrames = 100000; // no obstacles: nothing ends the run
+  };
+  // Slices from take-off until the dino is back on the ground.
+  const airtimeSlices = () => {
+    startBufferRun();
+    handleAction();
+    let n = 0;
+    while (dino.isJumping && n < 200) {
+      bufferStep();
+      n++;
+    }
+    return n;
+  };
+  // Jump, then press again `before` slices ahead of the landing slice.
+  const pressBeforeLanding = (before) => {
+    const air = airtimeSlices();
+    startBufferRun();
+    handleAction();
+    for (let i = 0; i < air - before; i++) bufferStep();
+    assert(dino.isJumping, 'still in the air when the early press comes');
+    handleAction();
+    for (let i = 0; i < before; i++) bufferStep();
+  };
+
+  it('reads JUMP_BUFFER_FRAMES from GAME_CONFIG (about 6 sim frames)', () => {
+    assertEquals(GAME_CONFIG.JUMP_BUFFER_FRAMES, 6, 'buffer window');
+  });
+
+  it('a press on the last airborne slice jumps again on the landing slice', () => {
+    pressBeforeLanding(1);
+    assert(dino.isJumping, 'buffered press should take off on landing');
+    assertEquals(dino.velocityY, dino.jumpPower, 'fresh take-off speed');
+    assertEquals(dino.jumpBufferFrames, 0, 'buffer is spent');
+  });
+
+  it('a press JUMP_BUFFER_FRAMES slices before landing still counts', () => {
+    pressBeforeLanding(GAME_CONFIG.JUMP_BUFFER_FRAMES);
+    assert(dino.isJumping, 'press at the edge of the window should jump on landing');
+    assertEquals(dino.velocityY, dino.jumpPower, 'fresh take-off speed');
+  });
+
+  it('a press one slice earlier than the window is dropped', () => {
+    pressBeforeLanding(GAME_CONFIG.JUMP_BUFFER_FRAMES + 1);
+    assert(!dino.isJumping, 'press outside the window should not jump');
+    assertEquals(dino.y, GAME_CONFIG.CANVAS_H - dino.height, 'dino stays on the ground');
+    assertEquals(dino.jumpBufferFrames, 0, 'nothing left in the buffer');
+  });
+
+  it('a press early in the jump never fires', () => {
+    startBufferRun();
+    handleAction();
+    bufferStep();
+    handleAction();
+    let n = 0;
+    while (dino.isJumping && n++ < 200) bufferStep();
+    bufferStep();
+    assert(!dino.isJumping, 'an early press should have expired long before landing');
+  });
+
+  it('a press on the ground jumps at once and buffers nothing', () => {
+    startBufferRun();
+    handleAction();
+    assert(dino.isJumping, 'ground press jumps');
+    assertEquals(dino.jumpBufferFrames, 0, 'no buffer from a ground press');
+  });
+
+  it('resetGame clears a buffered press', () => {
+    startBufferRun();
+    dino.jumpBufferFrames = 4;
+    resetGame();
+    assertEquals(dino.jumpBufferFrames, 0, 'buffer cleared on reset');
+  });
+});
+
 describe('Collision Detection', () => {
   it('should return true when dino and obstacle are colliding', () => {
     resetGame();
