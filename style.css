@@ -244,9 +244,14 @@ body {
 .has-fullscreen #mode-toggle {
   right: 58px;
 }
-@media (max-width: 340px) {
+/* Narrow phones with the fullscreen button: a tighter toggle keeps the row
+   clear of the Daily pill with room for a wider day number or font. */
+@media (max-width: 360px) {
   .has-fullscreen #mode-toggle {
     right: 54px;
+  }
+  .has-fullscreen #mode-toggle button {
+    padding: 0 4px;
   }
 }
 

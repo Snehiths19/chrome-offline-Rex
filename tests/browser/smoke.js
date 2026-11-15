@@ -23,6 +23,13 @@ const VIEWPORTS = [
   { name: 'iphone-portrait', options: devices['iPhone 13'], touch: true, portrait: true },
   { name: 'pixel-portrait', options: devices['Pixel 7'], touch: true, portrait: true },
   { name: 'iphone-landscape', options: devices['iPhone 13 landscape'], touch: true },
+  // The narrowest common Android width: the top row is tightest here (S4).
+  {
+    name: 'small-android',
+    options: { viewport: { width: 320, height: 640 }, isMobile: true, hasTouch: true },
+    touch: true,
+    portrait: true,
+  },
 ];
 
 // --- Tiny reporting harness -------------------------------------------------
@@ -122,14 +129,21 @@ async function playOnDevice(browser, base, vp) {
   check('fullscreen button shows where the API exists', await fsBtn.isVisible());
   const fsBox = await fsBtn.boundingBox();
   check('fullscreen button fits on screen', insideViewport(fsBox, size), JSON.stringify(fsBox));
-  for (const sel of ['#mute-btn', '#daily-btn', '#mode-toggle']) {
-    const box = await page.locator(sel).boundingBox();
-    const apart =
-      box.x + box.width <= fsBox.x ||
-      fsBox.x + fsBox.width <= box.x ||
-      box.y + box.height <= fsBox.y ||
-      fsBox.y + fsBox.height <= box.y;
-    check(`fullscreen button clear of ${sel}`, apart, JSON.stringify({ box, fsBox }));
+  // Every pair in the top row stays at least 2px apart.
+  const rowSels = ['#mute-btn', '#daily-btn', '#mode-toggle', '#fullscreen-btn'];
+  const rowBoxes = [];
+  for (const sel of rowSels) rowBoxes.push(await page.locator(sel).boundingBox());
+  for (let i = 0; i < rowSels.length; i++) {
+    for (let j = i + 1; j < rowSels.length; j++) {
+      const a = rowBoxes[i];
+      const b = rowBoxes[j];
+      const apart =
+        a.x + a.width + 2 <= b.x ||
+        b.x + b.width + 2 <= a.x ||
+        a.y + a.height <= b.y ||
+        b.y + b.height <= a.y;
+      check(`${rowSels[i]} and ${rowSels[j]} do not overlap`, apart, JSON.stringify({ a, b }));
+    }
   }
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > window.innerWidth + 1
