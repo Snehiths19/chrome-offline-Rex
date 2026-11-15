@@ -2256,3 +2256,58 @@ describe('Death buzz (S5)', () => {
     }
   });
 });
+
+describe('Link preview (PL2)', () => {
+  // Static checks read index.html from disk, so they only run under Node.
+  const fs = typeof require === 'function' ? require('fs') : null;
+  const path = typeof require === 'function' ? require('path') : null;
+  const root = path ? path.join(__dirname, '..', '..') : '';
+  const pageHtml = () => fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  const siteUrl = 'https://snehiths19.github.io/chrome-offline-Rex/';
+  // The content of <meta {attr}="{key}" content="...">, or null.
+  const metaContent = (html, attr, key) => {
+    const m = html.match(new RegExp(`<meta\\s+${attr}="${key}"\\s+content="([^"]*)"`));
+    return m ? m[1] : null;
+  };
+
+  it('the page title says Rex Run', () => {
+    if (!fs) return;
+    const m = pageHtml().match(/<title>([^<]*)<\/title>/);
+    assert(m && /Rex Run/.test(m[1]), 'title mentions Rex Run');
+  });
+
+  it('has a description, Open Graph and Twitter tags', () => {
+    if (!fs) return;
+    const html = pageHtml();
+    const desc = metaContent(html, 'name', 'description');
+    assert(desc && desc.length >= 50 && desc.length <= 160, 'description is 50-160 characters');
+    ['og:title', 'og:description', 'og:type', 'og:url', 'og:image'].forEach((k) =>
+      assert(metaContent(html, 'property', k), `${k} present`)
+    );
+    assertEquals(metaContent(html, 'property', 'og:url'), siteUrl, 'og:url is the live site');
+    assertEquals(
+      metaContent(html, 'name', 'twitter:card'),
+      'summary_large_image',
+      'large Twitter card'
+    );
+    ['twitter:title', 'twitter:description', 'twitter:image'].forEach((k) =>
+      assert(metaContent(html, 'name', k), `${k} present`)
+    );
+  });
+
+  it('the share image is an absolute URL to a 1200x630 PNG in the repo', () => {
+    if (!fs) return;
+    const html = pageHtml();
+    const og = metaContent(html, 'property', 'og:image');
+    assertEquals(metaContent(html, 'name', 'twitter:image'), og, 'both cards use one image');
+    assert(og.startsWith(siteUrl), 'chat apps need an absolute image URL on the live site');
+    const file = path.join(root, og.slice(siteUrl.length));
+    assert(fs.existsSync(file), 'share image exists: ' + og.slice(siteUrl.length));
+    const head = fs.readFileSync(file).subarray(0, 24);
+    assertEquals(head.toString('hex', 0, 8), '89504e470d0a1a0a', 'it is a PNG');
+    assertEquals(head.readUInt32BE(16), 1200, 'width 1200');
+    assertEquals(head.readUInt32BE(20), 630, 'height 630');
+    assertEquals(metaContent(html, 'property', 'og:image:width'), '1200', 'og width tag');
+    assertEquals(metaContent(html, 'property', 'og:image:height'), '630', 'og height tag');
+  });
+});
