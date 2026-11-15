@@ -587,6 +587,20 @@ function idleStartPulseAlpha(frame) {
   return tuned.base + tuned.amplitude * (0.5 + 0.5 * Math.sin(frame * tuned.rate));
 }
 
+// Readable labels on phones (R1). The canvas is 600 logical px wide and is
+// drawn smaller than that on a phone (about 0.62x on an iPhone 13), so an
+// 11-16px label lands under 10 CSS px. labelPx() raises a small label to
+// about READABLE_LABEL_CSS_PX on screen, never past LABEL_PX_CAP logical px
+// so the layout still fits, and leaves desktop (scale 1 or more) unchanged.
+const READABLE_LABEL_CSS_PX = 12;
+const LABEL_PX_CAP = 20;
+function labelPx(px) {
+  const scale = canvasCssScale;
+  if (!(scale > 0) || scale >= 1) return px;
+  const readable = Math.min(Math.ceil(READABLE_LABEL_CSS_PX / scale), LABEL_PX_CAP);
+  return Math.max(px, readable);
+}
+
 function drawIdleScreen() {
   // Game coordinates, same as the countdown. The context is already scaled
   // from the bitmap to the 600×200 board, so bitmap width would park the
@@ -597,12 +611,13 @@ function drawIdleScreen() {
   ctx.textAlign = 'center';
 
   ctx.fillStyle = 'white';
-  ctx.font = '22px ' + font;
+  // The title stays a step above its subtitle when that is enlarged (R1).
+  ctx.font = Math.max(22, labelPx(13) + 6) + 'px ' + font;
   ctx.fillText('REX RUN', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 16);
 
   const pulseAlpha = idleStartPulseAlpha(game.animFrame);
   ctx.fillStyle = 'rgba(255, 255, 255, ' + pulseAlpha.toFixed(3) + ')';
-  ctx.font = '13px ' + font;
+  ctx.font = labelPx(13) + 'px ' + font;
   ctx.fillText(
     'TAP / PRESS SPACE TO START',
     GAME_CONFIG.CANVAS_W / 2,
@@ -619,7 +634,7 @@ function drawGetReadyOverlay() {
     // Space/Tap does nothing on the first countdown, so don't promise a jump.
     // After death the same input skips straight into the run.
     if (game.countdownSkippable) {
-      ctx.font = '14px ' + cfg('SCORE_FONT_FAMILY');
+      ctx.font = labelPx(14) + 'px ' + cfg('SCORE_FONT_FAMILY');
       ctx.fillText(
         'Press Space / Tap to start',
         GAME_CONFIG.CANVAS_W / 2,
@@ -644,7 +659,7 @@ function drawResumeOverlay() {
   const night = game.score >= GAME_CONFIG.DAY_NIGHT_START;
   ctx.textAlign = 'center';
   ctx.fillStyle = night ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.55)';
-  ctx.font = '14px ' + font;
+  ctx.font = labelPx(14) + 'px ' + font;
   ctx.fillText('PAUSED', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 30);
   if (game.pauseHidden) return;
   ctx.font = '48px ' + font;
@@ -662,7 +677,7 @@ function drawDailyPreRunLine() {
   if (game.state !== STATE.WAITING || !isDailyMode()) return;
   ctx.textAlign = 'center';
   ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-  ctx.font = '12px ' + cfg('SCORE_FONT_FAMILY');
+  ctx.font = labelPx(12) + 'px ' + cfg('SCORE_FONT_FAMILY');
   ctx.fillText(dailyPreRunLine(), GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 46);
 }
 
@@ -680,7 +695,7 @@ function drawGameOverScreen() {
       // Same takeover as free-play NEW BEST. The daily number sits higher so
       // it doesn't land on the title. Static text — no pulse.
       ctx.fillStyle = 'rgba(255, 140, 0, 0.9)';
-      ctx.font = '13px ' + font;
+      ctx.font = labelPx(13) + 'px ' + font;
       ctx.fillText(
         '📅 DAILY #' + dailyNumber(),
         GAME_CONFIG.CANVAS_W / 2,
@@ -688,8 +703,14 @@ function drawGameOverScreen() {
       );
 
       ctx.fillStyle = 'white';
-      ctx.font = '15px ' + font;
-      ctx.fillText('★  NEW TODAY BEST  ★', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 36);
+      ctx.font = labelPx(15) + 'px ' + font;
+      // A label enlarged for a phone moves up by the same amount, so it
+      // keeps its gap above the big score.
+      ctx.fillText(
+        '★  NEW TODAY BEST  ★',
+        GAME_CONFIG.CANVAS_W / 2,
+        GAME_CONFIG.CANVAS_H / 2 - 36 - (labelPx(15) - 15)
+      );
 
       ctx.font = '42px ' + font;
       ctx.fillText(
@@ -700,7 +721,7 @@ function drawGameOverScreen() {
 
       if (game.previousDailyBest > 0) {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.font = '13px ' + font;
+        ctx.font = labelPx(13) + 'px ' + font;
         const improvement = displayScore - game.previousDailyBest;
         ctx.fillText(
           '+' + improvement + ' over your previous best',
@@ -714,7 +735,7 @@ function drawGameOverScreen() {
       const delta = todayBest > 0 ? todayBest - displayScore : 0;
 
       ctx.fillStyle = 'rgba(255, 140, 0, 0.9)';
-      ctx.font = '13px ' + font;
+      ctx.font = labelPx(13) + 'px ' + font;
       ctx.fillText(
         '📅 DAILY #' + dailyNumber(),
         GAME_CONFIG.CANVAS_W / 2,
@@ -722,7 +743,7 @@ function drawGameOverScreen() {
       );
 
       ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-      ctx.font = '12px ' + font;
+      ctx.font = labelPx(12) + 'px ' + font;
       ctx.fillText('THIS RUN', GAME_CONFIG.CANVAS_W * 0.2, GAME_CONFIG.CANVAS_H / 2 - 14);
       ctx.fillStyle = 'white';
       ctx.font = '28px ' + font;
@@ -734,18 +755,18 @@ function drawGameOverScreen() {
 
       if (todayBest > 0) {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.font = '16px ' + font;
+        ctx.font = labelPx(16) + 'px ' + font;
         ctx.fillText(
           delta > 0 ? '← +' + delta + ' →' : '← best →',
           GAME_CONFIG.CANVAS_W / 2,
           GAME_CONFIG.CANVAS_H / 2 - 10
         );
         ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-        ctx.font = '11px ' + font;
+        ctx.font = labelPx(11) + 'px ' + font;
         ctx.fillText('today best', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 10);
 
         ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.font = '12px ' + font;
+        ctx.font = labelPx(12) + 'px ' + font;
         ctx.fillText('TODAY BEST', GAME_CONFIG.CANVAS_W * 0.8, GAME_CONFIG.CANVAS_H / 2 - 14);
         ctx.fillStyle = 'white';
         ctx.font = '28px ' + font;
@@ -779,8 +800,14 @@ function drawGameOverScreen() {
     if (game.isNewBest) {
       // New record — celebration takeover
       ctx.fillStyle = 'white';
-      ctx.font = '15px ' + font;
-      ctx.fillText('★  NEW BEST  ★', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 36);
+      ctx.font = labelPx(15) + 'px ' + font;
+      // A label enlarged for a phone moves up by the same amount, so it
+      // keeps its gap above the big score.
+      ctx.fillText(
+        '★  NEW BEST  ★',
+        GAME_CONFIG.CANVAS_W / 2,
+        GAME_CONFIG.CANVAS_H / 2 - 36 - (labelPx(15) - 15)
+      );
 
       ctx.font = '42px ' + font;
       ctx.fillText(
@@ -791,7 +818,7 @@ function drawGameOverScreen() {
 
       if (game.previousHighScore > 0) {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.font = '13px ' + font;
+        ctx.font = labelPx(13) + 'px ' + font;
         const improvement = displayScore - game.previousHighScore;
         ctx.fillText(
           '+' + improvement + ' over your previous best',
@@ -806,21 +833,21 @@ function drawGameOverScreen() {
       const bestStr = String(game.highScore).padStart(5, '0');
 
       ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-      ctx.font = '12px ' + font;
+      ctx.font = labelPx(12) + 'px ' + font;
       ctx.fillText('THIS RUN', GAME_CONFIG.CANVAS_W * 0.2, GAME_CONFIG.CANVAS_H / 2 - 14);
       ctx.fillStyle = 'white';
       ctx.font = '28px ' + font;
       ctx.fillText(scoreStr, GAME_CONFIG.CANVAS_W * 0.2, GAME_CONFIG.CANVAS_H / 2 + 14);
 
       ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-      ctx.font = '16px ' + font;
+      ctx.font = labelPx(16) + 'px ' + font;
       ctx.fillText('← ' + delta + ' →', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 10);
       ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-      ctx.font = '11px ' + font;
+      ctx.font = labelPx(11) + 'px ' + font;
       ctx.fillText('from best', GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 + 10);
 
       ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-      ctx.font = '12px ' + font;
+      ctx.font = labelPx(12) + 'px ' + font;
       ctx.fillText('YOUR BEST', GAME_CONFIG.CANVAS_W * 0.8, GAME_CONFIG.CANVAS_H / 2 - 14);
       ctx.fillStyle = 'white';
       ctx.font = '28px ' + font;
@@ -828,7 +855,7 @@ function drawGameOverScreen() {
     }
 
     ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-    ctx.font = '13px ' + font;
+    ctx.font = labelPx(13) + 'px ' + font;
     ctx.fillText(
       'Tap / Press Space to Restart',
       GAME_CONFIG.CANVAS_W / 2,
@@ -846,7 +873,7 @@ function drawDailyDeathHint() {
   if (Animations.deathAnimFrame < deathAnimFrames()) return;
   ctx.textAlign = 'center';
   ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-  ctx.font = '12px ' + cfg('SCORE_FONT_FAMILY');
+  ctx.font = labelPx(12) + 'px ' + cfg('SCORE_FONT_FAMILY');
   ctx.fillText(DAILY_DEATH_HINT, GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H - 16);
 }
 

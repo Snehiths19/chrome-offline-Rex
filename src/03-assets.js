@@ -171,6 +171,11 @@ function measureCanvasCssSize(wrapper, viewportWidth, viewportHeight) {
   return fitCanvasCssSize(maxW, maxH);
 }
 
+// On-screen CSS px per logical canvas px (600 logical px wide). Below 1 on
+// a phone, where small canvas labels would shrink below readable; labelPx()
+// in src/05-rendering.js reads it.
+let canvasCssScale = 1;
+
 function initCanvasScale() {
   applyQaSafeShell();
   const dpr = window.devicePixelRatio || 1;
@@ -178,6 +183,7 @@ function initCanvasScale() {
   const size = measureCanvasCssSize(wrapper, window.innerWidth, readViewportHeight());
   const cssW = size.cssW;
   const cssH = size.cssH;
+  canvasCssScale = cssW / GAME_CONFIG.CANVAS_W;
   canvas.style.width = cssW + 'px';
   canvas.style.height = cssH + 'px';
   canvas.width = Math.round(cssW * dpr);

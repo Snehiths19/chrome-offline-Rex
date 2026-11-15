@@ -146,6 +146,9 @@ _Avoid_: PWA cache, app cache
 **Phone play area** — on a phone held upright, the canvas sits in the middle of the screen and a full-width jump button sits at the bottom under the thumb. The empty page below the canvas is a **tap zone**: a touch there works like tapping the canvas (jump, start, restart). Buttons keep their own taps. The canvas stays 3:1, so upright it is limited by the screen width.
 _Avoid_: portrait mode (that is the phone's orientation, not a game mode)
 
+**Readable label** — a small canvas label (11-16 logical px: Game Over and Daily captions, hints, the start and countdown lines, PAUSED). The canvas is 600 logical px wide and shrinks on a phone, so `labelPx()` raises such a label until it is about 12 CSS px on screen, capped at 20 logical px so the layout still fits. Desktop, where the canvas is drawn at full size or larger, keeps the designed sizes. Big numbers (the score, the countdown digit) are already readable and never change.
+_Avoid_: font scaling, responsive text
+
 **Big button** — the touch-only button under the canvas (`#jump-btn`). Its label says what a tap does now: TAP TO START on the start screen and a skippable countdown, GET READY on the first countdown, TAP TO JUMP in a run, PAUSED while paused, TAP TO RESTART on Game Over. It keeps one size for every label so nothing shifts. Hidden on desktop.
 _Avoid_: jump button (it does more than jump), CTA
 

@@ -2642,3 +2642,50 @@ describe('Soft night ground', () => {
     assertEquals(GAME_CONFIG.HILL_COLOR_DAY, '#e1e1e1', 'day hills stay the quieter day fill');
   });
 });
+
+describe('Readable labels on phones (R1)', () => {
+  const withCanvasScale = (scale, fn) => {
+    const orig = canvasCssScale;
+    canvasCssScale = scale;
+    try {
+      fn();
+    } finally {
+      canvasCssScale = orig;
+    }
+  };
+
+  it('desktop (canvas at or above full size) keeps every label as designed', () => {
+    withCanvasScale(2.1, () => {
+      [11, 12, 13, 14, 15, 16].forEach((px) => assertEquals(labelPx(px), px, px + 'px kept'));
+    });
+    withCanvasScale(1, () => assertEquals(labelPx(11), 11, 'scale 1 kept'));
+  });
+
+  it('on an iPhone 13 (374px canvas) every small label is at least 12 CSS px on screen', () => {
+    withCanvasScale(374 / 600, () => {
+      [11, 12, 13, 14, 15, 16].forEach((px) => {
+        const onScreen = labelPx(px) * canvasCssScale;
+        assert(onScreen >= 12, px + 'px label is ' + onScreen.toFixed(1) + ' CSS px on screen');
+      });
+    });
+  });
+
+  it('never grows a label past the cap, and never shrinks one', () => {
+    withCanvasScale(0.3, () => {
+      assertEquals(labelPx(11), 20, 'a tiny canvas is capped at 20 logical px');
+      assertEquals(labelPx(28), 28, 'a big label is left alone');
+    });
+  });
+
+  it('resizing measures the scale the labels read', () => {
+    const orig = canvasCssScale;
+    initCanvasScale();
+    assert(canvasCssScale > 0, 'scale measured');
+    assertEquals(
+      canvasCssScale,
+      parseFloat(canvas.style.width) / GAME_CONFIG.CANVAS_W,
+      'scale is CSS width / 600'
+    );
+    canvasCssScale = orig;
+  });
+});
