@@ -147,6 +147,8 @@ export default [
         checkCollision: 'readonly',
         jump: 'readonly',
         drawDailyDeathHint: 'readonly',
+        handleKeyDown: 'readonly',
+        handleTouchAction: 'readonly',
         labelPx: 'readonly',
         canvasCssScale: 'writable',
         jumpButtonLabel: 'readonly',

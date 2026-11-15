@@ -256,6 +256,23 @@ async function playOnDevice(browser, base, vp) {
   await tapOrClick(mute, vp.touch);
   check('mute button toggles back', (await read(page, 'audio.muted')) === wasMuted);
 
+  // Space on a focused button presses that button and nothing else (A2).
+  if (!vp.touch) {
+    await mute.focus();
+    // A run still going may end on its own; only a jump or a restart fails.
+    const before = await read(page, '({ s: game.state, j: dino.isJumping })');
+    await page.keyboard.press('Space');
+    const after = await read(page, '({ s: game.state, j: dino.isJumping })');
+    const noJump = before.s !== 'RUNNING' || before.j || !after.j || after.s === 'DEAD';
+    const noRestart = before.s !== 'DEAD' || after.s === 'DEAD';
+    check(
+      'Space on the focused mute button mutes and does not jump or restart',
+      (await read(page, 'audio.muted')) === !wasMuted && noJump && noRestart
+    );
+    await page.keyboard.press('Space');
+    await mute.evaluate((el) => el.blur());
+  }
+
   // Classic and back to Updated.
   await tapOrClick(page.locator('#mode-toggle [data-mode="classic"]'), vp.touch);
   check('Classic button switches mode', await waitFor(page, "game.mode === 'classic'", 2000));

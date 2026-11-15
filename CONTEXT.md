@@ -152,8 +152,11 @@ _Avoid_: death overlay, blackout
 **Game Over text** — every caption on the Game Over card and the Daily hint is drawn in an opaque colour (`GAME_OVER_LABEL_COLOR` light grey, `GAME_OVER_DAILY_COLOR` pale amber for Daily lines), never translucent white, so each stays at 4.5:1 contrast or better over the dimmed backdrop (#116).
 _Avoid_: faded text, alpha labels
 
-**Tap without zoom** — the page and its buttons use `touch-action: manipulation`, so a quick double tap on a phone jumps twice instead of zooming the page. Pinch zoom still works, and a two-finger touch never counts as a jump (#116).
+**Tap without zoom** — the page and its buttons use `touch-action: manipulation`, so a quick double tap on a phone jumps twice instead of zooming the page. Pinch zoom still works, and a second finger on the canvas, the jump button or the page below never counts as a jump (#116).
 _Avoid_: disable zoom, user-scalable=no
+
+**Focused control keys** — Space or Enter while a button, link or field has keyboard focus belongs to that control: the game ignores it, so tabbing to Mute and pressing Space mutes without starting, jumping or restarting. Up arrow and W still jump from anywhere (#117).
+_Avoid_: key capture, global Space
 
 **Readable label** — a small canvas label (11-16 logical px: Game Over and Daily captions, hints, the start and countdown lines, PAUSED). The canvas is 600 logical px wide and shrinks on a phone, so `labelPx()` raises such a label until it is about 12 CSS px on screen, capped at 20 logical px so the layout still fits. Desktop, where the canvas is drawn at full size or larger, keeps the designed sizes. Big numbers (the score, the countdown digit) are already readable and never change.
 _Avoid_: font scaling, responsive text
