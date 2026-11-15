@@ -1467,6 +1467,45 @@ describe('Game files (C4)', () => {
     );
   });
 
+  it('the game starts only once the sprites and every game file are ready', () => {
+    // A browser can fire the sprites' onload between two game files, before
+    // the later files exist; starting then would throw and leave a blank page.
+    const saved = { ...bootGate };
+    const savedState = game.state;
+    bootGate.assets = false;
+    bootGate.files = false;
+    bootGate.started = false;
+    game.state = STATE.LOADING;
+    bootWhenReady('assets');
+    assertEquals(game.state, STATE.LOADING, 'sprites alone do not start the game');
+    assertEquals(bootGate.started, false, 'not started yet');
+    bootWhenReady('files');
+    assertEquals(bootGate.started, true, 'starts once the files are in');
+    assertEquals(game.state, STATE.IDLE, 'shows the start screen');
+    cancelAnimationFrame(game.animationFrameId);
+    game.state = STATE.LOADING;
+    bootWhenReady('assets');
+    assertEquals(game.state, STATE.LOADING, 'never starts twice');
+    Object.assign(bootGate, saved);
+    game.state = savedState;
+  });
+
+  it('the last start-up file marks the game files ready', () => {
+    if (!IN_NODE_FS) return;
+    const { read, GAME_FILES } = gameFilesC4();
+    assert(
+      /^bootWhenReady\('files'\);/m.test(read('src/09-init.js')),
+      "09-init.js calls bootWhenReady('files')"
+    );
+    const others = GAME_FILES.filter((f) => f !== 'src/09-init.js');
+    others.forEach((f) =>
+      assert(
+        !/^bootWhenReady\('files'\)/m.test(read(f)),
+        'only 09-init.js marks the files ready: ' + f
+      )
+    );
+  });
+
   it('every file in src/ is a listed game file (or the list itself)', () => {
     if (!IN_NODE_FS) return;
     const { fs, path, root, GAME_FILES } = gameFilesC4();

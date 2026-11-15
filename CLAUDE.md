@@ -65,6 +65,7 @@ The game is ten plain classic scripts in `src/`, one per numbered section, with 
 Rules that come with the split:
 
 - **No load-time calls into a later file.** A function declaration is only hoisted within its own file, so top-level code (a table, a constant, a call at load) may only use names from its own file or an earlier one. Inside a function body anything goes, because everything has loaded before it runs. `QA_FLAGS` in `02-config.js` wraps the two draws that live in `05-rendering.js` in arrow functions for this reason. Breaking the rule throws a `ReferenceError` the moment the tests load the game.
+- **Events can run between files.** A browser may fire an image's `onload`, a timer or an input event after one game file and before the next. So nothing starts the game until both the sprites and the files are ready: `bootWhenReady('assets')` in `03-assets.js` and `bootWhenReady('files')` at the end of `09-init.js`, through `bootGate`. The smoke test delays `04-state.js` to check it.
 - **A new game file** goes in `GAME_FILES` (`src/files.js`), `index.html` (with `?v=__VERSION__`), `tests/test-runner.html` and `sw.js` `PRECACHE_URLS`, in the same order. The `Game files (C4)` tests in `tests/unit/shell.test.js` fail until all four agree.
 - **Lint knows the shared scope.** `eslint.config.mjs` reads `GAME_FILES` and gives each file the other files' top-level names as globals, and counts a name another file uses as used.
 

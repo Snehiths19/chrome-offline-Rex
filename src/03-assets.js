@@ -44,7 +44,11 @@ const obstacleImage = new Image();
 obstacleImage.src = 'assets/cactus.png';
 
 let imagesLoaded = 0;
-let assetsStarted = false;
+// The game starts once both the sprites and every game file are ready. A
+// browser can fire an image's onload, or the timeout below, between two game
+// files, before the later files' functions exist, so the sprites alone must
+// not start it. src/09-init.js marks the files ready at the end of the load.
+const bootGate = { assets: false, files: false, started: false };
 const totalImages = 6;
 
 function imageReady(img) {
@@ -187,9 +191,10 @@ function handleResize() {
   if (game.state === STATE.DEAD) drawGameOverScreen();
 }
 
-function startGameOnce() {
-  if (assetsStarted) return;
-  assetsStarted = true;
+function bootWhenReady(part) {
+  bootGate[part] = true;
+  if (!bootGate.assets || !bootGate.files || bootGate.started) return;
+  bootGate.started = true;
   dino.y = GAME_CONFIG.CANVAS_H - dino.height;
   initClouds();
   initHills();
@@ -200,7 +205,7 @@ function startGameOnce() {
 
 function onImageLoad() {
   imagesLoaded++;
-  if (imagesLoaded === totalImages) startGameOnce();
+  if (imagesLoaded === totalImages) bootWhenReady('assets');
 }
 
 function onImageError() {
@@ -228,9 +233,9 @@ obstacleImage.onerror = onImageError;
 const isNode = typeof process !== 'undefined' && process.versions && process.versions.node;
 if (typeof setTimeout !== 'undefined' && !isNode) {
   setTimeout(() => {
-    if (!assetsStarted) {
+    if (!bootGate.assets) {
       console.warn('Asset load timeout — starting with whatever is available.');
-      startGameOnce();
+      bootWhenReady('assets');
     }
   }, GAME_CONFIG.ASSET_LOAD_TIMEOUT_MS);
 }

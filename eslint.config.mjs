@@ -187,6 +187,8 @@ export default [
         SHELL_JUMP_BLOCK: 'readonly',
         SHELL_SHARE_BLOCK: 'readonly',
         QA_FLAGS: 'readonly',
+        bootGate: 'readonly',
+        bootWhenReady: 'readonly',
         TUNABLE_KEYS: 'readonly',
         loadTunePanel: 'readonly',
         qa: 'readonly',

@@ -1,6 +1,6 @@
 // == SECTION 9: INITIALISATION ==
-// Game starts automatically once all assets fire onImageLoad / onImageError,
-// or after ASSET_LOAD_TIMEOUT_MS as a safety net.
+// Game starts automatically once all assets fire onImageLoad / onImageError
+// (or after ASSET_LOAD_TIMEOUT_MS as a safety net) and this file has run.
 
 // Offline / installable: register sw.js (precaches the app shell, see the
 // header of sw.js). Skipped under Node and in browsers without service
@@ -35,3 +35,7 @@ function loadTunePanel(doc, search) {
   return true;
 }
 if (!isNode) loadTunePanel(document, location.search);
+
+// Every game file before this one has run, so the start-up code in
+// src/03-assets.js can now reach the whole game (bootWhenReady).
+bootWhenReady('files');

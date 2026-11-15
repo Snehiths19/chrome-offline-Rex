@@ -4,6 +4,8 @@
 // Browsers skip this block entirely.
 if (typeof process !== 'undefined' && process.versions && process.versions.node) {
   global.GAME_CONFIG = GAME_CONFIG;
+  global.bootGate = bootGate;
+  global.bootWhenReady = bootWhenReady;
   global.STATE = STATE;
   global.game = game;
   global.Animations = Animations;
