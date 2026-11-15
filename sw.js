@@ -18,7 +18,7 @@ const IS_DEPLOYED = CACHE_VERSION !== '__VER' + 'SION__';
 // Every file the game needs to boot with the network off. Paths are relative
 // to this file so the same list works at / locally and at /chrome-offline-Rex/
 // on GitHub Pages. Keep in sync with index.html and the sprite loads in
-// script.js Section 3 (tests/game.test.js checks this).
+// script.js Section 3 (tests/unit/shell.test.js checks this).
 const PRECACHE_URLS = [
   './',
   'index.html',

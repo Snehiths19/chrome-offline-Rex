@@ -7,7 +7,7 @@ Architecture reference for contributors and future Claude Code sessions. Optimis
 Single-file vanilla-JS clone of Chrome's offline dino game. Render target is a `<canvas>` driven by `requestAnimationFrame`. No bundler, no framework, no runtime dependencies — `npm` is for ESLint/Prettier only.
 
 - Game logic: `script.js` (~4,800 lines, sectioned)
-- Tests: `tests/game.test.js` (custom harness, runs under Node)
+- Tests: `tests/unit/*.test.js`, one file per area, on the shared `tests/harness.js` (custom harness, runs under Node and in a browser)
 - HTML shell: `index.html` (canvas + UI buttons)
 - Styles: `style.css`
 - Deploy: GitHub Pages via `.github/workflows/pages.yml`
@@ -38,7 +38,11 @@ style.css
 sw.js                             # service worker: precaches the offline shell (cache name = deploy SHA)
 manifest.webmanifest              # Add to Home Screen: name, fullscreen, landscape, icons
 icons/                            # app icons built from assets/dino-stationary.png (assets/ untouched)
-tests/game.test.js                # custom describe/it; no JSDOM; canvas/document stubbed
+tests/harness.js                  # custom describe/it/assert + Node/browser helpers; loads script.js once
+tests/unit.test.js                # Node runner: harness, then every area file, then a per-file summary
+tests/unit/files.js               # the area files and their order (Node and the browser page both read it)
+tests/unit/<area>.test.js         # physics, spawning, rendering, effects, daily, shell, qa
+tests/test-runner.html            # the same unit tests in a real browser
 tests/replay.test.js              # golden-run replays (Node only), stored runs in tests/golden/
 tests/browser/smoke.js            # real-browser smoke test (Playwright); screenshots/ is git-ignored
 tests/browser/visual.js           # screenshot comparisons against tests/browser/references/*.png
@@ -100,7 +104,7 @@ Add one row to `QA_FLAGS` (id, `?param`, and if it shows an overlay: `hold`, `ga
 
 ### Adding a test
 
-Append a `describe`/`it` block. Manage state by snapshot-mutate-restore inside each `it`:
+Add a `describe`/`it` block to the area file it belongs to in `tests/unit/`: `physics` (jump, collision, score, speed, states, restart, sim clock), `spawning` (obstacle types and gaps), `rendering` (sky, hills, clouds, stars, ground, dino, HUD and screens), `effects` (particles, dust, flashes, shakes, pops, badges, pulses), `daily`, `shell` (audio, mode toggle, sizing, storage, tuning, feature registry, offline) or `qa` (`?qa…=1` flags and the death log). A new area is a new file that starts with `beginTestFile('<area>');` plus one entry in `tests/unit/files.js`. Top-level helpers in one area file share a global scope with the others in the browser, so give them names no other file uses. Manage state by snapshot-mutate-restore inside each `it`:
 
 ```js
 it('does the thing', () => {
@@ -111,7 +115,7 @@ it('does the thing', () => {
 });
 ```
 
-The harness has no JSDOM. Canvas and document are stubbed at the top of `script.js`. Spying on `ctx` methods works via direct property assignment; restore at end of test.
+The harness has no JSDOM. Canvas and document are stubbed at the top of `script.js`. Spying on `ctx` methods works via direct property assignment; restore at end of test. The Node canvas stub's `save()`/`restore()` do nothing, so a test that draws and then reads `ctx.globalAlpha` (or leaves it changed) should set or put back the value itself; area files run in a different order than they would if they were one file, and must not depend on what an earlier file left behind.
 
 ## Determinism contract
 
@@ -156,13 +160,13 @@ Every read and write goes through `safeStorage.get(key, fallback)` / `safeStorag
 
 ## Test harness
 
-Custom `describe`/`it` with `assert`/`assertEquals`/`assertNotEquals`. No Jest, no Mocha, no JSDOM. Unit tests run as a single Node script via `node tests/game.test.js`; `npm test` runs it and then the golden-run replays.
+Custom `describe`/`it` with `assert`/`assertEquals`/`assertNotEquals`. No Jest, no Mocha, no JSDOM. Unit tests live in one file per area under `tests/unit/`, on the shared `tests/harness.js`. `node tests/unit.test.js` loads the harness (which loads `script.js` once), runs each area file in the order `tests/unit/files.js` gives, and prints one line per file then the totals; `npm test` runs it and then the golden-run replays.
 
 The Node stubs at the top of `script.js` provide just enough of `window`, `document`, `Image`, `localStorage`, `requestAnimationFrame`, and `matchMedia` to let the rest of the file load. Canvas methods are no-ops; tests assert against `game.*` state, not pixels.
 
-The same suite also runs in a real browser: `npm run serve`, then open http://localhost:8080/tests/test-runner.html and read the console (it ends with the same Test Summary). The page carries the `index.html` shell so the game finds its buttons, and loads the tests after the sprites finish loading. Console output uses CSS styling for pass/fail.
+The same suite also runs in a real browser: `npm run serve`, then open http://localhost:8080/tests/test-runner.html and read the console (it ends with the same Test Summary). The page carries the `index.html` shell so the game finds its buttons, and loads the harness and the same area files, in the same order, after the sprites finish loading. Console output uses CSS styling for pass/fail.
 
-Keep a new test passing in both places. A browser will not let a test replace `location`, `document.body`, `document.documentElement`, an element's `style`, or `navigator.clipboard` by plain assignment, so use the helpers at the top of `tests/game.test.js`: `setPageQuery()`/`savePageQuery()` for `?qa…` flags, `overrideDocumentProp()`, `stubElementStyle()`/`restoreElementStyle()`, and `Object.defineProperty` for other getters. Use `testGlobal`, not Node's `global`.
+Keep a new test passing in both places. A browser will not let a test replace `location`, `document.body`, `document.documentElement`, an element's `style`, or `navigator.clipboard` by plain assignment, so use the helpers in `tests/harness.js`: `setPageQuery()`/`savePageQuery()` for `?qa…` flags, `overrideDocumentProp()`, `stubElementStyle()`/`restoreElementStyle()`, and `Object.defineProperty` for other getters. Use `testGlobal`, not Node's `global`.
 
 ### Real-browser smoke test
 
@@ -204,7 +208,7 @@ Merges made by the queue use the workflow token, which does not fire `push` work
 
 `.github/workflows/pages.yml`:
 
-1. **Test job** — under Node 20, runs `npm ci`, then `npm run lint`, `npm run format:check` and `node tests/game.test.js`. A lint error, unformatted code or a failing test blocks deploy. Lint warnings print but do not block. A parallel **browser job** runs `npm run test:browser`; deploy waits for both.
+1. **Test job** — under Node 20, runs `npm ci`, then `npm run lint`, `npm run format:check` and `npm test`. A lint error, unformatted code or a failing test blocks deploy. Lint warnings print but do not block. A parallel **browser job** runs `npm run test:browser`; deploy waits for both.
 2. **Deploy job** — runs `sed` to inject `${GITHUB_SHA::7}` into `script.js?v=__VERSION__` and `style.css?v=__VERSION__` in `index.html`, and into the offline cache name in `sw.js`. This forces browsers to re-fetch on every deploy.
 3. **Pages publish** — uploads the repo root as an artifact and deploys to GitHub Pages.
 

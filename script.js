@@ -1,5 +1,5 @@
 // == SECTION 1: NODE STUBS ==
-// Minimal browser-API stubs so script.js can be `require`d from tests/game.test.js
+// Minimal browser-API stubs so script.js can be `require`d from tests/harness.js
 // under plain Node without a DOM. Real browsers skip this block.
 if (typeof process !== 'undefined' && process.versions && process.versions.node) {
   global.window = {
