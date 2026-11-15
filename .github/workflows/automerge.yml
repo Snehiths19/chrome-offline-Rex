@@ -39,7 +39,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --base "$BASE" --label "$LABEL" --state open \
+          pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --base "$BASE" --label "$LABEL" --state open --limit 500 \
             --json number,isDraft,isCrossRepository,createdAt \
             --jq '[.[] | select(.isDraft == false and .isCrossRepository == false)] | sort_by(.createdAt) | .[0].number // empty')
           if [ -z "$pr" ]; then echo "Nothing queued."; exit 0; fi
@@ -60,6 +60,7 @@ jobs:
         run: |
           git config user.name "merge-queue"
           git config user.email "merge-queue@users.noreply.github.com"
+          echo "base=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           git fetch origin "${{ steps.pick.outputs.sha }}"
           git merge --no-ff --no-edit "${{ steps.pick.outputs.sha }}"
 
@@ -77,9 +78,22 @@ jobs:
           npm run format:check
           node tests/game.test.js
 
+      - name: Make sure the base did not move while testing
+        id: fresh
+        if: steps.pick.outputs.pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          now=$(git ls-remote origin "refs/heads/$BASE" | cut -f1)
+          if [ "$now" != "${{ steps.combine.outputs.base }}" ]; then
+            echo "Base moved to $now during the checks; testing again on the new base."
+            gh workflow run automerge.yml --repo "$GITHUB_REPOSITORY" --ref "$BASE"
+            echo "moved=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Merge
         id: merge
-        if: steps.pick.outputs.pr
+        if: steps.pick.outputs.pr && steps.fresh.outputs.moved != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
