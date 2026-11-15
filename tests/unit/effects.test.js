@@ -2651,7 +2651,10 @@ describe('Soft death shake', () => {
       Animations.deathFlashFrames = 0;
       Animations.scorePopFrames = 0;
       game.state = STATE.DEAD;
-      for (let i = 0; i < frames; i++) {
+      // The slice that dies paints the first shake frame (C5); each later
+      // slice counts down, then paints the next one.
+      drawFrame();
+      for (let i = 1; i < frames; i++) {
         STATE_HANDLERS[STATE.DEAD]();
       }
       assertEquals(samples.length, frames, 'each shake frame translates once');
@@ -2986,6 +2989,11 @@ describe('Soft death shake', () => {
         game.graceFrames = 0;
         game.obstacles.length = 0;
         game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
+        // The slice that dies already paints the first pop frame (C5).
+        const scales = [];
+        ctx.scale = (x) => {
+          scales.push(x);
+        };
         gameLoop();
         cancelAnimationFrame(game.animationFrameId);
         assertEquals(game.state, STATE.DEAD, mode + ' collision still ends the run');
@@ -2999,11 +3007,7 @@ describe('Soft death shake', () => {
           QUIET_FRAMES,
           mode + ' score pop starts on that same window'
         );
-        const scales = [];
-        ctx.scale = (x) => {
-          scales.push(x);
-        };
-        for (let i = 0; i < QUIET_FRAMES; i++) STATE_HANDLERS[STATE.DEAD]();
+        for (let i = 1; i < QUIET_FRAMES; i++) STATE_HANDLERS[STATE.DEAD]();
         assertEquals(scales.length, QUIET_FRAMES, mode + ' scales once per shake frame');
         assertEquals(
           scales[0],
@@ -3016,9 +3020,10 @@ describe('Soft death shake', () => {
           last > 1 && last < 1 + (peak - 1) * 0.25,
           mode + ' last shake frame has nearly settled the score'
         );
+        // The next slice counts the last frame down and opens Game Over.
+        STATE_HANDLERS[STATE.DEAD]();
         assertEquals(Animations.scorePopFrames, 0, mode + ' pop is done when the shake is');
         assertEquals(Animations.deathShakeFrames, 0, mode + ' shake is done');
-        STATE_HANDLERS[STATE.DEAD]();
         assertEquals(
           scales.length,
           QUIET_FRAMES,

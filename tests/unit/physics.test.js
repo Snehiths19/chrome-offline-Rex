@@ -1000,4 +1000,68 @@ describe('Sim clock (60Hz)', () => {
       resetSimClock();
     }
   });
+
+  it('runs one update per owed slice, then draws once (C5)', () => {
+    const steps = STATE_STEPS[STATE.RUNNING];
+    const origUpdate = steps.update;
+    const origDraw = steps.draw;
+    const origState = game.state;
+    const log = [];
+    steps.update = () => log.push('update');
+    steps.draw = () => log.push('draw');
+    try {
+      cancelAnimationFrame(game.animationFrameId);
+      resetSimClock();
+      game.state = STATE.RUNNING;
+      gameLoop(1000);
+      cancelAnimationFrame(game.animationFrameId);
+      assertEquals(log.join(','), 'update,draw', 'the first timestamp is one slice');
+      log.length = 0;
+      gameLoop(1000 + 2 * SIM_FRAME_MS);
+      cancelAnimationFrame(game.animationFrameId);
+      assertEquals(log.join(','), 'update,update,draw', 'two owed slices paint once');
+      log.length = 0;
+      gameLoop(1000 + 2 * SIM_FRAME_MS + 1);
+      cancelAnimationFrame(game.animationFrameId);
+      assertEquals(log.length, 0, 'a frame that owes no slice neither updates nor draws');
+    } finally {
+      steps.update = origUpdate;
+      steps.draw = origDraw;
+      game.state = origState;
+      resetSimClock();
+      cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('keeps every canvas call out of the update steps (C5)', () => {
+    const names = ['fillRect', 'drawImage', 'fillText', 'translate', 'scale', 'save'];
+    const orig = {};
+    let calls = 0;
+    for (const n of names) {
+      orig[n] = ctx[n];
+      ctx[n] = () => {
+        calls++;
+      };
+    }
+    const origState = game.state;
+    try {
+      for (const state of [STATE.IDLE, STATE.WAITING, STATE.RUNNING, STATE.DEAD]) {
+        resetGame();
+        cancelAnimationFrame(game.animationFrameId);
+        game.state = state;
+        if (state === STATE.DEAD) Animations.deathShakeFrames = 3;
+        calls = 0;
+        STATE_STEPS[state].update();
+        assertEquals(calls, 0, `${state} update paints nothing`);
+        game.state = state;
+        STATE_STEPS[state].draw();
+        assert(calls > 0, `${state} draw paints`);
+      }
+    } finally {
+      for (const n of names) ctx[n] = orig[n];
+      Animations.reset();
+      game.state = origState;
+      cancelAnimationFrame(game.animationFrameId);
+    }
+  });
 });

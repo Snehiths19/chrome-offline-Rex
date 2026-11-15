@@ -1025,10 +1025,9 @@ function qaFlashPaintAlpha() {
   return peak * 0.5;
 }
 
-// Overdraw after the whole frame, from the hold counter only. handleDead
-// draws the real flash, and a collision returns before that draw on the
-// hit frame. This pass runs from gameLoop after the handler, so neither
-// can skip it. source-over, on top of the HUD.
+// Overdraw after the whole frame, from the hold counter only. drawDead
+// draws the real flash; this pass runs from drawFrame() after the state's
+// draw, so the hit frame and the death shake both get it. source-over, on top of the HUD.
 function drawQaFlash() {
   if (!isUpdatedMode() || game.qaFlashHold <= 0) return;
   const alpha = qaFlashPaintAlpha();
@@ -1075,10 +1074,9 @@ function qaScorePopCover() {
   };
 }
 
-// Overdraw after the whole frame, from the hold counter only. handleDead
-// draws the real pop inside the shake, and a collision returns before
-// that draw on the hit frame. This pass runs from gameLoop after the
-// handler, so neither can skip it. It sits above the flash so a
+// Overdraw after the whole frame, from the hold counter only. drawDead
+// draws the real pop inside the shake; this pass runs from drawFrame()
+// after the state's draw, so the hit frame and the shake both get it. It sits above the flash so a
 // full-canvas blink cannot cover the digits this hold exists to show.
 // drawQaNewBest paints after this, so the corner badge stays above the swell.
 function drawQaScorePop() {
@@ -1182,7 +1180,7 @@ function applyQaCopyButton() {
 // The hold must not start on WAITING or RUNNING. GET READY is 240 frames
 // and the window is 180, so a latch on the first Daily frame is already
 // gone when the death card shows Copy result. The count-up finishes inside
-// handleDead, after this check, so the button's first visible frame
+// updateDead, after this check, so the button's first visible frame
 // (deathAnimFrame >= length - 1) is the latch. It does not tick back to
 // Copy result while that button is up — same idea as the count-up card,
 // which stays until the capture surface is left. A tap while the flag is
@@ -1196,7 +1194,7 @@ const QA_SHARE_HOLD = 180;
 
 // True on the frame the Copy result button becomes visible, and on every
 // settled Game Over frame after that. The count-up increments inside
-// handleDead after this check, so the finishing frame (length - 1) counts
+// updateDead after this check, so the finishing frame (length - 1) counts
 // too. GET READY and the run do not.
 function dailyShareButtonSettled() {
   if (!isDailyMode() || game.state !== STATE.DEAD) return false;
@@ -1387,11 +1385,12 @@ function qaBigOverride(rolledType) {
 //   advance  custom per-frame step, for a flag the generic one can't express
 //   draw     overdraw after the frame, from the hold counter only
 //   onSet    side effect when a test or reader switches it
-// The table order is the order runSimFrame() advances and draws them.
+// The table order is the order runSimFrame() advances them and drawFrame()
+// draws them.
 // No flag writes score, speed, gaps, hitboxes or game.rng(); with no flag
 // set a run plays exactly as before (the golden replays check this).
 // Flags whose holds are latched elsewhere (plateau, level, confetti in
-// handleRunning; cluster and big in the type overrides) list `hold` or
+// updateRunning; cluster and big in the type overrides) list `hold` or
 // `latched` so resetGame() clears them, but have no generic advance.
 const updatedOnly = () => isUpdatedMode();
 const anyState = () =>
@@ -4163,7 +4162,25 @@ function deathShakeFreq() {
   return GAME_CONFIG.UPDATED_DEATH_SHAKE_FREQ;
 }
 
-function handleDead() {
+// Each state has an update step (sim only: counters, physics, spawning,
+// scoring, collision, emits) and a draw step (canvas and page paint only).
+// gameLoop runs one update per owed 60Hz slice, then draws once. handleX()
+// runs one update then one draw, the same as a one-slice frame.
+
+function updateDead() {
+  if (Animations.deathShakeFrames > 0) {
+    Particles.update();
+    if (Animations.deathFlashFrames > 0) Animations.deathFlashFrames--;
+    if (Animations.scorePopFrames > 0) Animations.scorePopFrames--;
+    Animations.deathShakeFrames--;
+  } else if (Animations.deathAnimFrame < deathAnimFrames()) {
+    Animations.deathAnimFrame++;
+  } else if (Animations.copyFlashFrames > 0) {
+    Animations.copyFlashFrames--;
+  }
+}
+
+function drawDead() {
   if (Animations.deathShakeFrames > 0) {
     ctx.save();
     ctx.translate(
@@ -4180,50 +4197,48 @@ function handleDead() {
     drawScore();
     ctx.restore();
     drawDeathFlash(); // white flash drawn outside the shake transform so it stays canvas-aligned
-    Particles.update();
-    if (Animations.deathFlashFrames > 0) Animations.deathFlashFrames--;
-    if (Animations.scorePopFrames > 0) Animations.scorePopFrames--;
-    Animations.deathShakeFrames--;
-  } else if (Animations.deathAnimFrame < deathAnimFrames()) {
-    Animations.deathAnimFrame++;
-    drawGameOverScreen();
   } else {
-    if (Animations.copyFlashFrames > 0) Animations.copyFlashFrames--;
     drawGameOverScreen();
   }
 }
 
-function handleIdle() {
+function updateIdle() {
   game.animFrame++;
+  updateClouds();
+}
+
+function drawIdle() {
   drawBackground();
   setPageBackground(getBackgroundColor(game.score));
   drawHills();
   drawGround();
-  updateClouds();
   drawClouds();
   drawDino();
   drawIdleScreen();
 }
 
-function handleWaiting() {
+function updateWaiting() {
   game.graceFrames--;
   game.animFrame++;
   if (game.graceFrames <= 0) {
     game.state = STATE.RUNNING;
     announce('Go!');
   }
+  updateClouds();
+}
+
+function drawWaiting() {
   drawBackground();
   setPageBackground(getBackgroundColor(game.score));
   drawHills();
   drawGround();
-  updateClouds();
   drawClouds();
   drawDino();
   drawScore();
   drawGetReadyOverlay();
 }
 
-function handleRunning() {
+function updateRunning() {
   const prevLevel = Math.floor(game.score / GAME_CONFIG.SCORE_PER_LEVEL);
   game.score += GAME_CONFIG.SCORE_INCREMENT;
   game.animFrame++;
@@ -4302,11 +4317,7 @@ function handleRunning() {
     game.starFadeFrames++;
   }
 
-  drawBackground();
-  setPageBackground(getBackgroundColor(game.score));
   runFeatureUpdates(); // updateHills, updateClouds, Particles.update
-  runFeatureDraws('background'); // drawHills, drawClouds
-  drawGround();
   updateObstacles();
 
   // Plateau cue: one puff at the dino's heel, off the obstacle lane.
@@ -4363,9 +4374,6 @@ function handleRunning() {
     game.lastObstacleX = GAME_CONFIG.CANVAS_W;
     game.nextSpawnGap = params.gap;
   }
-
-  drawObstacles();
-  runFeatureDraws('foreground'); // Particles.draw
 
   // Collision detection.
   for (let i = 0; i < game.obstacles.length; i++) {
@@ -4444,12 +4452,49 @@ function handleRunning() {
     Animations.newBestFrames = newBestDuration();
     announce('New best score!');
   }
+}
 
+function drawRunning() {
+  drawBackground();
+  setPageBackground(getBackgroundColor(game.score));
+  runFeatureDraws('background'); // drawHills, drawClouds
+  drawGround();
+  drawObstacles();
+  runFeatureDraws('foreground'); // Particles.draw
   drawDino();
   drawScore();
   runFeatureDraws('overlay'); // drawSkyTint
   drawMilestoneFlash();
   drawNewBestBadge();
+}
+
+// The update and draw step for each state. A slice runs the update for the
+// state the game is in; the draw then paints whatever state it ended in, so
+// the slice that dies already paints the death shake.
+const STATE_STEPS = {
+  [STATE.IDLE]: { update: updateIdle, draw: drawIdle },
+  [STATE.WAITING]: { update: updateWaiting, draw: drawWaiting },
+  [STATE.RUNNING]: { update: updateRunning, draw: drawRunning },
+  [STATE.DEAD]: { update: updateDead, draw: drawDead },
+};
+
+// One update then one draw: what a frame that owes a single slice does.
+// Tests drive states through these.
+function handleIdle() {
+  runSimFrame();
+  drawFrame();
+}
+function handleWaiting() {
+  runSimFrame();
+  drawFrame();
+}
+function handleRunning() {
+  runSimFrame();
+  drawFrame();
+}
+function handleDead() {
+  runSimFrame();
+  drawFrame();
 }
 
 const STATE_HANDLERS = {
@@ -4567,21 +4612,25 @@ function drawQaHz() {
   ctx.restore();
 }
 
-// One 60Hz slice: the state handler plus the QA holds that used to run
-// once per animation frame. Drawing is inside the handler, so a slice
-// paints itself. A display frame that owes no slice does not call this —
-// the canvas already shows the last slice, and a second pass would move
-// score, hills, and particles for time that was not owed.
+// One 60Hz slice of simulation: the QA holds, then the update step of the
+// current state. It paints nothing. A display frame that owes no slice does
+// not call this, and does not draw either: the canvas already shows the
+// last frame, and moving score, hills, or particles for time that was not
+// owed would speed the game up on a fast display.
 function runSimFrame() {
   advanceQaFlags();
+  STATE_STEPS[game.state].update();
+}
+
+// One paint of the state the game is in now, after however many slices
+// this display frame owed. The QA overlays go last so the score, the death
+// card and a collision cannot cover them. The flash sits above the earlier
+// marks, the LEVEL hold above that blink, and the NEW BEST hold is painted
+// last, above the score pop, so a swollen score cannot cover the badge.
+function drawFrame() {
   const shakeHeld = beginQaShake();
-  STATE_HANDLERS[game.state]();
+  STATE_STEPS[game.state].draw();
   endQaShake(shakeHeld);
-  // After the handler so a collision return, the score, and the death
-  // card cannot cover the debug block. No-op unless the hold is running.
-  // The flash sits above the earlier marks. The LEVEL hold sits above that
-  // blink so the word stays readable. The NEW BEST hold is painted last,
-  // above the score pop, so a swollen score cannot cover the corner badge.
   drawQaFlags();
   applyQaCopyButton();
 }
@@ -4590,6 +4639,7 @@ function gameLoop(timestamp) {
   game.animationFrameId = requestAnimationFrame(gameLoop);
   const steps = simStepsForFrame(timestamp);
   for (let i = 0; i < steps; i++) runSimFrame();
+  if (steps > 0) drawFrame();
   noteQaHzFrame(steps, timestamp);
   drawQaHz();
 }
@@ -4663,6 +4713,8 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.resetGame = resetGame;
   global.gameLoop = gameLoop;
   global.STATE_HANDLERS = STATE_HANDLERS;
+  global.STATE_STEPS = STATE_STEPS;
+  global.drawFrame = drawFrame;
   global.drawGameOverScreen = drawGameOverScreen;
   global.computeRunResult = computeRunResult;
   global.drawIdleScreen = drawIdleScreen;
@@ -4777,6 +4829,8 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.qaShakeOffset = qaShakeOffset;
   global.updatedDeathShakeFrames = updatedDeathShakeFrames;
   global.deathShakeFrameCount = deathShakeFrameCount;
+  global.deathShakeFreq = deathShakeFreq;
+  global.deathShakeAmplitude = deathShakeAmplitude;
   global.scorePopWindow = scorePopWindow;
   global.QA_NEW_BEST_HOLD = QA_NEW_BEST_HOLD;
   global.qaNewBestPaintAlpha = qaNewBestPaintAlpha;
