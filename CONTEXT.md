@@ -143,6 +143,12 @@ _Avoid_: daily record, new daily high, today record
 **Offline shell** — the files a phone needs to boot the game with no connection: `index.html`, the game files in `src/`, `style.css`, the web manifest, the six sprites in `assets/`, and the app icons. `sw.js` precaches exactly that list on first visit and then serves it cache-first. The cache is named after the deploy's commit SHA, so each deploy installs a fresh shell and deletes the old one. The new version shows on the next launch; the page is never reloaded mid-run, because that would break Flow. A file the game loads at boot that is missing from the list breaks offline play silently.
 _Avoid_: PWA cache, app cache
 
+**Phone play area** — on a phone held upright, the canvas sits in the middle of the screen and a full-width jump button sits at the bottom under the thumb. The empty page below the canvas is a **tap zone**: a touch there works like tapping the canvas (jump, start, restart). Buttons keep their own taps. The canvas stays 3:1, so upright it is limited by the screen width.
+_Avoid_: portrait mode (that is the phone's orientation, not a game mode)
+
+**Turn-sideways hint** — the one line under the canvas on a phone held upright, "Turn your phone sideways for a bigger view". Page text, never on the canvas. Shown on the start screen only, and retired for good (`dino-rotate-hint-seen`) once the player starts a run or turns the phone to landscape, so it never appears mid-run.
+_Avoid_: rotate prompt, orientation warning
+
 **Installed app** — the game added to a home screen through the web manifest. It opens fullscreen, landscape first, with the dino icon, and runs the same modes, scores, and Daily Challenge as the browser tab. It shares `localStorage` with the site, so best scores carry over. Installing is a browser feature at the edges of play; the game never prompts for it mid-run.
 _Avoid_: native app, PWA mode
 

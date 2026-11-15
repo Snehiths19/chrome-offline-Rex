@@ -3,6 +3,7 @@
 function handleAction() {
   audio.ensure(); // unlock AudioContext on first user gesture (Chrome autoplay policy)
   if (game.state === STATE.IDLE) {
+    markRotateHintSeen(); // the portrait hint is for the start screen only
     game.state = STATE.WAITING;
     game.graceFrames = GAME_CONFIG.GRACE_FRAMES;
   } else if (game.state === STATE.WAITING) {
@@ -47,6 +48,22 @@ canvas.addEventListener(
   },
   { passive: false }
 );
+
+// Tap zone (S2): on a phone, a touch on the empty page below the canvas
+// works like tapping the canvas. Buttons (jump, share, the top row) keep
+// their own handlers, and the canvas has its own listener above.
+function handleTapZone(event) {
+  if (!bootGate.files) return;
+  const target = event.target;
+  if (target === canvas) return;
+  if (target && typeof target.closest === 'function' && target.closest('button, a, input')) return;
+  const touch = event.changedTouches && event.changedTouches[0];
+  if (!touch || typeof canvas.getBoundingClientRect !== 'function') return;
+  if (touch.clientY < canvas.getBoundingClientRect().bottom) return;
+  event.preventDefault();
+  handleAction();
+}
+document.addEventListener('touchstart', handleTapZone, { passive: false });
 
 const jumpBtn = document.getElementById('jump-btn');
 if (jumpBtn) {

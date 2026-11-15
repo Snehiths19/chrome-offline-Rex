@@ -1665,3 +1665,142 @@ describe('Installable and offline (PL1)', () => {
     assert(true, 'no synchronous throw');
   });
 });
+
+describe('Phone play area (S2)', () => {
+  // A fake touch below or above the canvas bottom, on a given target.
+  const tapZoneEvent = (target, clientY) => {
+    const ev = { target, changedTouches: [{ clientY }], prevented: false };
+    ev.preventDefault = () => {
+      ev.prevented = true;
+    };
+    return ev;
+  };
+  const withCanvasBottom = (bottom, fn) => {
+    const orig = Object.getOwnPropertyDescriptor(canvas, 'getBoundingClientRect');
+    Object.defineProperty(canvas, 'getBoundingClientRect', {
+      configurable: true,
+      writable: true,
+      value: () => ({ top: bottom - 100, bottom }),
+    });
+    try {
+      fn();
+    } finally {
+      delete canvas.getBoundingClientRect;
+      if (orig) Object.defineProperty(canvas, 'getBoundingClientRect', orig);
+    }
+  };
+  const plainArea = { closest: () => null };
+  const insideButton = { closest: () => ({}) };
+  // Swap matchMedia for one that answers only the given query.
+  const withMedia = (matchQuery, fn) => {
+    const orig = Object.getOwnPropertyDescriptor(window, 'matchMedia');
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      writable: true,
+      value: (q) => ({ matches: q === matchQuery, addEventListener: () => {} }),
+    });
+    try {
+      fn();
+    } finally {
+      delete window.matchMedia;
+      if (orig) Object.defineProperty(window, 'matchMedia', orig);
+    }
+  };
+  const PORTRAIT = '(hover: none) and (pointer: coarse) and (orientation: portrait)';
+  const LANDSCAPE = '(hover: none) and (pointer: coarse) and (orientation: landscape)';
+  const hintEl = () => document.getElementById('rotate-hint');
+  const withHintStore = (value, fn) => {
+    const orig = safeStorage.get(ROTATE_HINT_KEY, null);
+    if (value === null) safeStorage.remove(ROTATE_HINT_KEY);
+    else safeStorage.set(ROTATE_HINT_KEY, value);
+    try {
+      fn();
+    } finally {
+      if (orig === null) safeStorage.remove(ROTATE_HINT_KEY);
+      else safeStorage.set(ROTATE_HINT_KEY, orig);
+      refreshRotateHint();
+    }
+  };
+
+  it('a tap below the canvas jumps during a run', () => {
+    resetGame();
+    game.state = STATE.RUNNING;
+    withCanvasBottom(300, () => {
+      const ev = tapZoneEvent(plainArea, 450);
+      handleTapZone(ev);
+      assert(dino.isJumping, 'tap zone jumps');
+      assert(ev.prevented, 'the touch does not also scroll or click');
+    });
+    resetGame();
+  });
+
+  it('a tap below the canvas starts the game from the start screen', () => {
+    const origState = game.state;
+    resetGame();
+    game.state = STATE.IDLE;
+    withHintStore('1', () => {
+      withCanvasBottom(300, () => handleTapZone(tapZoneEvent(plainArea, 450)));
+      assertEquals(game.state, STATE.WAITING, 'IDLE -> WAITING like a canvas tap');
+    });
+    resetGame();
+    game.state = origState;
+  });
+
+  it('a tap above the canvas bottom, on a button or on the canvas does nothing here', () => {
+    resetGame();
+    game.state = STATE.RUNNING;
+    withCanvasBottom(300, () => {
+      const above = tapZoneEvent(plainArea, 120);
+      handleTapZone(above);
+      assert(!dino.isJumping && !above.prevented, 'above the canvas bottom is not the zone');
+      const onButton = tapZoneEvent(insideButton, 450);
+      handleTapZone(onButton);
+      assert(!dino.isJumping && !onButton.prevented, 'buttons keep their own handlers');
+      const onCanvas = tapZoneEvent(canvas, 450);
+      handleTapZone(onCanvas);
+      assert(!dino.isJumping && !onCanvas.prevented, 'the canvas has its own listener');
+    });
+    resetGame();
+  });
+
+  it('the turn-sideways hint shows once on a portrait phone that has not seen it', () => {
+    withHintStore(null, () => {
+      withMedia(PORTRAIT, () => {
+        refreshRotateHint();
+        assertEquals(hintEl().hidden, false, 'shown on a fresh portrait phone');
+        markRotateHintSeen();
+        assertEquals(hintEl().hidden, true, 'hidden once seen');
+        assert(rotateHintSeen(), 'remembered');
+        refreshRotateHint();
+        assertEquals(hintEl().hidden, true, 'stays hidden afterwards');
+      });
+    });
+  });
+
+  it('the hint never shows on desktop or in landscape', () => {
+    withHintStore(null, () => {
+      withMedia('none', () => {
+        refreshRotateHint();
+        assertEquals(hintEl().hidden, true, 'hidden on desktop');
+      });
+      withMedia(LANDSCAPE, () => {
+        refreshRotateHint();
+        assertEquals(hintEl().hidden, true, 'hidden in landscape');
+      });
+    });
+  });
+
+  it('starting a run or turning the phone sideways retires the hint', () => {
+    withHintStore(null, () => {
+      resetGame();
+      game.state = STATE.IDLE;
+      withMedia(PORTRAIT, () => handleAction());
+      assert(rotateHintSeen(), 'starting a run marks it seen');
+    });
+    resetGame();
+    withHintStore(null, () => {
+      withMedia(LANDSCAPE, () => handleResize());
+      assert(rotateHintSeen(), 'turning to landscape marks it seen');
+    });
+  });
+});

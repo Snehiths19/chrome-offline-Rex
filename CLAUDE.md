@@ -166,6 +166,7 @@ const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matc
 | `dino-tuning` | JSON | `saveTuning()` | `loadTuning()` at boot |
 | `dino-daily-date` | YYYYMMDD integer string | `ScoreStore.saveDailyBest()` | `ScoreStore.loadDailyBest()` |
 | `dino-daily-best` | integer string | `ScoreStore.saveDailyBest()` | `ScoreStore.loadDailyBest()` |
+| `dino-rotate-hint-seen` | `'1'` once seen | `markRotateHintSeen()` | `rotateHintSeen()` |
 
 Every read and write goes through `safeStorage.get(key, fallback)` / `safeStorage.set(key, value)` in Section 2, never `localStorage` directly.
 

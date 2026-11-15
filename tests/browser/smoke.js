@@ -20,8 +20,8 @@ const SHOTS = path.join(__dirname, 'screenshots');
 
 const VIEWPORTS = [
   { name: 'desktop', options: { viewport: { width: 1280, height: 800 } }, touch: false },
-  { name: 'iphone-portrait', options: devices['iPhone 13'], touch: true },
-  { name: 'pixel-portrait', options: devices['Pixel 7'], touch: true },
+  { name: 'iphone-portrait', options: devices['iPhone 13'], touch: true, portrait: true },
+  { name: 'pixel-portrait', options: devices['Pixel 7'], touch: true, portrait: true },
   { name: 'iphone-landscape', options: devices['iPhone 13 landscape'], touch: true },
 ];
 
@@ -121,6 +121,25 @@ async function playOnDevice(browser, base, vp) {
   );
   check('no sideways scrolling', !overflow);
 
+  // Portrait phones (S2): the one-time turn-sideways hint shows on a first
+  // visit, and the canvas sits lower with the jump button near the bottom.
+  const hintVisible = await page.locator('#rotate-hint').isVisible();
+  if (vp.portrait) {
+    check('turn-sideways hint shows on a first portrait visit', hintVisible);
+    check(
+      'portrait canvas sits below the top third of the screen',
+      canvasBox.y > size.height / 4,
+      JSON.stringify(canvasBox)
+    );
+    check(
+      'portrait jump button sits in the bottom quarter',
+      jumpBox && jumpBox.y > (size.height * 3) / 4,
+      JSON.stringify(jumpBox)
+    );
+  } else {
+    check('turn-sideways hint stays hidden', !hintVisible);
+  }
+
   // Start a run. The first visit keeps the full countdown.
   await act(page, vp.touch);
   check('action starts the countdown', await waitFor(page, "game.state === 'WAITING'", 3000));
@@ -128,12 +147,21 @@ async function playOnDevice(browser, base, vp) {
     'countdown ends and the run starts',
     await waitFor(page, "game.state === 'RUNNING'", 10000)
   );
+  check('the hint is gone once a run starts', !(await page.locator('#rotate-hint').isVisible()));
 
   // Jump straight away (nothing has spawned yet, so it is safe).
   await act(page, vp.touch);
   check('jump lifts the dino', await waitFor(page, 'dino.isJumping === true', 2000));
   await shot('2-jump');
   check('dino lands again', await waitFor(page, 'dino.isJumping === false', 3000));
+
+  // Portrait phones: the empty space below the canvas is a jump zone too.
+  if (vp.portrait) {
+    const box = await page.locator('#gameCanvas').boundingBox();
+    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height + 40);
+    check('a tap below the canvas jumps', await waitFor(page, 'dino.isJumping === true', 2000));
+    check('dino lands after the zone jump', await waitFor(page, 'dino.isJumping === false', 3000));
+  }
 
   // Do nothing until an obstacle hits.
   check('the run ends on an obstacle', await waitFor(page, "game.state === 'DEAD'", 30000));
