@@ -1,20 +1,87 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
   <title>Dino Game Tests</title>
-  <link rel="stylesheet" href="../style.css"> <!-- Optional: if styles affect layout needed for tests -->
+  <!-- Resolve every relative URL against the repo root, the same as index.html,
+       so script.js finds assets/*.png instead of tests/assets/*.png. -->
+  <base href="../">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <h1>Dino Game Test Runner</h1>
   <p>Open the browser console to see test results.</p>
-  
-  <!-- Canvas is needed for the game script to initialize -->
-  <canvas id="gameCanvas" width="600" height="200" style="display: none;"></canvas> 
+
+  <!-- The same game shell as index.html. script.js looks these nodes up by id
+       at load, and the tests drive them (a11y live region, share button, the
+       Daily and mode buttons, the wrapper the canvas is measured against).
+       It is hidden so the wrapper has no layout width, like the Node stub:
+       canvas-sizing tests then measure from the window.innerWidth they set. -->
+  <div id="game-wrapper" role="application" aria-label="Chrome dino game" style="display:none">
+    <button id="mute-btn" type="button" aria-pressed="false" aria-label="Mute sound">&#x1F50A;</button>
+    <button id="daily-btn" type="button" aria-pressed="false" aria-label="Daily challenge">&#x1F4C5;</button>
+    <div id="mode-toggle" role="group" aria-label="Game mode">
+      <button type="button" data-mode="classic" aria-pressed="false">Classic</button>
+      <button type="button" data-mode="updated" aria-pressed="true">Updated</button>
+    </div>
+    <canvas id="gameCanvas" width="600" height="200"></canvas>
+    <button id="jump-btn" aria-label="Jump">TAP TO JUMP</button>
+    <button id="share-btn" aria-label="Share daily result" style="display:none">&#x1F4CB; Copy result</button>
+    <div id="a11y-live" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+  </div>
+
+  <!-- Record every listener on the element it was added to, as the Node stub
+       nodes in script.js Section 1 do, so tests can call a button's click
+       handler directly (btn._listeners.click[0]). Test page only. -->
+  <script>
+    (function () {
+      var add = EventTarget.prototype.addEventListener;
+      EventTarget.prototype.addEventListener = function (type, fn, opts) {
+        if (!Object.prototype.hasOwnProperty.call(this, '_listeners')) {
+          Object.defineProperty(this, '_listeners', { value: {}, configurable: true });
+        }
+        (this._listeners[type] || (this._listeners[type] = [])).push(fn);
+        return add.call(this, type, fn, opts);
+      };
+    })();
+  </script>
+
+  <!-- A real canvas rewrites the style strings it is given (a font becomes
+       bold 22px "Courier New", ...; a colour becomes #rrggbb), so a test that
+       reads ctx.font back would see a different string than under Node. Keep
+       what the game asked for and hand that back, while still passing it on
+       to the real canvas. Tests assert on what the game asked for, not pixels.
+       Test page only. -->
+  <script>
+    (function () {
+      var proto = CanvasRenderingContext2D.prototype;
+      ['font', 'fillStyle', 'strokeStyle', 'globalAlpha', 'textAlign', 'textBaseline',
+        'filter', 'globalCompositeOperation', 'imageSmoothingEnabled', 'lineWidth'
+      ].forEach(function (name) {
+        var real = Object.getOwnPropertyDescriptor(proto, name);
+        if (!real || !real.set) return;
+        var asked = new WeakMap();
+        Object.defineProperty(proto, name, {
+          configurable: true,
+          enumerable: real.enumerable,
+          get: function () { return asked.has(this) ? asked.get(this) : real.get.call(this); },
+          set: function (v) { asked.set(this, v); real.set.call(this, v); },
+        });
+      });
+    })();
+  </script>
 
   <!-- Main game script -->
-  <script src="../script.js"></script>
-  
-  <!-- Test script -->
-  <script src="game.test.js"></script>
+  <script src="script.js"></script>
+
+  <!-- Test script. Loaded after window "load" so the sprites in assets/ have
+       finished decoding; under Node the Image stub is always complete. -->
+  <script>
+    window.addEventListener('load', function () {
+      var s = document.createElement('script');
+      s.src = 'tests/game.test.js';
+      document.body.appendChild(s);
+    });
+  </script>
 </body>
 </html>
