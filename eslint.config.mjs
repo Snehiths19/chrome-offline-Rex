@@ -218,6 +218,31 @@ export default [
     },
   },
   {
+    // The shared harness hands these to every area file in tests/unit/.
+    files: ['tests/harness.js', 'tests/unit.test.js', 'tests/unit/**/*.js'],
+    languageOptions: {
+      globals: {
+        module: 'writable',
+        beginTestFile: 'readonly',
+        describe: 'readonly',
+        it: 'readonly',
+        assert: 'readonly',
+        assertEquals: 'readonly',
+        assertNotEquals: 'readonly',
+        testGlobal: 'readonly',
+        IN_NODE: 'readonly',
+        setPageQuery: 'readonly',
+        savePageQuery: 'readonly',
+        stubElementStyle: 'readonly',
+        restoreElementStyle: 'readonly',
+        overrideDocumentProp: 'readonly',
+        overrideGlobalProp: 'readonly',
+        printSummary: 'readonly',
+        UNIT_TEST_FILES: 'readonly',
+      },
+    },
+  },
+  {
     // Playwright scripts: run under Node, with callbacks that run in the page.
     files: ['tests/browser/**/*.js'],
     languageOptions: {

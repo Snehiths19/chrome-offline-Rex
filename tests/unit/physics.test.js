@@ -1,0 +1,1003 @@
+// Unit tests: physics. Jumping, collisions, scoring, speed, game states, restarts and the 60Hz sim clock.
+// Loaded by tests/unit.test.js (Node) and tests/test-runner.html (browser)
+// after tests/harness.js; see tests/unit/files.js for the list and order.
+
+beginTestFile('physics');
+
+describe('Dinosaur Jump', () => {
+  it('should move Y upwards for a frame after jump() then back down', () => {
+    resetGame();
+    game.state = STATE.RUNNING;
+
+    const initialY = dino.y;
+    jump();
+    assert(dino.isJumping, 'Dino should be in jumping state');
+    assert(dino.velocityY < 0, 'Dino velocityY should be negative (upwards)');
+
+    // Drive physics directly — same math as gameLoop's gravity branch.
+    const stepPhysics = () => {
+      dino.velocityY += dino.gravity;
+      dino.y += dino.velocityY;
+      if (dino.y >= GAME_CONFIG.CANVAS_H - dino.height) {
+        dino.y = GAME_CONFIG.CANVAS_H - dino.height;
+        dino.isJumping = false;
+        dino.velocityY = 0;
+      }
+    };
+
+    stepPhysics();
+    assert(
+      dino.y < initialY,
+      `Dino Y (${dino.y}) should be less than initial Y (${initialY}) after 1st frame`
+    );
+
+    let frames = 0;
+    while (dino.isJumping && frames++ < 100) stepPhysics();
+    assert(!dino.isJumping, 'Dino should eventually land');
+    assertEquals(
+      dino.y,
+      GAME_CONFIG.CANVAS_H - dino.height,
+      'Dino should be back on the ground after landing'
+    );
+  });
+
+  it('should have a peak jump height of ~144px', () => {
+    // jumpPower=-12, gravity=0.48 → peak ≈ 144px
+    resetGame();
+    game.state = STATE.RUNNING;
+    const expectedPeak = 144;
+    jump();
+    let minY = dino.y;
+    const groundY = GAME_CONFIG.CANVAS_H - dino.height;
+    for (let i = 0; i < 60; i++) {
+      dino.velocityY += dino.gravity;
+      dino.y += dino.velocityY;
+      if (dino.y < minY) minY = dino.y;
+      if (dino.y >= groundY) {
+        dino.y = groundY;
+        dino.isJumping = false;
+        break;
+      }
+    }
+    const actualPeak = groundY - minY;
+    assert(
+      Math.abs(actualPeak - expectedPeak) <= 5,
+      `Peak height ${actualPeak.toFixed(1)}px should be ~${expectedPeak}px. ` +
+        `If this passes before changing constants, the test is wrong — rewrite it.`
+    );
+  });
+
+  it('should ignore jump() when state is not RUNNING', () => {
+    resetGame();
+    game.state = STATE.WAITING;
+    jump();
+    assert(!dino.isJumping, 'jump() should not fire during WAITING');
+    game.state = STATE.DEAD;
+    jump();
+    assert(!dino.isJumping, 'jump() should not fire during DEAD');
+  });
+});
+
+describe('Collision Detection', () => {
+  it('should return true when dino and obstacle are colliding', () => {
+    resetGame();
+    dino.x = 50;
+    dino.y = GAME_CONFIG.CANVAS_H - dino.height;
+    dino.width = 40;
+    dino.height = 50;
+
+    const collidingObstacle = {
+      x: 50,
+      y: GAME_CONFIG.CANVAS_H - 40,
+      width: 20,
+      height: 40,
+    };
+    game.obstacles.push(collidingObstacle);
+    assert(
+      checkCollision(dino, game.obstacles[0]),
+      'checkCollision should return true for colliding objects'
+    );
+  });
+
+  it('should return false when dino and obstacle are not colliding', () => {
+    resetGame();
+    dino.x = 50;
+    dino.y = GAME_CONFIG.CANVAS_H - dino.height;
+    dino.width = 40;
+    dino.height = 50;
+
+    const nonCollidingObstacle = {
+      x: 200,
+      y: GAME_CONFIG.CANVAS_H - 40,
+      width: 20,
+      height: 40,
+    };
+    game.obstacles.push(nonCollidingObstacle);
+    assert(
+      !checkCollision(dino, game.obstacles[0]),
+      'checkCollision should return false for non-colliding objects'
+    );
+  });
+});
+
+describe('Scoring', () => {
+  it('should increment score after game loop updates', () => {
+    resetGame();
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+
+    const initialScore = game.score;
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+
+    assert(
+      game.score > initialScore,
+      `Score (${game.score}) should be greater than initial score (${initialScore})`
+    );
+  });
+});
+
+describe('Difficulty Curve', () => {
+  it('currentSpeed approaches PLATEAU_SPEED at high score and never exceeds it', () => {
+    resetGame();
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+
+    game.score = 2000;
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+
+    assert(
+      game.currentSpeed <= GAME_CONFIG.PLATEAU_SPEED,
+      `currentSpeed at score 2000 (${game.currentSpeed}) must not exceed PLATEAU_SPEED (${GAME_CONFIG.PLATEAU_SPEED})`
+    );
+    assert(
+      game.currentSpeed > GAME_CONFIG.PLATEAU_SPEED - 0.1,
+      `currentSpeed at score 2000 (${game.currentSpeed}) should be very close to PLATEAU_SPEED — sigmoid has converged`
+    );
+  });
+
+  it('should not set a .speed property on spawned obstacles', () => {
+    resetGame();
+    spawnObstacle();
+    assert(
+      game.obstacles[0].speed === undefined,
+      `Obstacle should not have .speed (got: ${game.obstacles[0].speed}).`
+    );
+  });
+});
+
+describe('High Score', () => {
+  it('should update highScore and save via ScoreStore when score exceeds best', () => {
+    resetGame();
+    const saves = [];
+    const origSave = ScoreStore.saveHighScore;
+    ScoreStore.saveHighScore = (n) => saves.push(n);
+    game.obstacles.push({ x: 50, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    game.score = 100;
+    game.highScore = 50;
+
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+    ScoreStore.saveHighScore = origSave;
+
+    assertEquals(game.highScore, 100, `highScore should be 100, got ${game.highScore}`);
+    assertEquals(saves[0], 100, 'ScoreStore.saveHighScore should have been called with 100');
+  });
+
+  it('should NOT update highScore when score is lower', () => {
+    resetGame();
+    const saves = [];
+    const origSave = ScoreStore.saveHighScore;
+    ScoreStore.saveHighScore = (n) => saves.push(n);
+    game.obstacles.push({ x: 50, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    game.score = 50;
+    game.highScore = 200;
+
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+    ScoreStore.saveHighScore = origSave;
+
+    assertEquals(game.highScore, 200, 'highScore should stay at 200');
+    assertEquals(saves.length, 0, 'ScoreStore.saveHighScore should not have been called');
+  });
+});
+
+describe('State Transitions', () => {
+  it('resetGame should put game in WAITING with full grace period', () => {
+    resetGame();
+    assertEquals(game.state, STATE.WAITING, 'State should be WAITING after reset');
+    assertEquals(game.graceFrames, GAME_CONFIG.GRACE_FRAMES, 'graceFrames should be reset to full');
+    assertEquals(game.score, 0, 'Score should be 0 after reset');
+    assertEquals(game.obstacles.length, 0, 'Obstacles should be cleared');
+    assertEquals(game.currentSpeed, GAME_CONFIG.INITIAL_SPEED, 'Speed should be back at initial');
+    assert(!dino.isJumping, 'Dino should not be jumping after reset');
+  });
+
+  it('WAITING → RUNNING when graceFrames hit 0', () => {
+    resetGame();
+    game.graceFrames = 1; // one tick remaining
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.state, STATE.RUNNING, 'State should flip to RUNNING once grace expires');
+  });
+
+  it('RUNNING → DEAD on collision, preserving score/highScore paths', () => {
+    resetGame();
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    game.score = 10;
+    game.highScore = 0;
+    // Place an obstacle squarely on the dino.
+    game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
+
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+
+    assertEquals(game.state, STATE.DEAD, 'State should flip to DEAD on collision');
+    assert(Animations.deathShakeFrames > 0, 'Death shake should be queued');
+  });
+
+  it('DEAD → WAITING via resetGame restores gameplay fields', () => {
+    resetGame();
+    game.state = STATE.RUNNING;
+    game.graceFrames = 0;
+    game.score = 50;
+    game.obstacles.push({ x: dino.x, y: GAME_CONFIG.CANVAS_H - 40, width: 20, height: 40 });
+    gameLoop(); // triggers DEAD
+    cancelAnimationFrame(game.animationFrameId);
+    assertEquals(game.state, STATE.DEAD, 'Must be DEAD before reset');
+
+    resetGame();
+    assertEquals(game.state, STATE.WAITING, 'resetGame should put state back to WAITING');
+    assertEquals(game.score, 0, 'score should be cleared');
+    assertEquals(game.obstacles.length, 0, 'obstacles should be cleared');
+    assertEquals(Animations.deathShakeFrames, 0, 'deathShakeFrames should be cleared');
+  });
+});
+
+describe('PR-P1 bug fixes', () => {
+  it('updateHills respawn uses game.rng (consumes exactly 3 draws)', () => {
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    game.rng = mulberry32(123);
+    initHills();
+    // Force the first hill off-screen so updateHills will respawn it.
+    game.hills[0].x = -game.hills[0].width - 1;
+    game.currentSpeed = 6;
+
+    let calls = 0;
+    const inner = mulberry32(456);
+    game.rng = () => {
+      calls++;
+      return inner();
+    };
+    updateHills();
+
+    assertEquals(calls, 3, 'Respawn must consume exactly 3 game.rng() draws');
+    assert(
+      game.hills[0].x >= GAME_CONFIG.CANVAS_W,
+      'Respawned x must land at or past canvas width'
+    );
+  });
+
+  it('hill respawn x is bounded by HILL_RESPAWN_X_RANGE', () => {
+    setMode(MODES.UPDATED);
+    cancelAnimationFrame(game.animationFrameId);
+    initHills();
+    game.hills[0].x = -game.hills[0].width - 1;
+    game.currentSpeed = 6;
+    game.rng = () => 1.0;
+    updateHills();
+    const maxX = GAME_CONFIG.CANVAS_W + GAME_CONFIG.HILL_RESPAWN_X_RANGE;
+    assert(
+      game.hills[0].x <= maxX,
+      `Hill x (${game.hills[0].x}) must not exceed CANVAS_W + HILL_RESPAWN_X_RANGE (${maxX})`
+    );
+    assert(game.hills[0].x >= GAME_CONFIG.CANVAS_W, 'Hill must respawn at or past CANVAS_W');
+  });
+
+  it('audio.ensure resumes a suspended context', () => {
+    let resumed = 0;
+    const prev = audio.ctx;
+    audio.ctx = {
+      state: 'suspended',
+      resume: () => {
+        resumed++;
+        return Promise.resolve();
+      },
+    };
+    audio.ensure();
+    assertEquals(resumed, 1, 'ensure() must call resume() on suspended ctx');
+    audio.ctx = prev;
+  });
+
+  it('audio.ensure does not call resume on running context', () => {
+    let resumed = 0;
+    const prev = audio.ctx;
+    audio.ctx = {
+      state: 'running',
+      resume: () => {
+        resumed++;
+        return Promise.resolve();
+      },
+    };
+    audio.ensure();
+    assertEquals(resumed, 0, 'ensure() must not resume an already-running ctx');
+    audio.ctx = prev;
+  });
+
+  it('drawNewBestBadge offsets vertically when milestone is active', () => {
+    const calls = [];
+    const origFill = ctx.fillText;
+    const origAlpha = ctx.globalAlpha;
+    ctx.fillText = (text, x, y) => calls.push({ text, x, y });
+
+    Animations.milestoneFrames = 0;
+    Animations.newBestFrames = GAME_CONFIG.NEW_BEST_FRAMES;
+    drawNewBestBadge();
+    const baseY = calls[calls.length - 1].y;
+
+    Animations.milestoneFrames = GAME_CONFIG.MILESTONE_FRAMES;
+    Animations.newBestFrames = GAME_CONFIG.NEW_BEST_FRAMES;
+    drawNewBestBadge();
+    const offsetY = calls[calls.length - 1].y;
+
+    assert(
+      offsetY > baseY,
+      `NEW BEST y should drop when milestone active (base ${baseY}, offset ${offsetY})`
+    );
+    assertEquals(offsetY - baseY, 30, 'Stagger should be exactly 30px');
+
+    ctx.fillText = origFill;
+    // The Node canvas stub's save()/restore() are no-ops, so put back the
+    // alpha the badge set, or the next file's draw tests start dimmed.
+    ctx.globalAlpha = origAlpha;
+    Animations.milestoneFrames = 0;
+    Animations.newBestFrames = 0;
+  });
+});
+
+describe('DifficultyProfile', () => {
+  it('speedAtScore returns exactly the midpoint speed at RAMP_MIDPOINT', () => {
+    const expected =
+      GAME_CONFIG.INITIAL_SPEED + (GAME_CONFIG.PLATEAU_SPEED - GAME_CONFIG.INITIAL_SPEED) / 2;
+    assertEquals(
+      DifficultyProfile.speedAtScore(GAME_CONFIG.RAMP_MIDPOINT),
+      expected,
+      'At RAMP_MIDPOINT the sigmoid is exactly 0.5, so speed must be the midpoint between INITIAL and PLATEAU'
+    );
+  });
+
+  it('speedAtScore is slightly above INITIAL_SPEED at score 0 — curve starts gently', () => {
+    const speed = DifficultyProfile.speedAtScore(0);
+    assert(
+      speed > GAME_CONFIG.INITIAL_SPEED,
+      `Score 0 speed ${speed} should be above INITIAL_SPEED ${GAME_CONFIG.INITIAL_SPEED}`
+    );
+    assert(
+      speed < GAME_CONFIG.INITIAL_SPEED + 0.5,
+      `Score 0 speed ${speed} should still be close to INITIAL_SPEED — gentle start`
+    );
+  });
+
+  it('speedAtScore never exceeds PLATEAU_SPEED', () => {
+    for (const score of [500, 1000, 5000]) {
+      const speed = DifficultyProfile.speedAtScore(score);
+      assert(
+        speed <= GAME_CONFIG.PLATEAU_SPEED,
+        `Score ${score} speed ${speed} must not exceed PLATEAU_SPEED ${GAME_CONFIG.PLATEAU_SPEED}`
+      );
+    }
+  });
+
+  it('speedAtScore is monotonically increasing', () => {
+    const s0 = DifficultyProfile.speedAtScore(0);
+    const s100 = DifficultyProfile.speedAtScore(100);
+    const s300 = DifficultyProfile.speedAtScore(300);
+    const s600 = DifficultyProfile.speedAtScore(600);
+    assert(
+      s0 < s100 && s100 < s300 && s300 < s600,
+      `Speed must strictly increase: ${s0} < ${s100} < ${s300} < ${s600}`
+    );
+  });
+
+  it('nextObstacle returns an object with a numeric gap and a typed obstacle', () => {
+    const rng = mulberry32(42);
+    const params = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng);
+    assert(typeof params.gap === 'number', 'gap must be a number');
+    assert(
+      params.type && typeof params.type.id === 'string',
+      'type must be an obstacle-type object with an id string'
+    );
+  });
+
+  it('nextObstacle classic mode: gap shrinks as score rises', () => {
+    const rng = mulberry32(42); // not consumed in classic mode — safe to reuse
+    const paramsLow = DifficultyProfile.nextObstacle(0, MODES.CLASSIC, rng);
+    const paramsHigh = DifficultyProfile.nextObstacle(500, MODES.CLASSIC, rng);
+    assert(
+      paramsHigh.gap < paramsLow.gap,
+      `Gap at score 500 (${paramsHigh.gap}) should be less than gap at score 0 (${paramsLow.gap}) — higher speed means shorter gap`
+    );
+  });
+
+  it('nextObstacle classic mode: type is always small cactus', () => {
+    const rng = mulberry32(42);
+    const params = DifficultyProfile.nextObstacle(500, MODES.CLASSIC, rng);
+    assertEquals(params.type.id, 'small', 'Classic mode must always return the small cactus');
+  });
+
+  it('nextObstacle updated mode: gap is within valid range at score 0', () => {
+    const rng = mulberry32(42);
+    const params = DifficultyProfile.nextObstacle(0, MODES.UPDATED, rng);
+    assert(
+      params.gap >= GAME_CONFIG.MIN_SPAWN_GAP,
+      `Gap (${params.gap}) must be at least MIN_SPAWN_GAP (${GAME_CONFIG.MIN_SPAWN_GAP})`
+    );
+    assert(
+      params.gap <= Math.round(GAME_CONFIG.MAX_SPAWN_GAP * (1 + GAME_CONFIG.SPAWN_GAP_JITTER)),
+      `Gap (${params.gap}) must not exceed MAX_SPAWN_GAP with max jitter (${GAME_CONFIG.MAX_SPAWN_GAP} * ${1 + GAME_CONFIG.SPAWN_GAP_JITTER})`
+    );
+  });
+
+  it('nextObstacle updated mode: cluster cactus returned at score 250 with max roll', () => {
+    const rng = () => 0.99; // constant roll — pushes weighted pick to last eligible type
+    const params = DifficultyProfile.nextObstacle(250, MODES.UPDATED, rng);
+    assertEquals(
+      params.type.id,
+      'cluster',
+      'At score 250 with max rng roll, all three types eligible and cluster wins the weighted draw'
+    );
+  });
+});
+
+describe('Restart cancels the animation frame first', () => {
+  function assertCancelBeforeReset(trigger) {
+    const origCancel = testGlobal.cancelAnimationFrame;
+    const origRAF = testGlobal.requestAnimationFrame;
+    game.score = 77;
+    let scoreAtCancel = null;
+    let scoreAtLoop = null;
+    testGlobal.cancelAnimationFrame = (id) => {
+      if (scoreAtCancel === null) scoreAtCancel = game.score;
+      return origCancel(id);
+    };
+    testGlobal.requestAnimationFrame = (cb) => {
+      if (scoreAtLoop === null) scoreAtLoop = game.score;
+      return origRAF(cb);
+    };
+    try {
+      trigger();
+    } finally {
+      testGlobal.cancelAnimationFrame = origCancel;
+      testGlobal.requestAnimationFrame = origRAF;
+      if (game.animationFrameId) origCancel(game.animationFrameId);
+    }
+    assert(scoreAtCancel !== null, 'restart path must call cancelAnimationFrame');
+    assertEquals(
+      scoreAtCancel,
+      77,
+      'cancelAnimationFrame must run before resetGame clears the score'
+    );
+    assertEquals(scoreAtLoop, 0, 'gameLoop must run after resetGame');
+  }
+
+  it('setMode cancels the frame before resetGame and gameLoop', () => {
+    const origMode = game.mode;
+    assertCancelBeforeReset(() => setMode(MODES.CLASSIC));
+    setMode(origMode === MODES.CLASSIC ? MODES.CLASSIC : MODES.UPDATED);
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+  });
+
+  it('daily toggle cancels the frame before resetGame and gameLoop', () => {
+    const origMode = game.mode;
+    const btn = document.getElementById('daily-btn');
+    const handler = btn && btn._listeners && btn._listeners.click && btn._listeners.click[0];
+    assert(typeof handler === 'function', 'daily button must register a click handler');
+    assertCancelBeforeReset(() => handler({ stopPropagation() {} }));
+    game.mode = origMode;
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+  });
+
+  it('DEAD restart via handleAction cancels the frame before resetGame and gameLoop', () => {
+    const origMode = game.mode;
+    const origState = game.state;
+    game.state = STATE.DEAD;
+    Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    assertCancelBeforeReset(() => handleAction());
+    game.mode = origMode;
+    game.state = origState;
+    resetGame();
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+  });
+});
+
+describe('Restart countdown', () => {
+  function overlayText() {
+    const calls = [];
+    const origFill = ctx.fillText;
+    ctx.fillText = (text) => calls.push(String(text));
+    drawGetReadyOverlay();
+    ctx.fillText = origFill;
+    return calls;
+  }
+
+  it('first WAITING does not skip on Space or Tap', () => {
+    const origState = game.state;
+    const origGrace = game.graceFrames;
+    const origSkip = game.countdownSkippable;
+
+    game.countdownSkippable = false;
+    game.state = STATE.IDLE;
+    handleAction();
+
+    const graceAfterEnter = game.graceFrames;
+    handleAction();
+
+    const stateAfter = game.state;
+    const graceAfter = game.graceFrames;
+
+    game.state = origState;
+    game.graceFrames = origGrace;
+    game.countdownSkippable = origSkip;
+
+    assertEquals(
+      graceAfterEnter,
+      GAME_CONFIG.GRACE_FRAMES,
+      'first visit should arm the full countdown'
+    );
+    assertEquals(
+      stateAfter,
+      STATE.WAITING,
+      'Space/Tap during the first countdown should leave the game in WAITING'
+    );
+    assertEquals(
+      graceAfter,
+      graceAfterEnter,
+      'Space/Tap during the first countdown should not consume grace frames'
+    );
+  });
+
+  it('post-death WAITING skips to RUNNING on Space or Tap', () => {
+    const origState = game.state;
+    const origGrace = game.graceFrames;
+    const origSkip = game.countdownSkippable;
+    const origAnim = Animations.deathAnimFrame;
+    const origJumping = dino.isJumping;
+
+    game.countdownSkippable = false;
+    game.state = STATE.DEAD;
+    Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+    dino.isJumping = false;
+
+    handleAction();
+    cancelAnimationFrame(game.animationFrameId);
+
+    const stateAfterRestart = game.state;
+    const graceAfterRestart = game.graceFrames;
+    const skipAfterRestart = game.countdownSkippable;
+
+    handleAction();
+
+    const stateAfterSkip = game.state;
+    const jumpingAfterSkip = dino.isJumping;
+
+    cancelAnimationFrame(game.animationFrameId);
+    game.state = origState;
+    game.graceFrames = origGrace;
+    game.countdownSkippable = origSkip;
+    Animations.deathAnimFrame = origAnim;
+    dino.isJumping = origJumping;
+
+    assertEquals(stateAfterRestart, STATE.WAITING, 'restart after death should land in GET READY');
+    assert(
+      graceAfterRestart > 0,
+      'restart after death should still show a countdown until the player skips'
+    );
+    assertEquals(skipAfterRestart, true, 'restart after death should mark the countdown skippable');
+    assertEquals(
+      stateAfterSkip,
+      STATE.RUNNING,
+      'Space/Tap during post-death GET READY should start the run immediately'
+    );
+    assertEquals(
+      jumpingAfterSkip,
+      false,
+      'the skip press should start the run without also jumping'
+    );
+  });
+
+  it('post-death skip works in Classic mode', () => {
+    const origState = game.state;
+    const origGrace = game.graceFrames;
+    const origSkip = game.countdownSkippable;
+    const origMode = game.mode;
+    const origAnim = Animations.deathAnimFrame;
+
+    game.mode = MODES.CLASSIC;
+    game.countdownSkippable = false;
+    game.state = STATE.DEAD;
+    Animations.deathAnimFrame = GAME_CONFIG.DEATH_ANIM_FRAMES;
+
+    handleAction();
+    cancelAnimationFrame(game.animationFrameId);
+    handleAction();
+
+    const stateAfterSkip = game.state;
+
+    cancelAnimationFrame(game.animationFrameId);
+    game.state = origState;
+    game.graceFrames = origGrace;
+    game.countdownSkippable = origSkip;
+    game.mode = origMode;
+    Animations.deathAnimFrame = origAnim;
+
+    assertEquals(
+      stateAfterSkip,
+      STATE.RUNNING,
+      'Classic mode should skip GET READY after death the same way Updated does'
+    );
+  });
+
+  it('first-run overlay does not promise a jump', () => {
+    const origGrace = game.graceFrames;
+    const origSkip = game.countdownSkippable;
+
+    game.countdownSkippable = false;
+    game.graceFrames = GAME_CONFIG.GRACE_FRAMES;
+    const calls = overlayText();
+
+    game.graceFrames = origGrace;
+    game.countdownSkippable = origSkip;
+
+    assert(
+      calls.some((t) => t === 'GET READY'),
+      `Expected 'GET READY', got: ${JSON.stringify(calls)}`
+    );
+    assert(
+      !calls.some((t) => t === 'Press Space / Tap to jump'),
+      'first-run overlay must not say Press Space / Tap to jump'
+    );
+    assert(
+      !calls.some((t) => /space|tap/i.test(t)),
+      `first-run overlay must not mention Space or Tap, got: ${JSON.stringify(calls)}`
+    );
+  });
+
+  it('post-death overlay says Space or Tap starts the run', () => {
+    const origGrace = game.graceFrames;
+    const origSkip = game.countdownSkippable;
+
+    game.countdownSkippable = true;
+    game.graceFrames = GAME_CONFIG.GRACE_FRAMES;
+    const calls = overlayText();
+
+    game.graceFrames = origGrace;
+    game.countdownSkippable = origSkip;
+
+    assert(
+      calls.some((t) => t === 'GET READY'),
+      `Expected 'GET READY', got: ${JSON.stringify(calls)}`
+    );
+    assert(
+      calls.some((t) => t === 'Press Space / Tap to start'),
+      `Expected 'Press Space / Tap to start', got: ${JSON.stringify(calls)}`
+    );
+    assert(
+      !calls.some((t) => t === 'Press Space / Tap to jump'),
+      'post-death overlay must not tell the player to jump'
+    );
+  });
+
+  it('screen reader prompt matches whether the countdown can be skipped', () => {
+    const origState = game.state;
+    const origSkip = game.countdownSkippable;
+    const origText = a11yLive.textContent;
+
+    game.countdownSkippable = false;
+    game.state = STATE.WAITING;
+    resetGame();
+    const firstRun = a11yLive.textContent;
+
+    game.countdownSkippable = false;
+    game.state = STATE.DEAD;
+    resetGame();
+    const afterDeath = a11yLive.textContent;
+
+    game.state = origState;
+    game.countdownSkippable = origSkip;
+    a11yLive.textContent = origText;
+
+    assert(!/jump/i.test(firstRun), `first countdown must not announce a jump, got: ${firstRun}`);
+    assert(
+      /space or tap to start/i.test(afterDeath),
+      `post-death countdown should announce space or tap to start, got: ${afterDeath}`
+    );
+  });
+});
+
+describe('Sim clock (60Hz)', () => {
+  function cancelLoop() {
+    if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+  }
+
+  function rngTrace(drive) {
+    const origMode = game.mode;
+    setReducedMotion(false);
+    game.mode = MODES.DAILY;
+    resetGame();
+    cancelLoop();
+    const seeded = game.rng;
+    const seen = [];
+    game.rng = () => {
+      const value = seeded();
+      seen.push(value);
+      return value;
+    };
+    game.state = STATE.RUNNING;
+    // Park the dino above the lane so the sample is not cut short by a hit.
+    // A grounded run dies before the second spawn, and both clocks would
+    // then show the same single roll.
+    dino.y = -500;
+    dino.isJumping = false;
+    try {
+      drive();
+    } finally {
+      game.rng = seeded;
+      game.mode = origMode;
+      setReducedMotion(false);
+      cancelLoop();
+    }
+    return seen;
+  }
+
+  it('a timestamp-free call is one slice and does not spend a banked partial frame', () => {
+    resetSimClock();
+    assertEquals(
+      simStepsForFrame(0),
+      1,
+      'the first stamped frame anchors the clock and steps once'
+    );
+    assertEquals(simStepsForFrame(SIM_FRAME_MS / 2), 0, 'half a slice banks and does not step');
+    assertEquals(simStepsForFrame(), 1, 'a direct gameLoop() call is still one slice');
+    assertEquals(
+      simStepsForFrame(SIM_FRAME_MS / 2 + SIM_FRAME_MS),
+      1,
+      'the banked half plus the next full slice is one step'
+    );
+    assertEquals(
+      simStepsForFrame(SIM_FRAME_MS + SIM_FRAME_MS),
+      1,
+      'the leftover half plus another half completes the next slice'
+    );
+    resetSimClock();
+  });
+
+  it('same timestamp or a backwards timestamp does not step', () => {
+    resetSimClock();
+    assertEquals(simStepsForFrame(1000), 1);
+    assertEquals(simStepsForFrame(1000), 0, 'a duplicate rAF timestamp owes nothing');
+    assertEquals(simStepsForFrame(999), 0, 'time going backwards owes nothing');
+    resetSimClock();
+  });
+
+  it('a long hitch is capped and the next frame is not a second burst', () => {
+    resetSimClock();
+    assertEquals(simStepsForFrame(0), 1);
+    assertEquals(
+      simStepsForFrame(SIM_FRAME_MS * 40),
+      MAX_SIM_STEPS,
+      'catch-up stops at MAX_SIM_STEPS'
+    );
+    assertEquals(
+      simStepsForFrame(SIM_FRAME_MS * 40 + SIM_FRAME_MS),
+      1,
+      'dropped hitch time must not burst on the following frame'
+    );
+    resetSimClock();
+  });
+
+  it('live-tuning cannot change the slice length', () => {
+    const prev = window.GAME_TUNING;
+    window.GAME_TUNING = Object.assign({}, prev, { SIM_FRAME_MS: 1 });
+    try {
+      resetSimClock();
+      assertEquals(simStepsForFrame(0), 1);
+      assertEquals(
+        simStepsForFrame(SIM_FRAME_MS / 2),
+        0,
+        'a half slice stays banked even if a tune claims the slice is 1ms'
+      );
+    } finally {
+      window.GAME_TUNING = prev;
+      resetSimClock();
+    }
+  });
+
+  it('resetGame drops a banked hitch so the next run does not fast-forward', () => {
+    resetSimClock();
+    assertEquals(simStepsForFrame(0), 1);
+    assertEquals(simStepsForFrame(SIM_FRAME_MS / 2), 0);
+    resetGame();
+    cancelLoop();
+    assertEquals(
+      simStepsForFrame(5000),
+      1,
+      'the first frame of a new run is one slice, not the old hitch'
+    );
+    cancelLoop();
+    resetSimClock();
+  });
+
+  it('120Hz display frames advance score, grace, jump, and shake at the 60Hz slice', () => {
+    const origMode = game.mode;
+    const origState = game.state;
+    const origY = dino.y;
+    const origVy = dino.velocityY;
+    const origJump = dino.isJumping;
+    try {
+      game.mode = MODES.CLASSIC;
+      resetGame();
+      cancelLoop();
+      game.state = STATE.WAITING;
+      game.graceFrames = 10;
+      resetSimClock();
+      gameLoop(0);
+      assertEquals(game.graceFrames, 9, 'the anchor frame spends one countdown slice');
+      gameLoop(SIM_FRAME_MS / 2);
+      assertEquals(
+        game.graceFrames,
+        9,
+        'a 120Hz half-frame must not spend another countdown slice'
+      );
+      gameLoop(SIM_FRAME_MS);
+      assertEquals(game.graceFrames, 8);
+
+      game.state = STATE.RUNNING;
+      game.score = 0;
+      dino.isJumping = true;
+      dino.velocityY = GAME_CONFIG.JUMP_POWER;
+      dino.y = 80;
+      const yBefore = dino.y;
+      const vBefore = dino.velocityY;
+      gameLoop(SIM_FRAME_MS + SIM_FRAME_MS / 2);
+      assertEquals(dino.y, yBefore, 'jump height waits for a full slice');
+      assertEquals(dino.velocityY, vBefore, 'gravity waits for a full slice');
+      gameLoop(SIM_FRAME_MS * 2);
+      assert(dino.y !== yBefore, 'the next full slice applies gravity');
+
+      game.state = STATE.DEAD;
+      Animations.deathShakeFrames = 6;
+      const shakeAt = Animations.deathShakeFrames;
+      gameLoop(SIM_FRAME_MS * 2 + SIM_FRAME_MS / 2);
+      assertEquals(
+        Animations.deathShakeFrames,
+        shakeAt,
+        'death shake is frame-tied juice and waits for a slice'
+      );
+      gameLoop(SIM_FRAME_MS * 3);
+      assertEquals(Animations.deathShakeFrames, shakeAt - 1);
+    } finally {
+      dino.y = origY;
+      dino.velocityY = origVy;
+      dino.isJumping = origJump;
+      game.mode = origMode;
+      game.state = origState;
+      Animations.deathShakeFrames = 0;
+      cancelLoop();
+      resetGame();
+      cancelLoop();
+    }
+  });
+
+  it('a 120Hz second matches a 60Hz second of score in Classic and Updated', () => {
+    const origMode = game.mode;
+    function scoreFor(mode, frames, dt) {
+      game.mode = mode;
+      resetGame();
+      cancelLoop();
+      game.state = STATE.RUNNING;
+      game.score = 0;
+      let t = 0;
+      for (let i = 0; i < frames; i++) {
+        gameLoop(t);
+        t += dt;
+      }
+      cancelLoop();
+      return game.score;
+    }
+    try {
+      const classicFast = scoreFor(MODES.CLASSIC, 120, SIM_FRAME_MS / 2);
+      const updatedFast = scoreFor(MODES.UPDATED, 120, SIM_FRAME_MS / 2);
+      const classic60 = scoreFor(MODES.CLASSIC, 60, SIM_FRAME_MS);
+      const expected = GAME_CONFIG.SCORE_INCREMENT * 60;
+      assert(
+        Math.abs(classicFast - expected) < 1e-9,
+        '120 display frames at 120Hz are 60 sim slices'
+      );
+      assertEquals(updatedFast, classicFast, 'Updated keeps the same sim clock as Classic');
+      assertEquals(classic60, classicFast, '60Hz stamps match the 120Hz wall-clock second');
+      assertEquals(game.state, STATE.RUNNING, 'the sample run must not die early');
+    } finally {
+      game.mode = origMode;
+      cancelLoop();
+      resetGame();
+      cancelLoop();
+    }
+  });
+
+  it('60Hz stamps roll the same daily rng sequence as one call per slice', () => {
+    const frames = 240;
+    const plain = rngTrace(() => {
+      for (let i = 0; i < frames; i++) gameLoop();
+    });
+    const stamped = rngTrace(() => {
+      let t = 0;
+      for (let i = 0; i < frames; i++) {
+        gameLoop(t);
+        t += SIM_FRAME_MS;
+      }
+    });
+    assert(plain.length > 2, 'the sample must reach a second seeded roll');
+    assertEquals(
+      stamped.join('|'),
+      plain.join('|'),
+      'a 60Hz rAF stream must not change hill or spawn rolls versus one slice per call'
+    );
+    const fast = rngTrace(() => {
+      let t = 0;
+      for (let i = 0; i < frames; i++) {
+        gameLoop(t);
+        t += SIM_FRAME_MS / 2;
+      }
+    });
+    assert(
+      fast.length < plain.length,
+      'twice as many animation frames must not roll rng twice as often'
+    );
+    cancelLoop();
+    resetGame();
+    cancelLoop();
+  });
+
+  it('a display frame that owes no slice does not redraw or emit', () => {
+    const origState = game.state;
+    const origScore = game.score;
+    const origFill = ctx.fillText;
+    try {
+      setQaFlag('hz', false);
+      resetSimClock();
+      game.state = STATE.RUNNING;
+      game.score = 4;
+      gameLoop(0);
+      const texts = [];
+      ctx.fillText = (text) => {
+        texts.push(String(text));
+      };
+      gameLoop(SIM_FRAME_MS / 2);
+      assertEquals(texts.length, 0, 'a banked half-frame must not repaint the HUD');
+      assertEquals(
+        game.score,
+        4 + GAME_CONFIG.SCORE_INCREMENT,
+        'score advances only on the slice that was owed'
+      );
+    } finally {
+      ctx.fillText = origFill;
+      setQaFlag('hz', false);
+      game.state = origState;
+      game.score = origScore;
+      cancelLoop();
+      resetSimClock();
+    }
+  });
+});
