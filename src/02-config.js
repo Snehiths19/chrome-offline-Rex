@@ -29,6 +29,7 @@ const GAME_CONFIG = Object.freeze({
 
   // --- Spawning ---
   GRACE_FRAMES: 240, // ~4 s at 60 fps before first obstacle appears
+  RESUME_COUNTDOWN_FRAMES: 180, // 3 s "3 2 1" after returning to a paused run
   MAX_SPAWN_GAP: 600, // gap (px) between obstacles at INITIAL_SPEED
   MIN_SPAWN_GAP: 340, // classic floor (px). Updated/Daily never go below this either.
   SPAWN_GAP_SPEED_FACTOR: 50, // classic gap shrinks by this much per +1 speed above INITIAL_SPEED
@@ -620,6 +621,9 @@ const STATE = Object.freeze({
   IDLE: 'IDLE',
   WAITING: 'WAITING',
   RUNNING: 'RUNNING',
+  // A run put on hold because the page was hidden (app or tab switch). It
+  // goes back to RUNNING through the resume countdown.
+  PAUSED: 'PAUSED',
   DEAD: 'DEAD',
 });
 

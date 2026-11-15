@@ -29,6 +29,10 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.drawDino = drawDino;
   global.checkCollision = checkCollision;
   global.jump = jump;
+  global.pauseRun = pauseRun;
+  global.resumeRun = resumeRun;
+  global.resumeCountdownNumber = resumeCountdownNumber;
+  global.drawResumeOverlay = drawResumeOverlay;
   global.resetGame = resetGame;
   global.gameLoop = gameLoop;
   global.STATE_HANDLERS = STATE_HANDLERS;

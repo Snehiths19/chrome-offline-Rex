@@ -162,6 +162,34 @@ async function playOnDevice(browser, base, vp) {
   );
   await shot('4-restart');
 
+  // Switching apps or tabs pauses the run; coming back counts 3 2 1 first.
+  const setVisibility = (state) =>
+    page.evaluate((v) => {
+      /* global Event */
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: v });
+      Object.defineProperty(document, 'hidden', { configurable: true, value: v === 'hidden' });
+      document.dispatchEvent(new Event('visibilitychange'));
+    }, state);
+  await setVisibility('hidden');
+  check('hiding the page pauses the run', (await read(page, 'game.state')) === 'PAUSED');
+  const pausedScore = await read(page, 'game.score');
+  await page.waitForTimeout(400);
+  check('the score holds while hidden', (await read(page, 'game.score')) === pausedScore);
+  await setVisibility('visible');
+  check(
+    'coming back starts the resume countdown',
+    await waitFor(page, "game.state === 'PAUSED' && !game.pauseHidden", 1000)
+  );
+  await shot('4b-resume-countdown');
+  check(
+    'the run carries on after the countdown',
+    await waitFor(page, "game.state === 'RUNNING' || game.state === 'DEAD'", 5000)
+  );
+  check(
+    'the score picked up from where it paused',
+    (await read(page, 'game.score')) >= pausedScore
+  );
+
   // Mute toggles on and off.
   const mute = page.locator('#mute-btn');
   const wasMuted = await read(page, 'audio.muted');

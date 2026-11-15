@@ -33,6 +33,8 @@ function resetGame() {
   game.lastObstacleX = -300;
   game.graceFrames = GAME_CONFIG.GRACE_FRAMES;
   game.state = STATE.WAITING;
+  game.pauseHidden = false;
+  game.resumeFrames = 0;
   if (restartAfterDeath) game.countdownSkippable = true;
   game.starsInitialised = false;
   game.starFadeFrames = 0;
@@ -457,10 +459,56 @@ function drawRunning() {
 // The update and draw step for each state. A slice runs the update for the
 // state the game is in; the draw then paints whatever state it ended in, so
 // the slice that dies already paints the death shake.
+// Pause (F2). Hiding the page mid-run (switching apps or tabs) holds the
+// run in PAUSED. Nothing moves while hidden. Back on the page, a short
+// countdown runs, then the run carries on exactly where it stopped: score,
+// speed, spawn timing, the dino's arc and game.rng() are untouched, and a
+// press during the countdown skips nothing. The loop keeps running, so no
+// restart and no cancelAnimationFrame is needed.
+function pauseRun() {
+  if (game.state !== STATE.RUNNING) return false;
+  game.state = STATE.PAUSED;
+  game.pauseHidden = true;
+  game.resumeFrames = GAME_CONFIG.RESUME_COUNTDOWN_FRAMES;
+  announce('Paused.');
+  return true;
+}
+
+function resumeRun() {
+  if (game.state !== STATE.PAUSED || !game.pauseHidden) return false;
+  game.pauseHidden = false;
+  game.resumeFrames = GAME_CONFIG.RESUME_COUNTDOWN_FRAMES;
+  // Time spent hidden is not owed to the countdown.
+  resetSimClock();
+  announce('Back. Resuming in ' + resumeCountdownNumber() + '.');
+  return true;
+}
+
+// The whole seconds left on the resume countdown: 3, 2, 1.
+function resumeCountdownNumber() {
+  return Math.ceil(game.resumeFrames / 60);
+}
+
+function updatePaused() {
+  if (game.pauseHidden) return;
+  game.resumeFrames--;
+  if (game.resumeFrames <= 0) {
+    game.resumeFrames = 0;
+    game.state = STATE.RUNNING;
+    announce('Go!');
+  }
+}
+
+function drawPaused() {
+  drawRunning();
+  drawResumeOverlay();
+}
+
 const STATE_STEPS = {
   [STATE.IDLE]: { update: updateIdle, draw: drawIdle },
   [STATE.WAITING]: { update: updateWaiting, draw: drawWaiting },
   [STATE.RUNNING]: { update: updateRunning, draw: drawRunning },
+  [STATE.PAUSED]: { update: updatePaused, draw: drawPaused },
   [STATE.DEAD]: { update: updateDead, draw: drawDead },
 };
 
@@ -478,6 +526,10 @@ function handleRunning() {
   runSimFrame();
   drawFrame();
 }
+function handlePaused() {
+  runSimFrame();
+  drawFrame();
+}
 function handleDead() {
   runSimFrame();
   drawFrame();
@@ -487,6 +539,7 @@ const STATE_HANDLERS = {
   [STATE.IDLE]: handleIdle,
   [STATE.WAITING]: handleWaiting,
   [STATE.RUNNING]: handleRunning,
+  [STATE.PAUSED]: handlePaused,
   [STATE.DEAD]: handleDead,
 };
 
