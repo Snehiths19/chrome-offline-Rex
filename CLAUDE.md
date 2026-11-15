@@ -41,6 +41,7 @@ tune.js                           # dev-only ?tune=1 live tuning panel (loaded b
 sw.js                             # service worker: precaches the offline shell (cache name = deploy SHA)
 manifest.webmanifest              # Add to Home Screen: name, fullscreen, landscape, icons
 icons/                            # app icons built from assets/dino-stationary.png (assets/ untouched)
+share-card.png                    # 1200x630 link-preview image for Open Graph / Twitter tags (not precached)
 tests/harness.js                  # custom describe/it/assert + Node/browser helpers; loads the game files once
 tests/unit.test.js                # Node runner: harness, then every area file, then a per-file summary
 tests/unit/files.js               # the area files and their order (Node and the browser page both read it)

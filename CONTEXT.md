@@ -185,6 +185,9 @@ _Avoid_: rotate prompt, orientation warning
 **Installed app** — the game added to a home screen through the web manifest. It opens fullscreen, landscape first, with the dino icon, and runs the same modes, scores, and Daily Challenge as the browser tab. It shares `localStorage` with the site, so best scores carry over. Installing is a browser feature at the edges of play; the game never prompts for it mid-run.
 _Avoid_: native app, PWA mode
 
+**Link preview** — what a chat app shows when someone pastes the game's link: the title "Rex Run", a one-line description and the share card `share-card.png` (1200x630, the dino jumping a cactus from the game's own art under the words REX RUN). Set by the description, Open Graph and Twitter tags in `index.html`, which point at the live site by full URL because chat apps cannot follow relative links. The card is not part of the **Offline shell**: the game never loads it (PL2, #124).
+_Avoid_: thumbnail, OG card, unfurl
+
 **Game files** — the game's code: ten plain classic scripts in `src/`, one per numbered section, listed in load order by `GAME_FILES` in `src/files.js`. The page, the browser test page, the offline cache and the Node tests all load exactly that list in that order, and the scripts share one global scope, so the split changes where code lives, never how it runs. Top-level code may only use names from its own file or an earlier one. Chosen over a bundler to keep the no-build rule, and so two changes to different sections no longer edit the same file.
 _Avoid_: modules (they are not ES modules), script.js (the old single file)
 
