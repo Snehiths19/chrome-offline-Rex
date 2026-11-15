@@ -89,6 +89,15 @@ const SCENES = [
     },
   },
   {
+    name: 'game-over-miss',
+    run: () => {
+      window.__scene('updated', 4004);
+      game.highScore = 999; // a miss: THIS RUN beside YOUR BEST
+      window.__untilRunning();
+      window.__untilDeadAndSettled();
+    },
+  },
+  {
     name: 'daily-result',
     run: () => {
       window.__scene('daily', 5005);

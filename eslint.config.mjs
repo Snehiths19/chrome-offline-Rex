@@ -146,6 +146,8 @@ export default [
         drawDino: 'readonly',
         checkCollision: 'readonly',
         jump: 'readonly',
+        labelPx: 'readonly',
+        canvasCssScale: 'writable',
         jumpButtonLabel: 'readonly',
         syncJumpButtonLabel: 'readonly',
         handleTapZone: 'readonly',
