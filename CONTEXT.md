@@ -133,6 +133,9 @@ _Avoid_: PWA cache, app cache
 **Installed app** — the game added to a home screen through the web manifest. It opens fullscreen, landscape first, with the dino icon, and runs the same modes, scores, and Daily Challenge as the browser tab. It shares `localStorage` with the site, so best scores carry over. Installing is a browser feature at the edges of play; the game never prompts for it mid-run.
 _Avoid_: native app, PWA mode
 
+**Merge queue** — `.github/workflows/automerge.yml`. A finished pull request gets the `automerge` label; the queue tests it combined with the latest `initial-chrome-dino-game`, squash-merges it, and starts the deploy. One PR at a time, so each change goes live on top of the one before. A PR that fails is taken out of the queue with a comment. Chosen because the owner does not review code; passing checks are the gate.
+_Avoid_: auto-merge (GitHub's own feature, which is off in this repo)
+
 ## Relationships
 
 - A **Daily Challenge** run uses one **Daily seed** derived from today's UTC date; that value is the run's **run seed**

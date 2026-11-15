@@ -1,0 +1,105 @@
+name: Merge queue
+
+# A small merge queue. A pull request labelled `automerge` is merged here once
+# lint, formatting and tests pass on the PR combined with the latest
+# initial-chrome-dino-game. One PR at a time, oldest first. After a merge the
+# deploy is started (merges made by this workflow's token do not trigger the
+# push deploy on their own) and the queue runs again for the next PR.
+# A PR whose checks fail loses the label and gets a comment saying why.
+
+on:
+  pull_request:
+    types: [labeled, synchronize, ready_for_review, reopened]
+  push:
+    branches: [initial-chrome-dino-game]
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+concurrency:
+  group: merge-queue
+  cancel-in-progress: false
+
+env:
+  BASE: initial-chrome-dino-game
+  LABEL: automerge
+
+jobs:
+  queue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pick the next pull request
+        id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --base "$BASE" --label "$LABEL" --state open \
+            --json number,isDraft,isCrossRepository,createdAt \
+            --jq '[.[] | select(.isDraft == false and .isCrossRepository == false)] | sort_by(.createdAt) | .[0].number // empty')
+          if [ -z "$pr" ]; then echo "Nothing queued."; exit 0; fi
+          sha=$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json headRefOid --jq .headRefOid)
+          echo "pr=$pr" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Next up: #$pr at $sha"
+
+      - uses: actions/checkout@v4
+        if: steps.pick.outputs.pr
+        with:
+          ref: ${{ env.BASE }}
+          fetch-depth: 0
+
+      - name: Combine with the latest base
+        id: combine
+        if: steps.pick.outputs.pr
+        run: |
+          git config user.name "merge-queue"
+          git config user.email "merge-queue@users.noreply.github.com"
+          git fetch origin "${{ steps.pick.outputs.sha }}"
+          git merge --no-ff --no-edit "${{ steps.pick.outputs.sha }}"
+
+      - uses: actions/setup-node@v4
+        if: steps.pick.outputs.pr
+        with:
+          node-version: '20'
+
+      - name: Lint, formatting and tests
+        id: checks
+        if: steps.pick.outputs.pr
+        run: |
+          npm ci
+          npm run lint
+          npm run format:check
+          node tests/game.test.js
+
+      - name: Merge
+        id: merge
+        if: steps.pick.outputs.pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr merge "${{ steps.pick.outputs.pr }}" --repo "$GITHUB_REPOSITORY" --squash \
+            --match-head-commit "${{ steps.pick.outputs.sha }}"
+
+      - name: Deploy and run the queue again
+        if: steps.merge.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref "$BASE"
+          gh workflow run automerge.yml --repo "$GITHUB_REPOSITORY" --ref "$BASE"
+
+      - name: Take a failing pull request out of the queue
+        if: failure() && steps.pick.outputs.pr && steps.merge.outcome != 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr="${{ steps.pick.outputs.pr }}"
+          gh pr edit "$pr" --repo "$GITHUB_REPOSITORY" --remove-label "$LABEL"
+          gh pr comment "$pr" --repo "$GITHUB_REPOSITORY" --body "Merge queue: this PR did not pass lint, formatting or tests when combined with the latest \`$BASE\`, or it could not be merged, so it was taken out of the queue. Run log: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID. Fix it, then add the \`$LABEL\` label again."
+          gh workflow run automerge.yml --repo "$GITHUB_REPOSITORY" --ref "$BASE"

@@ -36,7 +36,8 @@ manifest.webmanifest              # Add to Home Screen: name, fullscreen, landsc
 icons/                            # app icons built from assets/dino-stationary.png (assets/ untouched)
 tests/game.test.js                # custom describe/it; no JSDOM; canvas/document stubbed
 .github/workflows/pages.yml       # test → cache-bust → Pages deploy
-.github/workflows/ci.yml          # tests on every push/PR
+.github/workflows/ci.yml          # lint, format check, tests on every push/PR
+.github/workflows/automerge.yml   # merge queue for PRs labelled `automerge`
 docs/dev/specs/                   # internal design specs (don't touch)
 docs/dev/plans/                   # internal implementation plans (don't touch)
 package.json                      # npm scripts: test, lint, format, serve
@@ -156,12 +157,23 @@ Keep a new test passing in both places. A browser will not let a test replace `l
 
 When running `/tdd`, tests must only use globals exported in the `Section 10 — Test exposure` block at the bottom of `script.js` (the `if (typeof process !== 'undefined' ...)` block). Canvas draw calls are no-ops — assert against `game.*` state, not pixels. `ctx.drawImage` and similar can be spied on by reassigning the property and restoring after the test.
 
+## How pull requests merge
+
+The default and deploy branch is `initial-chrome-dino-game` (there is no `master`). The owner is not a coder and has given standing approval for Claude to merge its own PRs once checks pass, so PRs should not wait on a human.
+
+1. Open the PR against `initial-chrome-dino-game` and make sure `npm test`, `npm run lint` and `npm run format:check` pass locally.
+2. When the PR is finished, add the **`automerge`** label. Leave it off (or open a draft) while work is still in progress.
+3. `.github/workflows/automerge.yml` (the merge queue) takes labelled, non-draft PRs one at a time, oldest first. It merges each with the latest base, runs lint, format check and tests on the combined code, then squash-merges, starts the Pages deploy and moves on to the next PR. It also runs hourly as a safety net.
+4. If the combined code fails or conflicts, the queue removes the label and comments on the PR with the run link. Fix the branch (merge the base in; don't force-push someone else's branch) and add the label again.
+
+Merges made by the queue use the workflow token, which does not fire `push` workflows, so the queue starts `pages.yml` itself. A human or Claude merging by hand still triggers the normal push deploy.
+
 ## Deploy pipeline
 
 `.github/workflows/pages.yml`:
 
-1. **Test job** — under Node 20, runs `npm ci`, then `npm run lint` and `node tests/game.test.js`. A lint error or a failing test blocks deploy. Lint warnings print but do not block.
-2. **Deploy job** — runs `sed` to inject `${GITHUB_SHA::7}` into `script.js?v=__VERSION__` and `style.css?v=__VERSION__` in `index.html`. This forces browsers to re-fetch on every push.
+1. **Test job** — under Node 20, runs `npm ci`, then `npm run lint`, `npm run format:check` and `node tests/game.test.js`. A lint error, unformatted code or a failing test blocks deploy. Lint warnings print but do not block.
+2. **Deploy job** — runs `sed` to inject `${GITHUB_SHA::7}` into `script.js?v=__VERSION__` and `style.css?v=__VERSION__` in `index.html`, and into the offline cache name in `sw.js`. This forces browsers to re-fetch on every deploy.
 3. **Pages publish** — uploads the repo root as an artifact and deploys to GitHub Pages.
 
 Local dev keeps `__VERSION__` literal in the URL — browsers ignore the unknown query string and serve normally.
