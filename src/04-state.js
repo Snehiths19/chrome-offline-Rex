@@ -186,10 +186,11 @@ const Animations = {
   milestoneFrames: 0,
   newBestFrames: 0,
   copyFlashFrames: 0,
+  slamKickFrames: 0,
   reset() {
     this.deathAnimFrame = this.deathShakeFrames = this.deathFlashFrames = 0;
     this.scorePopFrames = this.milestoneFrames = this.newBestFrames = 0;
-    this.copyFlashFrames = 0;
+    this.copyFlashFrames = this.slamKickFrames = 0;
   },
 };
 

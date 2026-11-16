@@ -77,7 +77,7 @@ Add new code to the file for the section it belongs to; don't start a new file f
 3. **`src/03-assets.js` — Section 3, Asset loading.** `canvas`/`ctx`, `a11yLive`/`announce`, `dino`, sprite preload with timeout fallback, and the canvas-sizing shell helpers (`computeCanvasCssWidth`, `fitCanvasCssSize`, `initCanvasScale`, `handleResize`).
 4. **`src/04-state.js` — Section 4, Game state.** The `mulberry32` seeded RNG, `DifficultyProfile.nextObstacle()` (type + gap; `pickObstacleType` and `computeNextSpawnGap` are internal helpers, not exported), `MODES`/`loadMode`, daily seed helpers, the `game` object, `Animations`, `setMode`, daily share, and the death-log debug tools.
 5. **`src/05-rendering.js` — Section 5, Rendering.** Pure draw functions: `drawBackground`, `drawDino`, `drawObstacles`, `drawClouds`, `drawHills`, `drawSkyTint`, `drawDeathFlash`, `drawScore`, `drawMilestoneFlash`, `drawNewBestBadge`, etc. Also `isDailyMode`/`isUpdatedMode` and `Particles`.
-6. **Feature registry** (end of `src/05-rendering.js`). `FEATURES` array + `runFeatureUpdates` + `runFeatureDraws(layer)`. Declarative ordering for ambient features (hills, clouds, particles, skyTint).
+6. **Feature registry** (end of `src/05-rendering.js`). `FEATURES` array + `runFeatureUpdates` + `runFeatureDraws(layer)`. Declarative ordering for ambient features (hills, clouds, speed streaks, particles, skyTint).
 7. **`src/06-physics.js` — Section 6, Physics & game logic.** `spawnObstacle`, `updateObstacles`, `checkCollision`, `computeRunResult`, `jump`.
 8. **`src/07-input.js` — Section 7, Input handlers.** `handleAction`, keyboard + mouse + touch. Jump, mute, mode-toggle, share and daily buttons live here too.
 9. **`src/08-loop.js` — Section 8, Game loop.** `resetGame`, each state's update step (`updateIdle`, `updateWaiting`, `updateRunning`, `updateDead`: counters, physics, spawning, scoring, collision, emits, no canvas) and draw step (`drawIdle`, `drawWaiting`, `drawRunning`, `drawDead`: paint only) in `STATE_STEPS`, the 60Hz sim clock (`SIM_FRAME_MS`, `simStepsForFrame`), `runSimFrame` (QA holds + one update), `drawFrame` (one draw + QA overlays) and `gameLoop`. `gameLoop` spends rAF time in 60Hz sim slices, runs one update per slice, then draws once; a display frame that owes no slice neither updates nor draws. The slice that dies draws the death scene. RUNNING uses the feature registry (`runFeatureUpdates` in the update, `runFeatureDraws` in the draw). `handleX()` / `STATE_HANDLERS` run one update then one draw, which is what tests drive. New gameplay goes in an update step; anything that touches `ctx` or the page goes in a draw step.
@@ -156,6 +156,8 @@ const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matc
 | Clouds | no movement | drawn faintly |
 | Particles | 25% count, 50% life | not emitted |
 | Sky-tint flash | suppressed | suppressed |
+| Speed streaks | not drawn | not drawn |
+| Squash/stretch, slam kick | off | off |
 
 ## `localStorage` keys
 

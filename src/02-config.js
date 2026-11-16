@@ -218,6 +218,19 @@ const GAME_CONFIG = Object.freeze({
   DINO_LAND_SQUASH: 0.2,
   DINO_SLAM_SQUASH: 0.32,
   DINO_SQUASH_FRAMES: 8,
+  // Speed streaks (M2). Visual only, Updated and Daily only, off with reduced
+  // motion. Faint wind lines in the sky band, behind the dino and above the
+  // obstacle lane, fade in from SPEED_LINES_START_SPEED and reach
+  // SPEED_LINES_ALPHA at SPEED_LINES_FULL_SPEED. Read through cfg().
+  SPEED_LINES_START_SPEED: 6.5,
+  SPEED_LINES_FULL_SPEED: 8,
+  SPEED_LINES_ALPHA: 0.35,
+  SPEED_LINES_COUNT: 6,
+  // Slam kick (M2). A slam landing nudges the scene SLAM_KICK_PX down for
+  // SLAM_KICK_FRAMES sim frames, easing back; the score stays put. Visual
+  // only, Updated and Daily only, off with reduced motion. Read through cfg().
+  SLAM_KICK_PX: 3,
+  SLAM_KICK_FRAMES: 6,
   // Visual only. Jump and land foot dust once the sky is fully night, in
   // Updated and Daily. Day dust stays the brown on those kinds (#9c8770).
   // On the night sky that brown reads as warm day-dirt. #6a686e is cooler
@@ -563,6 +576,12 @@ const TUNABLE_KEYS = Object.freeze([
   'SCORE_POP_PEAK_SCALE',
   'SKY_TINT_COLOR_RGB',
   'SKY_TINT_PEAK_ALPHA',
+  'SLAM_KICK_FRAMES',
+  'SLAM_KICK_PX',
+  'SPEED_LINES_ALPHA',
+  'SPEED_LINES_COUNT',
+  'SPEED_LINES_FULL_SPEED',
+  'SPEED_LINES_START_SPEED',
   'STAR_FADE_FRAMES',
   'UPDATED_DEATH_ANIM_FRAMES',
   'UPDATED_DEATH_SHAKE_AMPLITUDE',
