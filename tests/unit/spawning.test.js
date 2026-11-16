@@ -389,11 +389,17 @@ describe('Obstacle Types', () => {
 
   it('weighted distribution at score 300 is within 5% of declared weights', () => {
     const rng = mulberry32(4);
-    const counts = { small: 0, big: 0, cluster: 0 };
+    const eligible = GAME_CONFIG.OBSTACLE_TYPES.filter((t) => t.unlockScore <= 300);
+    const weightSum = eligible.reduce((s, t) => s + t.weight, 0);
+    const counts = {};
+    const expected = {};
+    for (const t of eligible) {
+      counts[t.id] = 0;
+      expected[t.id] = t.weight / weightSum;
+    }
     const total = 20000;
     for (let i = 0; i < total; i++)
       counts[DifficultyProfile.nextObstacle(300, MODES.UPDATED, rng).type.id]++;
-    const expected = { small: 0.5, big: 0.3, cluster: 0.2 };
     Object.keys(expected).forEach((id) => {
       const observed = counts[id] / total;
       assert(

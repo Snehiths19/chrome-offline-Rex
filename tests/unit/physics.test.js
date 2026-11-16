@@ -1506,7 +1506,8 @@ describe('Variable jump and fast fall (F3)', () => {
     for (const code of ['ArrowDown', 'KeyS']) {
       f3Start();
       handleKeyDown(f3Key('Space'));
-      f3Step();
+      // Past the slide-cancel window (M6), Down is a fast fall.
+      for (let i = 0; i <= GAME_CONFIG.SLIDE_CANCEL_FRAMES; i++) f3Step();
       handleKeyDown(f3Key(code));
       assert(dino.dropping, `${code} drops`);
     }
@@ -1527,7 +1528,7 @@ describe('Variable jump and fast fall (F3)', () => {
   it('touch: a swipe down drops once, lifting the last finger releases', () => {
     f3Start();
     handleAction();
-    f3Step();
+    for (let i = 0; i <= GAME_CONFIG.SLIDE_CANCEL_FRAMES; i++) f3Step();
     handleSwipeStart({ touches: [{ clientY: 100 }] });
     handleSwipeMove({ touches: [{ clientY: 120 }] });
     assert(!dino.dropping, 'a small move is not a swipe');
@@ -1747,5 +1748,115 @@ describe('Second jump (M3)', () => {
       handleAction();
       assert(dino.doubleJumped && !dino.dropping, 'second jump stops the drop');
     });
+  });
+});
+
+describe('Slide and low birds (M6)', () => {
+  const m6Step = () => {
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+  };
+  const m6Run = (mode, fn) => {
+    const origMode = game.mode;
+    game.mode = mode;
+    try {
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+      game.state = STATE.RUNNING;
+      game.graceFrames = 100000;
+      fn();
+    } finally {
+      game.mode = origMode;
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+    }
+  };
+  const bird = () => GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'bird');
+  const birdAtDino = () => {
+    spawnObstacle(bird());
+    const obs = game.obstacles[game.obstacles.length - 1];
+    obs.x = dino.x + 5;
+    return obs;
+  };
+
+  it('slide values are gameplay values, never tunable', () => {
+    for (const key of ['SLIDE_FRAMES', 'SLIDE_HEIGHT', 'SLIDE_CANCEL_FRAMES']) {
+      assert(!TUNABLE_KEYS.includes(key), `${key} is never tunable through cfg()`);
+    }
+  });
+
+  it('Down on the ground slides for SLIDE_FRAMES with a low hitbox, then stands', () => {
+    m6Run(MODES.UPDATED, () => {
+      dropDino();
+      assertEquals(dino.slideFrames, GAME_CONFIG.SLIDE_FRAMES);
+      const box = dinoHitbox();
+      assertEquals(box.height, GAME_CONFIG.SLIDE_HEIGHT);
+      assertEquals(box.y + box.height, dino.y + dino.height, 'feet stay on the ground');
+      for (let i = 0; i < GAME_CONFIG.SLIDE_FRAMES; i++) m6Step();
+      assertEquals(dino.slideFrames, 0);
+      assertEquals(dinoHitbox(), dino, 'standing box again');
+    });
+  });
+
+  it('holding Down keeps sliding; a jump ends the slide', () => {
+    m6Run(MODES.UPDATED, () => {
+      dropDino();
+      for (let i = 0; i < 20; i++) m6Step();
+      handleKeyDown({ code: 'ArrowDown', repeat: true, target: null, preventDefault() {} });
+      assertEquals(dino.slideFrames, GAME_CONFIG.SLIDE_FRAMES, 'topped up');
+      handleAction();
+      assert(dino.isJumping && dino.slideFrames === 0, 'jumped out of the slide');
+    });
+  });
+
+  it('Down just after a take-off cancels the jump into a slide (phone swipe)', () => {
+    m6Run(MODES.UPDATED, () => {
+      handleAction();
+      m6Step();
+      m6Step();
+      dropDino();
+      assert(!dino.isJumping, 'back on the ground');
+      assertEquals(dino.y, GAME_CONFIG.CANVAS_H - dino.height);
+      assertEquals(dino.slideFrames, GAME_CONFIG.SLIDE_FRAMES);
+    });
+  });
+
+  it('standing hits a low bird; sliding passes under it; jumping clears it', () => {
+    m6Run(MODES.UPDATED, () => {
+      const obs = birdAtDino();
+      assert(checkCollision(dinoHitbox(), obs), 'standing dino hits the bird');
+      dropDino();
+      assert(!checkCollision(dinoHitbox(), obs), 'sliding dino passes under');
+      dino.slideFrames = 0;
+      dino.y = obs.y - dino.height;
+      assert(!checkCollision(dinoHitbox(), obs), 'a dino above it clears it');
+      assert(GAME_CONFIG.CANVAS_H - obs.y - obs.height === bird().lift, 'flies lift px up');
+    });
+  });
+
+  it('Classic has no slide and never rolls a bird', () => {
+    m6Run(MODES.CLASSIC, () => {
+      dropDino();
+      assertEquals(dino.slideFrames, 0);
+      const rng = mulberry32(7);
+      for (let i = 0; i < 500; i++) {
+        assert(
+          DifficultyProfile.nextObstacle(600, MODES.CLASSIC, rng).type.id !== 'bird',
+          'no bird'
+        );
+      }
+    });
+  });
+
+  it('birds appear in Updated only from their unlock score', () => {
+    const rng = mulberry32(11);
+    const unlock = bird().unlockScore;
+    const before = new Set();
+    const after = new Set();
+    for (let i = 0; i < 2000; i++) {
+      before.add(DifficultyProfile.nextObstacle(unlock - 1, MODES.UPDATED, rng).type.id);
+      after.add(DifficultyProfile.nextObstacle(unlock, MODES.UPDATED, rng).type.id);
+    }
+    assert(!before.has('bird') && after.has('bird'), 'unlocks at its score');
   });
 });

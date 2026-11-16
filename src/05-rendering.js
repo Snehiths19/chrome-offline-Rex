@@ -351,6 +351,22 @@ function bigCactusPaint(obstacle) {
   return { x: x, y: obstacle.y, w: w, h: h };
 }
 
+// Low bird (M6): a small blocky silhouette in the cactus ink, beak forward
+// (left), wings flapping every 10 sim frames. Drawn inside its hitbox.
+function drawBird(obstacle) {
+  const x = obstacle.x,
+    y = obstacle.y,
+    w = obstacle.width,
+    h = obstacle.height;
+  const up = Math.floor(game.animFrame / 10) % 2 === 0;
+  ctx.fillStyle = '#535353';
+  ctx.fillRect(x + w * 0.15, y + h * 0.45, w * 0.7, h * 0.3); // body
+  ctx.fillRect(x, y + h * 0.4, w * 0.2, h * 0.2); // head and beak
+  ctx.fillRect(x + w * 0.8, y + h * 0.35, w * 0.2, h * 0.15); // tail
+  if (up) ctx.fillRect(x + w * 0.35, y, w * 0.2, h * 0.45);
+  else ctx.fillRect(x + w * 0.35, y + h * 0.75, w * 0.2, h * 0.25);
+}
+
 function drawSingleObstacle(obstacle) {
   const crisp = obstacle.type === 'big';
   const slot = crisp
@@ -393,6 +409,10 @@ function drawObstacles() {
   if (brightness > 1) ctx.filter = 'brightness(' + brightness.toFixed(2) + ')';
   try {
     game.obstacles.forEach((obstacle) => {
+      if (obstacle.render === 'bird') {
+        drawBird(obstacle);
+        return;
+      }
       if (obstacle.render === 'double') {
         const slots = clusterSpriteSlots(obstacle);
         if (!imageReady(obstacleImage)) {
@@ -425,6 +445,11 @@ function dinoNightBrightness() {
 // Returns { sx, sy }. Classic, reduced motion and the death pose stay 1.
 function dinoSquashScale() {
   const none = { sx: 1, sy: 1 };
+  // The slide pose is gameplay (the hitbox is low), so it shows even under
+  // reduced motion.
+  if (dino.slideFrames > 0 && isUpdatedMode() && game.state !== STATE.DEAD) {
+    return { sx: 1.25, sy: GAME_CONFIG.SLIDE_HEIGHT / dino.height };
+  }
   if (!isUpdatedMode() || reducedMotion || game.state === STATE.DEAD) return none;
   const frames = cfg('DINO_SQUASH_FRAMES');
   if (dino.landSquashFrames > 0 && frames > 0) {

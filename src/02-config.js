@@ -45,6 +45,15 @@ const GAME_CONFIG = Object.freeze({
   // over a second obstacle. Gameplay values: read GAME_CONFIG directly.
   DOUBLE_JUMP_POWER: -7.5,
   CEILING_Y: 0,
+  // Slide (M6, Updated and Daily only). Down, S or a swipe down on the ground
+  // slides for SLIDE_FRAMES sim frames (holding Down keeps it going) with a
+  // hitbox only SLIDE_HEIGHT px tall, low enough to pass under a bird. Down
+  // within SLIDE_CANCEL_FRAMES of a take-off cancels the jump into a slide,
+  // because a swipe down on a phone starts with the touch that jumps. A jump
+  // ends a slide. Gameplay values: read GAME_CONFIG directly, never cfg().
+  SLIDE_FRAMES: 32,
+  SLIDE_HEIGHT: 24,
+  SLIDE_CANCEL_FRAMES: 8,
   INITIAL_SPEED: 3.0, // obstacle scroll speed at score 0
   SPEED_CAP: 13.0, // max scroll speed (matches Chrome T-Rex)
   PLATEAU_SPEED: 8.0, // sigmoid ceiling — focusable-but-demanding speed the curve approaches
@@ -101,6 +110,18 @@ const GAME_CONFIG = Object.freeze({
       unlockScore: 100,
       weight: 30,
       render: 'single',
+    }),
+    // Low bird (M6, Updated and Daily; Classic only ever rolls small). Flies
+    // with its underside `lift` px above the ground: too low to run under
+    // standing, high enough to slide under, low enough to jump over.
+    Object.freeze({
+      id: 'bird',
+      width: 36,
+      height: 18,
+      lift: 30,
+      unlockScore: 150,
+      weight: 22,
+      render: 'bird',
     }),
     Object.freeze({
       id: 'cluster',

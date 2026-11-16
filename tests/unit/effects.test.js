@@ -6458,7 +6458,7 @@ describe('Speed streaks and slam kick (M2)', () => {
       }
       assertEquals(ys.length, GAME_CONFIG.SPEED_LINES_COUNT * 2);
       const lowestObstacleTop = Math.min(
-        ...GAME_CONFIG.OBSTACLE_TYPES.filter((t) => !t.y).map(
+        ...GAME_CONFIG.OBSTACLE_TYPES.filter((t) => !t.lift).map(
           (t) => GAME_CONFIG.CANVAS_H - t.height
         )
       );
@@ -6577,6 +6577,43 @@ describe('Second-jump flip and puff (M3)', () => {
       game.mode = origMode;
       resetGame();
       cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+});
+
+describe('Slide pose and bird drawing (M6)', () => {
+  it('the slide pose is low and wide, even under reduced motion', () => {
+    const orig = { mode: game.mode, state: game.state, slide: dino.slideFrames };
+    game.mode = MODES.UPDATED;
+    game.state = STATE.RUNNING;
+    try {
+      dino.slideFrames = 10;
+      setReducedMotion(true);
+      const s = dinoSquashScale();
+      assertEquals(s.sy * dino.height, GAME_CONFIG.SLIDE_HEIGHT);
+      assert(s.sx > 1, 'wider');
+    } finally {
+      setReducedMotion(false);
+      game.mode = orig.mode;
+      game.state = orig.state;
+      dino.slideFrames = orig.slide;
+    }
+  });
+
+  it('a bird is painted inside its box', () => {
+    const obs = { x: 300, y: 152, width: 36, height: 18 };
+    const orig = ctx.fillRect;
+    const rects = [];
+    ctx.fillRect = (x, y, w, h) => rects.push([x, y, w, h]);
+    try {
+      drawBird(obs);
+    } finally {
+      ctx.fillRect = orig;
+    }
+    assert(rects.length >= 4, 'body, head, tail and a wing');
+    for (const [x, y, w, h] of rects) {
+      assert(x >= obs.x - 1e-9 && x + w <= obs.x + obs.width + 1e-9, 'inside horizontally');
+      assert(y >= obs.y - 1e-9 && y + h <= obs.y + obs.height + 1e-9, 'inside vertically');
     }
   });
 });
