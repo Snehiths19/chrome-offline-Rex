@@ -1727,6 +1727,17 @@ describe('Second jump (M3)', () => {
     });
   });
 
+  it('a held key auto-repeat on the ground is a full held jump', () => {
+    m3Run(MODES.CLASSIC, () => {
+      // Space held through the countdown: RUNNING starts with jumpHeld false.
+      dino.jumpHeld = false;
+      handleKeyDown({ code: 'Space', repeat: true, target: null, preventDefault() {} });
+      assert(dino.isJumping && dino.jumpHeld, 'jumps and counts as held');
+      const { n } = m3Fly();
+      assertEquals(n, 49, 'full jump, not a short hop');
+    });
+  });
+
   it('a second jump cancels a fast fall', () => {
     m3Run(MODES.UPDATED, () => {
       handleAction();
