@@ -1456,9 +1456,59 @@ const Particles = (() => {
 // they fire. WAITING/DEAD branches are still hand-written — they use a
 // different subset and would only get a per-feature skip-flag if forced
 // through here.
+// Speed streaks (M2). Alpha 0 below the start speed, in Classic and under
+// reduced motion; ramps to SPEED_LINES_ALPHA at the full speed.
+function speedLinesAlpha() {
+  if (!isUpdatedMode() || reducedMotion) return 0;
+  const start = cfg('SPEED_LINES_START_SPEED');
+  const full = cfg('SPEED_LINES_FULL_SPEED');
+  const peak = cfg('SPEED_LINES_ALPHA');
+  if (game.currentSpeed <= start) return 0;
+  const t = full > start ? Math.min(1, (game.currentSpeed - start) / (full - start)) : 1;
+  return Math.max(0, Math.min(1, peak * t));
+}
+
+// Positions come from the frame count, not randomness, so a streak glides
+// steadily instead of flickering. They stay in the sky band (y 22..82),
+// above the obstacle lane.
+function drawSpeedLines() {
+  const alpha = speedLinesAlpha();
+  if (alpha <= 0) return;
+  const W = GAME_CONFIG.CANVAS_W;
+  const speed = game.currentSpeed;
+  const night = scoreForNightSky(game.score) >= GAME_CONFIG.DAY_NIGHT_START;
+  const count = Math.max(0, Math.min(12, Math.round(cfg('SPEED_LINES_COUNT'))));
+  const prevAlpha = ctx.globalAlpha;
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = night ? '#8a8fb0' : '#a0a0a0';
+  ctx.lineWidth = 1;
+  const span = W + 160;
+  const len = 24 + speed * 4;
+  for (let i = 0; i < count; i++) {
+    const y = 22 + ((i * 37) % 60);
+    const x = ((((W - game.animFrame * speed * 1.8 - i * 173) % span) + span) % span) - 80;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + len, y);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = prevAlpha;
+}
+
+// Slam kick offset in px for this draw (M2): 0 in Classic, under reduced
+// motion and once the kick has eased out.
+function slamKickOffset() {
+  if (!isUpdatedMode() || reducedMotion || Animations.slamKickFrames <= 0) return 0;
+  const frames = cfg('SLAM_KICK_FRAMES');
+  if (!(frames > 0)) return 0;
+  const px = Math.max(0, Math.min(8, cfg('SLAM_KICK_PX')));
+  return px * Math.min(1, Animations.slamKickFrames / frames);
+}
+
 const FEATURES = Object.freeze([
   { id: 'hills', layer: 'background', update: updateHills, draw: drawHills },
   { id: 'clouds', layer: 'background', update: updateClouds, draw: drawClouds },
+  { id: 'speedLines', layer: 'background', update: null, draw: drawSpeedLines },
   { id: 'particles', layer: 'foreground', update: Particles.update, draw: Particles.draw },
   { id: 'skyTint', layer: 'overlay', update: null, draw: drawSkyTint },
 ]);

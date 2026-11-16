@@ -422,6 +422,7 @@ function updateRunning() {
   }
 
   if (dino.landSquashFrames > 0) dino.landSquashFrames--;
+  if (Animations.slamKickFrames > 0) Animations.slamKickFrames--;
 
   // Apply gravity.
   if (dino.isJumping) {
@@ -442,6 +443,7 @@ function updateRunning() {
       dino.isJumping = false;
       dino.landSquashHard = dino.dropping;
       dino.landSquashFrames = cfg('DINO_SQUASH_FRAMES');
+      if (dino.dropping) Animations.slamKickFrames = cfg('SLAM_KICK_FRAMES');
       Particles.emit(
         dino.dropping ? 'slam' : 'land',
         dino.x + dino.width / 2,
@@ -473,11 +475,18 @@ function updateRunning() {
 function drawRunning() {
   drawBackground();
   setPageBackground(getBackgroundColor(game.score));
-  runFeatureDraws('background'); // drawHills, drawClouds
+  // The slam kick moves the world under a fixed sky and score (M2).
+  const kick = slamKickOffset();
+  if (kick) {
+    ctx.save();
+    ctx.translate(0, kick);
+  }
+  runFeatureDraws('background'); // drawHills, drawClouds, drawSpeedLines
   drawGround();
   drawObstacles();
   runFeatureDraws('foreground'); // Particles.draw
   drawDino();
+  if (kick) ctx.restore();
   drawScore();
   runFeatureDraws('overlay'); // drawSkyTint
   drawMilestoneFlash();

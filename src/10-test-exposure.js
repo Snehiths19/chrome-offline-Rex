@@ -36,6 +36,9 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.dropDino = dropDino;
   global.airGravity = airGravity;
   global.dinoSquashScale = dinoSquashScale;
+  global.speedLinesAlpha = speedLinesAlpha;
+  global.drawSpeedLines = drawSpeedLines;
+  global.slamKickOffset = slamKickOffset;
   global.releaseJump = releaseJump;
   global.handleKeyUp = handleKeyUp;
   global.handleMouseDown = handleMouseDown;

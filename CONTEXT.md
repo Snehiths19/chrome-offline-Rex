@@ -38,6 +38,10 @@ _Avoid_: charge jump, jump strength
 
 **Squash and stretch** — In Updated and Daily the dino sprite stretches taller in the air with speed and squashes on landing, easing back over a few frames, anchored at the feet. A landing that ends a fast fall is a **slam**: a flatter squash and a heavier dust burst. Visual only (the hitbox never changes), tunable through `cfg()`, off under reduced motion.
 
+**Speed streaks** — Faint wind lines in the sky band, above the obstacle lane, that fade in once the run passes speed 6.5 in Updated and Daily. Atmosphere only; never in Classic or under reduced motion.
+
+**Slam kick** — After a slam the world (not the sky or score) dips a few px for a few frames. Visual only, Updated and Daily, off under reduced motion.
+
 **Fast fall** — Down, S or a swipe down (30 CSS px) while airborne: the dino stops rising and falls at three times gravity until it lands, dropping any buffered jump. Does nothing on the ground (there is no duck).
 _Avoid_: dive, slam, duck
 

@@ -6404,3 +6404,113 @@ describe('Squash and stretch, landing slam (M1)', () => {
     });
   });
 });
+
+describe('Speed streaks and slam kick (M2)', () => {
+  const m2With = (mode, speed, fn) => {
+    const orig = { mode: game.mode, speed: game.currentSpeed, kick: Animations.slamKickFrames };
+    game.mode = mode;
+    game.currentSpeed = speed;
+    try {
+      fn();
+    } finally {
+      game.mode = orig.mode;
+      game.currentSpeed = orig.speed;
+      Animations.slamKickFrames = orig.kick;
+      setReducedMotion(false);
+    }
+  };
+
+  it('streaks fade in with speed in Updated and Daily', () => {
+    m2With(MODES.UPDATED, GAME_CONFIG.SPEED_LINES_START_SPEED, () => {
+      assertEquals(speedLinesAlpha(), 0, 'none at the start speed');
+      game.currentSpeed =
+        (GAME_CONFIG.SPEED_LINES_START_SPEED + GAME_CONFIG.SPEED_LINES_FULL_SPEED) / 2;
+      const mid = speedLinesAlpha();
+      assert(mid > 0 && mid < GAME_CONFIG.SPEED_LINES_ALPHA, `half way ${mid}`);
+      game.currentSpeed = GAME_CONFIG.SPEED_LINES_FULL_SPEED + 3;
+      assertEquals(speedLinesAlpha(), GAME_CONFIG.SPEED_LINES_ALPHA);
+      game.mode = MODES.DAILY;
+      assertEquals(speedLinesAlpha(), GAME_CONFIG.SPEED_LINES_ALPHA);
+    });
+  });
+
+  it('Classic and reduced motion never show streaks', () => {
+    m2With(MODES.CLASSIC, 12, () => {
+      assertEquals(speedLinesAlpha(), 0);
+      game.mode = MODES.UPDATED;
+      setReducedMotion(true);
+      assertEquals(speedLinesAlpha(), 0);
+    });
+  });
+
+  it('streaks stay in the sky band above the obstacle lane', () => {
+    m2With(MODES.UPDATED, 12, () => {
+      const orig = { moveTo: ctx.moveTo, lineTo: ctx.lineTo, alpha: ctx.globalAlpha };
+      const ys = [];
+      ctx.moveTo = (x, y) => ys.push(y);
+      ctx.lineTo = (x, y) => ys.push(y);
+      try {
+        drawSpeedLines();
+      } finally {
+        ctx.moveTo = orig.moveTo;
+        ctx.lineTo = orig.lineTo;
+        ctx.globalAlpha = orig.alpha;
+      }
+      assertEquals(ys.length, GAME_CONFIG.SPEED_LINES_COUNT * 2);
+      const lowestObstacleTop = Math.min(
+        ...GAME_CONFIG.OBSTACLE_TYPES.filter((t) => !t.y).map(
+          (t) => GAME_CONFIG.CANVAS_H - t.height
+        )
+      );
+      assert(Math.max(...ys) < lowestObstacleTop, 'above every ground obstacle');
+    });
+  });
+
+  it('a slam starts the kick, which eases out and stays off in Classic or reduced motion', () => {
+    m2With(MODES.UPDATED, 5, () => {
+      Animations.slamKickFrames = GAME_CONFIG.SLAM_KICK_FRAMES;
+      assertEquals(slamKickOffset(), GAME_CONFIG.SLAM_KICK_PX);
+      Animations.slamKickFrames = 1;
+      assert(slamKickOffset() > 0 && slamKickOffset() < GAME_CONFIG.SLAM_KICK_PX, 'easing');
+      Animations.slamKickFrames = 0;
+      assertEquals(slamKickOffset(), 0);
+      Animations.slamKickFrames = 3;
+      setReducedMotion(true);
+      assertEquals(slamKickOffset(), 0);
+      setReducedMotion(false);
+      game.mode = MODES.CLASSIC;
+      assertEquals(slamKickOffset(), 0);
+    });
+  });
+
+  it('landing from a fast fall sets the kick; a normal landing does not; reset clears it', () => {
+    const origMode = game.mode;
+    game.mode = MODES.UPDATED;
+    const fly = (drop) => {
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+      game.state = STATE.RUNNING;
+      game.graceFrames = 100000;
+      handleAction();
+      let air = 0;
+      while (dino.isJumping && air < 100) {
+        if (drop && air === 20) dropDino();
+        gameLoop();
+        cancelAnimationFrame(game.animationFrameId);
+        air++;
+      }
+    };
+    try {
+      fly(false);
+      assertEquals(Animations.slamKickFrames, 0, 'normal landing');
+      fly(true);
+      assertEquals(Animations.slamKickFrames, GAME_CONFIG.SLAM_KICK_FRAMES, 'slam landing');
+      Animations.reset();
+      assertEquals(Animations.slamKickFrames, 0);
+    } finally {
+      game.mode = origMode;
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+});

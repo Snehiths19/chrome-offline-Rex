@@ -211,8 +211,9 @@ describe('Feature registry (PR-P2)', () => {
     const ids = FEATURES.map((f) => f.id);
     assertEquals(ids[0], 'hills', 'hills must be first (background layer)');
     assertEquals(ids[1], 'clouds', 'clouds must follow hills (background layer)');
-    assertEquals(ids[2], 'particles', 'particles must be foreground');
-    assertEquals(ids[3], 'skyTint', 'skyTint must be overlay (last layer)');
+    assertEquals(ids[2], 'speedLines', 'speed streaks follow clouds (background layer)');
+    assertEquals(ids[3], 'particles', 'particles must be foreground');
+    assertEquals(ids[4], 'skyTint', 'skyTint must be overlay (last layer)');
   });
 
   it('every feature has at least one of update or draw', () => {
@@ -227,8 +228,8 @@ describe('Feature registry (PR-P2)', () => {
     const bg = FEATURES.filter((f) => f.layer === 'background').map((f) => f.id);
     assertEquals(
       bg.join(','),
-      'hills,clouds',
-      'background layer must be hills,clouds in that order'
+      'hills,clouds,speedLines',
+      'background layer must be hills,clouds,speedLines in that order'
     );
 
     const fg = FEATURES.filter((f) => f.layer === 'foreground').map((f) => f.id);
@@ -279,7 +280,7 @@ describe('Feature registry (PR-P2)', () => {
 
     assertEquals(
       order.join(','),
-      'hills,clouds,particles,skyTint',
+      'hills,clouds,speedLines,particles,skyTint',
       'Layer dispatch must produce the canonical draw order'
     );
   });
