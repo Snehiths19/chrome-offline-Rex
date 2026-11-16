@@ -1977,3 +1977,156 @@ describe('Lower first jump and cactus towers (M4)', () => {
     });
   });
 });
+
+describe('Air dash and long cactus rows (M5)', () => {
+  const m5Step = () => {
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+  };
+  const m5Run = (mode, fn) => {
+    const origMode = game.mode;
+    game.mode = mode;
+    try {
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+      game.state = STATE.RUNNING;
+      game.graceFrames = 100000;
+      return fn();
+    } finally {
+      game.mode = origMode;
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+    }
+  };
+  const m5Row = () => GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'row');
+  // Jump `lead` frames before a fresh row reaches the dino at `score`'s
+  // speed, dash at the top when asked, and report whether the run survived.
+  const m5Cross = (score, lead, dash) =>
+    m5Run(MODES.UPDATED, () => {
+      game.score = score;
+      runSimFrame(); // update only: no drawing, quick in the browser
+      spawnObstacle(m5Row());
+      const obs = game.obstacles[game.obstacles.length - 1];
+      obs.x = dino.x + dino.width + game.currentSpeed * lead;
+      handleAction();
+      for (let i = 0; i < 300 && game.state === STATE.RUNNING; i++) {
+        if (dash && !dino.dashed && dino.velocityY >= -1) dashDino();
+        runSimFrame(); // update only: no drawing, quick in the browser
+        if (obs.x + obs.width < dino.x && !dino.isJumping) break;
+      }
+      return game.state === STATE.RUNNING;
+    });
+
+  it('dash values are gameplay values, never tunable', () => {
+    for (const key of ['DASH_FRAMES', 'DASH_BOOST', 'ROW_MARGIN_FRAMES', 'ROW_CACTUS_GAP']) {
+      assert(!TUNABLE_KEYS.includes(key), `${key} is never tunable through cfg()`);
+    }
+  });
+
+  it('a dash holds the height and speeds the world for DASH_FRAMES, once per flight', () => {
+    m5Run(MODES.UPDATED, () => {
+      handleAction();
+      for (let i = 0; i < 10; i++) m5Step();
+      dashDino();
+      assert(dino.dashed, 'dash spent');
+      assertEquals(worldScroll(), game.currentSpeed + GAME_CONFIG.DASH_BOOST);
+      const y = dino.y;
+      for (let i = 0; i < GAME_CONFIG.DASH_FRAMES; i++) {
+        m5Step();
+        assertEquals(dino.y, y, 'holds height');
+      }
+      assertEquals(worldScroll(), game.currentSpeed, 'boost ends');
+      dashDino();
+      assertEquals(dino.dashFrames, 0, 'no second dash in one flight');
+      for (let i = 0; i < 200 && dino.isJumping; i++) m5Step();
+      assert(!dino.dashed, 'landing gives the dash back');
+    });
+  });
+
+  it('there is no dash on the ground or in Classic', () => {
+    m5Run(MODES.UPDATED, () => {
+      dashDino();
+      assert(!dino.dashed, 'not on the ground');
+    });
+    m5Run(MODES.CLASSIC, () => {
+      handleAction();
+      m5Step();
+      dashDino();
+      assert(!dino.dashed, 'not in Classic');
+    });
+  });
+
+  it('Right and D dash in the air; a key auto-repeat does not', () => {
+    const key = (code, repeat) => ({ code, repeat, target: null, preventDefault() {} });
+    for (const code of ['ArrowRight', 'KeyD']) {
+      m5Run(MODES.UPDATED, () => {
+        handleAction();
+        m5Step();
+        handleKeyDown(key(code, true));
+        assert(!dino.dashed, `${code} repeat does not dash`);
+        handleKeyDown(key(code, false));
+        assert(dino.dashed, `${code} dashes`);
+      });
+    }
+  });
+
+  it('a second jump or a fast fall ends a dash', () => {
+    m5Run(MODES.UPDATED, () => {
+      handleAction();
+      for (let i = 0; i < 10; i++) m5Step();
+      dashDino();
+      handleAction();
+      assert(dino.doubleJumped && dino.dashFrames === 0, 'second jump ends it');
+    });
+    m5Run(MODES.UPDATED, () => {
+      handleAction();
+      for (let i = 0; i < 20; i++) m5Step();
+      dashDino();
+      dropDino();
+      assert(dino.dropping && dino.dashFrames === 0, 'fast fall ends it');
+    });
+  });
+
+  it('a row is too wide for one held jump but a dash at the top crosses it', () => {
+    // Every other take-off frame keeps this quick in the browser runner,
+    // where each step also draws.
+    for (const score of [300, 700]) {
+      for (let lead = 0; lead <= 30; lead += 2) {
+        assert(
+          !m5Cross(score, lead, false),
+          `one jump never clears (score ${score}, lead ${lead})`
+        );
+      }
+      let dashed = 0;
+      for (let lead = 0; lead <= 30; lead += 2) if (m5Cross(score, lead, true)) dashed++;
+      assert(dashed >= 2, `a dash clears it at score ${score} (${dashed} take-off frames work)`);
+    }
+  });
+
+  it('a row is a whole number of small cacti and widens with speed', () => {
+    const small = GAME_CONFIG.OBSTACLE_TYPES[0];
+    const step = small.width + GAME_CONFIG.ROW_CACTUS_GAP;
+    let last = 0;
+    for (let s = 3; s <= 13; s += 0.5) {
+      const w = rowWidthForSpeed(s);
+      assertEquals((w + GAME_CONFIG.ROW_CACTUS_GAP) % step, 0, `whole cacti at ${s}`);
+      assert(w >= m5Row().width && w >= last, `never narrower (${s})`);
+      last = w;
+    }
+  });
+
+  it('Classic never rolls a row; Updated rolls it from its unlock score', () => {
+    const rng = mulberry32(31);
+    const unlock = m5Row().unlockScore;
+    const classic = new Set();
+    const before = new Set();
+    const after = new Set();
+    for (let i = 0; i < 2000; i++) {
+      classic.add(DifficultyProfile.nextObstacle(900, MODES.CLASSIC, rng).type.id);
+      before.add(DifficultyProfile.nextObstacle(unlock - 1, MODES.UPDATED, rng).type.id);
+      after.add(DifficultyProfile.nextObstacle(unlock, MODES.UPDATED, rng).type.id);
+    }
+    assert(!classic.has('row'), 'never in Classic');
+    assert(!before.has('row') && after.has('row'), 'unlocks at its score');
+  });
+});

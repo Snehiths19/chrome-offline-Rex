@@ -56,6 +56,18 @@ const GAME_CONFIG = Object.freeze({
   // within SLIDE_CANCEL_FRAMES of a take-off cancels the jump into a slide,
   // because a swipe down on a phone starts with the touch that jumps. A jump
   // ends a slide. Gameplay values: read GAME_CONFIG directly, never cfg().
+  // Air dash (M5, Updated and Daily only). Right, D or a swipe right in the
+  // air, once per flight: for DASH_FRAMES sim frames the dino holds its
+  // height and the world scrolls DASH_BOOST px per frame faster, so the
+  // flight covers more ground. Landing gives it back. Gameplay values: read
+  // GAME_CONFIG directly, never cfg().
+  DASH_FRAMES: 12,
+  DASH_BOOST: 6,
+  // Long cactus row (M5): as many small cacti as it takes to be wider than
+  // one held jump can clear at the speed it spawns, plus ROW_MARGIN_FRAMES
+  // of flight to spare, so it takes the dash or a late second jump.
+  ROW_MARGIN_FRAMES: 4,
+  ROW_CACTUS_GAP: 6,
   SLIDE_FRAMES: 32,
   SLIDE_HEIGHT: 24,
   SLIDE_CANCEL_FRAMES: 8,
@@ -140,6 +152,16 @@ const GAME_CONFIG = Object.freeze({
       unlockScore: 200,
       weight: 14,
       render: 'stack',
+    }),
+    // Long cactus row (M5, Updated and Daily): `width` is the narrowest row;
+    // spawnObstacle widens it with speed (see rowWidthForSpeed).
+    Object.freeze({
+      id: 'row',
+      width: 98,
+      height: 40,
+      unlockScore: 300,
+      weight: 12,
+      render: 'row',
     }),
     Object.freeze({
       id: 'cluster',

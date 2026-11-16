@@ -42,6 +42,8 @@ const dino = {
   // Slide (M6): sim frames left on the slide, and sim frames since take-off.
   slideFrames: 0,
   airFrames: 0,
+  dashed: false, // air dash spent this flight (M5)
+  dashFrames: 0, // sim frames of air dash left (M5)
   image: new Image(),
 };
 

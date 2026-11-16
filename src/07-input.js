@@ -66,6 +66,7 @@ document.addEventListener('focusin', noteFocusIn);
 
 const JUMP_KEYS = ['Space', 'ArrowUp', 'KeyW'];
 const DROP_KEYS = ['ArrowDown', 'KeyS'];
+const DASH_KEYS = ['ArrowRight', 'KeyD'];
 
 function handleKeyDown(event) {
   if (keyBelongsToFocusedControl(event)) return;
@@ -82,6 +83,9 @@ function handleKeyDown(event) {
   } else if (DROP_KEYS.includes(event.code)) {
     event.preventDefault();
     dropDino();
+  } else if (DASH_KEYS.includes(event.code)) {
+    event.preventDefault();
+    if (!event.repeat) dashDino();
   } else {
     handleDebugKey(event);
   }
@@ -106,12 +110,15 @@ canvas.addEventListener('mousedown', handleMouseDown);
 document.addEventListener('mouseup', releaseJump);
 
 // Touch: the hold ends when the last finger lifts, and a swipe down of
-// SWIPE_DOWN_CSS_PX or more from where the touch began is a fast fall.
+// SWIPE_DOWN_CSS_PX or more from where the touch began is a fast fall. A
+// swipe right as far (and more right than down) is an air dash (M5); the
+// touch that starts it has already jumped, so it dashes out of that jump.
 const SWIPE_DOWN_CSS_PX = 30;
-const touchSwipe = { startY: null, dropped: false };
+const touchSwipe = { startX: null, startY: null, dropped: false };
 function handleSwipeStart(event) {
   const touch = event.touches && event.touches[0];
   if (!touch || event.touches.length > 1) return;
+  touchSwipe.startX = typeof touch.clientX === 'number' ? touch.clientX : null;
   touchSwipe.startY = touch.clientY;
   touchSwipe.dropped = false;
 }
@@ -119,9 +126,17 @@ function handleSwipeMove(event) {
   if (!bootGate.files || touchSwipe.startY === null || touchSwipe.dropped) return;
   const touch = event.touches && event.touches[0];
   if (!touch || event.touches.length > 1) return;
-  if (touch.clientY - touchSwipe.startY >= SWIPE_DOWN_CSS_PX) {
+  const dx =
+    touchSwipe.startX === null || typeof touch.clientX !== 'number'
+      ? 0
+      : touch.clientX - touchSwipe.startX;
+  const dy = touch.clientY - touchSwipe.startY;
+  if (dy >= SWIPE_DOWN_CSS_PX && dy >= dx) {
     touchSwipe.dropped = true;
     dropDino();
+  } else if (dx >= SWIPE_DOWN_CSS_PX && dx > dy) {
+    touchSwipe.dropped = true;
+    dashDino();
   }
 }
 function handleTouchEnd(event) {
