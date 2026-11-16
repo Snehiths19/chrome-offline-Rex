@@ -42,6 +42,8 @@ _Avoid_: charge jump, jump strength
 
 **Slam kick** — After a slam the world (not the sky or score) dips a few px for a few frames. Visual only, Updated and Daily, off under reduced motion.
 
+**Second jump** — In Updated and Daily, a fresh press in the air jumps again, once per flight, with a forward flip and a puff of dust. A press while falling within the jump buffer window still counts as an early landing jump instead (F1), and a held key's auto-repeat never spends it. The dino never rises above the top of the canvas (the ceiling): near the top, the second jump starts slower so it tops out there. Classic has no second jump.
+
 **Fast fall** — Down, S or a swipe down (30 CSS px) while airborne: the dino stops rising and falls at three times gravity until it lands, dropping any buffered jump. Does nothing on the ground (there is no duck).
 _Avoid_: dive, slam, duck
 

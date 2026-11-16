@@ -67,8 +67,51 @@ function computeRunResult(finalScore, currentHighScore) {
   return { isNewBest, isFirst, previousHighScore, delta };
 }
 
-function jump() {
+// Sim frames until the feet touch the ground on the current fall, counted
+// up to limit + 1 (a rising dino is never about to land).
+function framesToLanding(limit) {
+  if (dino.velocityY <= 0) return limit + 1;
+  const groundY = GAME_CONFIG.CANVAS_H - dino.height;
+  let y = dino.y,
+    vy = dino.velocityY;
+  for (let i = 1; i <= limit; i++) {
+    vy += dino.dropping ? GAME_CONFIG.FAST_FALL_GRAVITY : dino.gravity;
+    y += vy;
+    if (y >= groundY) return i;
+  }
+  return limit + 1;
+}
+
+// A second jump is open in Updated and Daily, once per flight, unless the
+// press is really an early landing jump: falling and inside the jump
+// buffer window (M3).
+function canDoubleJump() {
+  if (!isUpdatedMode() || !dino.isJumping || dino.doubleJumped) return false;
+  const bufferWindow = GAME_CONFIG.JUMP_BUFFER_FRAMES;
+  return framesToLanding(bufferWindow) > bufferWindow;
+}
+
+// Take-off speed of the second jump: DOUBLE_JUMP_POWER, or less when that
+// would rise past the ceiling, so the arc tops out at the ceiling instead of
+// bumping into it.
+function doubleJumpVelocity() {
+  const room = Math.max(0, dino.y - GAME_CONFIG.CEILING_Y);
+  return -Math.min(-GAME_CONFIG.DOUBLE_JUMP_POWER, Math.sqrt(2 * dino.gravity * room));
+}
+
+// repeat: the press is a held key's auto-repeat, which only ever buffers.
+function jump(repeat) {
   if (game.state !== STATE.RUNNING) return;
+  if (!repeat && canDoubleJump()) {
+    dino.velocityY = doubleJumpVelocity();
+    dino.doubleJumped = true;
+    dino.dropping = false;
+    dino.jumpBufferFrames = 0;
+    dino.flipFrames = cfg('DOUBLE_JUMP_FLIP_FRAMES');
+    Particles.emit('doubleJump', dino.x + dino.width / 2, dino.y + dino.height);
+    audio.doubleJump();
+    return;
+  }
   if (!dino.isJumping) {
     dino.velocityY = dino.jumpPower;
     dino.isJumping = true;

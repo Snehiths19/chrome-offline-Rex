@@ -440,6 +440,15 @@ function dinoSquashScale() {
   return none;
 }
 
+// Second-jump flip angle in radians (M3): one forward turn while flipFrames
+// counts down. 0 in Classic, under reduced motion and in the death pose.
+function dinoFlipAngle() {
+  if (!isUpdatedMode() || reducedMotion || game.state === STATE.DEAD) return 0;
+  const total = cfg('DOUBLE_JUMP_FLIP_FRAMES');
+  if (!(total > 0) || dino.flipFrames <= 0) return 0;
+  return Math.PI * 2 * (1 - Math.min(1, dino.flipFrames / total));
+}
+
 function drawDino() {
   let img;
   if (game.state === STATE.DEAD) {
@@ -457,7 +466,18 @@ function drawDino() {
       const { sx, sy } = dinoSquashScale();
       const w = dino.width * sx,
         h = dino.height * sy;
-      ctx.drawImage(img, dino.x + (dino.width - w) / 2, dino.y + dino.height - h, w, h);
+      const turn = dinoFlipAngle();
+      if (turn) {
+        const cx = dino.x + dino.width / 2,
+          cy = dino.y + dino.height / 2;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(turn);
+        ctx.drawImage(img, -w / 2, dino.height / 2 - h, w, h);
+        ctx.restore();
+      } else {
+        ctx.drawImage(img, dino.x + (dino.width - w) / 2, dino.y + dino.height - h, w, h);
+      }
     } else {
       ctx.fillStyle = '#535353';
       ctx.fillRect(dino.x, dino.y, dino.width, dino.height);
@@ -1220,6 +1240,20 @@ const Particles = (() => {
     // count, and life come from the night dust keys. Reduced motion still
     // applies REDUCED_FACTOR and half life on top of that. Classic never
     // emits.
+    // Second-jump puff (M3): a small ring of motes kicked out under the feet
+    // in mid-air. Pale grey so it reads on the day and night sky. Reduced
+    // motion still applies REDUCED_FACTOR and half life. Classic never emits.
+    doubleJump: {
+      count: 8,
+      color: '#b8b8b8',
+      size: 3,
+      life: 14,
+      alpha: 0.6,
+      vyMin: 0.4,
+      vyMax: 1.6,
+      vxSpread: 2.2,
+      gravity: 0.02,
+    },
     jump: {
       count: 3,
       color: '#9c8770',

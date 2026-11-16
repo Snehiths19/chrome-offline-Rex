@@ -6514,3 +6514,69 @@ describe('Speed streaks and slam kick (M2)', () => {
     }
   });
 });
+
+describe('Second-jump flip and puff (M3)', () => {
+  const m3With = (fn) => {
+    const orig = { mode: game.mode, state: game.state, frames: dino.flipFrames };
+    game.mode = MODES.UPDATED;
+    game.state = STATE.RUNNING;
+    try {
+      fn();
+    } finally {
+      game.mode = orig.mode;
+      game.state = orig.state;
+      dino.flipFrames = orig.frames;
+      setReducedMotion(false);
+    }
+  };
+
+  it('turns one full circle over the flip frames', () => {
+    m3With(() => {
+      const total = GAME_CONFIG.DOUBLE_JUMP_FLIP_FRAMES;
+      dino.flipFrames = total;
+      assertEquals(dinoFlipAngle(), 0, 'starts upright');
+      dino.flipFrames = total / 2;
+      assert(Math.abs(dinoFlipAngle() - Math.PI) < 1e-9, 'half way is upside down');
+      dino.flipFrames = 0;
+      assertEquals(dinoFlipAngle(), 0, 'upright when done');
+    });
+  });
+
+  it('no turn in Classic, under reduced motion or in the death pose', () => {
+    for (const setup of [
+      () => (game.mode = MODES.CLASSIC),
+      () => setReducedMotion(true),
+      () => (game.state = STATE.DEAD),
+    ]) {
+      m3With(() => {
+        dino.flipFrames = GAME_CONFIG.DOUBLE_JUMP_FLIP_FRAMES / 2;
+        setup();
+        assertEquals(dinoFlipAngle(), 0);
+      });
+    }
+  });
+
+  it('a second jump throws a mid-air puff', () => {
+    const origMode = game.mode;
+    game.mode = MODES.UPDATED;
+    try {
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+      game.state = STATE.RUNNING;
+      game.graceFrames = 100000;
+      handleAction();
+      for (let i = 0; i < 30; i++) {
+        gameLoop();
+        cancelAnimationFrame(game.animationFrameId);
+      }
+      const before = Particles.particles.filter((p) => p.life > 0).length;
+      handleAction();
+      const after = Particles.particles.filter((p) => p.life > 0).length;
+      assertEquals(after - before, Particles.KINDS.doubleJump.count);
+    } finally {
+      game.mode = origMode;
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+});

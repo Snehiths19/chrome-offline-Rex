@@ -128,22 +128,59 @@ describe('Jump buffer (F1)', () => {
     assertEquals(dino.velocityY, dino.jumpPower, 'fresh take-off speed');
   });
 
-  it('a press one slice earlier than the window is dropped', () => {
-    pressBeforeLanding(GAME_CONFIG.JUMP_BUFFER_FRAMES + 1);
-    assert(!dino.isJumping, 'press outside the window should not jump');
-    assertEquals(dino.y, GAME_CONFIG.CANVAS_H - dino.height, 'dino stays on the ground');
-    assertEquals(dino.jumpBufferFrames, 0, 'nothing left in the buffer');
+  // Classic has no second jump, so a press outside the window is dropped.
+  // In Updated and Daily the same press is the second jump (M3).
+  const inClassic = (fn) => {
+    const origMode = game.mode;
+    game.mode = MODES.CLASSIC;
+    try {
+      fn();
+    } finally {
+      game.mode = origMode;
+    }
+  };
+
+  it('a press one slice earlier than the window is dropped (Classic)', () => {
+    inClassic(() => {
+      pressBeforeLanding(GAME_CONFIG.JUMP_BUFFER_FRAMES + 1);
+      assert(!dino.isJumping, 'press outside the window should not jump');
+      assertEquals(dino.y, GAME_CONFIG.CANVAS_H - dino.height, 'dino stays on the ground');
+      assertEquals(dino.jumpBufferFrames, 0, 'nothing left in the buffer');
+    });
   });
 
-  it('a press early in the jump never fires', () => {
-    startBufferRun();
-    handleAction();
-    bufferStep();
-    handleAction();
-    let n = 0;
-    while (dino.isJumping && n++ < 200) bufferStep();
-    bufferStep();
-    assert(!dino.isJumping, 'an early press should have expired long before landing');
+  it('a press one slice earlier than the window is the second jump (Updated)', () => {
+    const origMode = game.mode;
+    game.mode = MODES.UPDATED;
+    try {
+      const air = airtimeSlices();
+      startBufferRun();
+      handleAction();
+      for (let i = 0; i < air - GAME_CONFIG.JUMP_BUFFER_FRAMES - 1; i++) bufferStep();
+      handleAction();
+      assert(dino.doubleJumped, 'second jump spent');
+      assertEquals(
+        dino.velocityY,
+        GAME_CONFIG.DOUBLE_JUMP_POWER,
+        'low enough for the full second jump'
+      );
+      assertEquals(dino.jumpBufferFrames, 0, 'nothing buffered');
+    } finally {
+      game.mode = origMode;
+    }
+  });
+
+  it('a press early in the jump never fires (Classic)', () => {
+    inClassic(() => {
+      startBufferRun();
+      handleAction();
+      bufferStep();
+      handleAction();
+      let n = 0;
+      while (dino.isJumping && n++ < 200) bufferStep();
+      bufferStep();
+      assert(!dino.isJumping, 'an early press should have expired long before landing');
+    });
   });
 
   it('a press on the ground jumps at once and buffers nothing', () => {
@@ -1597,5 +1634,118 @@ describe('Hang time (M1)', () => {
       dino.dropping = false;
       dino.velocityY = 0;
     }
+  });
+});
+
+describe('Second jump (M3)', () => {
+  const m3Step = () => {
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+  };
+  const m3Run = (mode, fn) => {
+    const origMode = game.mode;
+    game.mode = mode;
+    try {
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+      game.state = STATE.RUNNING;
+      game.graceFrames = 100000;
+      fn();
+    } finally {
+      game.mode = origMode;
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+    }
+  };
+  const m3Fly = () => {
+    let n = 0;
+    let top = dino.y;
+    while (dino.isJumping && n < 300) {
+      m3Step();
+      n++;
+      top = Math.min(top, dino.y);
+    }
+    return { n, top };
+  };
+
+  it('second-jump values are gameplay values, never tunable', () => {
+    assert(GAME_CONFIG.DOUBLE_JUMP_POWER < 0, 'upward');
+    for (const key of ['DOUBLE_JUMP_POWER', 'CEILING_Y']) {
+      assert(!TUNABLE_KEYS.includes(key), `${key} is never tunable through cfg()`);
+    }
+  });
+
+  it('a second press in the air jumps again once, and lands later', () => {
+    m3Run(MODES.UPDATED, () => {
+      handleAction();
+      for (let i = 0; i < 40; i++) m3Step();
+      assert(dino.velocityY > 0, 'falling when the second press comes');
+      handleAction();
+      assert(dino.doubleJumped, 'second jump spent');
+      assert(dino.velocityY < 0, 'rising again');
+      assert(dino.velocityY >= GAME_CONFIG.DOUBLE_JUMP_POWER, 'no faster than DOUBLE_JUMP_POWER');
+      assertEquals(dino.flipFrames, GAME_CONFIG.DOUBLE_JUMP_FLIP_FRAMES);
+      m3Step();
+      const vy = dino.velocityY;
+      handleAction();
+      assert(dino.velocityY >= vy, 'no third jump');
+      const { n } = m3Fly();
+      assert(40 + 1 + n > 70, `longer flight ${40 + 1 + n}`);
+      assert(!dino.doubleJumped && dino.flipFrames === 0, 'landing restores it');
+    });
+  });
+
+  it('the dino never rises above the ceiling', () => {
+    m3Run(MODES.UPDATED, () => {
+      handleAction();
+      let n = 0;
+      while (dino.velocityY < -1 && n++ < 100) m3Step();
+      handleAction();
+      const { top } = m3Fly();
+      assert(top >= GAME_CONFIG.CEILING_Y, `top ${top}`);
+    });
+  });
+
+  it('Classic has no second jump', () => {
+    m3Run(MODES.CLASSIC, () => {
+      handleAction();
+      for (let i = 0; i < 20; i++) m3Step();
+      const vy = dino.velocityY;
+      handleAction();
+      assert(!dino.doubleJumped, 'not spent');
+      assertEquals(dino.velocityY, vy, 'no change in Classic');
+    });
+  });
+
+  it('a held key auto-repeat only buffers', () => {
+    m3Run(MODES.UPDATED, () => {
+      handleAction();
+      for (let i = 0; i < 20; i++) m3Step();
+      handleKeyDown({ code: 'Space', repeat: true, target: null, preventDefault() {} });
+      assert(!dino.doubleJumped, 'repeat did not spend the second jump');
+      assertEquals(dino.jumpBufferFrames, GAME_CONFIG.JUMP_BUFFER_FRAMES, 'repeat buffers');
+    });
+  });
+
+  it('a held key auto-repeat on the ground is a full held jump', () => {
+    m3Run(MODES.CLASSIC, () => {
+      // Space held through the countdown: RUNNING starts with jumpHeld false.
+      dino.jumpHeld = false;
+      handleKeyDown({ code: 'Space', repeat: true, target: null, preventDefault() {} });
+      assert(dino.isJumping && dino.jumpHeld, 'jumps and counts as held');
+      const { n } = m3Fly();
+      assertEquals(n, 49, 'full jump, not a short hop');
+    });
+  });
+
+  it('a second jump cancels a fast fall', () => {
+    m3Run(MODES.UPDATED, () => {
+      handleAction();
+      for (let i = 0; i < 26; i++) m3Step();
+      dropDino();
+      assert(dino.dropping, 'dropping');
+      handleAction();
+      assert(dino.doubleJumped && !dino.dropping, 'second jump stops the drop');
+    });
   });
 });

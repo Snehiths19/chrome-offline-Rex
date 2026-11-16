@@ -36,6 +36,9 @@ const dino = {
   // whether that landing ended a fast fall. Visual only.
   landSquashFrames: 0,
   landSquashHard: false,
+  // Second jump (M3): spent for this flight, and sim frames left on the flip.
+  doubleJumped: false,
+  flipFrames: 0,
   image: new Image(),
 };
 

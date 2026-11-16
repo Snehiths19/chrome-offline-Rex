@@ -25,6 +25,8 @@ function resetGame() {
   dino.dropping = false;
   dino.landSquashFrames = 0;
   dino.landSquashHard = false;
+  dino.doubleJumped = false;
+  dino.flipFrames = 0;
 
   Particles.reset();
 
@@ -423,6 +425,7 @@ function updateRunning() {
 
   if (dino.landSquashFrames > 0) dino.landSquashFrames--;
   if (Animations.slamKickFrames > 0) Animations.slamKickFrames--;
+  if (dino.flipFrames > 0) dino.flipFrames--;
 
   // Apply gravity.
   if (dino.isJumping) {
@@ -437,10 +440,17 @@ function updateRunning() {
     }
     dino.velocityY += airGravity();
     dino.y += dino.velocityY;
+    // The ceiling (M3): a second jump can never carry the dino off screen.
+    if (dino.y < GAME_CONFIG.CEILING_Y) {
+      dino.y = GAME_CONFIG.CEILING_Y;
+      if (dino.velocityY < 0) dino.velocityY = 0;
+    }
 
     if (dino.y >= GAME_CONFIG.CANVAS_H - dino.height) {
       dino.y = GAME_CONFIG.CANVAS_H - dino.height;
       dino.isJumping = false;
+      dino.doubleJumped = false;
+      dino.flipFrames = 0;
       dino.landSquashHard = dino.dropping;
       dino.landSquashFrames = cfg('DINO_SQUASH_FRAMES');
       if (dino.dropping) Animations.slamKickFrames = cfg('SLAM_KICK_FRAMES');

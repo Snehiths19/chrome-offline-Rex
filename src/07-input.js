@@ -71,6 +71,13 @@ function handleKeyDown(event) {
   if (keyBelongsToFocusedControl(event)) return;
   if (JUMP_KEYS.includes(event.code)) {
     event.preventDefault();
+    // A held key's auto-repeat mid-run only buffers a landing jump; it never
+    // spends the second jump (M3).
+    if (event.repeat && game.state === STATE.RUNNING) {
+      dino.jumpHeld = true; // still held, as handleAction would mark it (F3)
+      jump(true);
+      return;
+    }
     handleAction();
   } else if (DROP_KEYS.includes(event.code)) {
     event.preventDefault();
