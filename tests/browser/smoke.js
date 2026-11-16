@@ -223,7 +223,8 @@ async function playOnDevice(browser, base, vp) {
     const tapPeak = await flightPeak();
     check(
       `holding Space jumps higher than a quick click (${Math.round(heldPeak)} vs ${Math.round(tapPeak)}px)`,
-      heldPeak > 130 && tapPeak < 100 && tapPeak > 55
+      // Updated's lower take-off (M4) peaks about 93px held, 79 tapped.
+      heldPeak > 85 && heldPeak > tapPeak + 8 && tapPeak < 100 && tapPeak > 55
     );
     await page.evaluate(() => (game.obstacles.length = 0));
     await page.keyboard.down('Space');
