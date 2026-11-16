@@ -316,6 +316,25 @@ function clusterSpriteSlots(obstacle) {
   ];
 }
 
+// A long row (M5) paints as small cacti side by side, ROW_CACTUS_GAP apart,
+// each drawn exactly like a lone small cactus.
+function rowSpriteSlots(obstacle) {
+  const small = GAME_CONFIG.OBSTACLE_TYPES[0];
+  const step = small.width + GAME_CONFIG.ROW_CACTUS_GAP;
+  const count = Math.max(1, Math.round((obstacle.width + GAME_CONFIG.ROW_CACTUS_GAP) / step));
+  const slots = [];
+  for (let i = 0; i < count; i++) {
+    slots.push({
+      type: 'small',
+      x: obstacle.x + i * step,
+      y: obstacle.y + obstacle.height - small.height,
+      width: small.width,
+      height: small.height,
+    });
+  }
+  return slots;
+}
+
 // The tower (M4) paints as big cacti stacked on top of each other, each
 // drawn exactly like a lone big cactus.
 function towerSpriteSlots(obstacle) {
@@ -430,6 +449,10 @@ function drawObstacles() {
     game.obstacles.forEach((obstacle) => {
       if (obstacle.render === 'bird') {
         drawBird(obstacle);
+        return;
+      }
+      if (obstacle.render === 'row') {
+        rowSpriteSlots(obstacle).forEach(drawSingleObstacle);
         return;
       }
       if (obstacle.render === 'stack') {

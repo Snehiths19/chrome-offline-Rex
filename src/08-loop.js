@@ -29,6 +29,8 @@ function resetGame() {
   dino.flipFrames = 0;
   dino.slideFrames = 0;
   dino.airFrames = 0;
+  dino.dashed = false;
+  dino.dashFrames = 0;
 
   Particles.reset();
 
@@ -365,7 +367,10 @@ function updateRunning() {
     spawnObstacle(type);
     noteSpawnForDeathLog(consumedGap, type.id, game.currentSpeed);
     game.lastObstacleX = GAME_CONFIG.CANVAS_W;
-    game.nextSpawnGap = params.gap;
+    // The gap counts from an obstacle's left edge. A long row (M5) adds its
+    // own width, so the gap after it is still a full gap of open ground.
+    const spawned = game.obstacles[game.obstacles.length - 1];
+    game.nextSpawnGap = params.gap + (spawned.render === 'row' ? spawned.width : 0);
   }
 
   // Collision detection.
@@ -445,7 +450,13 @@ function updateRunning() {
     ) {
       dino.velocityY = GAME_CONFIG.JUMP_CUT_VELOCITY;
     }
-    dino.velocityY += airGravity();
+    if (dino.dashFrames > 0) {
+      // Air dash (M5): hold height while the world rushes past.
+      dino.dashFrames--;
+      dino.velocityY = 0;
+    } else {
+      dino.velocityY += airGravity();
+    }
     dino.y += dino.velocityY;
     // The ceiling (M3): a second jump can never carry the dino off screen.
     if (dino.y < GAME_CONFIG.CEILING_Y) {
@@ -458,6 +469,8 @@ function updateRunning() {
       dino.isJumping = false;
       dino.doubleJumped = false;
       dino.flipFrames = 0;
+      dino.dashed = false;
+      dino.dashFrames = 0;
       dino.landSquashHard = dino.dropping;
       dino.landSquashFrames = cfg('DINO_SQUASH_FRAMES');
       if (dino.dropping) Animations.slamKickFrames = cfg('SLAM_KICK_FRAMES');

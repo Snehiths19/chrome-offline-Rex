@@ -46,6 +46,12 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.drawBird = drawBird;
   global.jumpPower = jumpPower;
   global.towerSpriteSlots = towerSpriteSlots;
+  global.rowSpriteSlots = rowSpriteSlots;
+  global.rowWidthForSpeed = rowWidthForSpeed;
+  global.heldJumpFramesAbove = heldJumpFramesAbove;
+  global.dashDino = dashDino;
+  global.worldScroll = worldScroll;
+  global.runSimFrame = runSimFrame;
   global.releaseJump = releaseJump;
   global.handleKeyUp = handleKeyUp;
   global.handleMouseDown = handleMouseDown;

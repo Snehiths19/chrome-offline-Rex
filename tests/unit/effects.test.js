@@ -6654,3 +6654,43 @@ describe('Cactus tower drawing (M4)', () => {
     assertEquals(draws, 2);
   });
 });
+
+describe('Long cactus row drawing (M5)', () => {
+  it('a row paints as small cacti side by side across its box', () => {
+    const small = GAME_CONFIG.OBSTACLE_TYPES[0];
+    const width = rowWidthForSpeed(7);
+    const obs = { x: 300, y: GAME_CONFIG.CANVAS_H - 40, width, height: 40 };
+    const slots = rowSpriteSlots(obs);
+    assertEquals(slots[0].x, obs.x);
+    const last = slots[slots.length - 1];
+    assertEquals(last.x + last.width, obs.x + obs.width);
+    for (const s of slots) {
+      assertEquals(s.type, 'small');
+      assertEquals(s.width, small.width);
+      assertEquals(s.y + s.height, obs.y + obs.height);
+    }
+  });
+
+  it('drawObstacles paints a row with one draw per cactus', () => {
+    const orig = { obstacles: game.obstacles, drawImage: ctx.drawImage, fillRect: ctx.fillRect };
+    let draws = 0;
+    ctx.drawImage = () => draws++;
+    ctx.fillRect = () => draws++;
+    const row = GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'row');
+    const obs = Object.assign({}, row, {
+      x: 300,
+      y: GAME_CONFIG.CANVAS_H - row.height,
+      width: rowWidthForSpeed(7),
+      type: row.id,
+    });
+    try {
+      game.obstacles = [obs];
+      drawObstacles();
+    } finally {
+      game.obstacles = orig.obstacles;
+      ctx.drawImage = orig.drawImage;
+      ctx.fillRect = orig.fillRect;
+    }
+    assertEquals(draws, rowSpriteSlots(obs).length);
+  });
+});

@@ -4,10 +4,11 @@ function spawnObstacle(type) {
   // Default to a tier-appropriate random pick; tests may pass a specific type.
   // Mode is required: omitting it lets Classic roll cluster once that tier unlocks.
   const t = type || pickObstacleType(game.rng, game.score, game.mode);
+  const width = t.render === 'row' ? rowWidthForSpeed(game.currentSpeed) : t.width;
   game.obstacles.push({
     x: GAME_CONFIG.CANVAS_W,
     y: GAME_CONFIG.CANVAS_H - t.height - (t.lift || 0),
-    width: t.width,
+    width: width,
     height: t.height,
     type: t.id,
     render: t.render,
@@ -22,7 +23,7 @@ function updateObstacles() {
   let culledX = null;
   for (let i = game.obstacles.length - 1; i >= 0; i--) {
     const obs = game.obstacles[i];
-    obs.x -= game.currentSpeed;
+    obs.x -= worldScroll();
     if (obs.x + obs.width < 0) {
       if (culledX === null) culledX = obs.x;
       game.obstacles.splice(i, 1);
@@ -33,8 +34,54 @@ function updateObstacles() {
   } else if (culledX !== null) {
     game.lastObstacleX = culledX;
   } else {
-    game.lastObstacleX -= game.currentSpeed;
+    game.lastObstacleX -= worldScroll();
   }
+}
+
+// How far the world moves this frame: the run speed, plus the air dash
+// boost while a dash lasts (M5).
+function worldScroll() {
+  return game.currentSpeed + (dino.dashFrames > 0 ? GAME_CONFIG.DASH_BOOST : 0);
+}
+
+// Sim frames a held Updated jump keeps the dino's hitbox above an obstacle
+// `height` px tall (M5). Pure arithmetic on GAME_CONFIG, the same every run.
+const rowClearFramesCache = {};
+function heldJumpFramesAbove(height) {
+  if (rowClearFramesCache[height] !== undefined) return rowClearFramesCache[height];
+  const clear = height - GAME_CONFIG.OBS_PAD_Y - GAME_CONFIG.DINO_PAD_Y_BOT;
+  let h = 0,
+    vy = -GAME_CONFIG.UPDATED_JUMP_POWER,
+    frames = 0;
+  for (let i = 0; i < 300; i++) {
+    const g =
+      Math.abs(vy) < GAME_CONFIG.HANG_VELOCITY
+        ? GAME_CONFIG.GRAVITY * GAME_CONFIG.HANG_GRAVITY_SCALE
+        : GAME_CONFIG.GRAVITY;
+    vy -= g;
+    h += vy;
+    if (h <= 0) break;
+    if (h >= clear) frames++;
+  }
+  rowClearFramesCache[height] = frames;
+  return frames;
+}
+
+// A long row (M5) is a whole number of small cacti, wide enough that one
+// held jump at `speed` can't carry the dino across it.
+function rowWidthForSpeed(speed) {
+  const row = GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'row');
+  const small = GAME_CONFIG.OBSTACLE_TYPES[0];
+  const hitboxSpan =
+    GAME_CONFIG.DINO_WIDTH - 2 * GAME_CONFIG.DINO_PAD_X - 2 * GAME_CONFIG.OBS_PAD_X;
+  const frames = heldJumpFramesAbove(row.height) + GAME_CONFIG.ROW_MARGIN_FRAMES;
+  const needed = speed * frames - hitboxSpan;
+  const step = small.width + GAME_CONFIG.ROW_CACTUS_GAP;
+  const count = Math.max(
+    Math.round((row.width + GAME_CONFIG.ROW_CACTUS_GAP) / step),
+    Math.ceil((needed + GAME_CONFIG.ROW_CACTUS_GAP) / step)
+  );
+  return count * step - GAME_CONFIG.ROW_CACTUS_GAP;
 }
 
 function checkCollision(dino, obstacle) {
@@ -110,6 +157,7 @@ function jump(repeat) {
   if (!repeat && canDoubleJump()) {
     dino.velocityY = doubleJumpVelocity();
     dino.doubleJumped = true;
+    dino.dashFrames = 0;
     dino.dropping = false;
     dino.jumpBufferFrames = 0;
     dino.flipFrames = cfg('DOUBLE_JUMP_FLIP_FRAMES');
@@ -162,6 +210,8 @@ function startSlide() {
     dino.doubleJumped = false;
     dino.flipFrames = 0;
     dino.jumpBufferFrames = 0;
+    dino.dashed = false;
+    dino.dashFrames = 0;
   }
   const fresh = dino.slideFrames <= 0;
   dino.slideFrames = Math.max(dino.slideFrames, GAME_CONFIG.SLIDE_FRAMES);
@@ -171,11 +221,25 @@ function startSlide() {
   }
 }
 
+// Air dash (M5): Right, D or a swipe right in the air, once per flight, in
+// Updated and Daily. The dino holds its height while the world rushes past.
+function dashDino() {
+  if (game.state !== STATE.RUNNING || !isUpdatedMode()) return;
+  if (!dino.isJumping || dino.dashed) return;
+  dino.dashed = true;
+  dino.dashFrames = GAME_CONFIG.DASH_FRAMES;
+  dino.velocityY = 0;
+  dino.dropping = false;
+  Particles.emit('doubleJump', dino.x, dino.y + dino.height / 2);
+  audio.doubleJump();
+}
+
 // Fast fall (F3): Down, S or a swipe down while airborne. On the ground it
 // does nothing. A jump buffered during the same flight is dropped, so the
 // swipe that starts with a touch does not bounce straight back up.
 function dropDino() {
   if (game.state !== STATE.RUNNING) return;
+  dino.dashFrames = 0;
   if (isUpdatedMode() && (!dino.isJumping || dino.airFrames <= GAME_CONFIG.SLIDE_CANCEL_FRAMES)) {
     startSlide();
     return;

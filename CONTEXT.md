@@ -52,6 +52,10 @@ _Avoid_: charge jump, jump strength
 
 **Cactus tower** — An Updated and Daily obstacle (from score 200): two big cacti stacked, 110px tall, higher than a full first jump reaches, so it takes the second jump to clear. Drawn as the original big cactus sprite twice.
 
+**Air dash** — In Updated and Daily, Right, D or a swipe right in the air, once per flight: for 12 sim frames the dino holds its height and the world scrolls 6px per frame faster, so the flight covers more ground. A second jump or a fast fall ends it; landing gives it back. Classic has no dash.
+
+**Long cactus row** — An Updated and Daily obstacle (from score 300): small cacti side by side, as many as it takes to be wider than one held jump can cross at the speed it spawns, so it needs the air dash (or a late second jump). The gap after a row counts from its right edge.
+
 **Fast fall** — Down, S or a swipe down (30 CSS px) while airborne: the dino stops rising and falls at three times gravity until it lands, dropping any buffered jump. Does nothing on the ground (there is no duck).
 _Avoid_: dive, slam, duck
 
