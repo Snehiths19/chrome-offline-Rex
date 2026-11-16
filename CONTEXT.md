@@ -56,6 +56,8 @@ _Avoid_: charge jump, jump strength
 
 **Long cactus row** — An Updated and Daily obstacle (from score 300): small cacti side by side, as many as it takes to be wider than one held jump can cross at the speed it spawns, so it needs the air dash (or a late second jump). The gap after a row counts from its right edge.
 
+**Move combo** — In Updated and Daily, each obstacle cleared during a second jump, an air dash or a slide adds one to the combo and plays a note a step higher on the major pentatonic scale; one cleared with a plain jump ends it. The HUD shows COMBO xN under the score from 2 up. The owner chose this over close calls or a plain obstacle count on 2026-11-16. Display and sound only: it never changes score, speed, spawning or `game.rng()`.
+
 **Fast fall** — Down, S or a swipe down (30 CSS px) while airborne: the dino stops rising and falls at three times gravity until it lands, dropping any buffered jump. Does nothing on the ground (there is no duck).
 _Avoid_: dive, slam, duck
 

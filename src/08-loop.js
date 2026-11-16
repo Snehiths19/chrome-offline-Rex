@@ -53,6 +53,8 @@ function resetGame() {
   game.starFadeFrames = 0;
   Animations.reset();
   game.newBestShown = false;
+  game.combo = 0;
+  game.comboPopFrames = 0;
   game.plateauCueShown = false;
   Object.assign(game, initialQaHolds());
   game.qaCountUpShareCleared = false;
@@ -429,6 +431,7 @@ function updateRunning() {
       return;
     }
   }
+  updateCombo();
 
   if (dino.landSquashFrames > 0) dino.landSquashFrames--;
   if (Animations.slamKickFrames > 0) Animations.slamKickFrames--;
@@ -518,6 +521,7 @@ function drawRunning() {
   drawDino();
   if (kick) ctx.restore();
   drawScore();
+  drawCombo();
   runFeatureDraws('overlay'); // drawSkyTint
   drawMilestoneFlash();
   drawNewBestBadge();

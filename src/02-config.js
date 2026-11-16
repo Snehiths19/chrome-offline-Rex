@@ -68,6 +68,13 @@ const GAME_CONFIG = Object.freeze({
   // of flight to spare, so it takes the dash or a late second jump.
   ROW_MARGIN_FRAMES: 4,
   ROW_CACTUS_GAP: 6,
+  // Move combo (M7): the note for combo n is COMBO_NOTE_BASE_HZ raised n-1
+  // steps of the major pentatonic scale, capped at COMBO_NOTE_MAX_STEPS. The
+  // HUD shows COMBO xN from 2 up and pops for COMBO_POP_FRAMES on each step.
+  // Sound and display only, never gameplay.
+  COMBO_NOTE_BASE_HZ: 523.25,
+  COMBO_NOTE_MAX_STEPS: 10,
+  COMBO_POP_FRAMES: 12,
   SLIDE_FRAMES: 32,
   SLIDE_HEIGHT: 24,
   SLIDE_CANCEL_FRAMES: 8,
@@ -1657,6 +1664,15 @@ function drawQaFlags() {
   for (const flag of QA_FLAGS) if (flag.draw) flag.draw();
 }
 
+// Pitch of the combo note for combo n (M7): the major pentatonic scale up
+// from COMBO_NOTE_BASE_HZ, one step per combo, capped.
+const PENTATONIC_SEMITONES = [0, 2, 4, 7, 9];
+function comboNoteHz(n) {
+  const step = Math.min(Math.max(0, n - 1), GAME_CONFIG.COMBO_NOTE_MAX_STEPS);
+  const semis = 12 * Math.floor(step / 5) + PENTATONIC_SEMITONES[step % 5];
+  return GAME_CONFIG.COMBO_NOTE_BASE_HZ * Math.pow(2, semis / 12);
+}
+
 // --- Web Audio module (PR-B) ---
 // Synthesised SFX — no asset files. Lazy-creates AudioContext on first user
 // gesture (Chrome's autoplay policy) and silently no-ops if AudioContext is
@@ -1715,6 +1731,10 @@ const audio = {
   // Second jump (M3): a brighter, higher blip than the first.
   doubleJump() {
     this.blip(630 + (Math.random() - 0.5) * 30, 90, 'triangle', 0.04);
+  },
+  // Move combo (M7): each step climbs the major pentatonic scale.
+  comboNote(n) {
+    this.blip(comboNoteHz(n), 110, 'triangle', 0.045);
   },
   milestone() {
     this.blip(880, 120, 'triangle', 0.05);

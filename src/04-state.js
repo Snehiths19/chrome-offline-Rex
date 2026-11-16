@@ -125,6 +125,8 @@ const game = {
   obstacles: [],
   currentSpeed: GAME_CONFIG.INITIAL_SPEED,
   lastObstacleX: -300,
+  combo: 0, // move combo (M7): obstacles cleared in a row with an air move or slide
+  comboPopFrames: 0,
   nextSpawnGap: GAME_CONFIG.MAX_SPAWN_GAP,
   graceFrames: GAME_CONFIG.GRACE_FRAMES,
   animationFrameId: undefined,

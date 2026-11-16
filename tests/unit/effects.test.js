@@ -6694,3 +6694,28 @@ describe('Long cactus row drawing (M5)', () => {
     assertEquals(draws, rowSpriteSlots(obs).length);
   });
 });
+
+describe('Move combo HUD (M7)', () => {
+  const comboTexts = (mode, combo) => {
+    const orig = { mode: game.mode, combo: game.combo, fillText: ctx.fillText };
+    const texts = [];
+    ctx.fillText = (t) => texts.push(String(t));
+    try {
+      game.mode = mode;
+      game.combo = combo;
+      drawCombo();
+    } finally {
+      game.mode = orig.mode;
+      game.combo = orig.combo;
+      ctx.fillText = orig.fillText;
+    }
+    return texts;
+  };
+
+  it('shows COMBO xN from 2 up in Updated and Daily only', () => {
+    assertEquals(comboTexts(MODES.UPDATED, 3).join(), 'COMBO x3');
+    assertEquals(comboTexts(MODES.DAILY, 2).join(), 'COMBO x2');
+    assertEquals(comboTexts(MODES.UPDATED, 1).length, 0, 'not for one');
+    assertEquals(comboTexts(MODES.CLASSIC, 5).length, 0, 'never in Classic');
+  });
+});
