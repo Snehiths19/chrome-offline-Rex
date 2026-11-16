@@ -34,6 +34,8 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.handleJumpButtonClick = handleJumpButtonClick;
   global.handleTouchAction = handleTouchAction;
   global.dropDino = dropDino;
+  global.airGravity = airGravity;
+  global.dinoSquashScale = dinoSquashScale;
   global.releaseJump = releaseJump;
   global.handleKeyUp = handleKeyUp;
   global.handleMouseDown = handleMouseDown;

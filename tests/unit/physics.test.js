@@ -1404,8 +1404,21 @@ describe('Variable jump and fast fall (F3)', () => {
     }
   });
 
-  it('a held press is the same full jump as before (49 slices)', () => {
-    const full = f3Flight(Infinity);
+  // Classic keeps the plain 49-slice arc; Updated and Daily add hang time
+  // near the peak (M1), which makes the held jump 56 slices.
+  const f3InMode = (mode, fn) => {
+    const origMode = game.mode;
+    game.mode = mode;
+    try {
+      return fn();
+    } finally {
+      game.mode = origMode;
+    }
+  };
+  const f3FullAir = () => (game.mode === MODES.CLASSIC ? 49 : 56);
+
+  it('a held press is the same full jump as before (49 slices in Classic)', () => {
+    const full = f3InMode(MODES.CLASSIC, () => f3Flight(Infinity));
     assertEquals(full.air, 49);
     assert(full.peak > 140, 'full height');
   });
@@ -1421,11 +1434,11 @@ describe('Variable jump and fast fall (F3)', () => {
   it('releasing later gives a jump between a hop and a full jump', () => {
     const hop = f3Flight(0).air;
     const mid = f3Flight(10).air;
-    assert(mid > hop && mid < 49, `mid ${mid}`);
+    assert(mid > hop && mid < f3FullAir(), `mid ${mid}`);
   });
 
   it('releasing on the way down changes nothing', () => {
-    assertEquals(f3Flight(30).air, 49);
+    assertEquals(f3Flight(30).air, f3FullAir());
   });
 
   it('fast fall lands sooner and clears the drop on landing', () => {
@@ -1505,5 +1518,84 @@ describe('Variable jump and fast fall (F3)', () => {
     dino.dropping = true;
     resetGame();
     assert(!dino.jumpHeld && !dino.dropping);
+  });
+});
+
+describe('Hang time (M1)', () => {
+  const m1Flight = (mode, dropAt) => {
+    const origMode = game.mode;
+    game.mode = mode;
+    try {
+      resetGame();
+      game.state = STATE.RUNNING;
+      game.graceFrames = 100000;
+      const groundY = GAME_CONFIG.CANVAS_H - dino.height;
+      handleAction();
+      let air = 0;
+      let peak = 0;
+      let slowSlices = 0;
+      while (dino.isJumping && air < 200) {
+        if (air === dropAt) dropDino();
+        gameLoop();
+        cancelAnimationFrame(game.animationFrameId);
+        air++;
+        peak = Math.max(peak, groundY - dino.y);
+        if (dino.isJumping && Math.abs(dino.velocityY) < GAME_CONFIG.HANG_VELOCITY) slowSlices++;
+      }
+      return { air, peak, slowSlices };
+    } finally {
+      game.mode = origMode;
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+    }
+  };
+
+  it('hang values are gameplay values, never tunable', () => {
+    assert(
+      GAME_CONFIG.HANG_GRAVITY_SCALE > 0 && GAME_CONFIG.HANG_GRAVITY_SCALE < 1,
+      'scale eases gravity'
+    );
+    for (const key of ['HANG_VELOCITY', 'HANG_GRAVITY_SCALE']) {
+      assert(!TUNABLE_KEYS.includes(key), `${key} is never tunable through cfg()`);
+    }
+  });
+
+  it('Updated and Daily float near the peak; Classic keeps the plain arc', () => {
+    const classic = m1Flight(MODES.CLASSIC);
+    const updated = m1Flight(MODES.UPDATED);
+    const daily = m1Flight(MODES.DAILY);
+    assertEquals(classic.air, 49);
+    assertEquals(updated.air, 56);
+    assertEquals(daily.air, 56);
+    assert(updated.slowSlices > classic.slowSlices, 'more slices spent slow near the peak');
+    assert(
+      updated.peak - classic.peak < 6,
+      `peak barely rises (${updated.peak} vs ${classic.peak})`
+    );
+  });
+
+  it('the longer jump still fits inside the Updated minimum gap', () => {
+    assert(
+      m1Flight(MODES.UPDATED).air < GAME_CONFIG.UPDATED_MIN_GAP_FRAMES,
+      'gap floor still covers a jump'
+    );
+  });
+
+  it('a fast fall skips the hang', () => {
+    const origMode = game.mode;
+    game.mode = MODES.UPDATED;
+    try {
+      dino.dropping = true;
+      dino.velocityY = 0.5;
+      assertEquals(airGravity(), GAME_CONFIG.FAST_FALL_GRAVITY);
+      dino.dropping = false;
+      assertEquals(airGravity(), dino.gravity * GAME_CONFIG.HANG_GRAVITY_SCALE);
+      dino.velocityY = 5;
+      assertEquals(airGravity(), dino.gravity);
+    } finally {
+      game.mode = origMode;
+      dino.dropping = false;
+      dino.velocityY = 0;
+    }
   });
 });
