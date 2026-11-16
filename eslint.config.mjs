@@ -156,6 +156,8 @@ export default [
         speedLinesAlpha: 'readonly',
         drawSpeedLines: 'readonly',
         slamKickOffset: 'readonly',
+        canDoubleJump: 'readonly',
+        dinoFlipAngle: 'readonly',
         releaseJump: 'readonly',
         handleKeyUp: 'readonly',
         handleMouseDown: 'readonly',

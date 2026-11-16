@@ -157,7 +157,7 @@ const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matc
 | Particles | 25% count, 50% life | not emitted |
 | Sky-tint flash | suppressed | suppressed |
 | Speed streaks | not drawn | not drawn |
-| Squash/stretch, slam kick | off | off |
+| Squash/stretch, slam kick, second-jump flip | off | off |
 
 ## `localStorage` keys
 

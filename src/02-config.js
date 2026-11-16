@@ -34,6 +34,17 @@ const GAME_CONFIG = Object.freeze({
   // Classic keeps the plain arc. Gameplay values: read GAME_CONFIG directly.
   HANG_VELOCITY: 1.6,
   HANG_GRAVITY_SCALE: 0.5,
+  // Second jump (M3, Updated and Daily only). A fresh press in the air sets
+  // the rise to DOUBLE_JUMP_POWER once per flight. A press while falling
+  // within JUMP_BUFFER_FRAMES of landing is buffered for landing as before
+  // (F1), so an early press still jumps on landing. A held key's auto-repeat
+  // never spends it. The sprite never rises above CEILING_Y (the top of the
+  // canvas): near the top, the second jump starts slower so its arc tops out
+  // at the ceiling instead of bumping it. A full first jump already peaks
+  // close to the top, so the second jump mostly stretches a falling jump
+  // over a second obstacle. Gameplay values: read GAME_CONFIG directly.
+  DOUBLE_JUMP_POWER: -7.5,
+  CEILING_Y: 0,
   INITIAL_SPEED: 3.0, // obstacle scroll speed at score 0
   SPEED_CAP: 13.0, // max scroll speed (matches Chrome T-Rex)
   PLATEAU_SPEED: 8.0, // sigmoid ceiling — focusable-but-demanding speed the curve approaches
@@ -231,6 +242,10 @@ const GAME_CONFIG = Object.freeze({
   // only, Updated and Daily only, off with reduced motion. Read through cfg().
   SLAM_KICK_PX: 3,
   SLAM_KICK_FRAMES: 6,
+  // Second-jump flip (M3). The sprite turns one full circle over
+  // DOUBLE_JUMP_FLIP_FRAMES sim frames after a second jump. Visual only,
+  // Updated and Daily, no turn under reduced motion. Read through cfg().
+  DOUBLE_JUMP_FLIP_FRAMES: 24,
   // Visual only. Jump and land foot dust once the sky is fully night, in
   // Updated and Daily. Day dust stays the brown on those kinds (#9c8770).
   // On the night sky that brown reads as warm day-dirt. #6a686e is cooler
@@ -557,6 +572,7 @@ const TUNABLE_KEYS = Object.freeze([
   'DINO_SLAM_SQUASH',
   'DINO_SQUASH_FRAMES',
   'DINO_STRETCH_MAX',
+  'DOUBLE_JUMP_FLIP_FRAMES',
   'HILL_COLOR_NIGHT',
   'NIGHT_CLOUD_ALPHA',
   'NIGHT_DEATH_FLASH_PEAK_ALPHA',
@@ -1634,6 +1650,10 @@ const audio = {
   },
   land() {
     this.blip(140, 60, 'sine', 0.05);
+  },
+  // Second jump (M3): a brighter, higher blip than the first.
+  doubleJump() {
+    this.blip(630 + (Math.random() - 0.5) * 30, 90, 'triangle', 0.04);
   },
   milestone() {
     this.blip(880, 120, 'triangle', 0.05);

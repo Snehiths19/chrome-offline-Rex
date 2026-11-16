@@ -44,6 +44,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
               restore: () => {},
               translate: () => {},
               scale: () => {},
+              rotate: () => {},
               setTransform: () => {},
               ellipse: () => {},
               fillStyle: '',

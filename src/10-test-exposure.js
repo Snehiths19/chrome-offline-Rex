@@ -39,6 +39,8 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.speedLinesAlpha = speedLinesAlpha;
   global.drawSpeedLines = drawSpeedLines;
   global.slamKickOffset = slamKickOffset;
+  global.canDoubleJump = canDoubleJump;
+  global.dinoFlipAngle = dinoFlipAngle;
   global.releaseJump = releaseJump;
   global.handleKeyUp = handleKeyUp;
   global.handleMouseDown = handleMouseDown;
