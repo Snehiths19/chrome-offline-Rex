@@ -597,6 +597,25 @@ function paintHudScore() {
   }
 }
 
+// Move combo HUD (M7): COMBO xN under the score from 2 up, Updated and
+// Daily only, with a small pop on each new step (no pop under reduced motion).
+function drawCombo() {
+  if (!isUpdatedMode() || !(game.combo >= 2)) return;
+  const color = scoreForNightSky(game.score) >= GAME_CONFIG.DAY_NIGHT_START ? '#ffffff' : '#000000';
+  const x = GAME_CONFIG.CANVAS_W - GAME_CONFIG.SCORE_X_OFFSET;
+  const y = GAME_CONFIG.SCORE_Y + 22;
+  const pop = reducedMotion ? 0 : Math.max(0, game.comboPopFrames) / GAME_CONFIG.COMBO_POP_FRAMES;
+  const scale = 1 + 0.25 * pop;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+  ctx.fillStyle = color;
+  ctx.font = '14px ' + cfg('SCORE_FONT_FAMILY');
+  ctx.textAlign = 'left';
+  ctx.fillText('COMBO x' + game.combo, 0, 0);
+  ctx.restore();
+}
+
 function drawScore() {
   const popping = Animations.scorePopFrames > 0 && isUpdatedMode() && !reducedMotion;
   if (popping) {

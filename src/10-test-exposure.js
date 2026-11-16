@@ -52,6 +52,9 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.dashDino = dashDino;
   global.worldScroll = worldScroll;
   global.runSimFrame = runSimFrame;
+  global.updateCombo = updateCombo;
+  global.comboNoteHz = comboNoteHz;
+  global.drawCombo = drawCombo;
   global.releaseJump = releaseJump;
   global.handleKeyUp = handleKeyUp;
   global.handleMouseDown = handleMouseDown;

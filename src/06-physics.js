@@ -234,6 +234,30 @@ function dashDino() {
   audio.doubleJump();
 }
 
+// Move combo (M7, Updated and Daily). An obstacle cleared during a second
+// jump, an air dash or a slide adds one to game.combo and plays a note a
+// step higher; one cleared with a plain jump ends the combo. Display and
+// sound only: it never touches score, speed, spawning or game.rng().
+function comboMoveActive() {
+  return dino.doubleJumped || dino.dashed || dino.slideFrames > 0;
+}
+function updateCombo() {
+  if (game.comboPopFrames > 0) game.comboPopFrames--;
+  if (!isUpdatedMode()) return;
+  for (const obs of game.obstacles) {
+    if (obs.passed || obs.x + obs.width >= dino.x) continue;
+    obs.passed = true;
+    if (comboMoveActive()) {
+      game.combo++;
+      game.comboPopFrames = GAME_CONFIG.COMBO_POP_FRAMES;
+      audio.comboNote(game.combo);
+      if (game.combo >= 2) announce('Combo ' + game.combo);
+    } else {
+      game.combo = 0;
+    }
+  }
+}
+
 // Fast fall (F3): Down, S or a swipe down while airborne. On the ground it
 // does nothing. A jump buffered during the same flight is dropped, so the
 // swipe that starts with a touch does not bounce straight back up.

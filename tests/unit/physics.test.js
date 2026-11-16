@@ -2130,3 +2130,105 @@ describe('Air dash and long cactus rows (M5)', () => {
     assert(!before.has('row') && after.has('row'), 'unlocks at its score');
   });
 });
+
+describe('Move combo (M7)', () => {
+  const m7Run = (mode, fn) => {
+    const orig = { mode: game.mode, rng: game.rng };
+    game.mode = mode;
+    try {
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+      game.state = STATE.RUNNING;
+      return fn();
+    } finally {
+      game.mode = orig.mode;
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+    }
+  };
+  // An obstacle whose right edge has just gone past the dino.
+  const m7Passed = () => {
+    game.obstacles.push({ x: dino.x - 30, y: 160, width: 20, height: 40, type: 'small' });
+  };
+  const m7Air = (fields) => {
+    dino.isJumping = true;
+    dino.doubleJumped = false;
+    dino.dashed = false;
+    dino.slideFrames = 0;
+    Object.assign(dino, fields);
+  };
+
+  it('each obstacle cleared with a second jump, dash or slide adds one', () => {
+    m7Run(MODES.UPDATED, () => {
+      m7Air({ doubleJumped: true });
+      m7Passed();
+      updateCombo();
+      assertEquals(game.combo, 1);
+      m7Air({ dashed: true });
+      m7Passed();
+      updateCombo();
+      assertEquals(game.combo, 2);
+      m7Air({ isJumping: false, slideFrames: 10 });
+      m7Passed();
+      updateCombo();
+      assertEquals(game.combo, 3);
+      updateCombo();
+      assertEquals(game.combo, 3, 'each obstacle counts once');
+      assertEquals(game.comboPopFrames, GAME_CONFIG.COMBO_POP_FRAMES - 1, 'pop counts down');
+    });
+  });
+
+  it('an obstacle cleared with a plain jump ends the combo', () => {
+    m7Run(MODES.UPDATED, () => {
+      game.combo = 4;
+      m7Air({});
+      m7Passed();
+      updateCombo();
+      assertEquals(game.combo, 0);
+    });
+  });
+
+  it('Classic never counts a combo, and a new run starts at zero', () => {
+    m7Run(MODES.CLASSIC, () => {
+      m7Air({ doubleJumped: true });
+      m7Passed();
+      updateCombo();
+      assertEquals(game.combo, 0);
+    });
+    m7Run(MODES.UPDATED, () => {
+      game.combo = 5;
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+      assertEquals(game.combo, 0);
+    });
+  });
+
+  it('the combo never draws from game.rng() or changes the score', () => {
+    m7Run(MODES.UPDATED, () => {
+      let rolls = 0;
+      const rng = game.rng;
+      game.rng = () => {
+        rolls++;
+        return rng();
+      };
+      const score = game.score;
+      m7Air({ dashed: true });
+      m7Passed();
+      updateCombo();
+      game.rng = rng;
+      assertEquals(rolls, 0);
+      assertEquals(game.score, score);
+    });
+  });
+
+  it('the combo note climbs the pentatonic scale, then holds at the cap', () => {
+    assertEquals(comboNoteHz(1), GAME_CONFIG.COMBO_NOTE_BASE_HZ);
+    let last = 0;
+    for (let n = 1; n <= GAME_CONFIG.COMBO_NOTE_MAX_STEPS + 1; n++) {
+      assert(comboNoteHz(n) > last, `note ${n} is higher`);
+      last = comboNoteHz(n);
+    }
+    assertEquals(comboNoteHz(GAME_CONFIG.COMBO_NOTE_MAX_STEPS + 5), last, 'capped');
+    assert(Math.abs(comboNoteHz(6) / comboNoteHz(1) - 2) < 1e-9, 'step 5 is an octave');
+  });
+});
