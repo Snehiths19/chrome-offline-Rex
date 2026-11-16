@@ -99,6 +99,11 @@ function doubleJumpVelocity() {
   return -Math.min(-GAME_CONFIG.DOUBLE_JUMP_POWER, Math.sqrt(2 * dino.gravity * room));
 }
 
+// Take-off speed of a ground jump: lower in Updated and Daily (M4).
+function jumpPower() {
+  return isUpdatedMode() ? GAME_CONFIG.UPDATED_JUMP_POWER : dino.jumpPower;
+}
+
 // repeat: the press is a held key's auto-repeat, which only ever buffers.
 function jump(repeat) {
   if (game.state !== STATE.RUNNING) return;
@@ -115,7 +120,7 @@ function jump(repeat) {
   if (!dino.isJumping) {
     dino.slideFrames = 0;
     dino.airFrames = 0;
-    dino.velocityY = dino.jumpPower;
+    dino.velocityY = jumpPower();
     dino.isJumping = true;
     if (runDebug) game.lastJumpFrame = game.animFrame;
     Particles.emit('jump', dino.x + dino.width / 2, dino.y + dino.height);

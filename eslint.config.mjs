@@ -161,6 +161,8 @@ export default [
         dinoHitbox: 'readonly',
         startSlide: 'readonly',
         drawBird: 'readonly',
+        jumpPower: 'readonly',
+        towerSpriteSlots: 'readonly',
         releaseJump: 'readonly',
         handleKeyUp: 'readonly',
         handleMouseDown: 'readonly',

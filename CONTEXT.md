@@ -48,6 +48,10 @@ _Avoid_: charge jump, jump strength
 
 **Low bird** — An Updated and Daily obstacle (from score 150) that flies 30px above the ground: a standing dino hits it, a sliding dino passes under, a jumping dino clears it. Drawn as a small blocky bird in the cactus ink.
 
+**Lower first jump** — Updated and Daily take off at `UPDATED_JUMP_POWER` (-9.6 instead of -12), so a full jump peaks about 93px up instead of 144 and the second jump has sky to use. It still clears every obstacle except the tower. The owner chose this on 2026-11-16. Classic keeps the original jump.
+
+**Cactus tower** — An Updated and Daily obstacle (from score 200): two big cacti stacked, 110px tall, higher than a full first jump reaches, so it takes the second jump to clear. Drawn as the original big cactus sprite twice.
+
 **Fast fall** — Down, S or a swipe down (30 CSS px) while airborne: the dino stops rising and falls at three times gravity until it lands, dropping any buffered jump. Does nothing on the ground (there is no duck).
 _Avoid_: dive, slam, duck
 

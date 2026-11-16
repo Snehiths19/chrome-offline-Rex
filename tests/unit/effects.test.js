@@ -6617,3 +6617,40 @@ describe('Slide pose and bird drawing (M6)', () => {
     }
   });
 });
+
+describe('Cactus tower drawing (M4)', () => {
+  it('a tower paints as big cacti stacked exactly over its box', () => {
+    const tower = GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'tower');
+    const big = GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'big');
+    const obs = { x: 300, y: GAME_CONFIG.CANVAS_H - tower.height, width: 30, height: 110 };
+    const slots = towerSpriteSlots(obs);
+    assertEquals(slots.length, Math.round(tower.height / big.height));
+    assertEquals(slots[0].y, obs.y);
+    const last = slots[slots.length - 1];
+    assertEquals(last.y + last.height, obs.y + obs.height);
+    for (const s of slots) {
+      assertEquals(s.type, 'big');
+      assertEquals(s.x, obs.x);
+      assertEquals(s.width, obs.width);
+    }
+  });
+
+  it('drawObstacles paints a tower with one draw per stacked cactus', () => {
+    const orig = { obstacles: game.obstacles, drawImage: ctx.drawImage, fillRect: ctx.fillRect };
+    let draws = 0;
+    ctx.drawImage = () => draws++;
+    ctx.fillRect = () => draws++;
+    try {
+      const tower = GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'tower');
+      game.obstacles = [
+        Object.assign({ x: 300, y: GAME_CONFIG.CANVAS_H - tower.height, type: tower.id }, tower),
+      ];
+      drawObstacles();
+    } finally {
+      game.obstacles = orig.obstacles;
+      ctx.drawImage = orig.drawImage;
+      ctx.fillRect = orig.fillRect;
+    }
+    assertEquals(draws, 2);
+  });
+});

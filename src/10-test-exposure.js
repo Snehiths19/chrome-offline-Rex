@@ -44,6 +44,8 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.dinoHitbox = dinoHitbox;
   global.startSlide = startSlide;
   global.drawBird = drawBird;
+  global.jumpPower = jumpPower;
+  global.towerSpriteSlots = towerSpriteSlots;
   global.releaseJump = releaseJump;
   global.handleKeyUp = handleKeyUp;
   global.handleMouseDown = handleMouseDown;

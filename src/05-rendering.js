@@ -316,6 +316,25 @@ function clusterSpriteSlots(obstacle) {
   ];
 }
 
+// The tower (M4) paints as big cacti stacked on top of each other, each
+// drawn exactly like a lone big cactus.
+function towerSpriteSlots(obstacle) {
+  const big = GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'big');
+  const count = Math.max(1, Math.round(obstacle.height / big.height));
+  const h = obstacle.height / count;
+  const slots = [];
+  for (let i = 0; i < count; i++) {
+    slots.push({
+      type: 'big',
+      x: obstacle.x,
+      y: obstacle.y + i * h,
+      width: obstacle.width,
+      height: h,
+    });
+  }
+  return slots;
+}
+
 // Day sprite stays put until night has arrived. A lift partway through the
 // fade crosses the hill colour and the cactus disappears into it. Classic
 // has no hills, so its dark silhouette on the shared night sky stays as-is.
@@ -411,6 +430,10 @@ function drawObstacles() {
     game.obstacles.forEach((obstacle) => {
       if (obstacle.render === 'bird') {
         drawBird(obstacle);
+        return;
+      }
+      if (obstacle.render === 'stack') {
+        towerSpriteSlots(obstacle).forEach(drawSingleObstacle);
         return;
       }
       if (obstacle.render === 'double') {
