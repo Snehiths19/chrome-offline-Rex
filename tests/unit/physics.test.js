@@ -41,31 +41,39 @@ describe('Dinosaur Jump', () => {
     );
   });
 
-  it('should have a peak jump height of ~144px', () => {
-    // jumpPower=-12, gravity=0.48 → peak ≈ 144px
-    resetGame();
-    game.state = STATE.RUNNING;
-    const expectedPeak = 144;
-    jump();
-    let minY = dino.y;
-    const groundY = GAME_CONFIG.CANVAS_H - dino.height;
-    for (let i = 0; i < 60; i++) {
-      dino.velocityY += dino.gravity;
-      dino.y += dino.velocityY;
-      if (dino.y < minY) minY = dino.y;
-      if (dino.y >= groundY) {
-        dino.y = groundY;
-        dino.isJumping = false;
-        break;
+  // Classic: jumpPower=-12, gravity=0.48 → peak ≈ 144px. Updated and Daily
+  // take off at UPDATED_JUMP_POWER (M4) → peak ≈ 91px on the plain arc.
+  for (const [mode, expectedPeak] of [
+    [MODES.CLASSIC, 144],
+    [MODES.UPDATED, 91],
+  ]) {
+    it(`should have a peak jump height of ~${expectedPeak}px in ${mode}`, () => {
+      const origMode = game.mode;
+      game.mode = mode;
+      resetGame();
+      game.state = STATE.RUNNING;
+      jump();
+      let minY = dino.y;
+      const groundY = GAME_CONFIG.CANVAS_H - dino.height;
+      for (let i = 0; i < 60; i++) {
+        dino.velocityY += dino.gravity;
+        dino.y += dino.velocityY;
+        if (dino.y < minY) minY = dino.y;
+        if (dino.y >= groundY) {
+          dino.y = groundY;
+          dino.isJumping = false;
+          break;
+        }
       }
-    }
-    const actualPeak = groundY - minY;
-    assert(
-      Math.abs(actualPeak - expectedPeak) <= 5,
-      `Peak height ${actualPeak.toFixed(1)}px should be ~${expectedPeak}px. ` +
-        `If this passes before changing constants, the test is wrong — rewrite it.`
-    );
-  });
+      game.mode = origMode;
+      const actualPeak = groundY - minY;
+      assert(
+        Math.abs(actualPeak - expectedPeak) <= 5,
+        `Peak height ${actualPeak.toFixed(1)}px should be ~${expectedPeak}px. ` +
+          `If this passes before changing constants, the test is wrong — rewrite it.`
+      );
+    });
+  }
 
   it('should ignore jump() when state is not RUNNING', () => {
     resetGame();
@@ -118,14 +126,14 @@ describe('Jump buffer (F1)', () => {
   it('a press on the last airborne slice jumps again on the landing slice', () => {
     pressBeforeLanding(1);
     assert(dino.isJumping, 'buffered press should take off on landing');
-    assertEquals(dino.velocityY, dino.jumpPower, 'fresh take-off speed');
+    assertEquals(dino.velocityY, jumpPower(), 'fresh take-off speed');
     assertEquals(dino.jumpBufferFrames, 0, 'buffer is spent');
   });
 
   it('a press JUMP_BUFFER_FRAMES slices before landing still counts', () => {
     pressBeforeLanding(GAME_CONFIG.JUMP_BUFFER_FRAMES);
     assert(dino.isJumping, 'press at the edge of the window should jump on landing');
-    assertEquals(dino.velocityY, dino.jumpPower, 'fresh take-off speed');
+    assertEquals(dino.velocityY, jumpPower(), 'fresh take-off speed');
   });
 
   // Classic has no second jump, so a press outside the window is dropped.
@@ -1442,7 +1450,7 @@ describe('Variable jump and fast fall (F3)', () => {
   });
 
   // Classic keeps the plain 49-slice arc; Updated and Daily add hang time
-  // near the peak (M1), which makes the held jump 56 slices.
+  // near the peak (M1) to a lower take-off (M4): a 46-slice held jump.
   const f3InMode = (mode, fn) => {
     const origMode = game.mode;
     game.mode = mode;
@@ -1452,7 +1460,8 @@ describe('Variable jump and fast fall (F3)', () => {
       game.mode = origMode;
     }
   };
-  const f3FullAir = () => (game.mode === MODES.CLASSIC ? 49 : 56);
+  // Updated and Daily: the lower take-off (M4) plus hang time (M1).
+  const f3FullAir = () => (game.mode === MODES.CLASSIC ? 49 : 46);
 
   it('a held press is the same full jump as before (49 slices in Classic)', () => {
     const full = f3InMode(MODES.CLASSIC, () => f3Flight(Infinity));
@@ -1462,7 +1471,7 @@ describe('Variable jump and fast fall (F3)', () => {
 
   it('a quick tap is a short hop that still clears the tallest obstacle', () => {
     const hop = f3Flight(0);
-    assert(hop.air < 40 && hop.air > 28, `hop airtime ${hop.air}`);
+    assert(hop.air < f3FullAir() && hop.air > 28, `hop airtime ${hop.air}`);
     assert(hop.peak > 70 && hop.peak < 90, `hop peak ${hop.peak}`);
     const bigCactus = GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'big');
     assert(hop.peak > bigCactus.height, 'higher than the big cactus');
@@ -1470,7 +1479,8 @@ describe('Variable jump and fast fall (F3)', () => {
 
   it('releasing later gives a jump between a hop and a full jump', () => {
     const hop = f3Flight(0).air;
-    const mid = f3Flight(10).air;
+    // Updated's lower take-off (M4) slows under the cut speed sooner.
+    const mid = f3Flight(game.mode === MODES.CLASSIC ? 10 : 8).air;
     assert(mid > hop && mid < f3FullAir(), `mid ${mid}`);
   });
 
@@ -1603,12 +1613,13 @@ describe('Hang time (M1)', () => {
     const updated = m1Flight(MODES.UPDATED);
     const daily = m1Flight(MODES.DAILY);
     assertEquals(classic.air, 49);
-    assertEquals(updated.air, 56);
-    assertEquals(daily.air, 56);
+    // Updated and Daily also take off lower (M4): about 93px up, not 144.
+    assertEquals(updated.air, 46);
+    assertEquals(daily.air, 46);
     assert(updated.slowSlices > classic.slowSlices, 'more slices spent slow near the peak');
     assert(
-      updated.peak - classic.peak < 6,
-      `peak barely rises (${updated.peak} vs ${classic.peak})`
+      updated.peak > 88 && updated.peak < 98,
+      `peak about 93px (${updated.peak} vs ${classic.peak})`
     );
   });
 
@@ -1679,7 +1690,7 @@ describe('Second jump (M3)', () => {
   it('a second press in the air jumps again once, and lands later', () => {
     m3Run(MODES.UPDATED, () => {
       handleAction();
-      for (let i = 0; i < 40; i++) m3Step();
+      for (let i = 0; i < 30; i++) m3Step();
       assert(dino.velocityY > 0, 'falling when the second press comes');
       handleAction();
       assert(dino.doubleJumped, 'second jump spent');
@@ -1691,7 +1702,7 @@ describe('Second jump (M3)', () => {
       handleAction();
       assert(dino.velocityY >= vy, 'no third jump');
       const { n } = m3Fly();
-      assert(40 + 1 + n > 70, `longer flight ${40 + 1 + n}`);
+      assert(30 + 1 + n > 60, `longer flight ${30 + 1 + n}`);
       assert(!dino.doubleJumped && dino.flipFrames === 0, 'landing restores it');
     });
   });
@@ -1858,5 +1869,111 @@ describe('Slide and low birds (M6)', () => {
       after.add(DifficultyProfile.nextObstacle(unlock, MODES.UPDATED, rng).type.id);
     }
     assert(!before.has('bird') && after.has('bird'), 'unlocks at its score');
+  });
+});
+
+describe('Lower first jump and cactus towers (M4)', () => {
+  const m4Step = () => {
+    gameLoop();
+    cancelAnimationFrame(game.animationFrameId);
+  };
+  const m4Run = (mode, fn) => {
+    const origMode = game.mode;
+    game.mode = mode;
+    try {
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+      game.state = STATE.RUNNING;
+      game.graceFrames = 100000;
+      return fn();
+    } finally {
+      game.mode = origMode;
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+    }
+  };
+  const m4Type = (id) => GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === id);
+  // A ground obstacle of `type` right under the dino.
+  const m4Under = (type) => ({
+    x: dino.x,
+    y: GAME_CONFIG.CANVAS_H - type.height,
+    width: type.width,
+    height: type.height,
+  });
+  // Fly one held jump (optionally a second jump at slice `second`, or at the
+  // top when second is 'peak') and return the highest dino box seen.
+  const m4Top = (second) => {
+    handleAction();
+    let top = null;
+    for (let i = 0; i < 200 && dino.isJumping; i++) {
+      const atPeak = second === 'peak' && dino.velocityY >= -1;
+      if (!dino.doubleJumped && (i === second || atPeak)) handleAction();
+      m4Step();
+      if (!top || dino.y < top.y) top = Object.assign({}, dinoHitbox());
+    }
+    return top;
+  };
+
+  it('the Updated take-off speed is a gameplay value, never tunable', () => {
+    assert(GAME_CONFIG.UPDATED_JUMP_POWER < 0, 'upward');
+    assert(GAME_CONFIG.UPDATED_JUMP_POWER > GAME_CONFIG.JUMP_POWER, 'slower than Classic');
+    assert(!TUNABLE_KEYS.includes('UPDATED_JUMP_POWER'), 'never tunable through cfg()');
+  });
+
+  it('Classic takes off at JUMP_POWER; Updated and Daily at UPDATED_JUMP_POWER', () => {
+    for (const [mode, power] of [
+      [MODES.CLASSIC, GAME_CONFIG.JUMP_POWER],
+      [MODES.UPDATED, GAME_CONFIG.UPDATED_JUMP_POWER],
+      [MODES.DAILY, GAME_CONFIG.UPDATED_JUMP_POWER],
+    ]) {
+      m4Run(mode, () => {
+        handleAction();
+        assertEquals(dino.velocityY, power, mode);
+      });
+    }
+  });
+
+  it('a full Updated jump still clears every other ground obstacle', () => {
+    m4Run(MODES.UPDATED, () => {
+      const top = m4Top();
+      for (const id of ['small', 'big', 'cluster']) {
+        assert(!checkCollision(top, m4Under(m4Type(id))), `clears ${id}`);
+      }
+    });
+  });
+
+  it('a full first jump cannot clear a tower; a second jump near the top can', () => {
+    const single = m4Run(MODES.UPDATED, () => m4Top());
+    const double = m4Run(MODES.UPDATED, () => m4Top('peak'));
+    const early = m4Run(MODES.UPDATED, () => m4Top(10));
+    const tower = m4Type('tower');
+    m4Run(MODES.UPDATED, () => {
+      assert(checkCollision(single, m4Under(tower)), 'one jump hits the tower');
+      assert(!checkCollision(double, m4Under(tower)), 'a second jump at the top clears it');
+      assert(!checkCollision(early, m4Under(tower)), 'an earlier second jump clears it too');
+    });
+  });
+
+  it('Classic never rolls a tower; Updated rolls it from its unlock score', () => {
+    const rng = mulberry32(21);
+    const unlock = m4Type('tower').unlockScore;
+    const classic = new Set();
+    const before = new Set();
+    const after = new Set();
+    for (let i = 0; i < 2000; i++) {
+      classic.add(DifficultyProfile.nextObstacle(900, MODES.CLASSIC, rng).type.id);
+      before.add(DifficultyProfile.nextObstacle(unlock - 1, MODES.UPDATED, rng).type.id);
+      after.add(DifficultyProfile.nextObstacle(unlock, MODES.UPDATED, rng).type.id);
+    }
+    assert(!classic.has('tower'), 'never in Classic');
+    assert(!before.has('tower') && after.has('tower'), 'unlocks at its score');
+  });
+
+  it('a tower stands on the ground', () => {
+    m4Run(MODES.UPDATED, () => {
+      spawnObstacle(m4Type('tower'));
+      const obs = game.obstacles[game.obstacles.length - 1];
+      assertEquals(obs.y + obs.height, GAME_CONFIG.CANVAS_H);
+    });
   });
 });

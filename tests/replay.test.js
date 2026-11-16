@@ -24,6 +24,7 @@ const GOLDEN_DIR = path.join(__dirname, 'golden');
 const UPDATE = process.argv.includes('--update');
 const MAX_FRAMES = 8000; // ~2 minutes of play (score ~780); a run that never dies stops here
 const HOP_LEAD = -6; // a hop peaks sooner than a full jump, so it starts later
+const TOWER_LEAD = 14; // a tower needs the second jump, so the first starts earlier
 
 // The golden runs. `autopilot` only matters when re-recording: it is how
 // early the planner jumps (frames before contact) and how many obstacles it
@@ -77,7 +78,9 @@ function playRun(spec, jumpAt, planner) {
   const releaseAt = new Set(spec.releases || []);
   const dropAt = new Set(spec.drops || []);
   const slideAt = new Set(spec.slides || []);
+  const doubleAt = new Set(spec.doubles || []);
   const releases = [];
+  const doubles = [];
   const drops = [];
   const slides = [];
   startRun(spec.mode, spec.seed);
@@ -99,6 +102,7 @@ function playRun(spec, jumpAt, planner) {
           release: releaseAt.has(frame),
           drop: dropAt.has(frame),
           slide: slideAt.has(frame),
+          double: doubleAt.has(frame),
         };
     if (typeof act === 'boolean') act = { press: act };
     if (act.press && !dino.isJumping) {
@@ -116,6 +120,10 @@ function playRun(spec, jumpAt, planner) {
     if (act.slide && !dino.isJumping) {
       dropDino();
       slides.push(frame);
+    }
+    if (act.double && dino.isJumping && !dino.doubleJumped) {
+      handleAction();
+      doubles.push(frame);
     }
     step();
     for (const obs of game.obstacles) {
@@ -144,6 +152,7 @@ function playRun(spec, jumpAt, planner) {
     releases,
     drops,
     slides,
+    doubles,
     result: {
       died: game.state === STATE.DEAD,
       deathFrame: game.state === STATE.DEAD ? game.animFrame : null,
@@ -173,6 +182,10 @@ function makePlanner(opts) {
       const clearAhead = !ahead || ahead.x > dino.x + dino.width + game.currentSpeed * 10;
       return { drop: clearAhead };
     }
+    // Second jump over a tower near the top of the first (M4).
+    if (target && target.type === 'tower' && dino.isJumping && !dino.doubleJumped) {
+      return { double: dino.velocityY >= -1 };
+    }
     if (!ahead || dino.isJumping) return false;
     if (opts.clear != null && cleared >= opts.clear) return false;
     const framesToContact = (ahead.x - (dino.x + dino.width)) / game.currentSpeed;
@@ -184,7 +197,10 @@ function makePlanner(opts) {
       }
       return false;
     }
-    const trigger = 12 + (opts.lead || 0) + Math.ceil(ahead.width / game.currentSpeed / 2);
+    // A tower takes off earlier so the second jump tops out over it.
+    const towerLead = ahead.type === 'tower' ? TOWER_LEAD : 0;
+    const trigger =
+      12 + (opts.lead || 0) + towerLead + Math.ceil(ahead.width / game.currentSpeed / 2);
     if (framesToContact <= trigger) {
       target = ahead;
       return opts.hops ? { press: true, release: true } : true;
@@ -237,6 +253,7 @@ function writeGolden(name, run) {
     (run.releases.length ? `  "releases": ${JSON.stringify(run.releases)},\n` : '') +
     (run.drops.length ? `  "drops": ${JSON.stringify(run.drops)},\n` : '') +
     (run.slides.length ? `  "slides": ${JSON.stringify(run.slides)},\n` : '') +
+    (run.doubles.length ? `  "doubles": ${JSON.stringify(run.doubles)},\n` : '') +
     '  "result": {\n' +
     Object.entries(rest)
       .map(([k, v]) => `    ${JSON.stringify(k)}: ${JSON.stringify(v)},\n`)
@@ -329,6 +346,15 @@ check(
 check(
   'a golden run slides under low birds (M6)',
   all.some((g) => (g.slides || []).length > 0 && !g.result.died)
+);
+check(
+  'a golden run double-jumps over cactus towers (M4)',
+  all.some(
+    (g) =>
+      (g.doubles || []).length > 0 &&
+      g.result.obstacles.some((o) => o.type === 'tower') &&
+      (!g.result.died || g.result.finalScore >= 640)
+  )
 );
 check(
   'Classic, Updated and Daily all have golden runs',

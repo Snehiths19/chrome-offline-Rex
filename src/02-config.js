@@ -7,6 +7,11 @@ const GAME_CONFIG = Object.freeze({
 
   // --- Physics ---
   JUMP_POWER: -12, // negative = upward impulse applied on jump
+  // Updated and Daily take off slower (M4), so a full jump peaks about 99px
+  // up instead of about 150 and leaves sky for the second jump. It still
+  // clears every ground obstacle but the tower, which needs the second jump.
+  // Classic keeps JUMP_POWER. Gameplay value: read GAME_CONFIG directly.
+  UPDATED_JUMP_POWER: -9.6,
   GRAVITY: 0.48, // added to velocityY each frame while airborne
   // A jump pressed this many sim frames (60Hz) or fewer before landing is
   // kept and fires on the landing frame, so a slightly early press at speed
@@ -41,8 +46,8 @@ const GAME_CONFIG = Object.freeze({
   // never spends it. The sprite never rises above CEILING_Y (the top of the
   // canvas): near the top, the second jump starts slower so its arc tops out
   // at the ceiling instead of bumping it. A full first jump already peaks
-  // close to the top, so the second jump mostly stretches a falling jump
-  // over a second obstacle. Gameplay values: read GAME_CONFIG directly.
+  // close to the top in Classic; Updated's lower first jump (M4) leaves it
+  // about 55px of sky. Gameplay values: read GAME_CONFIG directly.
   DOUBLE_JUMP_POWER: -7.5,
   CEILING_Y: 0,
   // Slide (M6, Updated and Daily only). Down, S or a swipe down on the ground
@@ -83,7 +88,10 @@ const GAME_CONFIG = Object.freeze({
   // Re-checked for F3: a short hop (about 33 frames) or a fast fall only lands
   // sooner than the 49-frame held jump, so 72 frames is still enough.
   // Re-checked for M1: hang time makes the Updated held jump about 56 frames,
-  // still well inside 72.
+  // still well inside 72. M4's lower take-off makes it about 46. A second
+  // jump stretches a flight to about 76 frames, but it starts before the
+  // obstacle it clears, so the player still has the ground before the next
+  // one (the golden runs second-jump every tower and survive).
   UPDATED_MIN_GAP_FRAMES: 72,
 
   // --- Obstacle sprite (small cactus — baseline) ---
@@ -122,6 +130,16 @@ const GAME_CONFIG = Object.freeze({
       unlockScore: 150,
       weight: 22,
       render: 'bird',
+    }),
+    // Cactus tower (M4, Updated and Daily): two big cacti stacked, taller than
+    // a full first jump reaches, so it takes the second jump to clear.
+    Object.freeze({
+      id: 'tower',
+      width: 30,
+      height: 110,
+      unlockScore: 200,
+      weight: 14,
+      render: 'stack',
     }),
     Object.freeze({
       id: 'cluster',
