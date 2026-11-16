@@ -43,6 +43,8 @@ const RUNS = [
     seed: 9001,
     autopilot: { lead: HOP_LEAD, hops: true, drops: true },
   },
+  // Slide (M6): the dino slides under every low bird instead of jumping it.
+  { name: 'updated-slides', mode: 'updated', seed: 5150, autopilot: { lead: 0, slides: true } },
 ];
 
 // --- Running one run ------------------------------------------------------
@@ -74,8 +76,10 @@ function step() {
 function playRun(spec, jumpAt, planner) {
   const releaseAt = new Set(spec.releases || []);
   const dropAt = new Set(spec.drops || []);
+  const slideAt = new Set(spec.slides || []);
   const releases = [];
   const drops = [];
+  const slides = [];
   startRun(spec.mode, spec.seed);
   const seen = new Set();
   const obstacles = [];
@@ -90,7 +94,12 @@ function playRun(spec, jumpAt, planner) {
     const frame = game.animFrame;
     let act = planner
       ? planner(frame)
-      : { press: jumpAt.has(frame), release: releaseAt.has(frame), drop: dropAt.has(frame) };
+      : {
+          press: jumpAt.has(frame),
+          release: releaseAt.has(frame),
+          drop: dropAt.has(frame),
+          slide: slideAt.has(frame),
+        };
     if (typeof act === 'boolean') act = { press: act };
     if (act.press && !dino.isJumping) {
       handleAction();
@@ -103,6 +112,10 @@ function playRun(spec, jumpAt, planner) {
     if (act.drop && dino.isJumping && !dino.dropping) {
       dropDino();
       drops.push(frame);
+    }
+    if (act.slide && !dino.isJumping) {
+      dropDino();
+      slides.push(frame);
     }
     step();
     for (const obs of game.obstacles) {
@@ -130,6 +143,7 @@ function playRun(spec, jumpAt, planner) {
     jumps,
     releases,
     drops,
+    slides,
     result: {
       died: game.state === STATE.DEAD,
       deathFrame: game.state === STATE.DEAD ? game.animFrame : null,
@@ -162,6 +176,14 @@ function makePlanner(opts) {
     if (!ahead || dino.isJumping) return false;
     if (opts.clear != null && cleared >= opts.clear) return false;
     const framesToContact = (ahead.x - (dino.x + dino.width)) / game.currentSpeed;
+    // Slide under a low bird just before it arrives (M6). One press covers it.
+    if (opts.slides && ahead.type === 'bird') {
+      if (target !== ahead && framesToContact <= 6) {
+        target = ahead;
+        return { slide: true };
+      }
+      return false;
+    }
     const trigger = 12 + (opts.lead || 0) + Math.ceil(ahead.width / game.currentSpeed / 2);
     if (framesToContact <= trigger) {
       target = ahead;
@@ -214,6 +236,7 @@ function writeGolden(name, run) {
     `  "jumps": ${JSON.stringify(run.jumps)},\n` +
     (run.releases.length ? `  "releases": ${JSON.stringify(run.releases)},\n` : '') +
     (run.drops.length ? `  "drops": ${JSON.stringify(run.drops)},\n` : '') +
+    (run.slides.length ? `  "slides": ${JSON.stringify(run.slides)},\n` : '') +
     '  "result": {\n' +
     Object.entries(rest)
       .map(([k, v]) => `    ${JSON.stringify(k)}: ${JSON.stringify(v)},\n`)
@@ -302,6 +325,10 @@ check(
 check(
   'a golden run uses short hops and fast falls (F3)',
   all.some((g) => (g.releases || []).length > 0 && (g.drops || []).length > 0)
+);
+check(
+  'a golden run slides under low birds (M6)',
+  all.some((g) => (g.slides || []).length > 0 && !g.result.died)
 );
 check(
   'Classic, Updated and Daily all have golden runs',

@@ -6,7 +6,7 @@ function spawnObstacle(type) {
   const t = type || pickObstacleType(game.rng, game.score, game.mode);
   game.obstacles.push({
     x: GAME_CONFIG.CANVAS_W,
-    y: GAME_CONFIG.CANVAS_H - t.height,
+    y: GAME_CONFIG.CANVAS_H - t.height - (t.lift || 0),
     width: t.width,
     height: t.height,
     type: t.id,
@@ -113,6 +113,8 @@ function jump(repeat) {
     return;
   }
   if (!dino.isJumping) {
+    dino.slideFrames = 0;
+    dino.airFrames = 0;
     dino.velocityY = dino.jumpPower;
     dino.isJumping = true;
     if (runDebug) game.lastJumpFrame = game.animFrame;
@@ -135,11 +137,45 @@ function airGravity() {
   return dino.gravity;
 }
 
+// The box collision uses this frame: the full sprite box, or a low box at
+// the feet while sliding (M6).
+function dinoHitbox() {
+  if (dino.slideFrames <= 0) return dino;
+  const h = GAME_CONFIG.SLIDE_HEIGHT;
+  return { x: dino.x, y: dino.y + dino.height - h, width: dino.width, height: h };
+}
+
+// Slide (M6). On the ground, or straight after a take-off (a phone swipe
+// down starts with the touch that jumps), drop flat for SLIDE_FRAMES. A
+// slide already going is topped up, so holding Down keeps sliding.
+function startSlide() {
+  if (dino.isJumping) {
+    dino.y = GAME_CONFIG.CANVAS_H - dino.height;
+    dino.velocityY = 0;
+    dino.isJumping = false;
+    dino.dropping = false;
+    dino.doubleJumped = false;
+    dino.flipFrames = 0;
+    dino.jumpBufferFrames = 0;
+  }
+  const fresh = dino.slideFrames <= 0;
+  dino.slideFrames = Math.max(dino.slideFrames, GAME_CONFIG.SLIDE_FRAMES);
+  if (fresh) {
+    Particles.emit('land', dino.x + dino.width / 2, dino.y + dino.height);
+    audio.land();
+  }
+}
+
 // Fast fall (F3): Down, S or a swipe down while airborne. On the ground it
 // does nothing. A jump buffered during the same flight is dropped, so the
 // swipe that starts with a touch does not bounce straight back up.
 function dropDino() {
-  if (game.state !== STATE.RUNNING || !dino.isJumping) return;
+  if (game.state !== STATE.RUNNING) return;
+  if (isUpdatedMode() && (!dino.isJumping || dino.airFrames <= GAME_CONFIG.SLIDE_CANCEL_FRAMES)) {
+    startSlide();
+    return;
+  }
+  if (!dino.isJumping) return;
   dino.dropping = true;
   dino.jumpBufferFrames = 0;
   dino.velocityY = Math.max(dino.velocityY, GAME_CONFIG.FAST_FALL_START_VELOCITY);

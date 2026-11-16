@@ -44,6 +44,10 @@ _Avoid_: charge jump, jump strength
 
 **Second jump** — In Updated and Daily, a fresh press in the air jumps again, once per flight, with a forward flip and a puff of dust. A press while falling within the jump buffer window still counts as an early landing jump instead (F1), and a held key's auto-repeat never spends it. The dino never rises above the top of the canvas (the ceiling): near the top, the second jump starts slower so it tops out there. Classic has no second jump.
 
+**Slide** — In Updated and Daily, Down, S or a swipe down on the ground drops the dino flat for about half a second with a hitbox only 24px tall; holding Down keeps it going and a jump ends it. Down just after a take-off cancels the jump into a slide, because a phone swipe starts with the touch that jumps. Classic has no slide (Down on the ground does nothing there).
+
+**Low bird** — An Updated and Daily obstacle (from score 150) that flies 30px above the ground: a standing dino hits it, a sliding dino passes under, a jumping dino clears it. Drawn as a small blocky bird in the cactus ink.
+
 **Fast fall** — Down, S or a swipe down (30 CSS px) while airborne: the dino stops rising and falls at three times gravity until it lands, dropping any buffered jump. Does nothing on the ground (there is no duck).
 _Avoid_: dive, slam, duck
 

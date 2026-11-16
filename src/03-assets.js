@@ -39,6 +39,9 @@ const dino = {
   // Second jump (M3): spent for this flight, and sim frames left on the flip.
   doubleJumped: false,
   flipFrames: 0,
+  // Slide (M6): sim frames left on the slide, and sim frames since take-off.
+  slideFrames: 0,
+  airFrames: 0,
   image: new Image(),
 };
 

@@ -41,6 +41,9 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.slamKickOffset = slamKickOffset;
   global.canDoubleJump = canDoubleJump;
   global.dinoFlipAngle = dinoFlipAngle;
+  global.dinoHitbox = dinoHitbox;
+  global.startSlide = startSlide;
+  global.drawBird = drawBird;
   global.releaseJump = releaseJump;
   global.handleKeyUp = handleKeyUp;
   global.handleMouseDown = handleMouseDown;

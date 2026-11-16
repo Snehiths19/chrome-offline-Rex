@@ -27,6 +27,8 @@ function resetGame() {
   dino.landSquashHard = false;
   dino.doubleJumped = false;
   dino.flipFrames = 0;
+  dino.slideFrames = 0;
+  dino.airFrames = 0;
 
   Particles.reset();
 
@@ -368,7 +370,7 @@ function updateRunning() {
 
   // Collision detection.
   for (let i = 0; i < game.obstacles.length; i++) {
-    if (checkCollision(dino, game.obstacles[i])) {
+    if (checkCollision(dinoHitbox(), game.obstacles[i])) {
       game.state = STATE.DEAD;
       Animations.deathShakeFrames = deathShakeFrameCount();
       // PR-C: white flash + score pop, mode-gated. Reduce-motion caps flash to 1 frame.
@@ -426,6 +428,11 @@ function updateRunning() {
   if (dino.landSquashFrames > 0) dino.landSquashFrames--;
   if (Animations.slamKickFrames > 0) Animations.slamKickFrames--;
   if (dino.flipFrames > 0) dino.flipFrames--;
+  if (dino.isJumping) dino.airFrames++;
+  if (dino.slideFrames > 0) {
+    dino.slideFrames--;
+    if (dino.slideFrames % 4 === 0) Particles.emit('land', dino.x + 4, dino.y + dino.height);
+  }
 
   // Apply gravity.
   if (dino.isJumping) {
