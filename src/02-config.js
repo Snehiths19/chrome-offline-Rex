@@ -27,6 +27,13 @@ const GAME_CONFIG = Object.freeze({
   // a full jump that lands in about 13 frames instead of 25.
   FAST_FALL_START_VELOCITY: 2,
   FAST_FALL_GRAVITY: 1.44,
+  // Hang time (M1, Updated and Daily only). While the dino moves slower than
+  // HANG_VELOCITY px per frame, up or down, near the top of a jump, gravity is
+  // scaled by HANG_GRAVITY_SCALE, so the peak floats for a moment. A held jump
+  // gains about 7 frames of air (about 56 instead of 49); a fast fall skips it.
+  // Classic keeps the plain arc. Gameplay values: read GAME_CONFIG directly.
+  HANG_VELOCITY: 1.6,
+  HANG_GRAVITY_SCALE: 0.5,
   INITIAL_SPEED: 3.0, // obstacle scroll speed at score 0
   SPEED_CAP: 13.0, // max scroll speed (matches Chrome T-Rex)
   PLATEAU_SPEED: 8.0, // sigmoid ceiling — focusable-but-demanding speed the curve approaches
@@ -55,6 +62,8 @@ const GAME_CONFIG = Object.freeze({
   // The base gap sits at this / (1 - JITTER), so ±30% rarely piles onto the floor.
   // Re-checked for F3: a short hop (about 33 frames) or a fast fall only lands
   // sooner than the 49-frame held jump, so 72 frames is still enough.
+  // Re-checked for M1: hang time makes the Updated held jump about 56 frames,
+  // still well inside 72.
   UPDATED_MIN_GAP_FRAMES: 72,
 
   // --- Obstacle sprite (small cactus — baseline) ---
@@ -199,6 +208,16 @@ const GAME_CONFIG = Object.freeze({
   // that same snap, with no pulse. Playtest with ?qaNight=1. Read through
   // cfg(). Physics does not read this.
   NIGHT_DINO_BRIGHTNESS: 1.2,
+  // Squash and stretch (M1). Visual only, Updated and Daily only, off with
+  // reduced motion; the hitbox never changes. In the air the dino stretches
+  // up to DINO_STRETCH_MAX taller (and half that narrower) the faster it
+  // moves. Landing squashes it DINO_LAND_SQUASH shorter (DINO_SLAM_SQUASH
+  // after a fast fall), easing back over DINO_SQUASH_FRAMES sim frames. The
+  // sprite stays anchored at the feet. Read through cfg().
+  DINO_STRETCH_MAX: 0.14,
+  DINO_LAND_SQUASH: 0.2,
+  DINO_SLAM_SQUASH: 0.32,
+  DINO_SQUASH_FRAMES: 8,
   // Visual only. Jump and land foot dust once the sky is fully night, in
   // Updated and Daily. Day dust stays the brown on those kinds (#9c8770).
   // On the night sky that brown reads as warm day-dirt. #6a686e is cooler
@@ -521,6 +540,10 @@ const TUNABLE_KEYS = Object.freeze([
   'DEATH_FLASH_FRAMES',
   'DEATH_SHAKE_AMPLITUDE',
   'DEATH_SHAKE_FREQ',
+  'DINO_LAND_SQUASH',
+  'DINO_SLAM_SQUASH',
+  'DINO_SQUASH_FRAMES',
+  'DINO_STRETCH_MAX',
   'HILL_COLOR_NIGHT',
   'NIGHT_CLOUD_ALPHA',
   'NIGHT_DEATH_FLASH_PEAK_ALPHA',

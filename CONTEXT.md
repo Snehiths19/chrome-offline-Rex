@@ -34,6 +34,10 @@ _Avoid_: input queue, coyote time (that is the opposite: a late jump after leavi
 **Variable jump** — how long jump is held sets the height (F3). A held press is the full jump (49 frames, about 144px). Letting go while still rising fast cuts the rise to `JUMP_CUT_VELOCITY`, but not before the feet are `JUMP_MIN_HEIGHT` up, so a quick tap is a short hop (about 33 frames, 76px) that still clears every obstacle at every speed. Keys (keyup), mouse (press on the canvas, release anywhere) and touch (last finger lifted) all end the hold. Gameplay values: `GAME_CONFIG`, never `cfg()`. Spawns are untouched, so the Daily course stays the same for everyone; only the player's input differs.
 _Avoid_: charge jump, jump strength
 
+**Hang time** — In Updated and Daily, gravity is halved while the dino moves slower than 1.6 px per frame near the top of a jump, so the peak floats for a moment. A held jump lasts about 56 sim frames instead of 49. Classic keeps the plain arc; a fast fall skips it. A gameplay value (`HANG_*` in `GAME_CONFIG`).
+
+**Squash and stretch** — In Updated and Daily the dino sprite stretches taller in the air with speed and squashes on landing, easing back over a few frames, anchored at the feet. A landing that ends a fast fall is a **slam**: a flatter squash and a heavier dust burst. Visual only (the hitbox never changes), tunable through `cfg()`, off under reduced motion.
+
 **Fast fall** — Down, S or a swipe down (30 CSS px) while airborne: the dino stops rising and falls at three times gravity until it lands, dropping any buffered jump. Does nothing on the ground (there is no duck).
 _Avoid_: dive, slam, duck
 

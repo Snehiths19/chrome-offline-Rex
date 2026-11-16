@@ -32,6 +32,10 @@ const dino = {
   // fast-fall press until landing.
   jumpHeld: false,
   dropping: false,
+  // Squash and stretch (M1): sim frames left on the landing squash, and
+  // whether that landing ended a fast fall. Visual only.
+  landSquashFrames: 0,
+  landSquashHard: false,
   image: new Image(),
 };
 

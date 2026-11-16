@@ -151,6 +151,8 @@ export default [
         handleJumpButtonClick: 'readonly',
         handleTouchAction: 'readonly',
         dropDino: 'readonly',
+        airGravity: 'readonly',
+        dinoSquashScale: 'readonly',
         releaseJump: 'readonly',
         handleKeyUp: 'readonly',
         handleMouseDown: 'readonly',

@@ -81,6 +81,17 @@ function jump() {
   }
 }
 
+// Gravity for this airborne frame. A fast fall wins; otherwise Updated and
+// Daily ease gravity near the top of the jump for a moment of hang time
+// (M1). Classic keeps the plain arc.
+function airGravity() {
+  if (dino.dropping) return GAME_CONFIG.FAST_FALL_GRAVITY;
+  if (isUpdatedMode() && Math.abs(dino.velocityY) < GAME_CONFIG.HANG_VELOCITY) {
+    return dino.gravity * GAME_CONFIG.HANG_GRAVITY_SCALE;
+  }
+  return dino.gravity;
+}
+
 // Fast fall (F3): Down, S or a swipe down while airborne. On the ground it
 // does nothing. A jump buffered during the same flight is dropped, so the
 // swipe that starts with a touch does not bounce straight back up.

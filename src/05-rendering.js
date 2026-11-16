@@ -421,6 +421,25 @@ function dinoNightBrightness() {
   return typeof peak === 'number' && peak > 1 ? peak : 1;
 }
 
+// Squash and stretch scale for the dino sprite (M1), anchored at the feet.
+// Returns { sx, sy }. Classic, reduced motion and the death pose stay 1.
+function dinoSquashScale() {
+  const none = { sx: 1, sy: 1 };
+  if (!isUpdatedMode() || reducedMotion || game.state === STATE.DEAD) return none;
+  const frames = cfg('DINO_SQUASH_FRAMES');
+  if (dino.landSquashFrames > 0 && frames > 0) {
+    const t = Math.min(1, dino.landSquashFrames / frames);
+    const amt = (dino.landSquashHard ? cfg('DINO_SLAM_SQUASH') : cfg('DINO_LAND_SQUASH')) * t;
+    return { sx: 1 + amt * 0.6, sy: 1 - amt };
+  }
+  if (dino.isJumping) {
+    const speed = Math.min(1, Math.abs(dino.velocityY) / Math.abs(GAME_CONFIG.JUMP_POWER));
+    const s = cfg('DINO_STRETCH_MAX') * speed;
+    return { sx: 1 - s * 0.5, sy: 1 + s };
+  }
+  return none;
+}
+
 function drawDino() {
   let img;
   if (game.state === STATE.DEAD) {
@@ -435,7 +454,10 @@ function drawDino() {
   if (brightness > 1) ctx.filter = 'brightness(' + brightness.toFixed(2) + ')';
   try {
     if (imageReady(img)) {
-      ctx.drawImage(img, dino.x, dino.y, dino.width, dino.height);
+      const { sx, sy } = dinoSquashScale();
+      const w = dino.width * sx,
+        h = dino.height * sy;
+      ctx.drawImage(img, dino.x + (dino.width - w) / 2, dino.y + dino.height - h, w, h);
     } else {
       ctx.fillStyle = '#535353';
       ctx.fillRect(dino.x, dino.y, dino.width, dino.height);
@@ -1218,6 +1240,21 @@ const Particles = (() => {
     // same night recolor, and the same night peak, count, and life once
     // the sky is fully night. Same reduced-motion damping. Classic never
     // emits.
+    // Fast-fall slam (M1). A heavier landing than the whisper: more motes,
+    // thrown wider and higher, so dropping onto the ground reads as weight.
+    // Same brown. Reduced motion still applies REDUCED_FACTOR and half life.
+    // Classic never emits.
+    slam: {
+      count: 12,
+      color: '#9c8770',
+      size: 3,
+      life: 16,
+      alpha: 0.55,
+      vyMin: -2.4,
+      vyMax: -0.8,
+      vxSpread: 2.6,
+      gravity: 0.16,
+    },
     land: {
       count: 5,
       color: '#9c8770',

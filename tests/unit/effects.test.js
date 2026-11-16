@@ -6268,3 +6268,139 @@ describe('Soft idle start pulse', () => {
     }
   });
 });
+
+describe('Squash and stretch, landing slam (M1)', () => {
+  const m1WithMode = (mode, fn) => {
+    const orig = {
+      mode: game.mode,
+      state: game.state,
+      isJumping: dino.isJumping,
+      velocityY: dino.velocityY,
+      frames: dino.landSquashFrames,
+      hard: dino.landSquashHard,
+    };
+    game.mode = mode;
+    try {
+      fn();
+    } finally {
+      game.mode = orig.mode;
+      game.state = orig.state;
+      setReducedMotion(false);
+      dino.isJumping = orig.isJumping;
+      dino.velocityY = orig.velocityY;
+      dino.landSquashFrames = orig.frames;
+      dino.landSquashHard = orig.hard;
+    }
+  };
+
+  it('stretches in the air with speed, flat on the ground', () => {
+    m1WithMode(MODES.UPDATED, () => {
+      game.state = STATE.RUNNING;
+      dino.landSquashFrames = 0;
+      dino.isJumping = false;
+      assertEquals(dinoSquashScale().sy, 1, 'standing is unscaled');
+      dino.isJumping = true;
+      dino.velocityY = GAME_CONFIG.JUMP_POWER;
+      const fast = dinoSquashScale();
+      assert(
+        Math.abs(fast.sy - (1 + GAME_CONFIG.DINO_STRETCH_MAX)) < 1e-9,
+        'full stretch at take-off'
+      );
+      assert(fast.sx < 1, 'narrower while stretched');
+      dino.velocityY = 0.2;
+      assert(dinoSquashScale().sy < fast.sy, 'almost no stretch at the peak');
+    });
+  });
+
+  it('a landing squashes and eases back; a slam squashes harder', () => {
+    m1WithMode(MODES.UPDATED, () => {
+      game.state = STATE.RUNNING;
+      dino.isJumping = false;
+      dino.landSquashFrames = GAME_CONFIG.DINO_SQUASH_FRAMES;
+      dino.landSquashHard = false;
+      const soft = dinoSquashScale();
+      assert(Math.abs(soft.sy - (1 - GAME_CONFIG.DINO_LAND_SQUASH)) < 1e-9, 'land squash');
+      assert(soft.sx > 1, 'wider while squashed');
+      dino.landSquashHard = true;
+      assert(dinoSquashScale().sy < soft.sy, 'slam is flatter');
+      dino.landSquashFrames = 1;
+      assert(dinoSquashScale().sy > soft.sy, 'eases back toward 1');
+    });
+  });
+
+  it('Classic, reduced motion and the death pose stay unscaled', () => {
+    for (const setup of [
+      () => (game.mode = MODES.CLASSIC),
+      () => setReducedMotion(true),
+      () => (game.state = STATE.DEAD),
+    ]) {
+      m1WithMode(MODES.UPDATED, () => {
+        game.state = STATE.RUNNING;
+        dino.isJumping = true;
+        dino.velocityY = GAME_CONFIG.JUMP_POWER;
+        setup();
+        const s = dinoSquashScale();
+        assertEquals(s.sx, 1);
+        assertEquals(s.sy, 1);
+      });
+    }
+  });
+
+  it('landing from a fast fall sets the slam squash and throws more dust', () => {
+    const origMode = game.mode;
+    game.mode = MODES.UPDATED;
+    try {
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+      game.state = STATE.RUNNING;
+      game.graceFrames = 100000;
+      handleAction();
+      for (let i = 0; i < 20; i++) {
+        gameLoop();
+        cancelAnimationFrame(game.animationFrameId);
+      }
+      dropDino();
+      let air = 0;
+      while (dino.isJumping && air < 100) {
+        gameLoop();
+        cancelAnimationFrame(game.animationFrameId);
+        air++;
+      }
+      assert(dino.landSquashHard, 'slam recorded');
+      assertEquals(dino.landSquashFrames, GAME_CONFIG.DINO_SQUASH_FRAMES);
+      const live = Particles.particles.filter((p) => p.life > 0).length;
+      assert(live >= Particles.KINDS.land.count, `slam dust ${live}`);
+      assert(Particles.KINDS.slam.count > Particles.KINDS.land.count, 'slam is the heavier burst');
+    } finally {
+      game.mode = origMode;
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('drawDino scales the sprite at the feet', () => {
+    m1WithMode(MODES.UPDATED, () => {
+      game.state = STATE.RUNNING;
+      dino.isJumping = false;
+      dino.landSquashFrames = GAME_CONFIG.DINO_SQUASH_FRAMES;
+      dino.landSquashHard = false;
+      const orig = ctx.drawImage;
+      let args = null;
+      ctx.drawImage = (...a) => {
+        args = a;
+      };
+      try {
+        drawDino();
+      } finally {
+        ctx.drawImage = orig;
+      }
+      assert(args, 'sprite drawn');
+      {
+        const [, x, y, w, h] = args;
+        assert(h < dino.height, 'drawn shorter');
+        assert(Math.abs(y + h - (dino.y + dino.height)) < 1e-9, 'feet stay on the ground');
+        assert(Math.abs(x + w / 2 - (dino.x + dino.width / 2)) < 1e-9, 'centred');
+      }
+    });
+  });
+});

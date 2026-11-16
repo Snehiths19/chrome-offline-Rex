@@ -23,6 +23,8 @@ function resetGame() {
   dino.jumpBufferFrames = 0;
   dino.jumpHeld = false;
   dino.dropping = false;
+  dino.landSquashFrames = 0;
+  dino.landSquashHard = false;
 
   Particles.reset();
 
@@ -419,6 +421,8 @@ function updateRunning() {
     }
   }
 
+  if (dino.landSquashFrames > 0) dino.landSquashFrames--;
+
   // Apply gravity.
   if (dino.isJumping) {
     // Let go while rising: cut the rise once the feet are high enough (F3).
@@ -430,15 +434,21 @@ function updateRunning() {
     ) {
       dino.velocityY = GAME_CONFIG.JUMP_CUT_VELOCITY;
     }
-    dino.velocityY += dino.dropping ? GAME_CONFIG.FAST_FALL_GRAVITY : dino.gravity;
+    dino.velocityY += airGravity();
     dino.y += dino.velocityY;
 
     if (dino.y >= GAME_CONFIG.CANVAS_H - dino.height) {
       dino.y = GAME_CONFIG.CANVAS_H - dino.height;
       dino.isJumping = false;
+      dino.landSquashHard = dino.dropping;
+      dino.landSquashFrames = cfg('DINO_SQUASH_FRAMES');
+      Particles.emit(
+        dino.dropping ? 'slam' : 'land',
+        dino.x + dino.width / 2,
+        dino.y + dino.height
+      );
       dino.dropping = false;
       dino.velocityY = 0;
-      Particles.emit('land', dino.x + dino.width / 2, dino.y + dino.height);
       audio.land();
       // A press kept from the last few airborne frames jumps on this frame.
       if (dino.jumpBufferFrames > 0) {
