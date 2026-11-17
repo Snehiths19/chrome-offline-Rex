@@ -60,6 +60,15 @@ const SCENES = [
     },
   },
   {
+    name: 'dusk',
+    run: () => {
+      window.__scene('updated', 7007);
+      window.__untilRunning();
+      game.score = 250; // late day: the dusk glow and warm ground line
+      window.__step(60, true);
+    },
+  },
+  {
     name: 'night',
     run: () => {
       window.__scene('updated', 3003);

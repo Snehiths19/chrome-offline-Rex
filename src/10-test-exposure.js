@@ -15,6 +15,12 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.getBackgroundColor = getBackgroundColor;
   global.setPageBackground = setPageBackground;
   global.getHillColor = getHillColor;
+  global.colourTintPhase = colourTintPhase;
+  global.skyGlowTint = skyGlowTint;
+  global.groundTintColor = groundTintColor;
+  global.groundSpriteForTint = groundSpriteForTint;
+  global.groundImage = groundImage;
+  global.drawSkyGlow = drawSkyGlow;
   global.drawBackground = drawBackground;
   global.starFadeAlpha = starFadeAlpha;
   global.starPaintAlpha = starPaintAlpha;

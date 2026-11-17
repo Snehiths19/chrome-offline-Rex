@@ -62,6 +62,7 @@ function drawBackground() {
     game.stars.forEach((s) => ctx.fillRect(s.x, s.y, GAME_CONFIG.STAR_SIZE, GAME_CONFIG.STAR_SIZE));
     ctx.globalAlpha = previousAlpha;
   }
+  drawSkyGlow();
 }
 
 function initClouds() {
@@ -273,6 +274,107 @@ function groundPaintAlpha() {
   return 1 + (dim - 1) * t;
 }
 
+// --- Colour tints (Updated and Daily only) ---
+// The light changes as the run goes on; the sprites stay the original art.
+// dusk climbs 0 to 1 from score 0 to DAY_NIGHT_START, night climbs 0 to 1
+// across twilight. Classic returns null and is never tinted. Reduced motion
+// holds the plain day look until DAY_NIGHT_END, then snaps to night.
+function colourTintPhase() {
+  if (!isUpdatedMode()) return null;
+  const s = scoreForNightSky(game.score);
+  const start = GAME_CONFIG.DAY_NIGHT_START;
+  const end = GAME_CONFIG.DAY_NIGHT_END;
+  if (s >= end) return { dusk: 1, night: 1 };
+  if (reducedMotion || s <= 0) return { dusk: 0, night: 0 };
+  if (s < start) return { dusk: s / start, night: 0 };
+  return { dusk: 1, night: (s - start) / (end - start) };
+}
+
+// A tuned colour that is not '#rrggbb' falls back to the default.
+function tunedHexChannels(key, fallback) {
+  return hexChannels(cfg(key)) || hexChannels(fallback);
+}
+
+function mixChannels(a, b, t) {
+  return a.map((v, i) => Math.round(v + (b[i] - v) * t));
+}
+
+function channelsToHex(c) {
+  return '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('');
+}
+
+// Colour and alpha of the horizon glow, or null when nothing is drawn.
+function skyGlowTint() {
+  const phase = colourTintPhase();
+  if (!phase || phase.dusk <= 0) return null;
+  const dusk = tunedHexChannels('DUSK_GLOW_COLOR', GAME_CONFIG.DUSK_GLOW_COLOR);
+  const night = tunedHexChannels('NIGHT_GLOW_COLOR', GAME_CONFIG.NIGHT_GLOW_COLOR);
+  const duskAlpha = tunedUnitAlpha('DUSK_GLOW_ALPHA', GAME_CONFIG.DUSK_GLOW_ALPHA);
+  const nightAlpha = tunedUnitAlpha('NIGHT_GLOW_ALPHA', GAME_CONFIG.NIGHT_GLOW_ALPHA);
+  const alpha = duskAlpha * phase.dusk + (nightAlpha - duskAlpha * phase.dusk) * phase.night;
+  if (!(alpha > 0)) return null;
+  return { color: channelsToHex(mixChannels(dusk, night, phase.night)), alpha };
+}
+
+// The ground line's ink: the sprite's own #535353 in Classic and at the
+// start of a run, warming to DUSK_GROUND_COLOR, then NIGHT_GROUND_COLOR.
+// Opacity stays groundPaintAlpha(). Other ground art (pits, ramps) can use
+// this to match the line.
+const GROUND_INK = '#535353';
+function groundTintColor() {
+  const phase = colourTintPhase();
+  if (!phase || phase.dusk <= 0) return GROUND_INK;
+  const day = hexChannels(GROUND_INK);
+  const dusk = tunedHexChannels('DUSK_GROUND_COLOR', GAME_CONFIG.DUSK_GROUND_COLOR);
+  const night = tunedHexChannels('NIGHT_GROUND_COLOR', GAME_CONFIG.NIGHT_GROUND_COLOR);
+  return channelsToHex(mixChannels(mixChannels(day, dusk, phase.dusk), night, phase.night));
+}
+
+// Painted by drawBackground, over the sky and stars and under everything
+// else, so every scene (Get Ready, the run, the death shake, Game Over)
+// shows the same light. Clear at the top, so the page around the canvas
+// still matches the sky; strongest at the horizon behind the obstacle lane.
+function drawSkyGlow() {
+  const tint = skyGlowTint();
+  if (!tint || typeof ctx.createLinearGradient !== 'function') return;
+  const c = hexChannels(tint.color).join(', ');
+  const top = GAME_CONFIG.CANVAS_H * 0.2;
+  const horizon = GAME_CONFIG.CANVAS_H - 12;
+  const g = ctx.createLinearGradient(0, top, 0, horizon);
+  g.addColorStop(0, 'rgba(' + c + ', 0)');
+  g.addColorStop(1, 'rgba(' + c + ', ' + tint.alpha.toFixed(3) + ')');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, top, GAME_CONFIG.CANVAS_W, GAME_CONFIG.CANVAS_H - top);
+}
+
+// A recoloured copy of the ground sprite. The sprite is one flat ink on
+// transparency, so 'source-in' swaps the ink and keeps every pebble. One
+// copy is cached; the colour only moves every few points of score.
+let tintedGround = null;
+function groundSpriteForTint() {
+  const color = groundTintColor();
+  if (color === GROUND_INK) return groundImage;
+  if (tintedGround && tintedGround.color === color && tintedGround.src === groundImage.src) {
+    return tintedGround.canvas;
+  }
+  if (typeof document === 'undefined' || typeof document.createElement !== 'function') {
+    return groundImage;
+  }
+  const canvasEl = tintedGround ? tintedGround.canvas : document.createElement('canvas');
+  const c = canvasEl && typeof canvasEl.getContext === 'function' && canvasEl.getContext('2d');
+  if (!c) return groundImage;
+  canvasEl.width = groundImage.width;
+  canvasEl.height = groundImage.height;
+  c.globalCompositeOperation = 'source-over';
+  c.clearRect(0, 0, canvasEl.width, canvasEl.height);
+  c.drawImage(groundImage, 0, 0);
+  c.globalCompositeOperation = 'source-in';
+  c.fillStyle = color;
+  c.fillRect(0, 0, canvasEl.width, canvasEl.height);
+  tintedGround = { color, src: groundImage.src, canvas: canvasEl };
+  return canvasEl;
+}
+
 function drawGround() {
   const alpha = groundPaintAlpha();
   const previousAlpha = ctx.globalAlpha;
@@ -285,9 +387,10 @@ function drawGround() {
       return;
     }
     const groundY = GAME_CONFIG.CANVAS_H - groundImage.height;
-    ctx.drawImage(groundImage, game.groundX, groundY, groundImage.width, groundImage.height);
+    const sprite = groundSpriteForTint();
+    ctx.drawImage(sprite, game.groundX, groundY, groundImage.width, groundImage.height);
     ctx.drawImage(
-      groundImage,
+      sprite,
       game.groundX + groundImage.width,
       groundY,
       groundImage.width,
