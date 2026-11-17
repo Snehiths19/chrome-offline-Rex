@@ -183,9 +183,9 @@ function makePlanner(opts) {
   let target = null;
   return () => {
     // A ramp (G2) is ridden, not jumped: the autopilot runs up it and lets
-    // it launch.
+    // it launch, which also carries it over a leap's wide gap (G3).
     const ahead = game.obstacles
-      .filter((o) => o.render !== 'ramp' && o.x + o.width > dino.x)
+      .filter((o) => o.render !== 'ramp' && o.type !== 'leapGap' && o.x + o.width > dino.x)
       .sort((a, b) => a.x - b.x)[0];
     if (target && (!ahead || ahead !== target)) {
       cleared++;

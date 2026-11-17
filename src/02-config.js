@@ -132,6 +132,11 @@ const GAME_CONFIG = Object.freeze({
   RAMP_RISE: 24,
   RAMP_LAUNCH_POWER: -11,
   RAMP_BOOST: 3,
+  // The gap after a leap's ramp (G3): its feet-over-air stretch is
+  // LEAP_GAP_FRAMES of launch flight (scroll plus RAMP_BOOST) at the speed it
+  // spawns, well inside a launch's whole flight, and far wider than a plain
+  // jump crosses.
+  LEAP_GAP_FRAMES: 36,
 
   // --- Obstacle sprite (small cactus — baseline) ---
   OBS_WIDTH: 20,
@@ -212,6 +217,18 @@ const GAME_CONFIG = Object.freeze({
       height: 0,
       unlockScore: 180,
       weight: 12,
+      render: 'ramp',
+      terrain: true,
+    }),
+    // Leap (G3, Updated and Daily): a ramp whose lip opens onto a gap too
+    // wide to jump. Only the launch (or a second jump) carries the dino
+    // across. spawnObstacle lays down both pieces.
+    Object.freeze({
+      id: 'leap',
+      width: 96,
+      height: 0,
+      unlockScore: 350,
+      weight: 8,
       render: 'ramp',
       terrain: true,
     }),

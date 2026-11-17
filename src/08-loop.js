@@ -375,6 +375,7 @@ function updateRunning() {
     game.lastObstacleX = GAME_CONFIG.CANVAS_W;
     // The gap counts from an obstacle's left edge. A long row (M5) adds its
     // own width, so the gap after it is still a full gap of open ground.
+    // A leap (G3) is two pieces; the gap counts from the far one.
     const spawned = game.obstacles[game.obstacles.length - 1];
     // A gap in the ground (G1) does the same.
     const wide = spawned.render === 'row' || spawned.terrain;
@@ -403,19 +404,9 @@ function updateRunning() {
     if (dino.slideFrames % 4 === 0) Particles.emit('land', dino.x + 4, dino.y + dino.height);
   }
 
-  // Walking off into a gap (G1): the ground is gone, so the dino starts to
-  // fall. It counts as a flight, so a second jump can still save it, but
-  // not as a fresh take-off a slide could cancel.
-  if (!dino.isJumping && dinoFloorY() === null) {
-    dino.isJumping = true;
-    dino.velocityY = 0;
-    dino.slideFrames = 0;
-    dino.airFrames = GAME_CONFIG.SLIDE_CANCEL_FRAMES + 1;
-    dino.takeoffY = dino.y;
-  } else if (!dino.isJumping) {
-    // Ride a ramp up, and launch off its top (G2).
-    followGround();
-  }
+  // On the ground: follow it. Ride a ramp up and launch off its top (G2),
+  // or walk off into a gap (G1).
+  if (!dino.isJumping) followGround();
 
   // Apply gravity.
   if (dino.isJumping) {

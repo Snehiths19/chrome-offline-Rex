@@ -65,6 +65,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.groundRiseUnderFeet = groundRiseUnderFeet;
   global.followGround = followGround;
   global.launchDino = launchDino;
+  global.leapGapWidthForSpeed = leapGapWidthForSpeed;
   global.launchFlightFrames = launchFlightFrames;
   global.launchFlightDistance = launchFlightDistance;
   global.drawRamp = drawRamp;
