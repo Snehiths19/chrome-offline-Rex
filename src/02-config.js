@@ -113,6 +113,16 @@ const GAME_CONFIG = Object.freeze({
   // one (the golden runs second-jump every tower and survive).
   UPDATED_MIN_GAP_FRAMES: 72,
 
+  // Gaps in the ground (G1, Updated and Daily). A gap is as wide as the
+  // ground the world scrolls in PIT_GAP_FRAMES sim frames at the speed it
+  // spawns, plus the dino's foot span, so the feet are over open air for
+  // PIT_GAP_FRAMES: about half a short hop, clear with any jump timed near
+  // its edge. Feet that drop PIT_FALL_DEPTH px below the ground line inside
+  // a gap, or meet its far wall, end the run. Gameplay values: read
+  // GAME_CONFIG directly, never cfg().
+  PIT_GAP_FRAMES: 16,
+  PIT_FALL_DEPTH: 10,
+
   // --- Obstacle sprite (small cactus — baseline) ---
   OBS_WIDTH: 20,
   OBS_HEIGHT: 40,
@@ -169,6 +179,19 @@ const GAME_CONFIG = Object.freeze({
       unlockScore: 300,
       weight: 12,
       render: 'row',
+    }),
+    // Gap in the ground (G1, Updated and Daily): no hitbox, the dino falls in
+    // when its feet are wholly over it. `width` is the narrowest gap;
+    // spawnObstacle widens it with speed (see pitWidthForSpeed). `terrain`
+    // keeps it out of the box collision; the landing code handles it.
+    Object.freeze({
+      id: 'pit',
+      width: 60,
+      height: 0,
+      unlockScore: 120,
+      weight: 16,
+      render: 'pit',
+      terrain: true,
     }),
     Object.freeze({
       id: 'cluster',

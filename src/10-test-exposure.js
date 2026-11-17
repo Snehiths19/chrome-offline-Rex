@@ -49,6 +49,12 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.rowSpriteSlots = rowSpriteSlots;
   global.rowWidthForSpeed = rowWidthForSpeed;
   global.heldJumpFramesAbove = heldJumpFramesAbove;
+  global.pitWidthForSpeed = pitWidthForSpeed;
+  global.pitUnderFeet = pitUnderFeet;
+  global.dinoFloorY = dinoFloorY;
+  global.dinoFootSpan = dinoFootSpan;
+  global.drawPit = drawPit;
+  global.endRun = endRun;
   global.dashDino = dashDino;
   global.worldScroll = worldScroll;
   global.runSimFrame = runSimFrame;

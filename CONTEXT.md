@@ -58,6 +58,11 @@ _Avoid_: charge jump, jump strength
 
 **Move combo** — In Updated and Daily, each obstacle cleared during a second jump, an air dash or a slide adds one to the combo and plays a note a step higher on the major pentatonic scale; one cleared with a plain jump ends it. The HUD shows COMBO xN under the score from 2 up. The owner chose this over close calls or a plain obstacle count on 2026-11-16. Display and sound only: it never changes score, speed, spawning or `game.rng()`.
 
+**Gap** — An Updated and Daily piece of rolling ground (from score 120): a cut in the ground with a thin wall at each edge. It has no hitbox; the dino falls in only when its whole foot span is over it, so a foot on the edge still holds. It is as wide as `PIT_GAP_FRAMES` (16) sim frames of scroll at the speed it spawns plus the foot span, so any jump taken near its edge clears it, early or at the plateau. Walking off starts a fall that a second jump can still save; once the feet sink `PIT_FALL_DEPTH` below the ground line, or the far wall reaches them, the run ends. The gap after it counts from its far edge. Gameplay values, read from `GAME_CONFIG`. Classic has no gaps. First step of **Rolling ground** (G1).
+_Avoid_: pit (as a player-facing name), hole, chasm
+
+**Rolling ground** — the Updated and Daily direction the owner said yes to on 2026-11-17 (idea C): ground with gaps to jump and ramps that launch the dino into big air, built in small steps (G1 gaps, G2 ramps, G3 a ramp before a wide gap). Classic stays flat.
+
 **Fast fall** — Down, S or a swipe down (30 CSS px) while airborne: the dino stops rising and falls at three times gravity until it lands, dropping any buffered jump. Does nothing on the ground (there is no duck).
 _Avoid_: dive, slam, duck
 
@@ -168,7 +173,7 @@ _Avoid_: daily banner, in-run badge, today label
 **Death-screen hint** — one static line on the Daily Challenge Game Over screen, drawn only after the score count-up finishes, in the same moment the Copy result button appears. In Updated and Daily that roll is shorter, so the line appears sooner. Classic keeps the longer roll. Copy: "Share TODAY BEST with Copy result". It points at the existing share button. It does not replace the share button, the comparison on a miss, or the new today best celebration. Classic and Updated never show it. It is not drawn during WAITING or RUNNING. No motion.
 _Avoid_: share modal, in-run share prompt, copy banner
 
-**New today best** — the Game Over celebration when a Daily Challenge death beats **Daily best**, including the first run of the day. On-screen copy: "★  NEW TODAY BEST  ★" and the run score, in the same takeover as free-play new best. A miss, including a tie, keeps the THIS RUN / TODAY BEST comparison. The death-screen hint and Copy result still appear after the score count-up. Static text, no extra motion. Classic and Updated never show it. Not drawn during WAITING or RUNNING.
+**New today best** — the Game Over celebration when a Daily Challenge death beats **Daily best**, including the first run of the day. On-screen copy: "★ NEW TODAY BEST ★" and the run score, in the same takeover as free-play new best. A miss, including a tie, keeps the THIS RUN / TODAY BEST comparison. The death-screen hint and Copy result still appear after the score count-up. Static text, no extra motion. Classic and Updated never show it. Not drawn during WAITING or RUNNING.
 _Avoid_: daily record, new daily high, today record
 
 ## Platform
