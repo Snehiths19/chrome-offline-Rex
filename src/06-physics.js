@@ -4,15 +4,54 @@ function spawnObstacle(type) {
   // Default to a tier-appropriate random pick; tests may pass a specific type.
   // Mode is required: omitting it lets Classic roll cluster once that tier unlocks.
   const t = type || pickObstacleType(game.rng, game.score, game.mode);
-  const width = t.render === 'row' ? rowWidthForSpeed(game.currentSpeed) : t.width;
-  game.obstacles.push({
+  let width = t.width;
+  if (t.render === 'row') width = rowWidthForSpeed(game.currentSpeed);
+  if (t.render === 'pit') width = pitWidthForSpeed(game.currentSpeed);
+  const obs = {
     x: GAME_CONFIG.CANVAS_W,
     y: GAME_CONFIG.CANVAS_H - t.height - (t.lift || 0),
     width: width,
     height: t.height,
     type: t.id,
     render: t.render,
-  });
+  };
+  if (t.terrain) obs.terrain = true;
+  game.obstacles.push(obs);
+}
+
+// --- Gaps in the ground (G1, Updated and Daily) ---------------------------
+// The dino stands on its feet: the middle of its sprite, inside the same
+// side padding as its hitbox. A gap only swallows the dino once the whole
+// foot span is over it, so a foot on the edge still holds.
+function dinoFootSpan() {
+  return {
+    left: dino.x + GAME_CONFIG.DINO_PAD_X,
+    right: dino.x + dino.width - GAME_CONFIG.DINO_PAD_X,
+  };
+}
+
+// The foot span plus the ground the world scrolls in PIT_GAP_FRAMES at
+// `speed`: the feet are over open air for PIT_GAP_FRAMES sim frames.
+function pitWidthForSpeed(speed) {
+  const footSpan = GAME_CONFIG.DINO_WIDTH - 2 * GAME_CONFIG.DINO_PAD_X;
+  return Math.round(speed * GAME_CONFIG.PIT_GAP_FRAMES) + footSpan;
+}
+
+// The gap under the whole foot span, or null. `shift` looks ahead: the
+// world has moved that many px further left.
+function pitUnderFeet(shift) {
+  const feet = dinoFootSpan();
+  const s = shift || 0;
+  for (const obs of game.obstacles) {
+    if (obs.render !== 'pit') continue;
+    if (obs.x - s <= feet.left && obs.x - s + obs.width >= feet.right) return obs;
+  }
+  return null;
+}
+
+// The y the dino stands at here, or null over a gap.
+function dinoFloorY(shift) {
+  return pitUnderFeet(shift) ? null : GAME_CONFIG.CANVAS_H - dino.height;
 }
 
 function updateObstacles() {
@@ -124,7 +163,8 @@ function framesToLanding(limit) {
   for (let i = 1; i <= limit; i++) {
     vy += dino.dropping ? GAME_CONFIG.FAST_FALL_GRAVITY : dino.gravity;
     y += vy;
-    if (y >= groundY) return i;
+    // Over a gap there is no ground to land on (G1).
+    if (y >= groundY) return dinoFloorY(worldScroll() * i) === null ? limit + 1 : i;
   }
   return limit + 1;
 }

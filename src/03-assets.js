@@ -44,6 +44,7 @@ const dino = {
   airFrames: 0,
   dashed: false, // air dash spent this flight (M5)
   dashFrames: 0, // sim frames of air dash left (M5)
+  inPit: false, // feet have dropped below the ground line inside a gap (G1)
   image: new Image(),
 };
 

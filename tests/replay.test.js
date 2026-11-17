@@ -26,6 +26,7 @@ const MAX_FRAMES = 8000; // ~2 minutes of play (score ~780); a run that never di
 const HOP_LEAD = -6; // a hop peaks sooner than a full jump, so it starts later
 const TOWER_LEAD = 14; // a tower needs the second jump, so the first starts earlier
 const ROW_TRIGGER = 8; // a long row: take off just before it, then dash at the top
+const PIT_TRIGGER = 2; // a gap in the ground (G1): take off right at its edge
 
 // The golden runs. `autopilot` only matters when re-recording: it is how
 // early the planner jumps (frames before contact) and how many obstacles it
@@ -213,10 +214,11 @@ function makePlanner(opts) {
     // A tower takes off earlier so the second jump tops out over it.
     const towerLead = ahead.type === 'tower' ? TOWER_LEAD : 0;
     // A row takes off just before it and dashes across (M5).
-    const trigger =
+    let trigger =
       ahead.type === 'row'
         ? ROW_TRIGGER
         : 12 + (opts.lead || 0) + towerLead + Math.ceil(ahead.width / game.currentSpeed / 2);
+    if (ahead.type === 'pit') trigger = PIT_TRIGGER;
     if (framesToContact <= trigger) {
       target = ahead;
       return opts.hops ? { press: true, release: true } : true;

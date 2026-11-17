@@ -441,12 +441,35 @@ function drawSingleObstacle(obstacle) {
   }
 }
 
+// Gaps in the ground (G1): each one is cut out of the ground strip, sky
+// colour from the ground line down, with a thin wall in the ground ink at
+// each edge so it reads as a hole and not a missing sprite. Drawn first in
+// drawObstacles, under the cacti and the dino.
+const PIT_LINE_FROM_BOTTOM = 16; // the ground sprite's line sits 16px above the canvas bottom
+function drawPit(obstacle) {
+  const top = GAME_CONFIG.CANVAS_H - PIT_LINE_FROM_BOTTOM;
+  const x = Math.round(obstacle.x),
+    w = Math.round(obstacle.width);
+  ctx.fillStyle = getBackgroundColor(game.score);
+  ctx.fillRect(x, top, w, PIT_LINE_FROM_BOTTOM);
+  const previousAlpha = ctx.globalAlpha;
+  ctx.globalAlpha = previousAlpha * groundPaintAlpha();
+  ctx.fillStyle = '#535353';
+  ctx.fillRect(x, top, 2, PIT_LINE_FROM_BOTTOM);
+  ctx.fillRect(x + w - 2, top, 2, PIT_LINE_FROM_BOTTOM);
+  ctx.globalAlpha = previousAlpha;
+}
+
 function drawObstacles() {
+  game.obstacles.forEach((obstacle) => {
+    if (obstacle.render === 'pit') drawPit(obstacle);
+  });
   const brightness = obstacleNightBrightness();
   const previousFilter = ctx.filter;
   if (brightness > 1) ctx.filter = 'brightness(' + brightness.toFixed(2) + ')';
   try {
     game.obstacles.forEach((obstacle) => {
+      if (obstacle.terrain) return;
       if (obstacle.render === 'bird') {
         drawBird(obstacle);
         return;

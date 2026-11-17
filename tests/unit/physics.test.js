@@ -2232,3 +2232,196 @@ describe('Move combo (M7)', () => {
     assert(Math.abs(comboNoteHz(6) / comboNoteHz(1) - 2) < 1e-9, 'step 5 is an octave');
   });
 });
+
+describe('Gaps in the ground (G1)', () => {
+  const g1Run = (mode, fn) => {
+    const origMode = game.mode;
+    game.mode = mode;
+    try {
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+      game.state = STATE.RUNNING;
+      game.graceFrames = 100000;
+      return fn();
+    } finally {
+      game.mode = origMode;
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+    }
+  };
+  const g1PitType = () => GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'pit');
+  // A fresh gap whose left edge is `ahead` px in front of the dino's nose.
+  const g1Pit = (ahead) => {
+    spawnObstacle(g1PitType());
+    const obs = game.obstacles[game.obstacles.length - 1];
+    obs.x = dino.x + dino.width + ahead;
+    return obs;
+  };
+  // Run until the gap is behind the dino and it is back on the ground.
+  const g1Until = (obs, eachFrame) => {
+    for (let i = 0; i < 400 && game.state === STATE.RUNNING; i++) {
+      if (eachFrame) eachFrame(i);
+      runSimFrame(); // update only: no drawing, quick in the browser
+      if (obs.x + obs.width < dino.x && !dino.isJumping) break;
+    }
+    return game.state === STATE.RUNNING;
+  };
+
+  it('gap values are gameplay values, never tunable', () => {
+    for (const key of ['PIT_GAP_FRAMES', 'PIT_FALL_DEPTH']) {
+      assert(!TUNABLE_KEYS.includes(key), `${key} is never tunable through cfg()`);
+    }
+  });
+
+  it('a gap is terrain, Updated and Daily only, and unlocks after the big cactus', () => {
+    const pit = g1PitType();
+    assert(pit && pit.terrain, 'pit is a terrain type');
+    assert(pit.unlockScore > 100, 'unlocks after the big cactus');
+    const rng = mulberry32(1);
+    for (let i = 0; i < 200; i++) {
+      const next = DifficultyProfile.nextObstacle(900, 'classic', rng);
+      assertNotEquals(next.type.id, 'pit', 'never in Classic');
+    }
+  });
+
+  it('a gap is the foot span plus PIT_GAP_FRAMES of scroll at its spawn speed', () => {
+    const feet = GAME_CONFIG.DINO_WIDTH - 2 * GAME_CONFIG.DINO_PAD_X;
+    assertEquals(pitWidthForSpeed(5), 5 * GAME_CONFIG.PIT_GAP_FRAMES + feet);
+    g1Run(MODES.UPDATED, () => {
+      game.currentSpeed = 7.25;
+      const obs = g1Pit(100);
+      assertEquals(obs.width, pitWidthForSpeed(7.25));
+      assertEquals(obs.height, 0);
+    });
+  });
+
+  it('running onto a gap without jumping ends the run', () => {
+    g1Run(MODES.UPDATED, () => {
+      const obs = g1Pit(20);
+      assert(!g1Until(obs), 'fell in');
+      assert(dino.inPit, 'feet went below the ground line');
+    });
+  });
+
+  it('a foot on the edge still holds', () => {
+    g1Run(MODES.UPDATED, () => {
+      const feet = dinoFootSpan();
+      const obs = g1Pit(0);
+      obs.x = feet.left + 1; // the back foot is still on solid ground
+      assertNotEquals(dinoFloorY(), null);
+      obs.x = feet.left;
+      assertEquals(dinoFloorY(), null, 'whole foot span over the gap');
+      assertEquals(pitUnderFeet(), obs);
+    });
+  });
+
+  it('a held jump or a short hop at the edge clears a gap, early and at the plateau', () => {
+    for (const score of [130, 900]) {
+      for (const hop of [false, true]) {
+        const ok = g1Run(MODES.UPDATED, () => {
+          game.score = score;
+          runSimFrame();
+          const obs = g1Pit(game.currentSpeed);
+          handleAction();
+          if (hop) releaseJump();
+          return g1Until(obs);
+        });
+        assert(ok, `score ${score} ${hop ? 'hop' : 'held jump'} clears the gap`);
+      }
+    }
+  });
+
+  it('a gap has no hitbox: flying over it is safe', () => {
+    g1Run(MODES.UPDATED, () => {
+      handleAction();
+      for (let i = 0; i < 10; i++) runSimFrame();
+      const obs = g1Pit(-dino.width); // right under the dino
+      runSimFrame();
+      assertEquals(game.state, STATE.RUNNING);
+      assert(!checkCollision(dinoHitbox(), obs) || obs.terrain, 'skipped by the box check');
+    });
+  });
+
+  it('a second jump saves a walk-off before the feet sink', () => {
+    g1Run(MODES.UPDATED, () => {
+      const obs = g1Pit(-dino.width + GAME_CONFIG.DINO_PAD_X); // feet over it now
+      runSimFrame();
+      assert(dino.isJumping && dino.velocityY >= 0, 'walking off starts a fall');
+      assert(canDoubleJump(), 'the second jump is open over a gap');
+      handleAction();
+      assert(dino.doubleJumped, 'second jump spent');
+      assert(g1Until(obs), 'the second jump carries it across');
+    });
+  });
+
+  it('sinking PIT_FALL_DEPTH below the ground line ends the run', () => {
+    g1Run(MODES.UPDATED, () => {
+      g1Pit(-dino.width + GAME_CONFIG.DINO_PAD_X);
+      const groundY = GAME_CONFIG.CANVAS_H - dino.height;
+      let deepest = 0;
+      for (let i = 0; i < 40 && game.state === STATE.RUNNING; i++) {
+        runSimFrame();
+        deepest = Math.max(deepest, dino.y - groundY);
+      }
+      assertEquals(game.state, STATE.DEAD);
+      assert(deepest >= GAME_CONFIG.PIT_FALL_DEPTH, 'sank to the fall depth first');
+    });
+  });
+
+  it('feet below the ground line hit the far wall instead of landing on it', () => {
+    g1Run(MODES.UPDATED, () => {
+      const obs = g1Pit(-dino.width + GAME_CONFIG.DINO_PAD_X);
+      obs.width = GAME_CONFIG.DINO_WIDTH; // a sliver of a gap: the far wall comes at once
+      for (let i = 0; i < 10 && game.state === STATE.RUNNING; i++) runSimFrame();
+      assertEquals(game.state, STATE.DEAD, 'no pop-up onto the far edge');
+    });
+  });
+
+  it('the next obstacle counts its gap from the far edge of a gap', () => {
+    g1Run(MODES.UPDATED, () => {
+      const origRng = game.rng;
+      game.score = 200;
+      // Roll the pit: its weight sits just before the cluster in the table.
+      const pit = g1PitType();
+      const eligible = GAME_CONFIG.OBSTACLE_TYPES.filter((t) => 200 >= t.unlockScore);
+      const total = eligible.reduce((s, t) => s + t.weight, 0);
+      let before = 0;
+      for (const t of eligible) {
+        if (t === pit) break;
+        before += t.weight;
+      }
+      const pitRoll = (before + pit.weight / 2) / total;
+      const rolls = [pitRoll, 0.5];
+      game.rng = () => rolls.shift();
+      game.lastObstacleX = -1000;
+      runSimFrame();
+      game.rng = origRng;
+      const spawned = game.obstacles[game.obstacles.length - 1];
+      assertEquals(spawned.type, 'pit');
+      const again = [pitRoll, 0.5];
+      const params = DifficultyProfile.nextObstacle(game.score, MODES.UPDATED, () => again.shift());
+      assertEquals(params.type.id, 'pit');
+      assertEquals(game.nextSpawnGap, params.gap + spawned.width);
+    });
+  });
+
+  it('drawObstacles paints a gap as a cut in the ground, never a cactus', () => {
+    g1Run(MODES.UPDATED, () => {
+      g1Pit(100);
+      const origDraw = ctx.drawImage,
+        origFill = ctx.fillRect;
+      let images = 0,
+        fills = 0;
+      ctx.drawImage = () => images++;
+      ctx.fillRect = () => fills++;
+      try {
+        drawObstacles();
+      } finally {
+        ctx.drawImage = origDraw;
+        ctx.fillRect = origFill;
+      }
+      assertEquals(images, 0, 'no sprite for a gap');
+      assertEquals(fills, 3, 'the hole and its two walls');
+    });
+  });
+});

@@ -31,6 +31,7 @@ function resetGame() {
   dino.airFrames = 0;
   dino.dashed = false;
   dino.dashFrames = 0;
+  dino.inPit = false;
 
   Particles.reset();
 
@@ -372,62 +373,17 @@ function updateRunning() {
     // The gap counts from an obstacle's left edge. A long row (M5) adds its
     // own width, so the gap after it is still a full gap of open ground.
     const spawned = game.obstacles[game.obstacles.length - 1];
-    game.nextSpawnGap = params.gap + (spawned.render === 'row' ? spawned.width : 0);
+    // A gap in the ground (G1) does the same.
+    const wide = spawned.render === 'row' || spawned.render === 'pit';
+    game.nextSpawnGap = params.gap + (wide ? spawned.width : 0);
   }
 
-  // Collision detection.
+  // Collision detection. A gap in the ground (G1) has no hitbox; the
+  // landing code below ends the run when the dino falls in.
   for (let i = 0; i < game.obstacles.length; i++) {
+    if (game.obstacles[i].terrain) continue;
     if (checkCollision(dinoHitbox(), game.obstacles[i])) {
-      game.state = STATE.DEAD;
-      Animations.deathShakeFrames = deathShakeFrameCount();
-      // PR-C: white flash + score pop, mode-gated. Reduce-motion caps flash to 1 frame.
-      // The pop window matches the shake so Game Over does not open mid-scale.
-      if (isUpdatedMode()) {
-        Animations.deathFlashFrames = reducedMotion ? 1 : GAME_CONFIG.DEATH_FLASH_FRAMES;
-        Animations.scorePopFrames = reducedMotion ? 0 : scorePopWindow();
-      }
-      Particles.emit('collision', dino.x + dino.width / 2, dino.y + dino.height / 2);
-      audio.death();
-      vibrateOnDeath();
-      const finalScore = Math.floor(game.score);
-      const runResult = computeRunResult(finalScore, game.highScore);
-      game.isNewBest = runResult.isNewBest;
-      game.isFirstRun = runResult.isFirst;
-      game.previousHighScore = runResult.previousHighScore;
-      if (finalScore > game.highScore) {
-        game.highScore = finalScore;
-        ScoreStore.saveHighScore(game.highScore);
-      }
-      if (isDailyMode()) {
-        // Compare before saving, same as computeRunResult / isNewBest.
-        // A tie is not a new today best. No prior today best (0) is.
-        const todayResult = computeRunResult(finalScore, game.dailyBest);
-        game.isNewTodayBest = todayResult.isNewBest || todayResult.isFirst;
-        game.previousDailyBest = todayResult.previousHighScore;
-        ScoreStore.saveDailyBest(finalScore);
-        game.dailyBest = ScoreStore.loadDailyBest();
-      } else {
-        game.isNewTodayBest = false;
-        game.previousDailyBest = 0;
-      }
-      const todayLine = game.isNewTodayBest ? 'New today best ' : 'Today best ';
-      announce(
-        isDailyMode()
-          ? 'Game over. Score ' +
-              finalScore +
-              '. ' +
-              todayLine +
-              game.dailyBest +
-              '. ' +
-              DAILY_DEATH_HINT +
-              '. Press space to restart.'
-          : 'Game over. Score ' +
-              finalScore +
-              '. High score ' +
-              game.highScore +
-              '. Press space to restart.'
-      );
-      if (runDebug) publishRunSnapshot(buildRunSnapshot('death'));
+      endRun();
       return;
     }
   }
@@ -440,6 +396,16 @@ function updateRunning() {
   if (dino.slideFrames > 0) {
     dino.slideFrames--;
     if (dino.slideFrames % 4 === 0) Particles.emit('land', dino.x + 4, dino.y + dino.height);
+  }
+
+  // Walking off into a gap (G1): the ground is gone, so the dino starts to
+  // fall. It counts as a flight, so a second jump can still save it, but
+  // not as a fresh take-off a slide could cancel.
+  if (!dino.isJumping && dinoFloorY() === null) {
+    dino.isJumping = true;
+    dino.velocityY = 0;
+    dino.slideFrames = 0;
+    dino.airFrames = GAME_CONFIG.SLIDE_CANCEL_FRAMES + 1;
   }
 
   // Apply gravity.
@@ -467,8 +433,19 @@ function updateRunning() {
       if (dino.velocityY < 0) dino.velocityY = 0;
     }
 
-    if (dino.y >= GAME_CONFIG.CANVAS_H - dino.height) {
-      dino.y = GAME_CONFIG.CANVAS_H - dino.height;
+    // Back above the ground line, a gap's walls are behind the feet again.
+    if (dino.y < groundY) dino.inPit = false;
+    if (dino.y >= groundY && (dino.inPit || dinoFloorY() === null)) {
+      // Below the ground line inside a gap (G1): no landing. The run ends
+      // once the feet sink PIT_FALL_DEPTH or the gap's far wall reaches them.
+      // Until then a second jump can still carry the dino out.
+      dino.inPit = true;
+      if (dino.y >= groundY + GAME_CONFIG.PIT_FALL_DEPTH || dinoFloorY() !== null) {
+        endRun();
+        return;
+      }
+    } else if (dino.y >= groundY) {
+      dino.y = groundY;
       dino.isJumping = false;
       dino.doubleJumped = false;
       dino.flipFrames = 0;
@@ -503,6 +480,61 @@ function updateRunning() {
     Animations.newBestFrames = newBestDuration();
     announce('New best score!');
   }
+}
+
+// The run ends: a hit, or a fall into a gap (G1). Everything a death does,
+// in one place.
+function endRun() {
+  game.state = STATE.DEAD;
+  Animations.deathShakeFrames = deathShakeFrameCount();
+  // PR-C: white flash + score pop, mode-gated. Reduce-motion caps flash to 1 frame.
+  // The pop window matches the shake so Game Over does not open mid-scale.
+  if (isUpdatedMode()) {
+    Animations.deathFlashFrames = reducedMotion ? 1 : GAME_CONFIG.DEATH_FLASH_FRAMES;
+    Animations.scorePopFrames = reducedMotion ? 0 : scorePopWindow();
+  }
+  Particles.emit('collision', dino.x + dino.width / 2, dino.y + dino.height / 2);
+  audio.death();
+  vibrateOnDeath();
+  const finalScore = Math.floor(game.score);
+  const runResult = computeRunResult(finalScore, game.highScore);
+  game.isNewBest = runResult.isNewBest;
+  game.isFirstRun = runResult.isFirst;
+  game.previousHighScore = runResult.previousHighScore;
+  if (finalScore > game.highScore) {
+    game.highScore = finalScore;
+    ScoreStore.saveHighScore(game.highScore);
+  }
+  if (isDailyMode()) {
+    // Compare before saving, same as computeRunResult / isNewBest.
+    // A tie is not a new today best. No prior today best (0) is.
+    const todayResult = computeRunResult(finalScore, game.dailyBest);
+    game.isNewTodayBest = todayResult.isNewBest || todayResult.isFirst;
+    game.previousDailyBest = todayResult.previousHighScore;
+    ScoreStore.saveDailyBest(finalScore);
+    game.dailyBest = ScoreStore.loadDailyBest();
+  } else {
+    game.isNewTodayBest = false;
+    game.previousDailyBest = 0;
+  }
+  const todayLine = game.isNewTodayBest ? 'New today best ' : 'Today best ';
+  announce(
+    isDailyMode()
+      ? 'Game over. Score ' +
+          finalScore +
+          '. ' +
+          todayLine +
+          game.dailyBest +
+          '. ' +
+          DAILY_DEATH_HINT +
+          '. Press space to restart.'
+      : 'Game over. Score ' +
+          finalScore +
+          '. High score ' +
+          game.highScore +
+          '. Press space to restart.'
+  );
+  if (runDebug) publishRunSnapshot(buildRunSnapshot('death'));
 }
 
 function drawRunning() {
