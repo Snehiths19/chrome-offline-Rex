@@ -176,6 +176,7 @@ export default [
         groundRiseUnderFeet: 'readonly',
         followGround: 'readonly',
         launchDino: 'readonly',
+        leapGapWidthForSpeed: 'readonly',
         launchFlightFrames: 'readonly',
         launchFlightDistance: 'readonly',
         drawRamp: 'readonly',

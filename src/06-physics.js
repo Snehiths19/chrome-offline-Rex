@@ -17,6 +17,25 @@ function spawnObstacle(type) {
   };
   if (t.terrain) obs.terrain = true;
   game.obstacles.push(obs);
+  // A leap (G3): the wide gap starts right at the ramp's lip.
+  if (t.id === 'leap') {
+    game.obstacles.push({
+      x: obs.x + obs.width,
+      y: GAME_CONFIG.CANVAS_H,
+      width: leapGapWidthForSpeed(game.currentSpeed),
+      height: 0,
+      type: 'leapGap',
+      render: 'pit',
+      terrain: true,
+    });
+  }
+}
+
+// The gap after a leap's ramp (G3): the foot span plus LEAP_GAP_FRAMES of
+// launch flight at `speed`.
+function leapGapWidthForSpeed(speed) {
+  const footSpan = GAME_CONFIG.DINO_WIDTH - 2 * GAME_CONFIG.DINO_PAD_X;
+  return Math.round((speed + GAME_CONFIG.RAMP_BOOST) * GAME_CONFIG.LEAP_GAP_FRAMES) + footSpan;
 }
 
 // --- Gaps in the ground (G1, Updated and Daily) ---------------------------
@@ -79,19 +98,30 @@ function dinoFloorY(shift) {
   return GAME_CONFIG.CANVAS_H - dino.height - groundRiseUnderFeet(shift);
 }
 
-// On the ground (G2): ride a ramp's slope up, and leave its top as a
-// launch. Returns true when the dino launched this frame.
+// On the ground: ride a ramp's slope up and leave its top as a launch
+// (G2), or walk off into a gap (G1). Returns true when the dino launched.
 function followGround() {
   const floor = dinoFloorY();
-  if (floor === null) return false;
-  if (floor <= dino.y) {
+  if (floor !== null && floor <= dino.y) {
     dino.y = floor;
     return false;
   }
   // The ground dropped away under a dino that was up on a ramp: the lip.
+  // A leap's gap (G3) starts right there, so this comes before the fall.
   if (dino.y < GAME_CONFIG.CANVAS_H - dino.height) {
     launchDino();
     return true;
+  }
+  if (floor === null) {
+    // Walking off into a gap: the ground is gone, so the dino starts to
+    // fall. It counts as a flight, so a second jump can still save it, but
+    // not as a fresh take-off a slide could cancel.
+    dino.isJumping = true;
+    dino.velocityY = 0;
+    dino.slideFrames = 0;
+    dino.airFrames = GAME_CONFIG.SLIDE_CANCEL_FRAMES + 1;
+    dino.takeoffY = dino.y;
+    return false;
   }
   dino.y = floor;
   return false;
@@ -242,7 +272,9 @@ function computeRunResult(finalScore, currentHighScore) {
 // Sim frames until the feet touch the ground on the current fall, counted
 // up to limit + 1 (a rising dino is never about to land).
 function framesToLanding(limit) {
-  if (dino.velocityY <= 0) return limit + 1;
+  // Feet below the ground line inside a gap never land: its far wall ends
+  // the run instead, so a press there is a rescue, not an early jump (G1).
+  if (dino.velocityY <= 0 || dino.inPit) return limit + 1;
   let y = dino.y,
     vy = dino.velocityY;
   for (let i = 1; i <= limit; i++) {
@@ -291,6 +323,13 @@ function jump(repeat) {
     dino.flipFrames = cfg('DOUBLE_JUMP_FLIP_FRAMES');
     Particles.emit('doubleJump', dino.x + dino.width / 2, dino.y + dino.height);
     audio.doubleJump();
+    return;
+  }
+  if (!dino.isJumping && groundRiseUnderFeet() > 0) {
+    // A jump on a ramp (G3) is a launch: the same lift and boost as running
+    // off its lip, so the instinct to jump at a leap's gap is never wrong.
+    dino.jumpBufferFrames = 0;
+    launchDino();
     return;
   }
   if (!dino.isJumping) {
@@ -365,11 +404,11 @@ function dashDino() {
 }
 
 // Move combo (M7, Updated and Daily). An obstacle cleared during a second
-// jump, an air dash or a slide adds one to game.combo and plays a note a
+// jump, an air dash, a slide or a ramp launch (G3) adds one to game.combo and plays a note a
 // step higher; one cleared with a plain jump ends the combo. Display and
 // sound only: it never touches score, speed, spawning or game.rng().
 function comboMoveActive() {
-  return dino.doubleJumped || dino.dashed || dino.slideFrames > 0;
+  return dino.doubleJumped || dino.dashed || dino.slideFrames > 0 || dino.launched;
 }
 function updateCombo() {
   if (game.comboPopFrames > 0) game.comboPopFrames--;

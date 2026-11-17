@@ -545,7 +545,8 @@ function drawSingleObstacle(obstacle) {
 }
 
 // Gaps in the ground (G1): each one is cut out of the ground strip, sky
-// colour from the ground line down, with a thin wall in the ground ink at
+// colour from the ground line down, with a thin wall in the ground ink
+// (groundTintColor, so it follows the dusk and night tints) at
 // each edge so it reads as a hole and not a missing sprite. Drawn first in
 // drawObstacles, under the cacti and the dino.
 const PIT_LINE_FROM_BOTTOM = 16; // the ground sprite's line sits 16px above the canvas bottom
@@ -555,9 +556,18 @@ function drawPit(obstacle) {
     w = Math.round(obstacle.width);
   ctx.fillStyle = getBackgroundColor(game.score);
   ctx.fillRect(x, top, w, PIT_LINE_FROM_BOTTOM);
+  // The dusk glow sits on the sky behind the ground; put it back in the hole.
+  if (skyGlowTint() && typeof ctx.clip === 'function') {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, top, w, PIT_LINE_FROM_BOTTOM);
+    ctx.clip();
+    drawSkyGlow();
+    ctx.restore();
+  }
   const previousAlpha = ctx.globalAlpha;
   ctx.globalAlpha = previousAlpha * groundPaintAlpha();
-  ctx.fillStyle = '#535353';
+  ctx.fillStyle = groundTintColor();
   ctx.fillRect(x, top, 2, PIT_LINE_FROM_BOTTOM);
   ctx.fillRect(x + w - 2, top, 2, PIT_LINE_FROM_BOTTOM);
   ctx.globalAlpha = previousAlpha;
@@ -572,7 +582,7 @@ function drawRamp(obstacle) {
     rise = GAME_CONFIG.RAMP_RISE;
   const previousAlpha = ctx.globalAlpha;
   ctx.globalAlpha = previousAlpha * groundPaintAlpha();
-  ctx.fillStyle = '#535353';
+  ctx.fillStyle = groundTintColor();
   ctx.beginPath();
   ctx.moveTo(x, base + 2);
   ctx.lineTo(x + w, base - rise);

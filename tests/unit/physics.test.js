@@ -2371,6 +2371,19 @@ describe('Gaps in the ground (G1)', () => {
     });
   });
 
+  it('a press just before the far wall is a rescue jump, not a buffered landing', () => {
+    g1Run(MODES.UPDATED, () => {
+      const obs = g1Pit(-dino.width + GAME_CONFIG.DINO_PAD_X);
+      for (let i = 0; i < 20 && !dino.inPit; i++) runSimFrame();
+      assert(dino.inPit, 'sank in');
+      // The far wall is about to reach the front foot.
+      obs.x = dinoFootSpan().right - obs.width + 0.05;
+      assert(canDoubleJump(), 'the second jump is still open');
+      handleAction();
+      assert(dino.doubleJumped, 'rescued, not buffered');
+    });
+  });
+
   it('feet below the ground line hit the far wall instead of landing on it', () => {
     g1Run(MODES.UPDATED, () => {
       const obs = g1Pit(-dino.width + GAME_CONFIG.DINO_PAD_X);
@@ -2594,5 +2607,102 @@ describe('Ramp launch flight (G2)', () => {
       resetGame();
       cancelAnimationFrame(game.animationFrameId);
     }
+  });
+});
+
+describe('Leap: a ramp before a wide gap (G3)', () => {
+  const g3Run = (fn) => {
+    const origMode = game.mode;
+    game.mode = MODES.UPDATED;
+    try {
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+      game.state = STATE.RUNNING;
+      game.graceFrames = 100000;
+      return fn();
+    } finally {
+      game.mode = origMode;
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+    }
+  };
+  const g3Leap = (score, ahead) => {
+    game.score = score;
+    runSimFrame();
+    // Only the leap on the lane: no other spawns during the test.
+    game.obstacles.length = 0;
+    game.nextSpawnGap = 1e9;
+    spawnObstacle(GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'leap'));
+    const gap = game.obstacles[game.obstacles.length - 1];
+    const ramp = game.obstacles[game.obstacles.length - 2];
+    ramp.x = dino.x + dino.width + ahead;
+    gap.x = ramp.x + ramp.width;
+    return { ramp, gap };
+  };
+  const g3Until = (gap, eachFrame) => {
+    for (let i = 0; i < 400 && game.state === STATE.RUNNING; i++) {
+      if (eachFrame) eachFrame();
+      runSimFrame();
+      if (gap.x + gap.width < dino.x && !dino.isJumping) break;
+    }
+    return game.state === STATE.RUNNING;
+  };
+
+  it('a leap lays a ramp and a wide gap that starts at its lip', () => {
+    g3Run(() => {
+      const { ramp, gap } = g3Leap(400, 200);
+      assertEquals(ramp.render, 'ramp');
+      assertEquals(gap.render, 'pit');
+      assertEquals(gap.type, 'leapGap');
+      assertEquals(gap.width, leapGapWidthForSpeed(game.currentSpeed));
+      assertEquals(game.obstacles.length, 2);
+    });
+  });
+
+  it('LEAP_GAP_FRAMES is never tunable, and Classic never rolls a leap', () => {
+    assert(!TUNABLE_KEYS.includes('LEAP_GAP_FRAMES'));
+    const rng = mulberry32(7);
+    for (let i = 0; i < 200; i++) {
+      assertNotEquals(DifficultyProfile.nextObstacle(900, 'classic', rng).type.id, 'leap');
+    }
+  });
+
+  it('the wide gap is wider than a held jump on flat ground can cross', () => {
+    for (const speed of [5, 8]) {
+      const feet = GAME_CONFIG.DINO_WIDTH - 2 * GAME_CONFIG.DINO_PAD_X;
+      assert(
+        leapGapWidthForSpeed(speed) - feet > speed * heldJumpFramesAbove(0),
+        `speed ${speed}: needs the launch`
+      );
+    }
+  });
+
+  it('riding the ramp launches the dino across, early and at the plateau', () => {
+    for (const score of [360, 900]) {
+      assert(
+        g3Run(() => g3Until(g3Leap(score, 10).gap)),
+        `score ${score}: the launch clears the gap`
+      );
+    }
+  });
+
+  it('a jump on the ramp is a launch too', () => {
+    g3Run(() => {
+      const { ramp, gap } = g3Leap(400, 0);
+      for (let i = 0; i < 100 && dino.x + 30 < ramp.x + ramp.width / 2; i++) runSimFrame();
+      while (groundRiseUnderFeet() === 0) runSimFrame();
+      handleAction();
+      assert(dino.launched, 'launched by the press');
+      assertEquals(dino.velocityY, GAME_CONFIG.RAMP_LAUNCH_POWER);
+      assert(g3Until(gap), 'clears the gap');
+    });
+  });
+
+  it('a gap cleared by a launch adds to the move combo', () => {
+    g3Run(() => {
+      game.combo = 1;
+      assert(g3Until(g3Leap(400, 10).gap), 'cleared');
+      assertEquals(game.combo, 2);
+    });
   });
 });
