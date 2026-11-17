@@ -182,7 +182,11 @@ function makePlanner(opts) {
   let cleared = 0;
   let target = null;
   return () => {
-    const ahead = game.obstacles.filter((o) => o.x + o.width > dino.x).sort((a, b) => a.x - b.x)[0];
+    // A ramp (G2) is ridden, not jumped: the autopilot runs up it and lets
+    // it launch.
+    const ahead = game.obstacles
+      .filter((o) => o.render !== 'ramp' && o.x + o.width > dino.x)
+      .sort((a, b) => a.x - b.x)[0];
     if (target && (!ahead || ahead !== target)) {
       cleared++;
       target = null;

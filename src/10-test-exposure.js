@@ -61,6 +61,13 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.dinoFootSpan = dinoFootSpan;
   global.drawPit = drawPit;
   global.endRun = endRun;
+  global.rampHeightAt = rampHeightAt;
+  global.groundRiseUnderFeet = groundRiseUnderFeet;
+  global.followGround = followGround;
+  global.launchDino = launchDino;
+  global.launchFlightFrames = launchFlightFrames;
+  global.launchFlightDistance = launchFlightDistance;
+  global.drawRamp = drawRamp;
   global.dashDino = dashDino;
   global.worldScroll = worldScroll;
   global.runSimFrame = runSimFrame;

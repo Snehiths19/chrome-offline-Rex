@@ -1043,14 +1043,17 @@ describe('Sim clock (60Hz)', () => {
       return value;
     };
     game.state = STATE.RUNNING;
-    // Park the dino above the lane so the sample is not cut short by a hit.
-    // A grounded run dies before the second spawn, and both clocks would
-    // then show the same single roll.
-    dino.y = -500;
-    dino.isJumping = false;
+    // Park the dino off the left of the lane so the sample is not cut short
+    // by a hit: obstacles are culled before they reach it. A grounded run
+    // dies before the second spawn, and both clocks would then show the
+    // same single roll. (The dino follows the ground since G2, so it can no
+    // longer be parked in the sky.)
+    const origX = dino.x;
+    dino.x = -1000;
     try {
       drive();
     } finally {
+      dino.x = origX;
       game.rng = seeded;
       game.mode = origMode;
       setReducedMotion(false);
@@ -2423,5 +2426,173 @@ describe('Gaps in the ground (G1)', () => {
       assertEquals(images, 0, 'no sprite for a gap');
       assertEquals(fills, 3, 'the hole and its two walls');
     });
+  });
+});
+
+describe('Ramps (G2)', () => {
+  const g2Run = (mode, fn) => {
+    const origMode = game.mode;
+    game.mode = mode;
+    try {
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+      game.state = STATE.RUNNING;
+      game.graceFrames = 100000;
+      return fn();
+    } finally {
+      game.mode = origMode;
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+    }
+  };
+  const g2Ramp = (ahead) => {
+    spawnObstacle(GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'ramp'));
+    const obs = game.obstacles[game.obstacles.length - 1];
+    obs.x = dino.x + dino.width + ahead;
+    return obs;
+  };
+  const groundY = () => GAME_CONFIG.CANVAS_H - dino.height;
+
+  it('ramp values are gameplay values, never tunable', () => {
+    for (const key of ['RAMP_RISE', 'RAMP_LAUNCH_POWER']) {
+      assert(!TUNABLE_KEYS.includes(key), `${key} is never tunable through cfg()`);
+    }
+  });
+
+  it('a ramp is terrain, Updated and Daily only', () => {
+    const ramp = GAME_CONFIG.OBSTACLE_TYPES.find((t) => t.id === 'ramp');
+    assert(ramp && ramp.terrain, 'ramp is a terrain type');
+    const rng = mulberry32(3);
+    for (let i = 0; i < 200; i++) {
+      assertNotEquals(DifficultyProfile.nextObstacle(900, 'classic', rng).type.id, 'ramp');
+    }
+  });
+
+  it('the slope rises from 0 to RAMP_RISE across the ramp', () => {
+    const obs = { x: 100, width: 80 };
+    assertEquals(rampHeightAt(obs, 100), 0);
+    assertEquals(rampHeightAt(obs, 140), GAME_CONFIG.RAMP_RISE / 2);
+    assertEquals(rampHeightAt(obs, 180), GAME_CONFIG.RAMP_RISE);
+    assertEquals(rampHeightAt(obs, 181), 0, 'straight drop after the lip');
+  });
+
+  it('running onto a ramp rides it up, then launches off the lip', () => {
+    g2Run(MODES.UPDATED, () => {
+      const obs = g2Ramp(4);
+      let highestGrounded = groundY(),
+        launchedAt = null;
+      for (let i = 0; i < 200 && launchedAt === null; i++) {
+        runSimFrame();
+        assertEquals(game.state, STATE.RUNNING, 'riding is safe');
+        if (!dino.isJumping) highestGrounded = Math.min(highestGrounded, dino.y);
+        else launchedAt = dino.y;
+      }
+      assert(launchedAt !== null, 'launched');
+      assert(dino.launched, 'flagged as a ramp launch');
+      assertEquals(
+        Math.round(groundY() - highestGrounded),
+        GAME_CONFIG.RAMP_RISE,
+        'rode to the top'
+      );
+      assert(obs.x + obs.width < dinoFootSpan().left, 'left the lip once the back foot passed it');
+    });
+  });
+
+  it('a launch flies higher than a held jump, and a let-go never cuts it', () => {
+    const peak = (useRamp) =>
+      g2Run(MODES.UPDATED, () => {
+        if (useRamp) g2Ramp(0);
+        else handleAction();
+        // The jump is held to the top; the ramp launch is not held at all,
+        // which would cut a jump but never cuts a launch.
+        dino.jumpHeld = !useRamp;
+        let top = dino.y;
+        for (let i = 0; i < 300; i++) {
+          runSimFrame();
+          top = Math.min(top, dino.y);
+          if (dino.isJumping === false && top < groundY() - GAME_CONFIG.RAMP_RISE - 5) break;
+        }
+        return groundY() - top;
+      });
+    assert(peak(true) > peak(false), 'ramp launch peaks above a held jump');
+  });
+
+  it('the second jump and the dash are open after a launch, and landing gives them back', () => {
+    g2Run(MODES.UPDATED, () => {
+      g2Ramp(0);
+      for (let i = 0; i < 200 && !dino.isJumping; i++) runSimFrame();
+      assert(dino.isJumping && !dino.doubleJumped, 'in the air with the second jump unspent');
+      dashDino();
+      assert(dino.dashed, 'dash works after a launch');
+      for (let i = 0; i < 300 && dino.isJumping; i++) runSimFrame();
+      assert(!dino.isJumping && !dino.launched && !dino.dashed, 'landed and reset');
+      assertEquals(dino.y, groundY());
+    });
+  });
+
+  it('a jump from partway up a ramp starts from the slope', () => {
+    g2Run(MODES.UPDATED, () => {
+      g2Ramp(-dino.width + 10);
+      runSimFrame();
+      const startY = dino.y;
+      assert(startY < groundY(), 'up on the slope');
+      handleAction();
+      assertEquals(dino.takeoffY, startY);
+    });
+  });
+
+  it('a ramp is ridden, not cleared: it never touches the move combo', () => {
+    g2Run(MODES.UPDATED, () => {
+      game.combo = 3;
+      const obs = g2Ramp(0);
+      obs.x = dino.x - obs.width - 1;
+      updateCombo();
+      assertEquals(game.combo, 3);
+      assert(!obs.passed);
+    });
+  });
+
+  it('drawObstacles paints a ramp as a wedge, never a cactus', () => {
+    g2Run(MODES.UPDATED, () => {
+      g2Ramp(100);
+      const origDraw = ctx.drawImage,
+        origFill = ctx.fill;
+      let images = 0,
+        fills = 0;
+      ctx.drawImage = () => images++;
+      ctx.fill = () => fills++;
+      try {
+        drawObstacles();
+      } finally {
+        ctx.drawImage = origDraw;
+        ctx.fill = origFill;
+      }
+      assertEquals(images, 0);
+      assertEquals(fills, 1);
+    });
+  });
+});
+
+describe('Ramp launch flight (G2)', () => {
+  it('a launch boosts the world and the gap after a ramp skips its flight', () => {
+    const origMode = game.mode;
+    game.mode = MODES.UPDATED;
+    try {
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+      game.state = STATE.RUNNING;
+      dino.launched = true;
+      assertEquals(worldScroll(), game.currentSpeed + GAME_CONFIG.RAMP_BOOST);
+      dino.launched = false;
+      assert(launchFlightFrames() > 46, 'a launch outlasts a held first jump');
+      assertEquals(
+        launchFlightDistance(5),
+        Math.ceil(launchFlightFrames() * (5 + GAME_CONFIG.RAMP_BOOST))
+      );
+    } finally {
+      game.mode = origMode;
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+    }
   });
 });

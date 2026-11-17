@@ -563,9 +563,29 @@ function drawPit(obstacle) {
   ctx.globalAlpha = previousAlpha;
 }
 
+// A ramp (G2): a solid wedge in the ground ink, rising from the ground line
+// to RAMP_RISE at its lip, where it drops straight down.
+function drawRamp(obstacle) {
+  const base = GAME_CONFIG.CANVAS_H - PIT_LINE_FROM_BOTTOM;
+  const x = Math.round(obstacle.x),
+    w = Math.round(obstacle.width),
+    rise = GAME_CONFIG.RAMP_RISE;
+  const previousAlpha = ctx.globalAlpha;
+  ctx.globalAlpha = previousAlpha * groundPaintAlpha();
+  ctx.fillStyle = '#535353';
+  ctx.beginPath();
+  ctx.moveTo(x, base + 2);
+  ctx.lineTo(x + w, base - rise);
+  ctx.lineTo(x + w, base + 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = previousAlpha;
+}
+
 function drawObstacles() {
   game.obstacles.forEach((obstacle) => {
     if (obstacle.render === 'pit') drawPit(obstacle);
+    if (obstacle.render === 'ramp') drawRamp(obstacle);
   });
   const brightness = obstacleNightBrightness();
   const previousFilter = ctx.filter;

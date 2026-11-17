@@ -32,6 +32,8 @@ function resetGame() {
   dino.dashed = false;
   dino.dashFrames = 0;
   dino.inPit = false;
+  dino.takeoffY = dino.y;
+  dino.launched = false;
 
   Particles.reset();
 
@@ -286,8 +288,9 @@ function updateRunning() {
     game.qaConfettiHold--;
   }
 
-  // Scroll ground.
-  game.groundX -= game.currentSpeed;
+  // Scroll ground at the same pace as the obstacles, so the gaps cut into
+  // it (G1) stay put on it during a dash or a ramp launch.
+  game.groundX -= worldScroll();
   if (imageReady(groundImage) && game.groundX <= -groundImage.width) game.groundX = 0;
 
   // Lazy-init stars once when night is full. Skipped under reduce-motion
@@ -374,8 +377,10 @@ function updateRunning() {
     // own width, so the gap after it is still a full gap of open ground.
     const spawned = game.obstacles[game.obstacles.length - 1];
     // A gap in the ground (G1) does the same.
-    const wide = spawned.render === 'row' || spawned.render === 'pit';
-    game.nextSpawnGap = params.gap + (wide ? spawned.width : 0);
+    const wide = spawned.render === 'row' || spawned.terrain;
+    // After a ramp (G2) the gap also skips the launch flight.
+    const flight = spawned.render === 'ramp' ? launchFlightDistance(game.currentSpeed) : 0;
+    game.nextSpawnGap = params.gap + (wide ? spawned.width : 0) + flight;
   }
 
   // Collision detection. A gap in the ground (G1) has no hitbox; the
@@ -406,16 +411,22 @@ function updateRunning() {
     dino.velocityY = 0;
     dino.slideFrames = 0;
     dino.airFrames = GAME_CONFIG.SLIDE_CANCEL_FRAMES + 1;
+    dino.takeoffY = dino.y;
+  } else if (!dino.isJumping) {
+    // Ride a ramp up, and launch off its top (G2).
+    followGround();
   }
 
   // Apply gravity.
   if (dino.isJumping) {
     // Let go while rising: cut the rise once the feet are high enough (F3).
     const groundY = GAME_CONFIG.CANVAS_H - dino.height;
+    // A ramp launch (G2) is not a held jump: letting go never cuts it.
     if (
+      !dino.launched &&
       !dino.jumpHeld &&
       dino.velocityY < GAME_CONFIG.JUMP_CUT_VELOCITY &&
-      groundY - dino.y >= GAME_CONFIG.JUMP_MIN_HEIGHT
+      dino.takeoffY - dino.y >= GAME_CONFIG.JUMP_MIN_HEIGHT
     ) {
       dino.velocityY = GAME_CONFIG.JUMP_CUT_VELOCITY;
     }
@@ -435,7 +446,8 @@ function updateRunning() {
 
     // Back above the ground line, a gap's walls are behind the feet again.
     if (dino.y < groundY) dino.inPit = false;
-    if (dino.y >= groundY && (dino.inPit || dinoFloorY() === null)) {
+    const floorY = dinoFloorY();
+    if (dino.y >= groundY && (dino.inPit || floorY === null)) {
       // Below the ground line inside a gap (G1): no landing. The run ends
       // once the feet sink PIT_FALL_DEPTH or the gap's far wall reaches them.
       // Until then a second jump can still carry the dino out.
@@ -444,9 +456,10 @@ function updateRunning() {
         endRun();
         return;
       }
-    } else if (dino.y >= groundY) {
-      dino.y = groundY;
+    } else if (floorY !== null && dino.y >= floorY) {
+      dino.y = floorY;
       dino.isJumping = false;
+      dino.launched = false;
       dino.doubleJumped = false;
       dino.flipFrames = 0;
       dino.dashed = false;
