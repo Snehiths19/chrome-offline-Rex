@@ -445,6 +445,24 @@ const GAME_CONFIG = Object.freeze({
   // under reduced motion. Playtest with ?qaLevel=1&qaNight=1. Read
   // through cfg(). Physics does not read this.
   NIGHT_SKY_TINT_PEAK_ALPHA: 0.024,
+  // --- Colour tints (Updated and Daily only) ---
+  // Visual only. As the score rises the light changes, the art does not.
+  // From score 0 to DAY_NIGHT_START a warm dusk glow rises from the
+  // horizon (a vertical wash over the sky, clear at the top so the page
+  // edge still matches the sky) and the ground line warms from #535353 to
+  // a dusk brown. Across twilight (DAY_NIGHT_START to DAY_NIGHT_END) the
+  // glow turns to a deep blue and the ground line to a soft teal, under the
+  // night ground dim. The sprites are recoloured copies; assets/ is
+  // untouched. Classic never tints. Reduced motion skips the slow change:
+  // the day look holds until DAY_NIGHT_END, then the night tint snaps in.
+  // Playtest with ?qaNight=1 (night) or ?tune=1. Read through cfg().
+  // Physics, spawning and scoring do not read these.
+  DUSK_GLOW_COLOR: '#f2a66a',
+  DUSK_GLOW_ALPHA: 0.32,
+  NIGHT_GLOW_COLOR: '#2b3a78',
+  NIGHT_GLOW_ALPHA: 0.55,
+  DUSK_GROUND_COLOR: '#7a4e3c',
+  NIGHT_GROUND_COLOR: '#5ad1d9',
   PARTICLE_EMIT_SPREAD: 4, // px width of the cosmetic xy jitter on every particle emit
 
   // --- Effects ---
@@ -641,11 +659,17 @@ const TUNABLE_KEYS = Object.freeze([
   'DINO_SQUASH_FRAMES',
   'DINO_STRETCH_MAX',
   'DOUBLE_JUMP_FLIP_FRAMES',
+  'DUSK_GLOW_ALPHA',
+  'DUSK_GLOW_COLOR',
+  'DUSK_GROUND_COLOR',
   'HILL_COLOR_NIGHT',
   'NIGHT_CLOUD_ALPHA',
   'NIGHT_DEATH_FLASH_PEAK_ALPHA',
   'NIGHT_DINO_BRIGHTNESS',
+  'NIGHT_GLOW_ALPHA',
+  'NIGHT_GLOW_COLOR',
   'NIGHT_GROUND_ALPHA',
+  'NIGHT_GROUND_COLOR',
   'NIGHT_JUMP_DUST_ALPHA',
   'NIGHT_JUMP_DUST_COUNT',
   'NIGHT_LAND_DUST_ALPHA',

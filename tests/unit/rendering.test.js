@@ -2645,6 +2645,150 @@ describe('Soft night ground', () => {
   });
 });
 
+describe('Colour tints (Updated and Daily)', () => {
+  function withTintState(mode, score, reduced, fn) {
+    const origMode = game.mode;
+    const origScore = game.score;
+    try {
+      setQaFlag('night', false);
+      setReducedMotion(reduced);
+      game.mode = mode;
+      game.score = score;
+      fn();
+    } finally {
+      setReducedMotion(false);
+      game.mode = origMode;
+      game.score = origScore;
+    }
+  }
+
+  it('Classic is never tinted', () => {
+    for (const score of [0, 150, 350, 900]) {
+      withTintState(MODES.CLASSIC, score, false, () => {
+        assertEquals(colourTintPhase(), null, 'Classic has no tint phase');
+        assertEquals(skyGlowTint(), null, 'Classic has no horizon glow');
+        assertEquals(groundTintColor(), '#535353', 'Classic keeps the original ground ink');
+      });
+    }
+  });
+
+  it('a run starts on the plain day look', () => {
+    withTintState(MODES.UPDATED, 0, false, () => {
+      assertEquals(skyGlowTint(), null, 'no glow at score 0');
+      assertEquals(groundTintColor(), '#535353', 'original ground ink at score 0');
+    });
+  });
+
+  it('the dusk glow and ground warmth build slowly through the day', () => {
+    let lastAlpha = 0;
+    for (const score of [60, 150, 240, GAME_CONFIG.DAY_NIGHT_START]) {
+      withTintState(MODES.UPDATED, score, false, () => {
+        const tint = skyGlowTint();
+        assert(tint && tint.alpha > lastAlpha, `glow grows at score ${score}`);
+        assertEquals(tint.color, GAME_CONFIG.DUSK_GLOW_COLOR, 'day glow is the dusk colour');
+        lastAlpha = tint.alpha;
+      });
+    }
+    withTintState(MODES.UPDATED, GAME_CONFIG.DAY_NIGHT_START, false, () => {
+      assertEquals(skyGlowTint().alpha, GAME_CONFIG.DUSK_GLOW_ALPHA, 'full dusk at twilight');
+      assertEquals(groundTintColor(), GAME_CONFIG.DUSK_GROUND_COLOR, 'ground fully warmed');
+    });
+    withTintState(MODES.UPDATED, GAME_CONFIG.DAY_NIGHT_START / 2, false, () => {
+      const mid = groundTintColor();
+      assert(mid !== '#535353' && mid !== GAME_CONFIG.DUSK_GROUND_COLOR, 'halfway is in between');
+    });
+  });
+
+  it('twilight turns the glow and ground to the night colours', () => {
+    withTintState(MODES.UPDATED, 350, false, () => {
+      const tint = skyGlowTint();
+      assert(tint.color !== GAME_CONFIG.DUSK_GLOW_COLOR, 'mid-twilight has left dusk');
+      assert(tint.color !== GAME_CONFIG.NIGHT_GLOW_COLOR, 'mid-twilight is not yet night');
+    });
+    withTintState(MODES.DAILY, GAME_CONFIG.DAY_NIGHT_END, false, () => {
+      const tint = skyGlowTint();
+      assertEquals(tint.color, GAME_CONFIG.NIGHT_GLOW_COLOR, 'night glow colour');
+      assertEquals(tint.alpha, GAME_CONFIG.NIGHT_GLOW_ALPHA, 'night glow alpha');
+      assertEquals(groundTintColor(), GAME_CONFIG.NIGHT_GROUND_COLOR, 'night ground ink');
+    });
+  });
+
+  it('reduced motion holds the day look, then snaps to night', () => {
+    for (const score of [150, GAME_CONFIG.DAY_NIGHT_START, GAME_CONFIG.DAY_NIGHT_END - 1]) {
+      withTintState(MODES.UPDATED, score, true, () => {
+        assertEquals(skyGlowTint(), null, `no slow glow at score ${score}`);
+        assertEquals(groundTintColor(), '#535353', `ground holds the day ink at ${score}`);
+      });
+    }
+    withTintState(MODES.UPDATED, GAME_CONFIG.DAY_NIGHT_END, true, () => {
+      assertEquals(skyGlowTint().color, GAME_CONFIG.NIGHT_GLOW_COLOR, 'snaps to the night glow');
+      assertEquals(groundTintColor(), GAME_CONFIG.NIGHT_GROUND_COLOR, 'snaps to night ground');
+    });
+  });
+
+  it('a bad tuned colour or alpha falls back to the default', () => {
+    const orig = window.GAME_TUNING;
+    window.GAME_TUNING = { DUSK_GROUND_COLOR: 'orange', DUSK_GLOW_ALPHA: 7 };
+    try {
+      withTintState(MODES.UPDATED, GAME_CONFIG.DAY_NIGHT_START, false, () => {
+        assertEquals(groundTintColor(), GAME_CONFIG.DUSK_GROUND_COLOR, 'colour falls back');
+        assertEquals(skyGlowTint().alpha, GAME_CONFIG.DUSK_GLOW_ALPHA, 'alpha falls back');
+      });
+    } finally {
+      window.GAME_TUNING = orig;
+    }
+  });
+
+  it('the background paints the glow in every scene, and Classic paints none', () => {
+    const origFill = ctx.fillRect;
+    const origGradient = ctx.createLinearGradient;
+    let gradients = 0;
+    ctx.createLinearGradient = () => {
+      gradients++;
+      return { addColorStop: () => {} };
+    };
+    ctx.fillRect = () => {};
+    try {
+      withTintState(MODES.UPDATED, 200, false, () => drawBackground());
+      assertEquals(gradients, 1, 'Updated paints one horizon glow');
+      withTintState(MODES.CLASSIC, 200, false, () => drawBackground());
+      assertEquals(gradients, 1, 'Classic paints no glow');
+    } finally {
+      ctx.fillRect = origFill;
+      if (origGradient) ctx.createLinearGradient = origGradient;
+      else delete ctx.createLinearGradient;
+    }
+  });
+
+  it('the ground sprite is only swapped when the ink changes', () => {
+    withTintState(MODES.CLASSIC, 900, false, () => {
+      assert(groundSpriteForTint() === groundImage, 'Classic draws the original sprite');
+    });
+    withTintState(MODES.UPDATED, 0, false, () => {
+      assert(groundSpriteForTint() === groundImage, 'score 0 draws the original sprite');
+    });
+  });
+
+  it('tints never touch gameplay randomness', () => {
+    const origRng = game.rng;
+    let calls = 0;
+    game.rng = () => {
+      calls++;
+      return 0.5;
+    };
+    try {
+      withTintState(MODES.DAILY, 250, false, () => {
+        skyGlowTint();
+        groundTintColor();
+        drawBackground();
+      });
+      assertEquals(calls, 0, 'no game.rng() calls');
+    } finally {
+      game.rng = origRng;
+    }
+  });
+});
+
 describe('Readable labels on phones (R1)', () => {
   const withCanvasScale = (scale, fn) => {
     const orig = canvasCssScale;
