@@ -45,6 +45,8 @@ const dino = {
   dashed: false, // air dash spent this flight (M5)
   dashFrames: 0, // sim frames of air dash left (M5)
   inPit: false, // feet have dropped below the ground line inside a gap (G1)
+  takeoffY: 0, // y at the last take-off, for the jump cut (G2: ramps lift it)
+  launched: false, // this flight started at a ramp's lip (G2)
   image: new Image(),
 };
 

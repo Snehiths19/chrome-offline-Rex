@@ -49,9 +49,90 @@ function pitUnderFeet(shift) {
   return null;
 }
 
+// Height of a ramp's surface above the ground line at world x (G2): a
+// straight slope from 0 at its left edge to RAMP_RISE at its right edge,
+// where it drops straight back to the ground.
+function rampHeightAt(obs, x) {
+  if (x < obs.x || x > obs.x + obs.width) return 0;
+  return (GAME_CONFIG.RAMP_RISE * (x - obs.x)) / obs.width;
+}
+
+// The highest ramp surface under the foot span, 0 on flat ground. The
+// front foot rides up the slope; the dino leaves the top once the back
+// foot is past the lip.
+function groundRiseUnderFeet(shift) {
+  const feet = dinoFootSpan();
+  const s = shift || 0;
+  let rise = 0;
+  for (const obs of game.obstacles) {
+    if (obs.render !== 'ramp') continue;
+    const ramp = { x: obs.x - s, width: obs.width };
+    if (feet.right < ramp.x || feet.left > ramp.x + ramp.width) continue;
+    rise = Math.max(rise, rampHeightAt(ramp, Math.min(feet.right, ramp.x + ramp.width)));
+  }
+  return rise;
+}
+
 // The y the dino stands at here, or null over a gap.
 function dinoFloorY(shift) {
-  return pitUnderFeet(shift) ? null : GAME_CONFIG.CANVAS_H - dino.height;
+  if (pitUnderFeet(shift)) return null;
+  return GAME_CONFIG.CANVAS_H - dino.height - groundRiseUnderFeet(shift);
+}
+
+// On the ground (G2): ride a ramp's slope up, and leave its top as a
+// launch. Returns true when the dino launched this frame.
+function followGround() {
+  const floor = dinoFloorY();
+  if (floor === null) return false;
+  if (floor <= dino.y) {
+    dino.y = floor;
+    return false;
+  }
+  // The ground dropped away under a dino that was up on a ramp: the lip.
+  if (dino.y < GAME_CONFIG.CANVAS_H - dino.height) {
+    launchDino();
+    return true;
+  }
+  dino.y = floor;
+  return false;
+}
+
+// Sim frames a ramp launch stays in the air on flat ground (G2). Pure
+// arithmetic on GAME_CONFIG, the same every run.
+let launchFramesCache = null;
+function launchFlightFrames() {
+  if (launchFramesCache !== null) return launchFramesCache;
+  let h = GAME_CONFIG.RAMP_RISE,
+    vy = -GAME_CONFIG.RAMP_LAUNCH_POWER,
+    frames = 0;
+  while (h > 0 && frames < 300) {
+    const g =
+      Math.abs(vy) < GAME_CONFIG.HANG_VELOCITY
+        ? GAME_CONFIG.GRAVITY * GAME_CONFIG.HANG_GRAVITY_SCALE
+        : GAME_CONFIG.GRAVITY;
+    vy -= g;
+    h += vy;
+    frames++;
+  }
+  launchFramesCache = frames;
+  return frames;
+}
+
+// Ground a launch at `speed` covers (G2). The gap after a ramp adds it, so
+// the next obstacle is a full gap past where the launch comes down.
+function launchFlightDistance(speed) {
+  return Math.ceil(launchFlightFrames() * (speed + GAME_CONFIG.RAMP_BOOST));
+}
+
+function launchDino() {
+  dino.isJumping = true;
+  dino.velocityY = GAME_CONFIG.RAMP_LAUNCH_POWER;
+  dino.slideFrames = 0;
+  dino.airFrames = GAME_CONFIG.SLIDE_CANCEL_FRAMES + 1;
+  dino.takeoffY = dino.y;
+  dino.launched = true;
+  Particles.emit('jump', dino.x + dino.width / 2, dino.y + dino.height);
+  audio.jump();
 }
 
 function updateObstacles() {
@@ -78,9 +159,14 @@ function updateObstacles() {
 }
 
 // How far the world moves this frame: the run speed, plus the air dash
-// boost while a dash lasts (M5).
+// boost while a dash lasts (M5) and the ramp boost while a launch flight
+// lasts (G2).
 function worldScroll() {
-  return game.currentSpeed + (dino.dashFrames > 0 ? GAME_CONFIG.DASH_BOOST : 0);
+  return (
+    game.currentSpeed +
+    (dino.dashFrames > 0 ? GAME_CONFIG.DASH_BOOST : 0) +
+    (dino.launched ? GAME_CONFIG.RAMP_BOOST : 0)
+  );
 }
 
 // Sim frames a held Updated jump keeps the dino's hitbox above an obstacle
@@ -157,14 +243,16 @@ function computeRunResult(finalScore, currentHighScore) {
 // up to limit + 1 (a rising dino is never about to land).
 function framesToLanding(limit) {
   if (dino.velocityY <= 0) return limit + 1;
-  const groundY = GAME_CONFIG.CANVAS_H - dino.height;
   let y = dino.y,
     vy = dino.velocityY;
   for (let i = 1; i <= limit; i++) {
     vy += dino.dropping ? GAME_CONFIG.FAST_FALL_GRAVITY : dino.gravity;
     y += vy;
-    // Over a gap there is no ground to land on (G1).
-    if (y >= groundY) return dinoFloorY(worldScroll() * i) === null ? limit + 1 : i;
+    // Over a gap there is no ground to land on (G1); a ramp is higher (G2).
+    const floor = dinoFloorY(worldScroll() * i);
+    if (floor === null) {
+      if (y >= GAME_CONFIG.CANVAS_H - dino.height) return limit + 1;
+    } else if (y >= floor) return i;
   }
   return limit + 1;
 }
@@ -208,6 +296,7 @@ function jump(repeat) {
   if (!dino.isJumping) {
     dino.slideFrames = 0;
     dino.airFrames = 0;
+    dino.takeoffY = dino.y;
     dino.velocityY = jumpPower();
     dino.isJumping = true;
     if (runDebug) game.lastJumpFrame = game.animFrame;
@@ -243,7 +332,8 @@ function dinoHitbox() {
 // slide already going is topped up, so holding Down keeps sliding.
 function startSlide() {
   if (dino.isJumping) {
-    dino.y = GAME_CONFIG.CANVAS_H - dino.height;
+    const floor = dinoFloorY();
+    dino.y = floor === null ? GAME_CONFIG.CANVAS_H - dino.height : floor;
     dino.velocityY = 0;
     dino.isJumping = false;
     dino.dropping = false;
@@ -285,6 +375,7 @@ function updateCombo() {
   if (game.comboPopFrames > 0) game.comboPopFrames--;
   if (!isUpdatedMode()) return;
   for (const obs of game.obstacles) {
+    if (obs.render === 'ramp') continue; // a ramp is ridden, not cleared (G2)
     if (obs.passed || obs.x + obs.width >= dino.x) continue;
     obs.passed = true;
     if (comboMoveActive()) {

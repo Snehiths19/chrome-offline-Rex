@@ -122,6 +122,16 @@ const GAME_CONFIG = Object.freeze({
   // GAME_CONFIG directly, never cfg().
   PIT_GAP_FRAMES: 16,
   PIT_FALL_DEPTH: 10,
+  // Ramps (G2, Updated and Daily). The ramp rises RAMP_RISE px over its
+  // width; running off its top launches the dino upward at RAMP_LAUNCH_POWER
+  // (a held first jump takes off at UPDATED_JUMP_POWER, -9.6), so it flies
+  // higher than a jump, topping out just under the ceiling. The launch is a flight: the second jump
+  // and the air dash are open. Gameplay values: GAME_CONFIG, never cfg().
+  // While a launch flight lasts the world also scrolls RAMP_BOOST px per
+  // frame faster, so the dino carries its run-up into a long flight.
+  RAMP_RISE: 24,
+  RAMP_LAUNCH_POWER: -11,
+  RAMP_BOOST: 3,
 
   // --- Obstacle sprite (small cactus — baseline) ---
   OBS_WIDTH: 20,
@@ -191,6 +201,18 @@ const GAME_CONFIG = Object.freeze({
       unlockScore: 120,
       weight: 16,
       render: 'pit',
+      terrain: true,
+    }),
+    // Ramp (G2, Updated and Daily): ground that rises RAMP_RISE px over its
+    // width and ends in a drop. Running off the top launches the dino into
+    // big air. `terrain`: no hitbox, the dino rides it.
+    Object.freeze({
+      id: 'ramp',
+      width: 96,
+      height: 0,
+      unlockScore: 180,
+      weight: 12,
+      render: 'ramp',
       terrain: true,
     }),
     Object.freeze({
