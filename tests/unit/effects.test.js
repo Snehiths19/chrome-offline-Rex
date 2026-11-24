@@ -440,11 +440,11 @@ describe('Plateau cue', () => {
     cancelAnimationFrame(game.animationFrameId);
   }
 
-  it('marks the plateau at 98% of plateau speed, near score 640', () => {
+  it('marks the plateau at 99.2% of plateau speed, near score 640', () => {
     assertEquals(
       GAME_CONFIG.PLATEAU_REACH_RATIO,
-      0.98,
-      'the cue should mark 98% of plateau speed, the soft ceiling the curve approaches'
+      0.992,
+      'the cue should mark 99.2% of plateau speed, the soft ceiling the curve approaches'
     );
     // Score ticks in 0.1 steps. Compare those frames, not the continuous
     // inverse — that inverse sits one rounding step under the threshold.

@@ -238,6 +238,9 @@ async function playOnDevice(browser, base, vp) {
   // Portrait phones: the empty space below the canvas is a jump zone too.
   if (vp.portrait) {
     const box = await page.locator('#gameCanvas').boundingBox();
+    // Keep the lane clear: at Chrome's start speed an obstacle can reach the
+    // dino during this jump and end the run in the air.
+    await page.evaluate(() => (game.obstacles.length = 0));
     await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height + 40);
     check('a tap below the canvas jumps', await waitFor(page, 'dino.isJumping === true', 2000));
     check('dino lands after the zone jump', await waitFor(page, 'dino.isJumping === false', 3000));
