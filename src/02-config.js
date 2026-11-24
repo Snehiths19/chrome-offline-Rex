@@ -358,7 +358,46 @@ const GAME_CONFIG = Object.freeze({
   DINO_STRETCH_MAX: 0.14,
   DINO_LAND_SQUASH: 0.2,
   DINO_SLAM_SQUASH: 0.32,
-  DINO_SQUASH_FRAMES: 8,
+  // Since the AAA motion pass (M8) the landing eases back on a spring, not a
+  // straight line: squash, a small rebound stretch, a smaller settle. 14
+  // frames gives that bounce room to read.
+  DINO_SQUASH_FRAMES: 14,
+  // Rex motion (M8). Visual only, Updated and Daily only, all off under
+  // reduced motion and in Classic; the hitbox and physics never change.
+  // In the air the body pitches with its speed: nose up while rising,
+  // nose down while falling, DINO_AIR_PITCH radians per px/frame of fall
+  // speed, at most DINO_PITCH_MAX. On the ground it leans forward up to
+  // DINO_RUN_LEAN as the run speeds up, and tips back to match a ramp's
+  // slope. Each sim frame the pose moves DINO_PITCH_EASE of the way to its
+  // target, so it never snaps. Read through cfg().
+  DINO_AIR_PITCH: 0.024,
+  DINO_PITCH_MAX: 0.22,
+  DINO_RUN_LEAN: 0.06,
+  DINO_PITCH_EASE: 0.3,
+  // The legs speed up with the run: one stride per RUN_FRAME_PERIOD frames
+  // at DINO_CADENCE_REF_SPEED and below, faster in step with the scroll, up
+  // to DINO_CADENCE_MAX times as fast. Each stride lifts the body up to
+  // DINO_RUN_BOB_PX at mid-step (rounded to whole pixels so the art stays
+  // crisp). Read through cfg().
+  DINO_CADENCE_REF_SPEED: 4,
+  DINO_CADENCE_MAX: 2.2,
+  DINO_RUN_BOB_PX: 2,
+  // An air dash stretches the sprite DINO_DASH_STRETCH wider (and half that
+  // shorter) and pitches it forward, a speed smear. Read through cfg().
+  DINO_DASH_STRETCH: 0.18,
+  // On the start screen Rex breathes: DINO_IDLE_BREATH taller and back at
+  // DINO_IDLE_BREATH_RATE radians per frame. Read through cfg().
+  DINO_IDLE_BREATH: 0.025,
+  DINO_IDLE_BREATH_RATE: 0.06,
+  // Hit recoil. A hit (not a fall into a gap) knocks Rex back
+  // DINO_RECOIL_BACK_PX, hops it DINO_RECOIL_HOP_PX up and down again and
+  // rocks it back DINO_RECOIL_TILT radians, over DINO_RECOIL_FRAMES sim
+  // frames. It plays under the death shake and finishes under the Game Over
+  // card. Read through cfg().
+  DINO_RECOIL_FRAMES: 22,
+  DINO_RECOIL_BACK_PX: 6,
+  DINO_RECOIL_HOP_PX: 9,
+  DINO_RECOIL_TILT: 0.32,
   // Speed streaks (M2). Visual only, Updated and Daily only, off with reduced
   // motion. Faint wind lines in the sky band, behind the dino and above the
   // obstacle lane, fade in from SPEED_LINES_START_SPEED and reach
@@ -716,7 +755,21 @@ const TUNABLE_KEYS = Object.freeze([
   'DEATH_FLASH_FRAMES',
   'DEATH_SHAKE_AMPLITUDE',
   'DEATH_SHAKE_FREQ',
+  'DINO_AIR_PITCH',
+  'DINO_CADENCE_MAX',
+  'DINO_CADENCE_REF_SPEED',
+  'DINO_DASH_STRETCH',
+  'DINO_IDLE_BREATH',
+  'DINO_IDLE_BREATH_RATE',
   'DINO_LAND_SQUASH',
+  'DINO_PITCH_EASE',
+  'DINO_PITCH_MAX',
+  'DINO_RECOIL_BACK_PX',
+  'DINO_RECOIL_FRAMES',
+  'DINO_RECOIL_HOP_PX',
+  'DINO_RECOIL_TILT',
+  'DINO_RUN_BOB_PX',
+  'DINO_RUN_LEAN',
   'DINO_SLAM_SQUASH',
   'DINO_SQUASH_FRAMES',
   'DINO_STRETCH_MAX',

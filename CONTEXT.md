@@ -36,11 +36,13 @@ _Avoid_: charge jump, jump strength
 
 **Hang time** — In Updated and Daily, gravity is halved while the dino moves slower than 1.6 px per frame near the top of a jump, so the peak floats for a moment. A held jump lasts about 56 sim frames instead of 49. Classic keeps the plain arc; a fast fall skips it. A gameplay value (`HANG_*` in `GAME_CONFIG`).
 
-**Squash and stretch** — In Updated and Daily the dino sprite stretches taller in the air with speed and squashes on landing, easing back over a few frames, anchored at the feet. A landing that ends a fast fall is a **slam**: a flatter squash and a heavier dust burst. Visual only (the hitbox never changes), tunable through `cfg()`, off under reduced motion.
+**Squash and stretch** — In Updated and Daily the dino sprite stretches taller in the air with speed and squashes on landing, then springs back (squash, a small rebound stretch, settle), anchored at the feet. A landing that ends a fast fall is a **slam**: a flatter squash and a heavier dust burst. Visual only (the hitbox never changes), tunable through `cfg()`, off under reduced motion.
 
 **Speed streaks** — Faint wind lines in the sky band, above the obstacle lane, that fade in once the run passes speed 6.5 in Updated and Daily. Atmosphere only; never in Classic or under reduced motion.
 
 **Slam kick** — After a slam the world (not the sky or score) dips a few px for a few frames. Visual only, Updated and Daily, off under reduced motion.
+
+**Rex motion** — the pose layer on top of the dino sprite in Updated and Daily (M8): the body pitches nose up while rising and nose down while falling, leans forward a little as the run speeds up and tips with a ramp's slope; the stride quickens with speed and the body bobs a pixel or two per step; an air dash smears the sprite wide; the start screen breathes; a hit knocks Rex back with a small hop and rock, which a fall into a gap does not. Lives in `rexMotion` / `rexPose()`. Visual only: it reads `dino` and `game` and never writes them, so hitboxes, physics and `game.rng()` are untouched. Tunable through `cfg()`, off under reduced motion, never in Classic.
 
 **Second jump** — In Updated and Daily, a fresh press in the air jumps again, once per flight, with a forward flip and a puff of dust. A press while falling within the jump buffer window still counts as an early landing jump instead (F1), and a held key's auto-repeat never spends it. The dino never rises above the top of the canvas (the ceiling): near the top, the second jump starts slower so it tops out there. Classic has no second jump.
 

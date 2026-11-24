@@ -34,6 +34,7 @@ function resetGame() {
   dino.inPit = false;
   dino.takeoffY = dino.y;
   dino.launched = false;
+  rexMotion.reset();
 
   Particles.reset();
 
@@ -162,6 +163,7 @@ function deathShakeFreq() {
 // runs one update then one draw, the same as a one-slice frame.
 
 function updateDead() {
+  updateRexMotion();
   if (Animations.deathShakeFrames > 0) {
     Particles.update();
     if (Animations.deathFlashFrames > 0) Animations.deathFlashFrames--;
@@ -198,6 +200,7 @@ function drawDead() {
 
 function updateIdle() {
   game.animFrame++;
+  updateRexMotion();
   updateClouds();
 }
 
@@ -476,6 +479,8 @@ function updateRunning() {
     }
   }
 
+  updateRexMotion();
+
   // NEW BEST badge — first time this run's score exceeds the stored high score.
   // Updated and Daily start the shorter quiet countdown. Classic keeps
   // NEW_BEST_FRAMES, read here directly, not through cfg().
@@ -497,6 +502,7 @@ function endRun() {
     Animations.deathFlashFrames = reducedMotion ? 1 : GAME_CONFIG.DEATH_FLASH_FRAMES;
     Animations.scorePopFrames = reducedMotion ? 0 : scorePopWindow();
   }
+  startRexRecoil();
   Particles.emit('collision', dino.x + dino.width / 2, dino.y + dino.height / 2);
   audio.death();
   vibrateOnDeath();

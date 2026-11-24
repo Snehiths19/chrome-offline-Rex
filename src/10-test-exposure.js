@@ -42,6 +42,13 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.dropDino = dropDino;
   global.airGravity = airGravity;
   global.dinoSquashScale = dinoSquashScale;
+  global.rexMotion = rexMotion;
+  global.rexPose = rexPose;
+  global.updateRexMotion = updateRexMotion;
+  global.rexPitchTarget = rexPitchTarget;
+  global.dinoRunFrameIndex = dinoRunFrameIndex;
+  global.landSpring = landSpring;
+  global.startRexRecoil = startRexRecoil;
   global.speedLinesAlpha = speedLinesAlpha;
   global.drawSpeedLines = drawSpeedLines;
   global.slamKickOffset = slamKickOffset;
