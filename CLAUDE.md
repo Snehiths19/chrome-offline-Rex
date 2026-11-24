@@ -158,6 +158,7 @@ const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matc
 | Sky-tint flash | suppressed | suppressed |
 | Speed streaks | not drawn | not drawn |
 | Squash/stretch, slam kick, second-jump flip | off | off |
+| Rex motion: pitch, lean, faster stride, bob, recoil, idle breath | off | off (fixed stride) |
 
 ## `localStorage` keys
 

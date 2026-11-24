@@ -6581,6 +6581,218 @@ describe('Second-jump flip and puff (M3)', () => {
   });
 });
 
+describe('Rex motion (M8)', () => {
+  const m8With = (fn) => {
+    const orig = {
+      mode: game.mode,
+      state: game.state,
+      speed: game.currentSpeed,
+      vy: dino.velocityY,
+      jumping: dino.isJumping,
+      flip: dino.flipFrames,
+      dash: dino.dashFrames,
+      slide: dino.slideFrames,
+      squash: dino.landSquashFrames,
+      hard: dino.landSquashHard,
+      inPit: dino.inPit,
+      animFrame: game.animFrame,
+    };
+    game.mode = MODES.UPDATED;
+    game.state = STATE.RUNNING;
+    game.currentSpeed = GAME_CONFIG.INITIAL_SPEED;
+    dino.flipFrames = dino.dashFrames = dino.slideFrames = dino.landSquashFrames = 0;
+    dino.inPit = false;
+    rexMotion.reset();
+    try {
+      fn();
+    } finally {
+      setReducedMotion(false);
+      game.mode = orig.mode;
+      game.state = orig.state;
+      game.currentSpeed = orig.speed;
+      dino.velocityY = orig.vy;
+      dino.isJumping = orig.jumping;
+      dino.flipFrames = orig.flip;
+      dino.dashFrames = orig.dash;
+      dino.slideFrames = orig.slide;
+      dino.landSquashFrames = orig.squash;
+      dino.landSquashHard = orig.hard;
+      dino.inPit = orig.inPit;
+      game.animFrame = orig.animFrame;
+      rexMotion.reset();
+    }
+  };
+
+  it('pitches nose up while rising and nose down while falling, within the cap', () => {
+    m8With(() => {
+      dino.isJumping = true;
+      dino.velocityY = -6;
+      assert(rexPitchTarget() < 0, 'rising tips the nose up');
+      dino.velocityY = 6;
+      assert(rexPitchTarget() > 0, 'falling tips the nose down');
+      dino.velocityY = 500;
+      assertEquals(rexPitchTarget(), GAME_CONFIG.DINO_PITCH_MAX, 'capped');
+      dino.flipFrames = 4;
+      assertEquals(rexPitchTarget(), 0, 'the flip owns the turn');
+    });
+  });
+
+  it('eases into the pose instead of snapping', () => {
+    m8With(() => {
+      dino.isJumping = true;
+      dino.velocityY = 8;
+      const target = rexPitchTarget();
+      updateRexMotion();
+      assert(rexMotion.pitch > 0 && rexMotion.pitch < target, 'part way after one frame');
+      for (let i = 0; i < 40; i++) updateRexMotion();
+      assert(Math.abs(rexMotion.pitch - target) < 1e-3, 'arrives');
+      dino.isJumping = false;
+      dino.velocityY = 0;
+      updateRexMotion();
+      assert(rexMotion.pitch > 0, 'still settling the frame after landing');
+    });
+  });
+
+  it('leans forward a little more as the run speeds up', () => {
+    m8With(() => {
+      dino.isJumping = false;
+      const slow = rexPitchTarget();
+      game.currentSpeed = GAME_CONFIG.PLATEAU_SPEED;
+      const fast = rexPitchTarget();
+      assert(fast > slow, 'faster leans more');
+      assert(fast <= GAME_CONFIG.DINO_RUN_LEAN + 1e-9, 'never past the lean cap');
+    });
+  });
+
+  it('strides faster at speed in Updated and keeps the Classic stride', () => {
+    m8With(() => {
+      dino.isJumping = false;
+      game.currentSpeed = GAME_CONFIG.PLATEAU_SPEED;
+      for (let i = 0; i < 10; i++) updateRexMotion();
+      assert(rexMotion.runPhase > 10, 'more than one stride frame per sim frame');
+      assert(rexMotion.runPhase <= 10 * GAME_CONFIG.DINO_CADENCE_MAX + 1e-9, 'capped');
+      game.mode = MODES.CLASSIC;
+      game.animFrame = GAME_CONFIG.RUN_FRAME_PERIOD;
+      assertEquals(dinoRunFrameIndex(), 1, 'Classic reads the fixed animFrame stride');
+    });
+  });
+
+  it('bobs the body on each stride, in whole pixels', () => {
+    m8With(() => {
+      dino.isJumping = false;
+      rexMotion.runPhase = GAME_CONFIG.RUN_FRAME_PERIOD / 2;
+      const mid = rexPose();
+      assertEquals(mid.dy, -GAME_CONFIG.DINO_RUN_BOB_PX, 'highest mid-stride');
+      rexMotion.runPhase = 0;
+      assertEquals(Math.abs(rexPose().dy), 0, 'down on the footfall');
+    });
+  });
+
+  it('a hit knocks Rex back with a hop; a fall into a gap does not', () => {
+    m8With(() => {
+      startRexRecoil();
+      assertEquals(rexMotion.recoilFrames, GAME_CONFIG.DINO_RECOIL_FRAMES);
+      game.state = STATE.DEAD;
+      rexMotion.recoilFrames = GAME_CONFIG.DINO_RECOIL_FRAMES / 2;
+      const mid = rexPose();
+      assert(mid.dx < 0, 'knocked back');
+      assert(mid.dy < 0, 'up in the hop');
+      assert(mid.angle < 0, 'rocked back');
+      rexMotion.recoilFrames = 0;
+      const done = rexPose();
+      assert(Math.abs(done.dy) < 1e-9, 'back on the ground');
+      assertEquals(done.dx, -GAME_CONFIG.DINO_RECOIL_BACK_PX, 'stays knocked back');
+      rexMotion.reset();
+      dino.inPit = true;
+      startRexRecoil();
+      assertEquals(rexMotion.recoilFrames, 0, 'no recoil for a fall');
+    });
+  });
+
+  it('the landing springs: squash, a rebound stretch, then settles', () => {
+    m8With(() => {
+      dino.isJumping = false;
+      const total = GAME_CONFIG.DINO_SQUASH_FRAMES;
+      let sawStretch = false;
+      for (let f = total; f > 0; f--) {
+        dino.landSquashFrames = f;
+        if (dinoSquashScale().sy > 1) sawStretch = true;
+      }
+      assert(sawStretch, 'overshoots into a stretch');
+      dino.landSquashFrames = 1;
+      assert(Math.abs(dinoSquashScale().sy - 1) < 0.05, 'nearly settled at the end');
+    });
+  });
+
+  it('a dash smears wide and the flip eases through the turn', () => {
+    m8With(() => {
+      dino.isJumping = true;
+      dino.dashFrames = 3;
+      assert(dinoSquashScale().sx > 1, 'dash is wider');
+      dino.dashFrames = 0;
+      const total = GAME_CONFIG.DOUBLE_JUMP_FLIP_FRAMES;
+      dino.flipFrames = total * 0.75;
+      assert(dinoFlipAngle() < Math.PI / 2, 'slow out of the take-off');
+    });
+  });
+
+  it('breathes on the start screen', () => {
+    m8With(() => {
+      game.state = STATE.IDLE;
+      game.animFrame = Math.round(Math.PI / 2 / GAME_CONFIG.DINO_IDLE_BREATH_RATE);
+      assert(dinoSquashScale().sy > 1, 'breathing in');
+    });
+  });
+
+  it('Classic and reduced motion keep Rex still', () => {
+    for (const setup of [() => (game.mode = MODES.CLASSIC), () => setReducedMotion(true)]) {
+      m8With(() => {
+        setup();
+        dino.isJumping = true;
+        dino.velocityY = 8;
+        for (let i = 0; i < 5; i++) updateRexMotion();
+        assertEquals(rexMotion.pitch, 0);
+        startRexRecoil();
+        assertEquals(rexMotion.recoilFrames, 0);
+        const pose = rexPose();
+        assertEquals(pose.dx + pose.dy + pose.angle, 0);
+      });
+    }
+  });
+
+  it('never touches the dino or the run', () => {
+    m8With(() => {
+      dino.isJumping = true;
+      dino.velocityY = 5;
+      const snap = () =>
+        JSON.stringify({
+          y: dino.y,
+          vy: dino.velocityY,
+          jumping: dino.isJumping,
+          w: dino.width,
+          h: dino.height,
+          score: game.score,
+          speed: game.currentSpeed,
+        });
+      const before = snap();
+      let rngCalls = 0;
+      const origRng = game.rng;
+      game.rng = () => {
+        rngCalls++;
+        return origRng();
+      };
+      try {
+        for (let i = 0; i < 30; i++) updateRexMotion();
+        rexPose();
+      } finally {
+        game.rng = origRng;
+      }
+      assertEquals(snap(), before);
+      assertEquals(rngCalls, 0);
+    });
+  });
+});
+
 describe('Slide pose and bird drawing (M6)', () => {
   it('the slide pose is low and wide, even under reduced motion', () => {
     const orig = { mode: game.mode, state: game.state, slide: dino.slideFrames };

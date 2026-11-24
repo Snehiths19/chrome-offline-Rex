@@ -45,6 +45,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
               translate: () => {},
               scale: () => {},
               rotate: () => {},
+              transform: () => {},
               setTransform: () => {},
               ellipse: () => {},
               fillStyle: '',

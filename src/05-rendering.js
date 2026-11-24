@@ -643,6 +643,128 @@ function dinoNightBrightness() {
   return typeof peak === 'number' && peak > 1 ? peak : 1;
 }
 
+// Rex motion (M8): the pose layer on top of the sprite. Visual only: the
+// update reads dino and game but never writes them, so the hitbox, physics,
+// spawning and game.rng() are untouched. Updated and Daily only; Classic
+// keeps the original fixed stride and no pose, and reduced motion keeps
+// everything still.
+const rexMotion = {
+  pitch: 0, // radians, eased toward rexPitchTarget() each sim frame
+  runPhase: 0, // sim frames of stride, faster as the run speeds up
+  recoilFrames: 0, // sim frames left on the hit recoil
+  reset() {
+    this.pitch = 0;
+    this.runPhase = 0;
+    this.recoilFrames = 0;
+  },
+};
+
+function rexMotionOn() {
+  return isUpdatedMode() && !reducedMotion;
+}
+
+// How many sprite frames one sim frame of stride is worth: 1 up to the
+// reference speed, then in step with the scroll, capped.
+function rexCadence() {
+  const ref = cfg('DINO_CADENCE_REF_SPEED');
+  const max = cfg('DINO_CADENCE_MAX');
+  if (!(ref > 0)) return 1;
+  return Math.max(1, Math.min(max > 1 ? max : 1, game.currentSpeed / ref));
+}
+
+// Slope of a ramp under the feet, in radians (negative tips the nose up).
+function rexGroundSlope() {
+  const here = groundRiseUnderFeet(0);
+  const ahead = groundRiseUnderFeet(2);
+  if (!(here > 0) && !(ahead > 0)) return 0;
+  return -Math.atan((ahead - here) / 2);
+}
+
+// Where the body wants to point this frame.
+function rexPitchTarget() {
+  if (game.state !== STATE.RUNNING) return 0;
+  if (dino.flipFrames > 0) return 0;
+  const max = cfg('DINO_PITCH_MAX');
+  if (dino.isJumping) {
+    if (dino.dashFrames > 0) return max * 0.5;
+    const p = dino.velocityY * cfg('DINO_AIR_PITCH');
+    return Math.max(-max, Math.min(max, p));
+  }
+  if (dino.slideFrames > 0) return 0;
+  const { INITIAL_SPEED, PLATEAU_SPEED } = GAME_CONFIG;
+  const t = Math.max(
+    0,
+    Math.min(1, (game.currentSpeed - INITIAL_SPEED) / (PLATEAU_SPEED - INITIAL_SPEED))
+  );
+  return rexGroundSlope() + cfg('DINO_RUN_LEAN') * t;
+}
+
+// One sim frame of pose. Called from each state's update step.
+function updateRexMotion() {
+  if (!rexMotionOn()) {
+    rexMotion.pitch = 0;
+    rexMotion.recoilFrames = 0;
+    return;
+  }
+  if (game.state === STATE.RUNNING && !dino.isJumping && dino.slideFrames <= 0) {
+    rexMotion.runPhase += rexCadence();
+  }
+  if (rexMotion.recoilFrames > 0) rexMotion.recoilFrames--;
+  const ease = cfg('DINO_PITCH_EASE');
+  const k = ease > 0 && ease <= 1 ? ease : 1;
+  rexMotion.pitch += (rexPitchTarget() - rexMotion.pitch) * k;
+  if (Math.abs(rexMotion.pitch) < 1e-4) rexMotion.pitch = 0;
+}
+
+// A hit starts the recoil; a fall into a gap does not (Rex just drops).
+function startRexRecoil() {
+  if (!rexMotionOn() || dino.inPit) return;
+  rexMotion.recoilFrames = cfg('DINO_RECOIL_FRAMES');
+}
+
+function easeOutCubic(t) {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+// Offset and turn for the sprite this frame: { dx, dy, angle }. All 0 in
+// Classic and under reduced motion.
+function rexPose() {
+  const pose = { dx: 0, dy: 0, angle: 0 };
+  if (!rexMotionOn()) return pose;
+  pose.angle = rexMotion.pitch;
+  if (game.state === STATE.DEAD) {
+    const total = cfg('DINO_RECOIL_FRAMES');
+    if (!(total > 0) || dino.inPit) return pose;
+    const u = 1 - Math.min(1, rexMotion.recoilFrames / total);
+    pose.dx = -cfg('DINO_RECOIL_BACK_PX') * easeOutCubic(u);
+    pose.dy = -cfg('DINO_RECOIL_HOP_PX') * Math.sin(Math.PI * u);
+    pose.angle += -cfg('DINO_RECOIL_TILT') * Math.sin(Math.PI * u) * (1 - 0.5 * u);
+    return pose;
+  }
+  if (game.state === STATE.RUNNING && !dino.isJumping && dino.slideFrames <= 0) {
+    const period = GAME_CONFIG.RUN_FRAME_PERIOD;
+    const step = (rexMotion.runPhase % period) / period;
+    pose.dy = -Math.round(cfg('DINO_RUN_BOB_PX') * Math.sin(Math.PI * step));
+  }
+  return pose;
+}
+
+// Which run sprite: Classic keeps the original fixed stride; Updated and
+// Daily stride faster as the run speeds up.
+function dinoRunFrameIndex() {
+  const period = GAME_CONFIG.RUN_FRAME_PERIOD;
+  if (rexMotionOn() && game.state === STATE.RUNNING) {
+    return Math.floor(rexMotion.runPhase / period) % 2;
+  }
+  return Math.floor(game.animFrame / period) % 2;
+}
+
+// The landing spring (M8): u runs 0 → 1 over the squash. Squash first,
+// then a small rebound stretch, then a smaller settle, done at u = 1.
+function landSpring(u) {
+  return Math.exp(-3 * u) * Math.cos(2.5 * Math.PI * u);
+}
+
 // Squash and stretch scale for the dino sprite (M1), anchored at the feet.
 // Returns { sx, sy }. Classic, reduced motion and the death pose stay 1.
 function dinoSquashScale() {
@@ -653,11 +775,20 @@ function dinoSquashScale() {
     return { sx: 1.25, sy: GAME_CONFIG.SLIDE_HEIGHT / dino.height };
   }
   if (!isUpdatedMode() || reducedMotion || game.state === STATE.DEAD) return none;
+  if (game.state === STATE.IDLE) {
+    const b = cfg('DINO_IDLE_BREATH') * Math.sin(game.animFrame * cfg('DINO_IDLE_BREATH_RATE'));
+    return { sx: 1 - b * 0.5, sy: 1 + b };
+  }
   const frames = cfg('DINO_SQUASH_FRAMES');
   if (dino.landSquashFrames > 0 && frames > 0) {
-    const t = Math.min(1, dino.landSquashFrames / frames);
-    const amt = (dino.landSquashHard ? cfg('DINO_SLAM_SQUASH') : cfg('DINO_LAND_SQUASH')) * t;
+    const u = 1 - Math.min(1, dino.landSquashFrames / frames);
+    const amt =
+      (dino.landSquashHard ? cfg('DINO_SLAM_SQUASH') : cfg('DINO_LAND_SQUASH')) * landSpring(u);
     return { sx: 1 + amt * 0.6, sy: 1 - amt };
+  }
+  if (dino.isJumping && dino.dashFrames > 0) {
+    const d = cfg('DINO_DASH_STRETCH');
+    return { sx: 1 + d, sy: 1 - d * 0.5 };
   }
   if (dino.isJumping) {
     const speed = Math.min(1, Math.abs(dino.velocityY) / Math.abs(GAME_CONFIG.JUMP_POWER));
@@ -668,12 +799,16 @@ function dinoSquashScale() {
 }
 
 // Second-jump flip angle in radians (M3): one forward turn while flipFrames
-// counts down. 0 in Classic, under reduced motion and in the death pose.
+// counts down, eased in and out (M8) so it whips through the middle and
+// lands the turn softly. 0 in Classic, under reduced motion and in the
+// death pose.
 function dinoFlipAngle() {
   if (!isUpdatedMode() || reducedMotion || game.state === STATE.DEAD) return 0;
   const total = cfg('DOUBLE_JUMP_FLIP_FRAMES');
   if (!(total > 0) || dino.flipFrames <= 0) return 0;
-  return Math.PI * 2 * (1 - Math.min(1, dino.flipFrames / total));
+  const t = 1 - Math.min(1, dino.flipFrames / total);
+  const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  return Math.PI * 2 * eased;
 }
 
 function drawDino() {
@@ -683,7 +818,7 @@ function drawDino() {
   } else if (dino.isJumping) {
     img = dino.image;
   } else {
-    img = dinoRunImages[Math.floor(game.animFrame / GAME_CONFIG.RUN_FRAME_PERIOD) % 2];
+    img = dinoRunImages[dinoRunFrameIndex()];
   }
   const brightness = dinoNightBrightness();
   const previousFilter = ctx.filter;
@@ -693,17 +828,31 @@ function drawDino() {
       const { sx, sy } = dinoSquashScale();
       const w = dino.width * sx,
         h = dino.height * sy;
-      const turn = dinoFlipAngle();
+      const pose = rexPose();
+      const flip = dinoFlipAngle();
+      const turn = flip + pose.angle;
       if (turn) {
-        const cx = dino.x + dino.width / 2,
-          cy = dino.y + dino.height / 2;
+        // A flip (and any turn in the air) pivots on the body's middle; a
+        // lean on the ground pivots on the feet so they stay planted.
+        const mid = flip || dino.isJumping;
+        const cx = dino.x + dino.width / 2 + pose.dx;
+        const cy = (mid ? dino.y + dino.height / 2 : dino.y + dino.height) + pose.dy;
+        // One transform call (move to the pivot, then turn), so the death
+        // shake stays the only translate in a death frame.
+        const cos = Math.cos(turn),
+          sin = Math.sin(turn);
         ctx.save();
-        ctx.translate(cx, cy);
-        ctx.rotate(turn);
-        ctx.drawImage(img, -w / 2, dino.height / 2 - h, w, h);
+        ctx.transform(cos, sin, -sin, cos, cx, cy);
+        ctx.drawImage(img, -w / 2, (mid ? dino.height / 2 : 0) - h, w, h);
         ctx.restore();
       } else {
-        ctx.drawImage(img, dino.x + (dino.width - w) / 2, dino.y + dino.height - h, w, h);
+        ctx.drawImage(
+          img,
+          dino.x + (dino.width - w) / 2 + pose.dx,
+          dino.y + dino.height - h + pose.dy,
+          w,
+          h
+        );
       }
     } else {
       ctx.fillStyle = '#535353';
