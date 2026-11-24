@@ -38,7 +38,7 @@ _Avoid_: charge jump, jump strength
 
 **Squash and stretch** — In Updated and Daily the dino sprite stretches taller in the air with speed and squashes on landing, then springs back (squash, a small rebound stretch, settle), anchored at the feet. A landing that ends a fast fall is a **slam**: a flatter squash and a heavier dust burst. Visual only (the hitbox never changes), tunable through `cfg()`, off under reduced motion.
 
-**Speed streaks** — Faint wind lines in the sky band, above the obstacle lane, that fade in once the run passes speed 6.5 in Updated and Daily. Atmosphere only; never in Classic or under reduced motion.
+**Speed streaks** — Faint wind lines in the sky band, above the obstacle lane, that fade in once the run passes speed 7.4 in Updated and Daily. Atmosphere only; never in Classic or under reduced motion.
 
 **Slam kick** — After a slam the world (not the sky or score) dips a few px for a few frames. Visual only, Updated and Daily, off under reduced motion.
 
@@ -99,7 +99,7 @@ _Avoid_: velocity, game speed, scroll speed
 **Sim clock** — the fixed 60Hz step that advances score, speed, spawn timing, jump physics, the restart countdown, and frame-tied juice. Display refresh may be faster (a 120Hz phone fires animation frames twice as often). Real time from those frames accumulates and is spent in 1/60s slices, at most a few slices per animation frame, so a hitch does not fast-forward the run. A call with no timestamp (the test harness, and the kickoff that starts the loop) is one slice. Classic and Updated/Daily share this clock. DifficultyProfile and the run seed do not read it. `?qaHz=1` paints the measured sim rate and the display rate for Playtest; off, it counts nothing and draws nothing. Each slice runs the current state's update step (simulation only); the display frame then runs one draw step for whatever state the game ended in, so a frame that owes two slices still paints once.
 _Avoid_: delta time, fps cap, frame skip
 
-**Initial speed** — the speed at score 0 — the lowest point of the difficulty curve.
+**Initial speed** — the speed at score 0 — the lowest point of the difficulty curve. It is 6, the same as Chrome's own offline game on the same 600px-wide canvas (raised from 3 on 2026-11-24 because the owner found the start too slow). The plateau stays at 8: this jump hangs about 1.5 times longer than Chrome's, so 8 here asks about as much as Chrome near its top speed.
 _Avoid_: start speed, base speed
 
 **Ramp midpoint** — the score value where the difficulty curve's rate of change is steepest; the inflection point of the sigmoid.
@@ -112,7 +112,7 @@ _Avoid_: slope, sigmoid slope
 
 **Difficulty curve** — how speed and obstacle density scale with score. The curve starts gently, accelerates through the mid-game, and plateaus at a speed the player can sustain with focus. It is continuous (no sudden jumps at level boundaries) and sigmoid-shaped (slow ramp-up, steeper middle, soft plateau).
 
-**Plateau** — the ceiling of the difficulty curve. Chosen to feel "focusable but demanding" — a skilled player can hold this speed indefinitely, but it is not forgiving of lapses in attention. The curve approaches plateau speed and never quite touches it, so the player is told they have arrived the first time speed reaches 98% of plateau speed (about score 641 on the current curve). That cue is a brief cool particle puff at the dino's heel — once per run, never a center message, never repeated. Classic never shows it. Under prefers-reduced-motion the puff is damped like other particles. It reframes a late failure from "this is impossible" to "I've reached the hard part, now I need to hold it."
+**Plateau** — the ceiling of the difficulty curve. Chosen to feel "focusable but demanding" — a skilled player can hold this speed indefinitely, but it is not forgiving of lapses in attention. The curve approaches plateau speed and never quite touches it, so the player is told they have arrived the first time speed reaches 99.2% of plateau speed (about score 641 on the current curve). That cue is a brief cool particle puff at the dino's heel — once per run, never a center message, never repeated. Classic never shows it. Under prefers-reduced-motion the puff is damped like other particles. It reframes a late failure from "this is impossible" to "I've reached the hard part, now I need to hold it."
 
 **Level** — a discrete score milestone (every 100 points) used for milestone flash effects and visual feedback only. Speed no longer steps at level boundaries; it increases continuously. In Updated and Daily the center LEVEL label is a short, quiet read in the jump band, then it leaves while the gold wash finishes. By day that wash is a quiet breath. Once the sky is fully night the same wash peaks softer still, so the celebration stays peripheral Atmosphere and does not spotlight the canvas away from the obstacle lane. The gold puff at the score stays on the number, so it does not spray toward the obstacle lane. Classic keeps the full-size label for the whole flash, never draws the wash, and never emits that puff. Under prefers-reduced-motion the Updated and Daily word is shorter still, and the wash stays suppressed.
 

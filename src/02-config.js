@@ -78,7 +78,11 @@ const GAME_CONFIG = Object.freeze({
   SLIDE_FRAMES: 32,
   SLIDE_HEIGHT: 24,
   SLIDE_CANCEL_FRAMES: 8,
-  INITIAL_SPEED: 3.0, // obstacle scroll speed at score 0
+  // Speed at score 0. Chrome's own offline game starts at 6 px per frame on
+  // the same 600px-wide canvas, so the opening matches it. The plateau stays
+  // at 8: this jump hangs about 1.5x longer than Chrome's, so 8 here already
+  // asks about as much of the player as Chrome does near its top speed.
+  INITIAL_SPEED: 6.0, // obstacle scroll speed at score 0
   SPEED_CAP: 13.0, // max scroll speed (matches Chrome T-Rex)
   PLATEAU_SPEED: 8.0, // sigmoid ceiling — focusable-but-demanding speed the curve approaches
   RAMP_MIDPOINT: 300, // score where acceleration is steepest (day/night transition)
@@ -98,7 +102,9 @@ const GAME_CONFIG = Object.freeze({
   RESUME_COUNTDOWN_FRAMES: 180, // 3 s "3 2 1" after returning to a paused run
   MAX_SPAWN_GAP: 600, // gap (px) between obstacles at INITIAL_SPEED
   MIN_SPAWN_GAP: 340, // classic floor (px). Updated/Daily never go below this either.
-  SPAWN_GAP_SPEED_FACTOR: 50, // classic gap shrinks by this much per +1 speed above INITIAL_SPEED
+  // Classic gap shrinks by this much per +1 speed above INITIAL_SPEED. 125 keeps
+  // the gap at the plateau where it was (about 350px) now the start is faster.
+  SPAWN_GAP_SPEED_FACTOR: 125,
   SPAWN_GAP_JITTER: 0.3, // ±30% in Updated/Daily; classic skips jitter
   // Worst-case frames between Updated/Daily obstacles once the shrinking curve
   // would leave less than one focused jump. A jump is 49 frames at the current
@@ -402,7 +408,7 @@ const GAME_CONFIG = Object.freeze({
   // motion. Faint wind lines in the sky band, behind the dino and above the
   // obstacle lane, fade in from SPEED_LINES_START_SPEED and reach
   // SPEED_LINES_ALPHA at SPEED_LINES_FULL_SPEED. Read through cfg().
-  SPEED_LINES_START_SPEED: 6.5,
+  SPEED_LINES_START_SPEED: 7.4,
   SPEED_LINES_FULL_SPEED: 8,
   SPEED_LINES_ALPHA: 0.35,
   SPEED_LINES_COUNT: 6,
@@ -690,14 +696,14 @@ const GAME_CONFIG = Object.freeze({
   // without opening the system share sheet. Read through cfg().
   COPY_FLASH_FRAMES: 45,
   // Soft ceiling for the once-per-run plateau cue. The speed curve approaches
-  // PLATEAU_SPEED but never reaches it; 0.98 is about score 641. Visual only —
+  // PLATEAU_SPEED but never reaches it; 0.992 is about score 641. Visual only —
   // speed, gaps, and scoring still read the curve directly, not this ratio.
-  PLATEAU_REACH_RATIO: 0.98,
-  // Heel-trail whisper starts a little before that cue. 0.96 of plateau
+  PLATEAU_REACH_RATIO: 0.992,
+  // Heel-trail whisper starts a little before that cue. 0.984 of plateau
   // speed is still late-run, on the night sky (about score 568). Visual
   // only — speed, gaps, and scoring do not read this ratio. ?qaTrail=1
   // emits the same whisper without waiting for it.
-  TRAIL_SPEED_RATIO: 0.96,
+  TRAIL_SPEED_RATIO: 0.984,
 
   // --- HUD ---
   SCORE_X_OFFSET: 150, // pixels from right edge for the current-score label
