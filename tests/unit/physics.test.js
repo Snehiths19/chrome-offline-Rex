@@ -2405,10 +2405,12 @@ describe('Gaps in the ground (G1)', () => {
     g1Run(MODES.UPDATED, () => {
       const origRng = game.rng;
       game.score = 200;
-      // The course reads the road (courseScore): put the run at score 200's spot.
+      // The course reads the road (courseScore): put the next spot at score 200's.
       let road = 0;
       while (roadScoreAt(road) < 200) road += 10;
       game.roadX = road;
+      game.nextObstacleRoadX = road + GAME_CONFIG.CANVAS_W;
+      const spotScore = courseScore();
       // Roll the pit: its weight sits just before the cluster in the table.
       const pit = g1PitType();
       const eligible = GAME_CONFIG.OBSTACLE_TYPES.filter((t) => 200 >= t.unlockScore);
@@ -2427,9 +2429,7 @@ describe('Gaps in the ground (G1)', () => {
       const spawned = game.obstacles[game.obstacles.length - 1];
       assertEquals(spawned.type, 'pit');
       const again = [pitRoll, 0.5];
-      const params = DifficultyProfile.nextObstacle(courseScore(), MODES.UPDATED, () =>
-        again.shift()
-      );
+      const params = DifficultyProfile.nextObstacle(spotScore, MODES.UPDATED, () => again.shift());
       assertEquals(params.type.id, 'pit');
       assertEquals(game.nextSpawnGap, params.gap + spawned.width);
     });

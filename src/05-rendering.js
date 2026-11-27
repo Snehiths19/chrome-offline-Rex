@@ -926,6 +926,7 @@ function resetGhostRun() {
   ghost.best = null;
   ghost.lost = false;
   ghost.lostFade = 0;
+  ghost.at = 0;
   if (!ghostShowsIn(game.mode)) return;
   const stored = GhostStore.load(game.mode);
   if (!stored || stored.seed !== game.runSeed || !Array.isArray(stored.o)) return;

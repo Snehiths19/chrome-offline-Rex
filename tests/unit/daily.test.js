@@ -2270,8 +2270,8 @@ describe('One shared course: the course is laid out on the road', () => {
   // Play a Daily run on a fixed seed with a simple autopilot, dashing in
   // every flight when `dash` is set. Returns each obstacle's type, its spot
   // on the road and its width.
-  function courseOf(dash) {
-    replayRunSeed(20261127);
+  function courseOf(dash, seed) {
+    replayRunSeed(seed);
     cancelAnimationFrame(game.animationFrameId);
     game.mode = MODES.DAILY;
     game.state = STATE.IDLE;
@@ -2305,11 +2305,13 @@ describe('One shared course: the course is laid out on the road', () => {
   it('dashing in every flight meets exactly the same course', () => {
     const origMode = game.mode;
     try {
-      const plain = courseOf(false);
-      const dashing = courseOf(true);
-      const n = Math.min(plain.length, dashing.length);
-      assert(n >= 15, 'both runs met plenty of obstacles (' + n + ')');
-      assertEquals(dashing.slice(0, n).join(' '), plain.slice(0, n).join(' '));
+      for (const seed of [20261127, 20261101]) {
+        const plain = courseOf(false, seed);
+        const dashing = courseOf(true, seed);
+        const n = Math.min(plain.length, dashing.length);
+        assert(n >= 15, 'both runs met plenty of obstacles (' + n + ')');
+        assertEquals(dashing.slice(0, n).join(' '), plain.slice(0, n).join(' '), 'seed ' + seed);
+      }
     } finally {
       game.mode = origMode;
       cancelAnimationFrame(game.animationFrameId);

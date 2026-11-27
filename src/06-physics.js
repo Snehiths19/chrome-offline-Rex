@@ -1,7 +1,7 @@
 // == SECTION 6: PHYSICS & GAME LOGIC ==
 
 // `x` and `speed` default to the right edge and the run speed; Updated and
-// Daily spawning passes the exact spot and the course speed (courseSpeed).
+// Daily spawning passes the exact spot and the course speed (courseScore).
 function spawnObstacle(type, x, speed = game.currentSpeed) {
   // Default to a tier-appropriate random pick; tests may pass a specific type.
   // Mode is required: omitting it lets Classic roll cluster once that tier unlocks.

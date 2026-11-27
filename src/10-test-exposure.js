@@ -194,7 +194,6 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.drawRunning = drawRunning;
   global.roadScoreAt = roadScoreAt;
   global.courseScore = courseScore;
-  global.courseSpeed = courseSpeed;
   global.dinoLoseImage = dinoLoseImage;
   global.isDailyMode = isDailyMode;
   global.shareDailyResult = shareDailyResult;

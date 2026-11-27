@@ -248,7 +248,6 @@ export default [
         drawRunning: 'readonly',
         roadScoreAt: 'readonly',
         courseScore: 'readonly',
-        courseSpeed: 'readonly',
         dinoLoseImage: 'readonly',
         reducedMotion: 'readonly',
         safeStorage: 'readonly',

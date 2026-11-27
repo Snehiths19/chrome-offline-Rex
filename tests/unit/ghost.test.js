@@ -24,6 +24,9 @@ function withGhostSandbox(fn) {
   try {
     GHOST_TEST_KEYS.forEach((k) => safeStorage.remove(k));
     ghost.enabled = true;
+    ghost.at = 0;
+    ghost.lost = false;
+    ghost.lostFade = 0;
     fn();
   } finally {
     cancelAnimationFrame(game.animationFrameId);

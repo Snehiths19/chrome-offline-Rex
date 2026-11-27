@@ -44,6 +44,7 @@ function resetGame() {
   game.animFrame = 0;
   game.groundX = 0;
   game.roadX = 0;
+  game.nextObstacleRoadX = firstObstacleRoadX();
   game.currentSpeed = GAME_CONFIG.INITIAL_SPEED;
   game.lastObstacleX = -300;
   game.graceFrames = GAME_CONFIG.GRACE_FRAMES;
@@ -378,9 +379,10 @@ function updateRunning() {
   // deterministic. DifficultyProfile.nextObstacle() picks type + gap together.
   //
   // Updated and Daily lay the course out on the road, not the clock (see
-  // courseScore): the obstacle goes exactly one gap after the last one,
-  // spawned just off the right edge, and its type, gap and width read the
-  // score a run with no dash or ramp boost would have at this spot. So a
+  // courseScore): each obstacle has a fixed spot on the road, exactly one
+  // gap after the last, and spawns once that spot is within SPAWN_LEAD_PX
+  // past the right edge. Its type, gap and widths read the score a run with no
+  // boost would have there. Nothing reads the frame it spawns on, so a
   // dash or a launch never changes the course, and a Daily seed is the
   // same course for everyone. Classic keeps its frame-based spawn.
   const roadSpawn = isUpdatedMode();
@@ -389,13 +391,18 @@ function updateRunning() {
     : game.lastObstacleX <= GAME_CONFIG.CANVAS_W - game.nextSpawnGap;
   if (spawnDue) {
     const consumedGap = game.nextSpawnGap;
+    // On screen, one gap after the last obstacle (the first at the right
+    // edge). On the road that is game.nextObstacleRoadX, kept exactly.
+    const spawnRoadX = game.nextObstacleRoadX;
     const spawnX = roadSpawn
       ? Math.max(GAME_CONFIG.CANVAS_W, game.lastObstacleX + game.nextSpawnGap)
       : GAME_CONFIG.CANVAS_W;
-    const params = DifficultyProfile.nextObstacle(courseScore(), game.mode, game.rng);
+    const spawnScore = courseScore();
+    const spawnSpeed = roadSpawn ? DifficultyProfile.speedAtScore(spawnScore) : game.currentSpeed;
+    const params = DifficultyProfile.nextObstacle(spawnScore, game.mode, game.rng);
     // ?qaCluster=1 / ?qaBig=1 may replace this one type. The roll above already ran.
     const type = qaBigOverride(qaClusterOverride(params.type));
-    spawnObstacle(type, spawnX, roadSpawn ? courseSpeed() : game.currentSpeed);
+    spawnObstacle(type, spawnX, spawnSpeed);
     noteGhostSpawns();
     noteSpawnForDeathLog(consumedGap, type.id, game.currentSpeed);
     game.lastObstacleX = spawnX;
@@ -406,8 +413,12 @@ function updateRunning() {
     // A gap in the ground (G1) does the same.
     const wide = spawned.render === 'row' || spawned.terrain;
     // After a ramp (G2) the gap also skips the launch flight.
-    const flight = spawned.render === 'ramp' ? launchFlightDistance(courseSpeed()) : 0;
+    const flight = spawned.render === 'ramp' ? launchFlightDistance(spawnSpeed) : 0;
     game.nextSpawnGap = params.gap + (wide ? spawned.width : 0) + flight;
+    // The next spot on the road, from this one's spot (not the frame).
+    // A leap's far piece starts one ramp width on.
+    const far = type.id === 'leap' ? game.obstacles[game.obstacles.length - 2].width : 0;
+    game.nextObstacleRoadX = spawnRoadX + far + game.nextSpawnGap;
   }
 
   // Collision detection. A gap in the ground (G1) has no hitbox; the
