@@ -131,7 +131,9 @@ The harness has no JSDOM. Canvas and document are stubbed in `src/01-node-stubs.
 
 ## Determinism contract
 
-`game.rng()` is the **only** source of gameplay-affecting randomness. It's seeded from `Date.now()` at each `resetGame()`. Used for: hill init/respawn, obstacle spawn-gap jitter, obstacle type selection.
+`game.rng()` is the **only** source of gameplay-affecting randomness. It's seeded from `Date.now()` at each `resetGame()`. Used for: obstacle spawn-gap jitter and obstacle type selection. The hills draw on their own stream, `game.sceneryRng()`, seeded from the same run seed (`sceneryRunSeed`), so their clock-timed respawns never shift the course.
+
+**The course is laid out on the road (Updated and Daily).** Spawning reads `courseScore()`, the score a run with no dash or ramp boost would have at `game.roadX`, not `game.score`, and puts each obstacle exactly one gap after the last (`SPAWN_LEAD_PX` past the right edge). So a seed is one course however the player moves, which keeps the Daily the same for everyone and lets Ghost Rex follow it. On a run with no boost `courseScore()` equals `game.score` exactly. Classic keeps its frame-based spawn.
 
 `Math.random()` is reserved for **cosmetic** randomness only — particle emit jitter, cloud positions, audio pitch wobble, star positions. These don't perturb the gameplay-determinism contract because they don't influence collision, scoring, or spawn timing.
 
@@ -262,7 +264,7 @@ Rules that apply across all call sites. Violating these silently misbehaves rath
 
 **All storage goes through `safeStorage`.** Browsers that block storage throw on every `localStorage` access, and one unguarded read at module load stops the game booting. `safeStorage.get` returns the fallback when the read throws, and `safeStorage.set` keeps a failed write in memory so it still reads back this session. Never call `localStorage` directly outside `safeStorage`.
 
-**`game.rng()` is the only source of gameplay randomness.** Obstacle type, spawn-gap jitter, hill init/respawn all use `game.rng()`. `Math.random()` is reserved for purely cosmetic effects (particles, clouds, audio pitch). Swapping them breaks the daily-challenge determinism contract.
+**`game.rng()` is the only source of gameplay randomness.** Obstacle type and spawn-gap jitter use `game.rng()`; hills use `game.sceneryRng()`, never the course stream. `Math.random()` is reserved for purely cosmetic effects (particles, clouds, audio pitch). Swapping them breaks the daily-challenge determinism contract.
 
 **Physics/spawning/scoring read `GAME_CONFIG.X` directly — never via `cfg()`.** `cfg()` is for visual tunables only. Any physics or spawning value routed through `cfg()` would allow live-tuning overrides to perturb the determinism contract.
 

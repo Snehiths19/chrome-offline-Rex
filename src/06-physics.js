@@ -1,14 +1,16 @@
 // == SECTION 6: PHYSICS & GAME LOGIC ==
 
-function spawnObstacle(type) {
+// `x` and `speed` default to the right edge and the run speed; Updated and
+// Daily spawning passes the exact spot and the course speed (courseSpeed).
+function spawnObstacle(type, x, speed = game.currentSpeed) {
   // Default to a tier-appropriate random pick; tests may pass a specific type.
   // Mode is required: omitting it lets Classic roll cluster once that tier unlocks.
   const t = type || pickObstacleType(game.rng, game.score, game.mode);
   let width = t.width;
-  if (t.render === 'row') width = rowWidthForSpeed(game.currentSpeed);
-  if (t.render === 'pit') width = pitWidthForSpeed(game.currentSpeed);
+  if (t.render === 'row') width = rowWidthForSpeed(speed);
+  if (t.render === 'pit') width = pitWidthForSpeed(speed);
   const obs = {
-    x: GAME_CONFIG.CANVAS_W,
+    x: x === undefined ? GAME_CONFIG.CANVAS_W : x,
     y: GAME_CONFIG.CANVAS_H - t.height - (t.lift || 0),
     width: width,
     height: t.height,
@@ -22,7 +24,7 @@ function spawnObstacle(type) {
     game.obstacles.push({
       x: obs.x + obs.width,
       y: GAME_CONFIG.CANVAS_H,
-      width: leapGapWidthForSpeed(game.currentSpeed),
+      width: leapGapWidthForSpeed(speed),
       height: 0,
       type: 'leapGap',
       render: 'pit',

@@ -105,6 +105,10 @@ const GAME_CONFIG = Object.freeze({
   // Classic gap shrinks by this much per +1 speed above INITIAL_SPEED. 125 keeps
   // the gap at the plateau where it was (about 350px) now the start is faster.
   SPAWN_GAP_SPEED_FACTOR: 125,
+  // Updated and Daily spawn each obstacle exactly one gap after the last,
+  // as soon as that spot is within this many px past the right edge: more
+  // than one frame of the fastest scroll, so it never pops in on screen.
+  SPAWN_LEAD_PX: 24,
   SPAWN_GAP_JITTER: 0.3, // ±30% in Updated/Daily; classic skips jitter
   // Worst-case frames between Updated/Daily obstacles once the shrinking curve
   // would leave less than one focused jump. A jump is 49 frames at the current

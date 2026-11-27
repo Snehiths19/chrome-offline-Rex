@@ -102,18 +102,17 @@ function initHills() {
   const slot = GAME_CONFIG.CANVAS_W / GAME_CONFIG.HILL_COUNT;
   for (let i = 0; i < GAME_CONFIG.HILL_COUNT; i++) {
     game.hills.push({
-      x: i * slot + game.rng() * (slot - GAME_CONFIG.HILL_MIN_WIDTH),
-      width: GAME_CONFIG.HILL_MIN_WIDTH + game.rng() * GAME_CONFIG.HILL_WIDTH_RANGE,
-      height: GAME_CONFIG.HILL_MIN_HEIGHT + game.rng() * GAME_CONFIG.HILL_HEIGHT_RANGE,
+      x: i * slot + game.sceneryRng() * (slot - GAME_CONFIG.HILL_MIN_WIDTH),
+      width: GAME_CONFIG.HILL_MIN_WIDTH + game.sceneryRng() * GAME_CONFIG.HILL_WIDTH_RANGE,
+      height: GAME_CONFIG.HILL_MIN_HEIGHT + game.sceneryRng() * GAME_CONFIG.HILL_HEIGHT_RANGE,
     });
   }
 }
 
 function updateHills() {
   if (!isUpdatedMode()) return;
-  // Reduced motion freezes the mounds the player sees, but the respawn rolls
-  // still have to come off game.rng(). Skipping them shifts every later
-  // obstacle type and gap for that Daily seed.
+  // Reduced motion freezes the mounds the player sees; the respawn rolls
+  // still come off game.sceneryRng() so the scenery stream stays the same.
   let hills = game.hills;
   if (reducedMotion) {
     if (!hillLayout) {
@@ -124,12 +123,10 @@ function updateHills() {
   for (const hill of hills) {
     hill.x -= game.currentSpeed * GAME_CONFIG.HILL_PARALLAX;
     if (hill.x + hill.width < 0) {
-      // GAME_CONFIG, not cfg(): when the next respawn happens decides when the
-      // next game.rng() rolls happen, so a tuned range would shift the Daily
-      // obstacle sequence. The replay tests (tests/replay.test.js) check this.
-      hill.x = GAME_CONFIG.CANVAS_W + game.rng() * GAME_CONFIG.HILL_RESPAWN_X_RANGE;
-      hill.width = GAME_CONFIG.HILL_MIN_WIDTH + game.rng() * GAME_CONFIG.HILL_WIDTH_RANGE;
-      hill.height = GAME_CONFIG.HILL_MIN_HEIGHT + game.rng() * GAME_CONFIG.HILL_HEIGHT_RANGE;
+      // GAME_CONFIG, not cfg(): the scenery stays the same for a seed.
+      hill.x = GAME_CONFIG.CANVAS_W + game.sceneryRng() * GAME_CONFIG.HILL_RESPAWN_X_RANGE;
+      hill.width = GAME_CONFIG.HILL_MIN_WIDTH + game.sceneryRng() * GAME_CONFIG.HILL_WIDTH_RANGE;
+      hill.height = GAME_CONFIG.HILL_MIN_HEIGHT + game.sceneryRng() * GAME_CONFIG.HILL_HEIGHT_RANGE;
     }
   }
 }

@@ -1,26 +1,25 @@
 {
   "mode": "updated",
   "seed": 4242,
-  "jumps": [311,430,564,676],
+  "jumps": [311,440,553,641],
   "result": {
     "died": true,
-    "deathFrame": 776,
-    "finalScore": 53,
-    "finalSpeed": 6.156842,
-    "obstacleCount": 6,
+    "deathFrame": 750,
+    "finalScore": 51,
+    "finalSpeed": 6.153124,
+    "obstacleCount": 5,
     "flights": [
       [311,357,56.64],
-      [430,476,56.64],
-      [564,610,56.64],
-      [676,722,56.64]
+      [440,486,56.64],
+      [553,599,56.64],
+      [641,687,56.64]
     ],
     "obstacles": [
       {"frame":241,"type":"small","gap":644},
-      {"frame":360,"type":"small","gap":723},
-      {"frame":494,"type":"small","gap":814},
-      {"frame":606,"type":"small","gap":683},
-      {"frame":691,"type":"small","gap":521},
-      {"frame":776,"type":"small","gap":517}
+      {"frame":367,"type":"small","gap":789},
+      {"frame":480,"type":"small","gap":692},
+      {"frame":568,"type":"small","gap":539},
+      {"frame":661,"type":"small","gap":571}
     ]
   }
 }

@@ -9,13 +9,13 @@ describe('Ambient depth + confetti (PR-D)', () => {
     setMode(MODES.UPDATED);
     cancelAnimationFrame(game.animationFrameId);
     // Pin the RNG to a deterministic sequence.
-    game.rng = mulberry32(42);
+    game.sceneryRng = mulberry32(42);
     initHills();
     const snapshot1 = game.hills.map((h) => ({ x: h.x, w: h.width, h: h.height }));
     assertEquals(game.hills.length, GAME_CONFIG.HILL_COUNT, 'Hills count should match config');
 
     // Re-seed identically and re-init — same hills.
-    game.rng = mulberry32(42);
+    game.sceneryRng = mulberry32(42);
     initHills();
     game.hills.forEach((h, i) => {
       assertEquals(h.x, snapshot1[i].x, `Hill ${i} x should be deterministic`);

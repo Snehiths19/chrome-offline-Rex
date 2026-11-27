@@ -72,6 +72,57 @@ const DifficultyProfile = {
   },
 };
 
+// --- The course on the road ---------------------------------------------
+// Updated and Daily lay the course out by distance, not time. The score
+// counts frames, and a dash or a ramp launch covers more road per frame, so
+// a course read from the score would change with how you play. courseScore()
+// is instead the score a run with no boost would have at this spot on the
+// road: the same frames-to-road table for every run, read at game.roadX.
+// On a run with no boost it equals game.score exactly. Spawning reads it
+// (type, gap, widths), so a Daily seed is the same course for everyone.
+const roadTable = { score: [0], road: [0] };
+
+function extendRoadTable(roadX) {
+  const { score, road } = roadTable;
+  while (road[road.length - 1] <= roadX) {
+    const s = score[score.length - 1] + GAME_CONFIG.SCORE_INCREMENT;
+    score.push(s);
+    road.push(road[road.length - 1] + DifficultyProfile.speedAtScore(s));
+  }
+}
+
+// The no-boost score at `roadX` px of road, straight from the table
+// between its frames.
+function roadScoreAt(roadX) {
+  if (!(roadX > 0)) return 0;
+  extendRoadTable(roadX);
+  const { score, road } = roadTable;
+  let lo = 0;
+  let hi = road.length - 1; // road[hi] > roadX
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (road[mid] <= roadX) lo = mid;
+    else hi = mid;
+  }
+  if (road[lo] === roadX) return score[lo];
+  return score[lo] + ((roadX - road[lo]) / (road[hi] - road[lo])) * (score[hi] - score[lo]);
+}
+
+// The score the course is built from: road-based in Updated and Daily,
+// the plain score in Classic (which has no boosts).
+function courseScore() {
+  return isUpdatedMode() ? roadScoreAt(game.roadX) : game.score;
+}
+
+function courseSpeed() {
+  return isUpdatedMode() ? DifficultyProfile.speedAtScore(courseScore()) : game.currentSpeed;
+}
+
+// The hills' own stream: the same scenery for a seed, apart from the course.
+function sceneryRunSeed(seed) {
+  return (seed ^ 0x5bd1e995) >>> 0;
+}
+
 const MODES = Object.freeze({ CLASSIC: 'classic', UPDATED: 'updated', DAILY: 'daily' });
 
 // Read the saved mode (defaults to 'updated' for first-time players). Persists
@@ -134,6 +185,8 @@ const game = {
   highScore: ScoreStore.loadHighScore(),
   animFrame: 0,
   groundX: 0,
+  // Road travelled this run, px (dashes and launches included).
+  roadX: 0,
   clouds: [],
   stars: [],
   starsInitialised: false,
@@ -167,6 +220,8 @@ const game = {
   lastJumpFrame: null,
   deathLog: null,
   rng: mulberry32(bootSeed),
+  // The hills' stream (see sceneryRunSeed), apart from the course's rng.
+  sceneryRng: mulberry32(sceneryRunSeed(bootSeed)),
   mode: loadMode(),
   dailyBest: ScoreStore.loadDailyBest(),
   // False until the player has died once this session. First IDLE → WAITING
