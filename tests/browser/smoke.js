@@ -388,11 +388,35 @@ async function playOnDevice(browser, base, vp) {
       (await daily.getAttribute('aria-pressed')) === 'true'
   );
   await shot('6-daily');
+  // Ghost Rex: the ghost off switch shows only in Daily, fits, and sits
+  // clear of the other top-row buttons.
+  const ghostBtn = page.locator('#ghost-btn');
+  check('ghost button shows in Daily', await ghostBtn.isVisible());
+  const ghostBox = await ghostBtn.boundingBox();
+  check('ghost button fits on screen', insideViewport(ghostBox, size), JSON.stringify(ghostBox));
+  for (const sel of ['#mute-btn', '#daily-btn', '#fullscreen-btn']) {
+    const b = await page.locator(sel).boundingBox();
+    const apart =
+      ghostBox.x + ghostBox.width + 2 <= b.x ||
+      b.x + b.width + 2 <= ghostBox.x ||
+      ghostBox.y + ghostBox.height <= b.y ||
+      b.y + b.height <= ghostBox.y;
+    check(`#ghost-btn and ${sel} do not overlap`, apart, JSON.stringify({ ghostBox, b }));
+  }
+  await tapOrClick(ghostBtn, vp.touch);
+  check(
+    'ghost button turns the ghost off',
+    (await waitFor(page, 'ghost.enabled === false', 2000)) &&
+      (await ghostBtn.getAttribute('aria-pressed')) === 'false'
+  );
+  await tapOrClick(ghostBtn, vp.touch);
+  check('ghost button turns it back on', await waitFor(page, 'ghost.enabled === true', 2000));
   await tapOrClick(daily, vp.touch);
   check(
     'Daily button leaves the Daily Challenge',
     await waitFor(page, "game.mode === 'updated'", 2000)
   );
+  check('ghost button is hidden outside Daily', !(await page.locator('#ghost-btn').isVisible()));
 
   check(
     'no console errors, page errors or failed requests',

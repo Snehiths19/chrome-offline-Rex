@@ -297,6 +297,35 @@ if (muteBtn && muteBtn.addEventListener) {
   refreshMuteButton();
 }
 
+// Ghost button (Ghost Rex): the off switch for the ghost of today's best
+// Daily run. Shown only in Daily (style.css), where the mode toggle is
+// hidden. The choice is kept in dino-ghost.
+const ghostBtn = document.getElementById('ghost-btn');
+function refreshGhostButton() {
+  if (!ghostBtn || !ghostBtn.setAttribute) return;
+  ghostBtn.setAttribute('aria-pressed', String(ghost.enabled));
+  ghostBtn.setAttribute('aria-label', 'Ghost of your best run');
+}
+if (ghostBtn && ghostBtn.addEventListener) {
+  const onGhostTap = (event) => {
+    if (event) event.stopPropagation();
+    setGhostEnabled(!ghost.enabled);
+    refreshGhostButton();
+    announce(ghost.enabled ? 'Ghost on' : 'Ghost off');
+  };
+  ghostBtn.addEventListener('click', onGhostTap);
+  ghostBtn.addEventListener(
+    'touchstart',
+    (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onGhostTap(event);
+    },
+    { passive: false }
+  );
+  refreshGhostButton();
+}
+
 // Daily Share result confirmation. Half of the old 90-frame flash.
 // Read through cfg(); a tune outside 1..90 frames falls back.
 function copyFlashDuration() {

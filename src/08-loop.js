@@ -76,6 +76,7 @@ function resetGame() {
   game.deathLog = null;
   game.runSeed = takeRunSeed();
   game.rng = mulberry32(game.runSeed);
+  resetGhostRun();
   game.dailyBest = ScoreStore.loadDailyBest();
   const shareBtnEl = document.getElementById('share-btn');
   if (shareBtnEl && shareBtnEl.style) shareBtnEl.style.display = 'none';
@@ -189,6 +190,7 @@ function drawDead() {
     drawClouds();
     drawObstacles();
     Particles.draw();
+    drawGhost();
     drawDino();
     drawScore();
     ctx.restore();
@@ -230,6 +232,7 @@ function drawWaiting() {
   drawHills();
   drawGround();
   drawClouds();
+  drawGhost();
   drawDino();
   drawScore();
   drawGetReadyOverlay();
@@ -293,7 +296,9 @@ function updateRunning() {
 
   // Scroll ground at the same pace as the obstacles, so the gaps cut into
   // it (G1) stay put on it during a dash or a ramp launch.
-  game.groundX -= worldScroll();
+  const scroll = worldScroll();
+  game.groundX -= scroll;
+  noteGhostScroll(scroll);
   if (imageReady(groundImage) && game.groundX <= -groundImage.width) game.groundX = 0;
 
   // Lazy-init stars once when night is full. Skipped under reduce-motion
@@ -374,6 +379,7 @@ function updateRunning() {
     // ?qaCluster=1 / ?qaBig=1 may replace this one type. The roll above already ran.
     const type = qaBigOverride(qaClusterOverride(params.type));
     spawnObstacle(type);
+    noteGhostSpawns();
     noteSpawnForDeathLog(consumedGap, type.id, game.currentSpeed);
     game.lastObstacleX = GAME_CONFIG.CANVAS_W;
     // The gap counts from an obstacle's left edge. A long row (M5) adds its
@@ -480,6 +486,7 @@ function updateRunning() {
   }
 
   updateRexMotion();
+  recordGhostFrame();
 
   // NEW BEST badge — first time this run's score exceeds the stored high score.
   // Updated and Daily start the shorter quiet countdown. Classic keeps
@@ -507,6 +514,7 @@ function endRun() {
   audio.death();
   vibrateOnDeath();
   const finalScore = Math.floor(game.score);
+  finishGhostRun(finalScore);
   const runResult = computeRunResult(finalScore, game.highScore);
   game.isNewBest = runResult.isNewBest;
   game.isFirstRun = runResult.isFirst;
@@ -560,6 +568,7 @@ function drawRunning() {
   drawGround();
   drawObstacles();
   runFeatureDraws('foreground'); // Particles.draw
+  drawGhost();
   drawDino();
   if (kick) ctx.restore();
   drawScore();

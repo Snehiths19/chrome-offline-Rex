@@ -76,7 +76,7 @@ Add new code to the file for the section it belongs to; don't start a new file f
 2. **`src/02-config.js` — Section 2, Configuration.** `GAME_CONFIG` (frozen), the `cfg`/`loadTuning`/`saveTuning` live-tuning hook, `ScoreStore` (all localStorage score persistence), the `STATE` enum, `reducedMotion`/`setReducedMotion`, the QA switchboard (`QA_FLAGS`: one row per `?qaX=1` playtest flag, with its hold, gate and draw; `qa.x` says whether a flag is on, tests flip one with `setQaFlag('x', on)` and parse with `readQaFlag('x', search)`; the per-flag `drawQa*` overlays sit just above it; the bulk of this file), and the `audio` object.
 3. **`src/03-assets.js` — Section 3, Asset loading.** `canvas`/`ctx`, `a11yLive`/`announce`, `dino`, sprite preload with timeout fallback, and the canvas-sizing shell helpers (`computeCanvasCssWidth`, `fitCanvasCssSize`, `initCanvasScale`, `handleResize`).
 4. **`src/04-state.js` — Section 4, Game state.** The `mulberry32` seeded RNG, `DifficultyProfile.nextObstacle()` (type + gap; `pickObstacleType` and `computeNextSpawnGap` are internal helpers, not exported), `MODES`/`loadMode`, daily seed helpers, the `game` object, `Animations`, `setMode`, daily share, and the death-log debug tools.
-5. **`src/05-rendering.js` — Section 5, Rendering.** Pure draw functions: `drawBackground`, `drawDino`, `drawObstacles`, `drawClouds`, `drawHills`, `drawSkyTint`, `drawDeathFlash`, `drawScore`, `drawMilestoneFlash`, `drawNewBestBadge`, etc. Also `isDailyMode`/`isUpdatedMode` and `Particles`.
+5. **`src/05-rendering.js` — Section 5, Rendering.** Pure draw functions: `drawBackground`, `drawGhost` (Ghost Rex, with its recorder `recordGhostFrame`/`finishGhostRun`), `drawDino`, `drawObstacles`, `drawClouds`, `drawHills`, `drawSkyTint`, `drawDeathFlash`, `drawScore`, `drawMilestoneFlash`, `drawNewBestBadge`, etc. Also `isDailyMode`/`isUpdatedMode` and `Particles`.
 6. **Feature registry** (end of `src/05-rendering.js`). `FEATURES` array + `runFeatureUpdates` + `runFeatureDraws(layer)`. Declarative ordering for ambient features (hills, clouds, speed streaks, particles, skyTint).
 7. **`src/06-physics.js` — Section 6, Physics & game logic.** `spawnObstacle`, `updateObstacles`, `checkCollision`, `computeRunResult`, `jump`.
 8. **`src/07-input.js` — Section 7, Input handlers.** `handleAction`, keyboard + mouse + touch. Jump, mute, mode-toggle, share and daily buttons live here too.
@@ -116,7 +116,7 @@ Add one row to `QA_FLAGS` (id, `?param`, and if it shows an overlay: `hold`, `ga
 
 ### Adding a test
 
-Add a `describe`/`it` block to the area file it belongs to in `tests/unit/`: `physics` (jump, collision, score, speed, states, restart, sim clock), `spawning` (obstacle types and gaps), `rendering` (sky, hills, clouds, stars, ground, dino, HUD and screens), `effects` (particles, dust, flashes, shakes, pops, badges, pulses), `daily`, `shell` (audio, mode toggle, sizing, storage, tuning, feature registry, offline) or `qa` (`?qa…=1` flags and the death log). A new area is a new file that starts with `beginTestFile('<area>');` plus one entry in `tests/unit/files.js`. Top-level helpers in one area file share a global scope with the others in the browser, so give them names no other file uses. Manage state by snapshot-mutate-restore inside each `it`:
+Add a `describe`/`it` block to the area file it belongs to in `tests/unit/`: `physics` (jump, collision, score, speed, states, restart, sim clock), `spawning` (obstacle types and gaps), `rendering` (sky, hills, clouds, stars, ground, dino, HUD and screens), `effects` (particles, dust, flashes, shakes, pops, badges, pulses), `daily`, `shell` (audio, mode toggle, sizing, storage, tuning, feature registry, offline), `qa` (`?qa…=1` flags and the death log) or `ghost` (Ghost Rex). A new area is a new file that starts with `beginTestFile('<area>');` plus one entry in `tests/unit/files.js`. Top-level helpers in one area file share a global scope with the others in the browser, so give them names no other file uses. Manage state by snapshot-mutate-restore inside each `it`:
 
 ```js
 it('does the thing', () => {
@@ -170,6 +170,9 @@ const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matc
 | `dino-tuning` | JSON | `saveTuning()` | `loadTuning()` at boot |
 | `dino-daily-date` | YYYYMMDD integer string | `ScoreStore.saveDailyBest()` | `ScoreStore.loadDailyBest()` |
 | `dino-daily-best` | integer string | `ScoreStore.saveDailyBest()` | `ScoreStore.loadDailyBest()` |
+| `dino-ghost` | `'0'` / `'1'` (default on) | `GhostStore.saveEnabled()` | `GhostStore.loadEnabled()` |
+| `dino-ghost-daily` | JSON: today's best Daily run (score, seed, start date, base64 heights and poses, obstacle road positions) | `finishGhostRun()` | `GhostStore.load()` |
+| `dino-ghost-updated` | JSON: best Updated run, same shape, not shown yet | `finishGhostRun()` | `GhostStore.load()` |
 | `dino-rotate-hint-seen` | `'1'` once seen | `markRotateHintSeen()` | `rotateHintSeen()` |
 
 Every read and write goes through `safeStorage.get(key, fallback)` / `safeStorage.set(key, value)` in Section 2, never `localStorage` directly.
