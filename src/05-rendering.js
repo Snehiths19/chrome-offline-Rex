@@ -701,6 +701,7 @@ function rexPitchTarget() {
 
 // One sim frame of pose. Called from each state's update step.
 function updateRexMotion() {
+  updateNewRex();
   if (!rexMotionOn()) {
     rexMotion.pitch = 0;
     rexMotion.recoilFrames = 0;
@@ -811,7 +812,460 @@ function dinoFlipAngle() {
   return Math.PI * 2 * eased;
 }
 
+// New Rex prototype (?qaNewRex=1, Updated and Daily only). A jointed Rex
+// drawn in code instead of the two-frame sprite: hips, chest, neck, head and
+// jaw, two legs solved with two-bone IK (knee forward, heel raised), small
+// arms and a five-link tail on springs. Visual only: it reads dino and game
+// but never writes them, and uses no randomness, so the hitbox, physics,
+// spawning and game.rng() are untouched. Coordinates are hitbox pixels with
+// the origin at the hitbox's bottom-left corner and y up negative.
+const NEW_REX_CYCLE_FRAMES = 18; // sim frames per full stride (two steps) at cadence 1
+const NEW_REX_TAIL_LINKS = [4.4, 4.0, 3.6, 3.2, 2.8];
+const NEW_REX_TAIL_WIDTH = [8, 6.4, 4.8, 3.4, 2.2, 1];
+
+const newRex = {
+  phase: 0, // run cycle, 0..1
+  duck: 0, // 0 standing .. 1 ducked, eased
+  air: 0, // 0 on the ground .. 1 airborne, eased
+  fall: 0, // 0 rising .. 1 falling, eased (legs reach down to land)
+  head: 0, // head lag on a spring, px (positive = down)
+  headVel: 0,
+  tail: [0, 0, 0, 0, 0], // per-link bend on springs, radians
+  tailVel: [0, 0, 0, 0, 0],
+  prevY: null,
+  frame: 0,
+  reset() {
+    this.phase = 0;
+    this.duck = 0;
+    this.air = 0;
+    this.fall = 0;
+    this.head = 0;
+    this.headVel = 0;
+    this.tail = [0, 0, 0, 0, 0];
+    this.tailVel = [0, 0, 0, 0, 0];
+    this.prevY = null;
+    this.frame = 0;
+  },
+};
+
+function newRexOn() {
+  return !!qa.newRex && isUpdatedMode();
+}
+
+function newRexLerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+// One sim frame of the rig. Called from updateRexMotion().
+function updateNewRex() {
+  if (!newRexOn()) return;
+  const r = newRex;
+  r.frame++;
+  const running = game.state === STATE.RUNNING;
+  const ducking = dino.slideFrames > 0 && game.state !== STATE.DEAD;
+  const airborne = dino.isJumping && !ducking;
+  if (running && !dino.isJumping) {
+    const cadence = reducedMotion ? 1 : rexCadence();
+    r.phase = (r.phase + cadence / NEW_REX_CYCLE_FRAMES) % 1;
+  }
+  if (game.state === STATE.DEAD) return;
+  r.duck += ((ducking ? 1 : 0) - r.duck) * 0.4;
+  r.air += ((airborne ? 1 : 0) - r.air) * 0.35;
+  r.fall += ((dino.velocityY > 1 ? 1 : 0) - r.fall) * 0.15;
+  const vy = r.prevY === null ? 0 : dino.y - r.prevY;
+  r.prevY = dino.y;
+  if (reducedMotion) {
+    r.head = 0;
+    r.tail = [0, 0, 0, 0, 0];
+    return;
+  }
+  // Head lags behind the body's vertical motion, then settles.
+  r.headVel = r.headVel * 0.72 + (vy * 0.35 - r.head) * 0.22;
+  r.head += r.headVel;
+  // Tail: link 0 chases a target from speed and vertical motion; each later
+  // link chases the one before it, so a swing travels down to the tip.
+  const runSwing = running && !dino.isJumping ? Math.sin(r.phase * Math.PI * 4) * 0.1 : 0;
+  const idleSway = game.state === STATE.IDLE ? Math.sin(r.frame * 0.04) * 0.08 : 0;
+  const lift = Math.max(-0.12, Math.min(0.12, -vy * 0.018));
+  const target0 = lift + runSwing + idleSway;
+  for (let i = 0; i < r.tail.length; i++) {
+    const want = i === 0 ? target0 : r.tail[i - 1] * 0.6;
+    r.tailVel[i] = r.tailVel[i] * 0.7 + (want - r.tail[i]) * 0.28;
+    r.tail[i] += r.tailVel[i];
+  }
+}
+
+// Two-bone IK: the knee for a hip, a target and two lengths, bent forward.
+function newRexKnee(hx, hy, tx, ty, a, b) {
+  const dx = tx - hx,
+    dy = ty - hy;
+  const d = Math.max(Math.abs(a - b) + 0.01, Math.min(a + b - 0.01, Math.hypot(dx, dy)));
+  const base = Math.atan2(dy, dx);
+  const bend = Math.acos(Math.max(-1, Math.min(1, (a * a + d * d - b * b) / (2 * a * d))));
+  const ang = base - bend;
+  return { x: hx + a * Math.cos(ang), y: hy + a * Math.sin(ang) };
+}
+
+// A tapered limb segment: two circles joined by their outer tangents.
+function newRexCapsule(c, x1, y1, r1, x2, y2, r2) {
+  const dx = x2 - x1,
+    dy = y2 - y1;
+  const d = Math.hypot(dx, dy) || 0.001;
+  const ux = dx / d,
+    uy = dy / d;
+  const s = Math.max(-1, Math.min(1, (r1 - r2) / d));
+  const k = Math.sqrt(1 - s * s);
+  const nx1 = ux * s - uy * k,
+    ny1 = uy * s + ux * k;
+  const nx2 = ux * s + uy * k,
+    ny2 = uy * s - ux * k;
+  let pts = [
+    [x1 + nx1 * r1, y1 + ny1 * r1],
+    [x2 + nx1 * r2, y2 + ny1 * r2],
+    [x2 + nx2 * r2, y2 + ny2 * r2],
+    [x1 + nx2 * r1, y1 + ny2 * r1],
+  ];
+  // Every shape winds clockwise on screen, so overlaps never cut holes.
+  let area = 0;
+  for (let i = 0; i < 4; i++) {
+    const [ax, ay] = pts[i],
+      [bx, by] = pts[(i + 1) % 4];
+    area += ax * by - bx * ay;
+  }
+  if (area < 0) pts = pts.reverse();
+  c.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < 4; i++) c.lineTo(pts[i][0], pts[i][1]);
+  c.closePath();
+  c.moveTo(x1 + r1, y1);
+  c.arc(x1, y1, r1, 0, Math.PI * 2);
+  c.moveTo(x2 + r2, y2);
+  c.arc(x2, y2, r2, 0, Math.PI * 2);
+}
+
+// Where one foot is this frame, relative to the ground under the hip.
+function newRexFoot(hip, offset, stride, lift) {
+  const r = newRex;
+  const t = (r.phase + offset) % 1;
+  let fx, fy;
+  if (t < 0.5) {
+    const u = t / 0.5;
+    fx = stride * (1 - 2 * u);
+    fy = 0;
+  } else {
+    const u = (t - 0.5) / 0.5;
+    const e = u * u * (3 - 2 * u);
+    fx = -stride + 2 * stride * e;
+    fy = -lift * Math.sin(Math.PI * u);
+  }
+  const ground = { x: hip.x + 1.5 + fx, y: fy };
+  // In the air the feet tuck under the belly while rising, then reach down.
+  const tuck = {
+    x: hip.x + newRexLerp(offset ? -1 : 4.5, offset ? 0.5 : 3, r.fall),
+    y: hip.y + newRexLerp(offset ? 11.5 : 10, 15.5, r.fall),
+  };
+  const toePitch = t >= 0.5 ? Math.sin(Math.PI * ((t - 0.5) / 0.5)) * 0.9 : 0;
+  return {
+    x: newRexLerp(ground.x, tuck.x, r.air),
+    y: newRexLerp(ground.y, tuck.y, r.air),
+    pitch: newRexLerp(toePitch, 0.7 + 0.4 * (1 - r.fall), r.air),
+  };
+}
+
+// The pose for this frame: every joint, in hitbox pixels.
+function newRexPose() {
+  const r = newRex;
+  const d = r.duck;
+  const dead = game.state === STATE.DEAD;
+  const running = game.state === STATE.RUNNING && !dino.isJumping;
+  // Body bob: lowest when a foot is planted under the hip.
+  const bob = running && !reducedMotion ? Math.cos(r.phase * Math.PI * 4) * 1.1 : 0;
+  // Landing crouch from the existing landing squash timer.
+  let crouch = 0;
+  const frames = cfg('DINO_SQUASH_FRAMES');
+  if (!reducedMotion && !dead && dino.landSquashFrames > 0 && frames > 0) {
+    const u = 1 - Math.min(1, dino.landSquashFrames / frames);
+    crouch = (dino.landSquashHard ? 6 : 4) * landSpring(u);
+  }
+  const breath = game.state === STATE.IDLE && !reducedMotion ? Math.sin(r.frame * 0.06) * 0.6 : 0;
+  const drop = bob * 0.5 + crouch;
+  const hip = { x: newRexLerp(15, 13, d), y: newRexLerp(-19, -11, d) + drop };
+  const chest = { x: newRexLerp(24, 28, d), y: newRexLerp(-27, -14, d) + drop * 1.2 + breath };
+  const neck = { x: newRexLerp(25, 33, d), y: newRexLerp(-34, -16, d) + drop * 1.4 + breath };
+  const headY = newRexLerp(-41, -18, d) + drop * 1.5 + breath + r.head;
+  const head = { x: newRexLerp(21.5, 31.5, d), y: headY, angle: newRexLerp(0, 0.12, d) };
+  head.angle += reducedMotion ? 0 : r.head * 0.03;
+  const tailBase = { x: newRexLerp(11, 9, d), y: newRexLerp(-23, -14, d) + drop * 0.8 };
+  const tailAngle = newRexLerp(Math.PI + 0.38, Math.PI + 0.06, d);
+  const stride = newRexLerp(6.5, 5.5, d);
+  const lift = newRexLerp(5, 3, d);
+  const near = newRexFoot(hip, 0, stride, lift);
+  const far = newRexFoot(hip, 0.5, stride, lift);
+  // Arms swing against the legs; in the air they reach forward.
+  const swing = running && !reducedMotion ? Math.sin(r.phase * Math.PI * 2) * 0.45 : 0;
+  const armBase = newRexLerp(newRexLerp(0.95, 0.35, r.air), 0.5, d);
+  let jaw = newRexLerp(0, 0.18, r.air * (1 - r.fall));
+  if (dead) jaw = 0.42;
+  return { hip, chest, neck, head, tailBase, tailAngle, near, far, swing, armBase, jaw };
+}
+
+// Leg joints: hip, knee, ankle (heel raised) and toe.
+function newRexLeg(hip, foot, side) {
+  const toeLen = 5;
+  const ax = foot.x - toeLen * Math.cos(foot.pitch) * 0.7;
+  const ay = foot.y - 3.2 - toeLen * Math.sin(foot.pitch) * 0.4;
+  const hx = hip.x + side,
+    hy = hip.y + 1;
+  const knee = newRexKnee(hx, hy, ax, ay, 8.5, 8);
+  const toe = {
+    x: ax + toeLen * Math.cos(foot.pitch * 0.6),
+    y: ay + 3.2 + toeLen * Math.sin(foot.pitch) * 0.3,
+  };
+  return { hip: { x: hx, y: hy }, knee, ankle: { x: ax, y: ay }, toe };
+}
+
+function newRexTailPoints(pose) {
+  const pts = [{ x: pose.tailBase.x, y: pose.tailBase.y }];
+  let a = pose.tailAngle;
+  for (let i = 0; i < NEW_REX_TAIL_LINKS.length; i++) {
+    a += newRex.tail[i] + (i > 1 ? -0.06 : 0);
+    const p = pts[i];
+    pts.push({
+      x: p.x + Math.cos(a) * NEW_REX_TAIL_LINKS[i],
+      y: p.y + Math.sin(a) * NEW_REX_TAIL_LINKS[i],
+    });
+  }
+  return pts;
+}
+
+// Head and upper jaw (skull), facing right, anchored at the back of the skull.
+function newRexSkullPath(c) {
+  c.moveTo(-3.5, 3);
+  c.bezierCurveTo(-4.5, -3, -2, -7.5, 4, -7.5);
+  c.lineTo(13.5, -7.5);
+  c.quadraticCurveTo(18, -7.5, 18, -3.5);
+  c.lineTo(18, 0.5);
+  c.quadraticCurveTo(18, 1.8, 16.5, 1.8);
+  c.lineTo(5, 1.8);
+  c.lineTo(2, 5);
+  c.closePath();
+}
+
+function newRexJawPath(c, open) {
+  c.save();
+  c.translate(4, 1.8);
+  c.rotate(open);
+  c.moveTo(-3, 0);
+  c.lineTo(11.5, 0);
+  c.quadraticCurveTo(13, 0, 13, 1.4);
+  c.quadraticCurveTo(12.5, 3.6, 9.5, 3.8);
+  c.lineTo(1, 4.6);
+  c.quadraticCurveTo(-3.5, 5, -4.5, 2);
+  c.closePath();
+  c.restore();
+}
+
+function newRexBodyShapes(c, pose, nearLeg, tailPts) {
+  // Tail: tapered links.
+  for (let i = 0; i < tailPts.length - 1; i++) {
+    const a = tailPts[i],
+      b = tailPts[i + 1];
+    newRexCapsule(
+      c,
+      a.x,
+      a.y,
+      NEW_REX_TAIL_WIDTH[i] / 2 + 0.6,
+      b.x,
+      b.y,
+      NEW_REX_TAIL_WIDTH[i + 1] / 2 + 0.4
+    );
+  }
+  // Torso: a tapered capsule from the hips to the chest, and the neck.
+  newRexCapsule(c, pose.tailBase.x + 1, pose.tailBase.y + 0.5, 5, pose.hip.x, pose.hip.y - 2.5, 8);
+  newRexCapsule(c, pose.hip.x, pose.hip.y - 2.5, 8, pose.chest.x, pose.chest.y, 7.2);
+  newRexCapsule(c, pose.chest.x, pose.chest.y, 7.2, pose.neck.x, pose.neck.y, 5.8);
+  newRexCapsule(c, pose.neck.x, pose.neck.y, 5.8, pose.head.x + 3, pose.head.y + 2.5, 5.2);
+  // Near thigh: a big drumstick into the hip.
+  const L = nearLeg;
+  newRexCapsule(c, L.hip.x, L.hip.y - 1.5, 6, L.knee.x, L.knee.y, 3);
+  newRexCapsule(c, L.knee.x, L.knee.y, 3, L.ankle.x, L.ankle.y, 1.8);
+  newRexCapsule(c, L.ankle.x, L.ankle.y, 1.8, L.toe.x, L.toe.y, 1.4);
+}
+
+function newRexHeadShapes(c, pose) {
+  c.save();
+  c.translate(pose.head.x, pose.head.y);
+  c.rotate(pose.head.angle);
+  c.scale(1.12, 1.12);
+  newRexSkullPath(c);
+  newRexJawPath(c, pose.jaw);
+  c.restore();
+}
+
+function newRexArm(c, pose, side, color) {
+  const sx = pose.chest.x + 3 + side,
+    sy = pose.chest.y + 3;
+  const a = pose.armBase + pose.swing * (side ? -1 : 1);
+  const ex = sx + Math.cos(a) * 4.2,
+    ey = sy + Math.sin(a) * 4.2;
+  const b = a - 1.5;
+  const hx = ex + Math.cos(b) * 3.4,
+    hy = ey + Math.sin(b) * 3.4;
+  c.beginPath();
+  newRexCapsule(c, sx, sy, 1.6, ex, ey, 1.2);
+  newRexCapsule(c, ex, ey, 1.2, hx, hy, 0.9);
+  c.fillStyle = color;
+  c.fill();
+}
+
+function newRexBlinking() {
+  if (reducedMotion) return false;
+  const t = newRex.frame % 200;
+  return t < 7 || (t > 22 && t < 28 && newRex.frame % 600 < 200);
+}
+
+// Draws the rig at the dino's position. The caller applies the turn and the
+// night brightness.
+function drawNewRexRig(c) {
+  const pose = newRexPose();
+  const nearLeg = newRexLeg(pose.hip, pose.near, 0);
+  const farLeg = newRexLeg(pose.hip, pose.far, -2.5);
+  const tailPts = newRexTailPoints(pose);
+  const ink = '#2b2b2b';
+  const far = '#3e3e3e';
+  // Far leg and far arm, a shade darker, behind the body.
+  c.beginPath();
+  newRexCapsule(c, farLeg.hip.x, farLeg.hip.y - 1, 5, farLeg.knee.x, farLeg.knee.y, 2.8);
+  newRexCapsule(c, farLeg.knee.x, farLeg.knee.y, 2.8, farLeg.ankle.x, farLeg.ankle.y, 1.7);
+  newRexCapsule(c, farLeg.ankle.x, farLeg.ankle.y, 1.7, farLeg.toe.x, farLeg.toe.y, 1.3);
+  c.lineWidth = 1.4;
+  c.strokeStyle = ink;
+  c.stroke();
+  c.fillStyle = far;
+  c.fill();
+  newRexArm(c, pose, -1.5, far);
+  // Body: stroke every shape first, then fill them all, so the outline only
+  // survives on the outer edge and the body reads as one silhouette.
+  const grad = c.createLinearGradient(0, -50, 0, 0);
+  grad.addColorStop(0, '#6c6c6c');
+  grad.addColorStop(0.55, '#565656');
+  grad.addColorStop(1, '#474747');
+  c.beginPath();
+  newRexBodyShapes(c, pose, nearLeg, tailPts);
+  c.lineWidth = 1.6;
+  c.lineJoin = 'round';
+  c.strokeStyle = ink;
+  c.stroke();
+  c.beginPath();
+  newRexHeadShapes(c, pose);
+  c.stroke();
+  c.fillStyle = grad;
+  c.beginPath();
+  newRexBodyShapes(c, pose, nearLeg, tailPts);
+  c.fill();
+  c.beginPath();
+  newRexHeadShapes(c, pose);
+  c.fill();
+  // Head details.
+  c.save();
+  c.translate(pose.head.x, pose.head.y);
+  c.rotate(pose.head.angle);
+  c.scale(1.12, 1.12);
+  // Jaw seam (or the open mouth).
+  c.beginPath();
+  if (pose.jaw > 0.05) {
+    c.moveTo(5, 1.8);
+    c.lineTo(17.5, 1.8);
+    c.lineTo(4 + 12 * Math.cos(pose.jaw), 1.8 + 12 * Math.sin(pose.jaw));
+    c.closePath();
+    c.fillStyle = '#7a2e2e';
+    c.fill();
+  } else {
+    c.moveTo(6, 1.9);
+    c.lineTo(16, 1.9);
+    c.lineWidth = 0.7;
+    c.strokeStyle = ink;
+    c.stroke();
+  }
+  // Brow ridge.
+  c.beginPath();
+  c.moveTo(3, -5.2);
+  c.quadraticCurveTo(6.5, -6.6, 10, -5.3);
+  c.lineWidth = 0.9;
+  c.strokeStyle = 'rgba(30,30,30,0.6)';
+  c.stroke();
+  // Nostril.
+  c.beginPath();
+  c.ellipse(16, -5, 0.8, 0.5, -0.3, 0, Math.PI * 2);
+  c.fillStyle = ink;
+  c.fill();
+  // Eye.
+  const dead = game.state === STATE.DEAD;
+  if (newRexBlinking() && !dead) {
+    c.beginPath();
+    c.moveTo(4.6, -2.8);
+    c.quadraticCurveTo(6.5, -1.8, 8.4, -2.8);
+    c.lineWidth = 0.8;
+    c.strokeStyle = ink;
+    c.stroke();
+  } else {
+    const er = dead ? 2.6 : 2.2;
+    c.beginPath();
+    c.arc(6.5, -3, er, 0, Math.PI * 2);
+    c.fillStyle = '#f7f7f7';
+    c.fill();
+    c.lineWidth = 0.6;
+    c.strokeStyle = ink;
+    c.stroke();
+    c.beginPath();
+    c.arc(dead ? 6.5 : 7.3, -3, dead ? 0.8 : 1.25, 0, Math.PI * 2);
+    c.fillStyle = '#111';
+    c.fill();
+    if (!dead) {
+      c.beginPath();
+      c.arc(7.8, -3.6, 0.45, 0, Math.PI * 2);
+      c.fillStyle = '#fff';
+      c.fill();
+    }
+  }
+  c.restore();
+  // Near arm last, over the chest.
+  newRexArm(c, pose, 0, '#505050');
+}
+
+// The new Rex in place of the sprite, with the same pitch, flip and recoil
+// turn the sprite uses.
+function drawNewRex() {
+  const pose = rexPose();
+  const flip = dinoFlipAngle();
+  const turn = flip + pose.angle;
+  const ox = dino.x + pose.dx,
+    oy = dino.y + dino.height + pose.dy;
+  ctx.save();
+  if (turn) {
+    const mid = flip || dino.isJumping;
+    const cx = dino.x + dino.width / 2 + pose.dx;
+    const cy = (mid ? dino.y + dino.height / 2 : dino.y + dino.height) + pose.dy;
+    ctx.translate(cx, cy);
+    ctx.rotate(turn);
+    ctx.translate(-cx, -cy);
+  }
+  ctx.translate(ox, oy);
+  drawNewRexRig(ctx);
+  ctx.restore();
+}
+
 function drawDino() {
+  if (newRexOn()) {
+    const nightLift = dinoNightBrightness();
+    const prior = ctx.filter;
+    if (nightLift > 1) ctx.filter = 'brightness(' + nightLift.toFixed(2) + ')';
+    try {
+      drawNewRex();
+    } finally {
+      if (nightLift > 1) ctx.filter = prior || 'none';
+    }
+    return;
+  }
   let img;
   if (game.state === STATE.DEAD) {
     img = dinoLoseImage;

@@ -35,6 +35,7 @@ function resetGame() {
   dino.takeoffY = dino.y;
   dino.launched = false;
   rexMotion.reset();
+  newRex.reset();
 
   Particles.reset();
 
