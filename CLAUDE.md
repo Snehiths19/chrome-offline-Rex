@@ -171,7 +171,7 @@ const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matc
 | `dino-daily-date` | YYYYMMDD integer string | `ScoreStore.saveDailyBest()` | `ScoreStore.loadDailyBest()` |
 | `dino-daily-best` | integer string | `ScoreStore.saveDailyBest()` | `ScoreStore.loadDailyBest()` |
 | `dino-ghost` | `'0'` / `'1'` (default on) | `GhostStore.saveEnabled()` | `GhostStore.loadEnabled()` |
-| `dino-ghost-daily` | JSON: today's best Daily run (score, seed, date, base64 heights and poses) | `finishGhostRun()` | `GhostStore.load()` |
+| `dino-ghost-daily` | JSON: today's best Daily run (score, seed, start date, base64 heights and poses, obstacle road positions) | `finishGhostRun()` | `GhostStore.load()` |
 | `dino-ghost-updated` | JSON: best Updated run, same shape, not shown yet | `finishGhostRun()` | `GhostStore.load()` |
 | `dino-rotate-hint-seen` | `'1'` once seen | `markRotateHintSeen()` | `rotateHintSeen()` |
 

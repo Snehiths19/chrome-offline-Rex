@@ -729,15 +729,18 @@ const GAME_CONFIG = Object.freeze({
 
   // --- Ghost Rex ---
   // A faint copy of today's best Daily run runs the same course a little
-  // behind Rex. It is placed by distance travelled, not by frame, because a
-  // dash or a ramp launch scrolls the world faster. One sample of the
-  // dino's height and pose is kept every GHOST_SAMPLE_PX of distance, at
+  // behind Rex, pinned to the obstacles (see Ghost Rex in 05-rendering.js).
+  // One sample of the dino's height and pose is kept every GHOST_SAMPLE_PX
+  // of road, at
   // most GHOST_MAX_SAMPLES (about 10 minutes of play). Heights are stored
   // as bytes offset by GHOST_Y_OFFSET so a fall into a gap still fits.
   // Recording format only: nothing here feeds physics, spawning or scoring.
   GHOST_SAMPLE_PX: 6,
   GHOST_MAX_SAMPLES: 60000,
   GHOST_Y_OFFSET: 40,
+  // Sim frames the ghost takes to fade once the courses part ways (an
+  // obstacle of a different type at the same place in the order).
+  GHOST_LOST_FADE_FRAMES: 30,
   // Visual, through cfg(): how see-through the ghost is, how far behind Rex
   // it runs, and over how many px of road it fades once you pass the spot
   // where it fell.
@@ -942,7 +945,7 @@ const GhostStore = {
     } catch {
       return null;
     }
-    if (!g || g.v !== 1 || typeof g.score !== 'number' || typeof g.y !== 'string') return null;
+    if (!g || g.v !== 2 || typeof g.score !== 'number' || typeof g.y !== 'string') return null;
     if (typeof g.p !== 'string' || !(g.step > 0)) return null;
     if (mode === MODES.DAILY && g.date !== dailySeed()) return null;
     return g;

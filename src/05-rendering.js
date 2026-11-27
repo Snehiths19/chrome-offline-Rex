@@ -875,16 +875,28 @@ function drawDino() {
 // ghost button hides it. Updated runs are recorded too but not shown yet:
 // their course changes every run.
 //
-// The ghost is placed by distance travelled, not by frame: a dash or a
-// ramp launch scrolls the world faster, so two runs on the same course
-// reach the same cactus at different frames but the same distance. Each
-// GHOST_SAMPLE_PX of road keeps one sample: the dino's height and pose.
-// Recording reads dino and game and never writes them, so physics,
-// spawning, scoring and game.rng() are untouched.
+// The ghost is pinned to the obstacles, not to the clock or the distance.
+// A dash or a ramp launch covers more road per frame, and spawning reads
+// the score (a frame count), so two runs on the same seed meet the same
+// obstacles in the same order but not at the same distance. So the
+// recording keeps one sample of height and pose every GHOST_SAMPLE_PX of
+// road, plus where each obstacle was on that road, and playback stretches
+// the ghost's road between each pair of matching obstacles to fit yours.
+// If the courses part ways (an obstacle of a different type), the ghost
+// has lost the trail and fades for the rest of the run. Recording reads
+// dino and game and never writes them, so physics, spawning, scoring and
+// game.rng() are untouched.
 const ghost = {
   enabled: GhostStore.loadEnabled(),
-  rec: null, // this run: { dist, next, ys, poses }
-  best: null, // the ghost being shown: { score, step, ys, poses }
+  // This run: { dist, next, ys, poses, obs: [[type, roadX], ...], seen }.
+  rec: null,
+  // The ghost being shown: { score, step, ys, poses, obs }.
+  best: null,
+  // Where the ghost is on its own road this frame, set by the update step:
+  // sample index `at`, or lost (the courses parted ways).
+  at: 0,
+  lost: false,
+  lostFade: 0,
 };
 
 function ghostRecordsIn(mode) {
@@ -908,27 +920,44 @@ function ghostTextToBytes(text) {
   return out;
 }
 
-// Start a run: an empty recording, and the stored ghost for this mode.
+// Start a run: an empty recording, and the stored ghost for this mode when
+// it was recorded on this very course (same seed).
 function resetGhostRun() {
-  ghost.rec = ghostRecordsIn(game.mode) ? { dist: 0, next: 0, ys: [], poses: [] } : null;
+  ghost.rec = ghostRecordsIn(game.mode)
+    ? { dist: 0, next: 0, ys: [], poses: [], obs: [], seen: new WeakSet(), day: dailySeed() }
+    : null;
   ghost.best = null;
+  ghost.lost = false;
+  ghost.lostFade = 0;
   if (!ghostShowsIn(game.mode)) return;
   const stored = GhostStore.load(game.mode);
-  if (!stored) return;
+  if (!stored || stored.seed !== game.runSeed || !Array.isArray(stored.o)) return;
   try {
     const ys = ghostTextToBytes(stored.y);
     const poses = ghostTextToBytes(stored.p);
     if (ys.length && ys.length === poses.length) {
-      ghost.best = { score: stored.score, step: stored.step, ys, poses };
+      ghost.best = { score: stored.score, step: stored.step, ys, poses, obs: stored.o };
     }
   } catch {
     /* a damaged record is no ghost */
   }
+  updateGhostView();
 }
 
 // How far the world scrolled this sim frame. Called where the ground moves.
 function noteGhostScroll(px) {
   if (ghost.rec) ghost.rec.dist += px;
+}
+
+// Note where each newly spawned obstacle sits on this run's road.
+function noteGhostSpawns() {
+  const r = ghost.rec;
+  if (!r) return;
+  for (const o of game.obstacles) {
+    if (r.seen.has(o)) continue;
+    r.seen.add(o);
+    r.obs.push([o.type, Math.round(r.dist + o.x)]);
+  }
 }
 
 // One byte of pose: bits 0-1 run (0), air (1) or slide (2); bits 2-7 the
@@ -939,7 +968,7 @@ function ghostPoseByte() {
 }
 
 // After a sim frame's physics: keep a sample for each GHOST_SAMPLE_PX
-// of road the frame covered.
+// of road the frame covered, then move the ghost along.
 function recordGhostFrame() {
   const r = ghost.rec;
   if (!r) return;
@@ -950,26 +979,70 @@ function recordGhostFrame() {
     r.poses.push(pose);
     r.next += GAME_CONFIG.GHOST_SAMPLE_PX;
   }
+  updateGhostView();
+}
+
+// Map a spot on this run's road to the same spot on the ghost's road,
+// stretching between matching obstacles. Returns null when the courses
+// have parted ways there.
+function ghostRoadAt(roadX) {
+  const mine = ghost.rec ? ghost.rec.obs : [];
+  const theirs = ghost.best.obs;
+  const n = Math.min(mine.length, theirs.length);
+  let i = -1;
+  while (i + 1 < n && mine[i + 1][1] <= roadX) i++;
+  if (i < 0) return roadX; // before the first obstacle, both runs are alike
+  if (mine[i][0] !== theirs[i][0]) return null;
+  if (i + 1 < n) {
+    if (mine[i + 1][0] !== theirs[i + 1][0]) return null;
+    const span = mine[i + 1][1] - mine[i][1];
+    const k = span > 0 ? (theirs[i + 1][1] - theirs[i][1]) / span : 1;
+    return theirs[i][1] + (roadX - mine[i][1]) * k;
+  }
+  // The ghost's run ended before this obstacle, or the next one has not
+  // spawned for this run yet: carry on at the same pace.
+  return theirs[i][1] + (roadX - mine[i][1]);
+}
+
+// The update half of the ghost: where it is on its road this frame, or
+// lost for the rest of the run once the courses part ways.
+function updateGhostView() {
+  const g = ghost.best;
+  if (!g) return;
+  if (ghost.lost) {
+    if (ghost.lostFade > 0) ghost.lostFade--;
+    return;
+  }
+  const lag = cfg('GHOST_LAG_PX');
+  const dist = ghost.rec ? ghost.rec.dist : 0;
+  const road = ghostRoadAt(dist + dino.x - lag);
+  if (road === null) {
+    ghost.lost = true;
+    ghost.lostFade = reducedMotion ? 0 : GAME_CONFIG.GHOST_LOST_FADE_FRAMES;
+    return;
+  }
+  ghost.at = (road - dino.x) / g.step;
 }
 
 // The run ended: keep it as the ghost when it beats the stored one.
 // Returns true when it was saved. The seed is kept for a later race on
-// the same course.
+// the same course; a Daily run is dated by the day it started on.
 function finishGhostRun(finalScore) {
   const r = ghost.rec;
   if (!r || !r.ys.length || !ghostRecordsIn(game.mode)) return false;
   const prev = GhostStore.load(game.mode);
-  if (prev && prev.score >= finalScore) return false;
+  if (prev && prev.seed === game.runSeed && prev.score >= finalScore) return false;
   const record = {
-    v: 1,
+    v: 2,
     mode: game.mode,
     score: finalScore,
     seed: game.runSeed,
     step: GAME_CONFIG.GHOST_SAMPLE_PX,
     y: ghostBytesToText(r.ys),
     p: ghostBytesToText(r.poses),
+    o: r.obs,
   };
-  if (game.mode === MODES.DAILY) record.date = dailySeed();
+  if (game.mode === MODES.DAILY) record.date = r.day;
   GhostStore.save(game.mode, record);
   return true;
 }
@@ -984,20 +1057,16 @@ function setGhostEnabled(on) {
 function ghostDrawState() {
   const g = ghost.best;
   if (!g || !ghost.enabled || !ghostShowsIn(game.mode)) return null;
+  let alpha = tunedUnitAlpha('GHOST_ALPHA', GAME_CONFIG.GHOST_ALPHA);
+  if (ghost.lost) {
+    if (!(ghost.lostFade > 0)) return null;
+    alpha *= ghost.lostFade / GAME_CONFIG.GHOST_LOST_FADE_FRAMES;
+  }
   const off = GAME_CONFIG.GHOST_Y_OFFSET;
   const lag = cfg('GHOST_LAG_PX');
-  const dist = ghost.rec ? ghost.rec.dist : 0;
-  const at = (dist - lag) / g.step; // sample index, may be fractional
+  const at = ghost.at;
   const last = g.ys.length - 1;
-  const state = {
-    x: dino.x - lag,
-    y: 0,
-    img: null,
-    alpha: tunedUnitAlpha('GHOST_ALPHA', GAME_CONFIG.GHOST_ALPHA),
-    angle: 0,
-    sx: 1,
-    sy: 1,
-  };
+  const state = { x: dino.x - lag, y: 0, img: null, alpha, angle: 0, sx: 1, sy: 1 };
   if (at > last) {
     // Past the spot where the ghost fell: it stays there, scrolls away
     // with the road and fades out.

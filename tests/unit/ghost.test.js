@@ -17,6 +17,9 @@ function withGhostSandbox(fn) {
     enabled: ghost.enabled,
     rec: ghost.rec,
     best: ghost.best,
+    at: ghost.at,
+    lost: ghost.lost,
+    lostFade: ghost.lostFade,
   };
   try {
     GHOST_TEST_KEYS.forEach((k) => safeStorage.remove(k));
@@ -32,6 +35,9 @@ function withGhostSandbox(fn) {
     ghost.enabled = orig.enabled;
     ghost.rec = orig.rec;
     ghost.best = orig.best;
+    ghost.at = orig.at;
+    ghost.lost = orig.lost;
+    ghost.lostFade = orig.lostFade;
   }
 }
 
@@ -56,7 +62,20 @@ function ghostPlay(mode, frames) {
 function fakeGhost(n, y, pose) {
   const ys = new Uint8Array(n).fill(y + GAME_CONFIG.GHOST_Y_OFFSET);
   const poses = new Uint8Array(n).fill(pose || 0);
-  return { score: 100, step: GAME_CONFIG.GHOST_SAMPLE_PX, ys, poses };
+  return { score: 100, step: GAME_CONFIG.GHOST_SAMPLE_PX, ys, poses, obs: [] };
+}
+
+// An empty recording for this run at `dist` px of road, with obstacles `obs`.
+function fakeRec(dist, obs) {
+  return {
+    dist,
+    next: 0,
+    ys: [],
+    poses: [],
+    obs: obs || [],
+    seen: new WeakSet(),
+    day: dailySeed(),
+  };
 }
 
 describe('Ghost Rex: where it shows', () => {
@@ -175,11 +194,131 @@ describe('Ghost Rex: recording the best run', () => {
         });
       };
       const without = play();
+      replayRunSeed(4242);
       ghostPlay(MODES.DAILY, 50);
       finishGhostRun(9999);
       const withGhost = play();
       assert(ghost.best, 'second run had a ghost');
       assertEquals(withGhost, without, 'same score, obstacles, spawn gap and rng');
+    });
+  });
+});
+
+describe('Ghost Rex: following the course', () => {
+  it('only a ghost from this very course is shown', () => {
+    withGhostSandbox(() => {
+      replayRunSeed(111);
+      ghostPlay(MODES.DAILY, 30);
+      finishGhostRun(50);
+      replayRunSeed(222);
+      ghostPlay(MODES.DAILY, 10);
+      assertEquals(ghost.best, null, 'another seed is another course');
+      assert(finishGhostRun(10), 'and its run replaces the old ghost, even with a lower score');
+      replayRunSeed(222);
+      ghostPlay(MODES.DAILY, 0);
+      assert(ghost.best, 'the same seed shows it');
+    });
+  });
+
+  it('a Daily run is dated by the day it started on', () => {
+    withGhostSandbox(() => {
+      ghostPlay(MODES.DAILY, 30);
+      ghost.rec.day = dailySeed() - 1; // started just before midnight UTC
+      finishGhostRun(500);
+      assertEquals(GhostStore.load(MODES.DAILY), null, "yesterday's course is not today's ghost");
+    });
+  });
+
+  it('notes where each obstacle spawns on the road', () => {
+    withGhostSandbox(() => {
+      ghostPlay(MODES.DAILY, 200);
+      const obs = ghost.rec.obs;
+      assert(obs.length >= 1, 'obstacles noted');
+      assert(
+        obs.every((o, i) => i === 0 || o[1] >= obs[i - 1][1]),
+        'in order along the road'
+      );
+    });
+  });
+
+  it('stretches the ghost between matching obstacles (a dash or launch moves them)', () => {
+    withGhostSandbox(() => {
+      game.mode = MODES.DAILY;
+      ghost.best = fakeGhost(1000, 150, 0);
+      ghost.best.obs = [
+        ['small', 600],
+        ['big', 1400],
+      ];
+      ghost.rec = fakeRec(0, [
+        ['small', 600],
+        ['big', 1000],
+      ]);
+      assertEquals(ghostRoadAt(300), 300, 'before the first obstacle, the same road');
+      assertEquals(ghostRoadAt(600), 600, 'at the first obstacle');
+      assertEquals(ghostRoadAt(800), 1000, 'halfway to the next on both roads');
+      assertEquals(ghostRoadAt(1000), 1400, 'at the second obstacle');
+      assertEquals(ghostRoadAt(1100), 1500, 'past the last, the same pace');
+    });
+  });
+
+  it('fades out for good once the courses part ways', () => {
+    withGhostSandbox(() => {
+      game.mode = MODES.DAILY;
+      ghost.best = fakeGhost(1000, 150, 0);
+      ghost.best.obs = [['small', 600]];
+      const lag = cfg('GHOST_LAG_PX');
+      ghost.rec = fakeRec(700 - dino.x + lag, [['big', 600]]);
+      const origRm = reducedMotion;
+      try {
+        setReducedMotion(false);
+        updateGhostView();
+        assert(ghost.lost, 'lost the trail');
+        updateGhostView();
+        const s = ghostDrawState();
+        assert(s && s.alpha < cfg('GHOST_ALPHA'), 'fading');
+        for (let i = 0; i < GAME_CONFIG.GHOST_LOST_FADE_FRAMES; i++) updateGhostView();
+        assertEquals(ghostDrawState(), null, 'gone');
+        ghost.rec.obs[0][0] = 'small';
+        updateGhostView();
+        assertEquals(ghostDrawState(), null, 'stays gone for the rest of the run');
+      } finally {
+        setReducedMotion(origRm);
+      }
+    });
+  });
+
+  it('lines up with the course when the player dashes and the ghost did not', () => {
+    withGhostSandbox(() => {
+      const playDaily = (dash) => {
+        replayRunSeed(20261127);
+        ghostPlay(MODES.DAILY, 0);
+        let guard = 0;
+        while (game.state === STATE.RUNNING && guard++ < 1500) {
+          const ahead = game.obstacles
+            .filter((o) => o.render !== 'ramp' && o.type !== 'leapGap' && o.x + o.width > dino.x)
+            .sort((a, b) => a.x - b.x)[0];
+          if (ahead && !dino.isJumping && ahead.x - (dino.x + dino.width) < game.currentSpeed * 8) {
+            handleAction();
+          }
+          if (dash && dino.isJumping && !dino.dashed && dino.velocityY > -1) dashDino();
+          ghostStep();
+        }
+      };
+      playDaily(false);
+      endRun();
+      const theirs = GhostStore.load(MODES.DAILY).o;
+      playDaily(true);
+      const mine = ghost.rec.obs;
+      const n = Math.min(mine.length, theirs.length);
+      assert(n >= 3, 'both runs met some obstacles');
+      // Check each obstacle while this one and the next match. Past the
+      // first one of a different type the courses have parted ways.
+      let checked = 0;
+      for (let i = 0; i + 1 < n && mine[i + 1][0] === theirs[i + 1][0]; i++) {
+        assertEquals(ghostRoadAt(mine[i][1]), theirs[i][1], 'obstacle ' + i + ' lines up');
+        checked++;
+      }
+      assert(checked >= 3, 'several obstacles checked');
     });
   });
 });
@@ -192,7 +331,8 @@ describe('Ghost Rex: drawing', () => {
       g.ys[20] = 90 + GAME_CONFIG.GHOST_Y_OFFSET;
       g.poses[20] = 1;
       ghost.best = g;
-      ghost.rec = { dist: 20 * g.step + cfg('GHOST_LAG_PX'), next: 0, ys: [], poses: [] };
+      ghost.rec = fakeRec(20 * g.step + cfg('GHOST_LAG_PX'));
+      updateGhostView();
       const s = ghostDrawState();
       assertEquals(s.y, 90, 'the sample for this spot on the road');
       assert(s.img === dino.image, 'airborne pose uses the jump sprite');
@@ -206,12 +346,14 @@ describe('Ghost Rex: drawing', () => {
       ghost.best = g;
       const lag = cfg('GHOST_LAG_PX');
       const end = 9 * g.step + lag;
-      ghost.rec = { dist: end + 30, next: 0, ys: [], poses: [] };
+      ghost.rec = fakeRec(end + 30);
+      updateGhostView();
       const s = ghostDrawState();
       assert(s.img === dinoLoseImage, 'shows the fallen sprite');
       assertEquals(s.x, dino.x - lag - 30, 'left where it fell');
       assert(s.alpha < cfg('GHOST_ALPHA') && s.alpha > 0, 'fading');
       ghost.rec.dist = end + cfg('GHOST_FADE_PX');
+      updateGhostView();
       assertEquals(ghostDrawState(), null, 'gone');
     });
   });
@@ -220,7 +362,8 @@ describe('Ghost Rex: drawing', () => {
     withGhostSandbox(() => {
       game.mode = MODES.DAILY;
       ghost.best = fakeGhost(10, 100, 1 | (12 << 2));
-      ghost.rec = { dist: 0, next: 0, ys: [], poses: [] };
+      ghost.rec = fakeRec(0);
+      updateGhostView();
       const origRm = reducedMotion;
       try {
         setReducedMotion(false);
@@ -262,7 +405,8 @@ describe('Ghost Rex: off switch', () => {
     withGhostSandbox(() => {
       game.mode = MODES.DAILY;
       ghost.best = fakeGhost(10, 150, 0);
-      ghost.rec = { dist: 0, next: 0, ys: [], poses: [] };
+      ghost.rec = fakeRec(0);
+      updateGhostView();
       const btn = document.getElementById('ghost-btn');
       const attrs = {};
       const origSet = btn.setAttribute;

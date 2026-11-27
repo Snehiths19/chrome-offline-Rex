@@ -183,6 +183,9 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.ghostRecordsIn = ghostRecordsIn;
   global.resetGhostRun = resetGhostRun;
   global.recordGhostFrame = recordGhostFrame;
+  global.noteGhostSpawns = noteGhostSpawns;
+  global.updateGhostView = updateGhostView;
+  global.ghostRoadAt = ghostRoadAt;
   global.finishGhostRun = finishGhostRun;
   global.setGhostEnabled = setGhostEnabled;
   global.ghostDrawState = ghostDrawState;

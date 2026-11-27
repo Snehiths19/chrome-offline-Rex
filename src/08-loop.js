@@ -379,6 +379,7 @@ function updateRunning() {
     // ?qaCluster=1 / ?qaBig=1 may replace this one type. The roll above already ran.
     const type = qaBigOverride(qaClusterOverride(params.type));
     spawnObstacle(type);
+    noteGhostSpawns();
     noteSpawnForDeathLog(consumedGap, type.id, game.currentSpeed);
     game.lastObstacleX = GAME_CONFIG.CANVAS_W;
     // The gap counts from an obstacle's left edge. A long row (M5) adds its
