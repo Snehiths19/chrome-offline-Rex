@@ -246,6 +246,8 @@ export default [
         drawGhost: 'readonly',
         refreshGhostButton: 'readonly',
         drawRunning: 'readonly',
+        roadScoreAt: 'readonly',
+        courseScore: 'readonly',
         dinoLoseImage: 'readonly',
         reducedMotion: 'readonly',
         safeStorage: 'readonly',

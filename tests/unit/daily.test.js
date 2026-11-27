@@ -123,10 +123,10 @@ describe('Daily obstacle sequence vs reduced motion', () => {
         reduced.endX.every((x, i) => x === reduced.startX[i]),
         'Reduced motion must leave drawn hill positions unchanged'
       );
-      assertNotEquals(
+      assertEquals(
         moving.seq.join('|'),
         skipped.seq.join('|'),
-        'Skipping hill updates must be able to change later obstacle rolls'
+        'Hills draw on their own stream, so they never change the obstacle rolls'
       );
 
       const movingKey = moving.seq.join('|');
@@ -2263,5 +2263,71 @@ describe('Daily native share sheet', () => {
       Animations.copyFlashFrames = origFlash;
       shareBtn.textContent = origText;
     }
+  });
+});
+
+describe('One shared course: the course is laid out on the road', () => {
+  // Play a Daily run on a fixed seed with a simple autopilot, dashing in
+  // every flight when `dash` is set. Returns each obstacle's type, its spot
+  // on the road and its width.
+  function courseOf(dash, seed) {
+    replayRunSeed(seed);
+    cancelAnimationFrame(game.animationFrameId);
+    game.mode = MODES.DAILY;
+    game.state = STATE.IDLE;
+    resetGame();
+    const step = () => {
+      gameLoop();
+      cancelAnimationFrame(game.animationFrameId);
+    };
+    let guard = 0;
+    while (game.state !== STATE.RUNNING && guard++ < 1000) step();
+    const seen = new Set();
+    const course = [];
+    while (game.state === STATE.RUNNING && game.animFrame < 2500) {
+      const ahead = game.obstacles
+        .filter((o) => o.render !== 'ramp' && o.type !== 'leapGap' && o.x + o.width > dino.x)
+        .sort((a, b) => a.x - b.x)[0];
+      if (ahead && !dino.isJumping && ahead.x - (dino.x + dino.width) < game.currentSpeed * 8) {
+        handleAction();
+      }
+      if (dash && dino.isJumping && !dino.dashed && dino.velocityY > -1) dashDino();
+      step();
+      for (const o of game.obstacles) {
+        if (seen.has(o)) continue;
+        seen.add(o);
+        course.push(o.type + '@' + Math.round((game.roadX + o.x) * 1000) / 1000 + 'w' + o.width);
+      }
+    }
+    return course;
+  }
+
+  it('dashing in every flight meets exactly the same course', () => {
+    const origMode = game.mode;
+    try {
+      for (const seed of [20261127, 20261101]) {
+        const plain = courseOf(false, seed);
+        const dashing = courseOf(true, seed);
+        const n = Math.min(plain.length, dashing.length);
+        assert(n >= 15, 'both runs met plenty of obstacles (' + n + ')');
+        assertEquals(dashing.slice(0, n).join(' '), plain.slice(0, n).join(' '), 'seed ' + seed);
+      }
+    } finally {
+      game.mode = origMode;
+      cancelAnimationFrame(game.animationFrameId);
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('with no boost, the course score is the score', () => {
+    let score = 0;
+    let road = 0;
+    for (let i = 0; i < 3000; i++) {
+      score += GAME_CONFIG.SCORE_INCREMENT;
+      road += DifficultyProfile.speedAtScore(score);
+      if (i % 250 === 0) assertEquals(roadScoreAt(road), score, 'frame ' + i);
+    }
+    assertEquals(roadScoreAt(0), 0);
   });
 });

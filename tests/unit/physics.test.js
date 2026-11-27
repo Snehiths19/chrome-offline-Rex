@@ -563,24 +563,32 @@ describe('State Transitions', () => {
 });
 
 describe('PR-P1 bug fixes', () => {
-  it('updateHills respawn uses game.rng (consumes exactly 3 draws)', () => {
+  it('updateHills respawn uses game.sceneryRng (exactly 3 draws), never the course rng', () => {
     setMode(MODES.UPDATED);
     cancelAnimationFrame(game.animationFrameId);
-    game.rng = mulberry32(123);
+    const origRng = game.rng;
+    game.sceneryRng = mulberry32(123);
     initHills();
     // Force the first hill off-screen so updateHills will respawn it.
     game.hills[0].x = -game.hills[0].width - 1;
     game.currentSpeed = 6;
 
     let calls = 0;
+    let courseCalls = 0;
     const inner = mulberry32(456);
-    game.rng = () => {
+    game.sceneryRng = () => {
       calls++;
       return inner();
     };
+    game.rng = () => {
+      courseCalls++;
+      return 0.5;
+    };
     updateHills();
+    game.rng = origRng;
 
-    assertEquals(calls, 3, 'Respawn must consume exactly 3 game.rng() draws');
+    assertEquals(calls, 3, 'Respawn must consume exactly 3 game.sceneryRng() draws');
+    assertEquals(courseCalls, 0, 'hills never draw on the course rng');
     assert(
       game.hills[0].x >= GAME_CONFIG.CANVAS_W,
       'Respawned x must land at or past canvas width'
@@ -2397,6 +2405,12 @@ describe('Gaps in the ground (G1)', () => {
     g1Run(MODES.UPDATED, () => {
       const origRng = game.rng;
       game.score = 200;
+      // The course reads the road (courseScore): put the next spot at score 200's.
+      let road = 0;
+      while (roadScoreAt(road) < 200) road += 10;
+      game.roadX = road;
+      game.nextObstacleRoadX = road + GAME_CONFIG.CANVAS_W;
+      const spotScore = courseScore();
       // Roll the pit: its weight sits just before the cluster in the table.
       const pit = g1PitType();
       const eligible = GAME_CONFIG.OBSTACLE_TYPES.filter((t) => 200 >= t.unlockScore);
@@ -2415,7 +2429,7 @@ describe('Gaps in the ground (G1)', () => {
       const spawned = game.obstacles[game.obstacles.length - 1];
       assertEquals(spawned.type, 'pit');
       const again = [pitRoll, 0.5];
-      const params = DifficultyProfile.nextObstacle(game.score, MODES.UPDATED, () => again.shift());
+      const params = DifficultyProfile.nextObstacle(spotScore, MODES.UPDATED, () => again.shift());
       assertEquals(params.type.id, 'pit');
       assertEquals(game.nextSpawnGap, params.gap + spawned.width);
     });

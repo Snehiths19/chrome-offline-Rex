@@ -72,6 +72,64 @@ const DifficultyProfile = {
   },
 };
 
+// --- The course on the road ---------------------------------------------
+// Updated and Daily lay the course out by distance, not time. The score
+// counts frames, and a dash or a ramp launch covers more road per frame, so
+// a course read from the score would change with how you play. Instead each
+// obstacle has a fixed spot on the road (game.nextObstacleRoadX: the first
+// at a fixed spot, each next one exactly one gap on), and its type, gap and
+// widths read courseScore(): the score a run with no boost would have when
+// that spot reaches the right edge, from the same frames-to-road table for
+// every run. Nothing about it reads the frame the spawn happens on, so a
+// Daily seed is the same course for everyone. On a run with no boost it
+// equals the score the old frame-based spawn read.
+const roadTable = { score: [0], road: [0] };
+
+function extendRoadTable(roadX) {
+  const { score, road } = roadTable;
+  while (road[road.length - 1] <= roadX) {
+    const s = score[score.length - 1] + GAME_CONFIG.SCORE_INCREMENT;
+    score.push(s);
+    road.push(road[road.length - 1] + DifficultyProfile.speedAtScore(s));
+  }
+}
+
+// The no-boost score at `roadX` px of road, straight from the table
+// between its frames.
+function roadScoreAt(roadX) {
+  if (!(roadX > 0)) return 0;
+  extendRoadTable(roadX);
+  const { score, road } = roadTable;
+  let lo = 0;
+  let hi = road.length - 1; // road[hi] > roadX
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (road[mid] <= roadX) lo = mid;
+    else hi = mid;
+  }
+  if (road[lo] === roadX) return score[lo];
+  return score[lo] + ((roadX - road[lo]) / (road[hi] - road[lo])) * (score[hi] - score[lo]);
+}
+
+// Where the first obstacle sits on the road: one no-boost frame of road
+// plus the canvas, so it spawns at the right edge on the first frame.
+function firstObstacleRoadX() {
+  extendRoadTable(0);
+  return roadTable.road[1] + GAME_CONFIG.CANVAS_W;
+}
+
+// The score the next obstacle is built from: read at its spot on the road
+// in Updated and Daily, the plain score in Classic (which has no boosts).
+function courseScore() {
+  if (!isUpdatedMode()) return game.score;
+  return roadScoreAt(game.nextObstacleRoadX - GAME_CONFIG.CANVAS_W);
+}
+
+// The hills' own stream: the same scenery for a seed, apart from the course.
+function sceneryRunSeed(seed) {
+  return (seed ^ 0x5bd1e995) >>> 0;
+}
+
 const MODES = Object.freeze({ CLASSIC: 'classic', UPDATED: 'updated', DAILY: 'daily' });
 
 // Read the saved mode (defaults to 'updated' for first-time players). Persists
@@ -134,6 +192,10 @@ const game = {
   highScore: ScoreStore.loadHighScore(),
   animFrame: 0,
   groundX: 0,
+  // Road travelled this run, px (dashes and launches included).
+  roadX: 0,
+  // Updated and Daily: the next obstacle's spot on the road (see courseScore).
+  nextObstacleRoadX: 0,
   clouds: [],
   stars: [],
   starsInitialised: false,
@@ -167,6 +229,8 @@ const game = {
   lastJumpFrame: null,
   deathLog: null,
   rng: mulberry32(bootSeed),
+  // The hills' stream (see sceneryRunSeed), apart from the course's rng.
+  sceneryRng: mulberry32(sceneryRunSeed(bootSeed)),
   mode: loadMode(),
   dailyBest: ScoreStore.loadDailyBest(),
   // False until the player has died once this session. First IDLE → WAITING
