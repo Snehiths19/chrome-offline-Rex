@@ -141,6 +141,42 @@ body {
   outline-offset: 2px;
 }
 
+/* Ghost Rex off switch: only in Daily, in the spot the mode toggle leaves. */
+#ghost-btn {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 2;
+  display: none;
+  min-width: 44px;
+  height: 44px;
+  padding: 0 10px;
+  font-size: 18px;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #999;
+  border-radius: 999px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.daily-active #ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.has-fullscreen #ghost-btn {
+  right: 58px;
+}
+#ghost-btn[aria-pressed='false'] {
+  opacity: 0.45;
+  filter: grayscale(1);
+}
+#ghost-btn:focus-visible {
+  outline: 2px solid #4a90e2;
+  outline-offset: 2px;
+}
+
 .daily-active #mode-toggle {
   display: none;
 }

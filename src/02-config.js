@@ -727,6 +727,24 @@ const GAME_CONFIG = Object.freeze({
   UPDATED_IDLE_PULSE_AMPLITUDE: 0.15,
   UPDATED_IDLE_PULSE_RATE: 0.05,
 
+  // --- Ghost Rex ---
+  // A faint copy of today's best Daily run runs the same course a little
+  // behind Rex. It is placed by distance travelled, not by frame, because a
+  // dash or a ramp launch scrolls the world faster. One sample of the
+  // dino's height and pose is kept every GHOST_SAMPLE_PX of distance, at
+  // most GHOST_MAX_SAMPLES (about 10 minutes of play). Heights are stored
+  // as bytes offset by GHOST_Y_OFFSET so a fall into a gap still fits.
+  // Recording format only: nothing here feeds physics, spawning or scoring.
+  GHOST_SAMPLE_PX: 6,
+  GHOST_MAX_SAMPLES: 60000,
+  GHOST_Y_OFFSET: 40,
+  // Visual, through cfg(): how see-through the ghost is, how far behind Rex
+  // it runs, and over how many px of road it fades once you pass the spot
+  // where it fell.
+  GHOST_ALPHA: 0.3,
+  GHOST_LAG_PX: 26,
+  GHOST_FADE_PX: 120,
+
   // --- Asset loading ---
   ASSET_LOAD_TIMEOUT_MS: 5000, // force WAITING state even if assets never finish loading
 });
@@ -783,6 +801,9 @@ const TUNABLE_KEYS = Object.freeze([
   'DUSK_GLOW_ALPHA',
   'DUSK_GLOW_COLOR',
   'DUSK_GROUND_COLOR',
+  'GHOST_ALPHA',
+  'GHOST_FADE_PX',
+  'GHOST_LAG_PX',
   'HILL_COLOR_NIGHT',
   'NIGHT_CLOUD_ALPHA',
   'NIGHT_DEATH_FLASH_PEAK_ALPHA',
@@ -902,6 +923,38 @@ const ScoreStore = {
       safeStorage.set('dino-daily-date', dailySeed());
       safeStorage.set('dino-daily-best', score);
     }
+  },
+};
+
+// Ghost Rex: the best run's recorded path, one per mode. Daily keeps only
+// today's (a new UTC day is a new course). Updated is recorded but not shown
+// yet: its course changes every run, so it waits for a race on the same
+// course. Off switch in dino-ghost ('0' hides it). A bad or old record reads
+// as no ghost.
+const GhostStore = {
+  key(mode) {
+    return mode === MODES.DAILY ? 'dino-ghost-daily' : 'dino-ghost-updated';
+  },
+  load(mode) {
+    let g = null;
+    try {
+      g = JSON.parse(safeStorage.get(this.key(mode), 'null'));
+    } catch {
+      return null;
+    }
+    if (!g || g.v !== 1 || typeof g.score !== 'number' || typeof g.y !== 'string') return null;
+    if (typeof g.p !== 'string' || !(g.step > 0)) return null;
+    if (mode === MODES.DAILY && g.date !== dailySeed()) return null;
+    return g;
+  },
+  save(mode, record) {
+    safeStorage.set(this.key(mode), JSON.stringify(record));
+  },
+  loadEnabled() {
+    return safeStorage.get('dino-ghost', '1') !== '0';
+  },
+  saveEnabled(on) {
+    safeStorage.set('dino-ghost', on ? '1' : '0');
   },
 };
 
