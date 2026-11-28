@@ -1045,7 +1045,7 @@ const NEW_REX_LOOKS = {
     head: 1.3,
     tail: 1,
     outline: 0,
-    fill: ['#5a5a5a', '#535353', '#4e4e4e'],
+    fill: ['#636363', '#535353', '#454545'],
     far: '#424242',
     arm: '#535353',
   },
@@ -1458,6 +1458,44 @@ function newRexStripes(c, pose, tailPts) {
   c.restore();
 }
 
+// Chrome look: a soft light along the top of the back, tail and head, and a
+// soft shade under the belly, so the flat grey reads as a solid body.
+function newRexHighlights(c, pose, tailPts, look) {
+  const spine = newRexSpine(pose, tailPts);
+  c.save();
+  c.lineCap = 'round';
+  c.lineJoin = 'round';
+  c.beginPath();
+  for (let i = 1; i < spine.length; i++) {
+    const s = newRexSpineSegment(spine[i - 1], spine[i]);
+    const x = s.mx + s.nx * s.r * 0.62,
+      y = s.my + s.ny * s.r * 0.62;
+    if (i === 1) c.moveTo(x, y);
+    else c.lineTo(x, y);
+  }
+  c.lineWidth = 1.3;
+  c.strokeStyle = 'rgba(255,255,255,0.13)';
+  c.stroke();
+  // Belly shade.
+  c.beginPath();
+  c.moveTo(pose.tailBase.x + 2, pose.tailBase.y + 3.5);
+  c.quadraticCurveTo(pose.hip.x + 2, pose.hip.y + 5.5, pose.chest.x + 2, pose.chest.y + 5);
+  c.lineWidth = 2.2;
+  c.strokeStyle = 'rgba(0,0,0,0.12)';
+  c.stroke();
+  // Head: a light along the top of the skull.
+  c.translate(pose.head.x, pose.head.y);
+  c.rotate(pose.head.angle);
+  c.scale(look.head, look.head);
+  c.beginPath();
+  c.moveTo(-1.5, -7.1);
+  c.lineTo(15.5, -7.1);
+  c.lineWidth = 0.9;
+  c.strokeStyle = 'rgba(255,255,255,0.16)';
+  c.stroke();
+  c.restore();
+}
+
 // Draws the rig at the dino's position. The caller applies the turn and the
 // night brightness.
 function drawNewRexRig(c) {
@@ -1505,6 +1543,7 @@ function drawNewRexRig(c) {
   c.beginPath();
   newRexHeadShapes(c, pose, lookName);
   c.fill();
+  if (lookName === 'chrome') newRexHighlights(c, pose, tailPts, look);
   if (lookName === 'fierce') {
     newRexStripes(c, pose, tailPts);
     // Toe claws.
@@ -1553,7 +1592,25 @@ function drawNewRexRig(c) {
 
 // The new Rex in place of the sprite, with the same pitch, flip and recoil
 // turn the sprite uses.
+// A soft shadow on the ground under Rex: smaller and fainter the higher he
+// is, none over a gap.
+function drawNewRexShadow() {
+  const floor = dinoFloorY();
+  if (floor === null || game.state === STATE.DEAD) return;
+  const up = Math.max(0, floor - dino.y);
+  const k = Math.max(0.25, 1 - up / 110);
+  const wide = newRex.duck > 0.5 ? 22 : 17;
+  ctx.save();
+  ctx.globalAlpha *= 0.16 * k;
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.ellipse(dino.x + 17, floor + dino.height - 1, wide * k, 2.2 * k, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawNewRex() {
+  drawNewRexShadow();
   const pose = rexPose();
   const flip = dinoFlipAngle();
   const turn = flip + pose.angle;
