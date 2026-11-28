@@ -17,6 +17,8 @@ function resetGame() {
   // of this one are not a catch-up burst.
   resetSimClock();
   resetQaHzMeter();
+  game.moveTip = null;
+  audio.setWind(0);
   dino.y = GAME_CONFIG.CANVAS_H - dino.height;
   dino.velocityY = 0;
   dino.isJumping = false;
@@ -44,6 +46,8 @@ function resetGame() {
   game.score = 0;
   game.animFrame = 0;
   game.groundX = 0;
+  game.roadX = 0;
+  game.nextObstacleRoadX = firstObstacleRoadX();
   game.currentSpeed = GAME_CONFIG.INITIAL_SPEED;
   game.lastObstacleX = -300;
   game.graceFrames = GAME_CONFIG.GRACE_FRAMES;
@@ -77,6 +81,8 @@ function resetGame() {
   game.deathLog = null;
   game.runSeed = takeRunSeed();
   game.rng = mulberry32(game.runSeed);
+  game.sceneryRng = mulberry32(sceneryRunSeed(game.runSeed));
+  resetGhostRun();
   game.dailyBest = ScoreStore.loadDailyBest();
   const shareBtnEl = document.getElementById('share-btn');
   if (shareBtnEl && shareBtnEl.style) shareBtnEl.style.display = 'none';
@@ -190,6 +196,7 @@ function drawDead() {
     drawClouds();
     drawObstacles();
     Particles.draw();
+    drawGhost();
     drawDino();
     drawScore();
     ctx.restore();
@@ -231,12 +238,14 @@ function drawWaiting() {
   drawHills();
   drawGround();
   drawClouds();
+  drawGhost();
   drawDino();
   drawScore();
   drawGetReadyOverlay();
 }
 
 function updateRunning() {
+  audio.setWind(windLevel());
   // The LEVEL wash and NEW BEST badge count down once per slice, before
   // anything can start them again, so a fresh start paints its full first
   // frame and the draw (once per display frame) never moves a timer.
@@ -294,7 +303,10 @@ function updateRunning() {
 
   // Scroll ground at the same pace as the obstacles, so the gaps cut into
   // it (G1) stay put on it during a dash or a ramp launch.
-  game.groundX -= worldScroll();
+  const scroll = worldScroll();
+  game.groundX -= scroll;
+  game.roadX += scroll;
+  noteGhostScroll(scroll);
   if (imageReady(groundImage) && game.groundX <= -groundImage.width) game.groundX = 0;
 
   // Lazy-init stars once when night is full. Skipped under reduce-motion
@@ -369,14 +381,35 @@ function updateRunning() {
   // Obstacle spawning — Updated/Daily precompute a jittered gap that scales
   // with speed once the shrinking curve would outrun a jump. Classic stays
   // deterministic. DifficultyProfile.nextObstacle() picks type + gap together.
-  if (game.lastObstacleX <= GAME_CONFIG.CANVAS_W - game.nextSpawnGap) {
+  //
+  // Updated and Daily lay the course out on the road, not the clock (see
+  // courseScore): each obstacle has a fixed spot on the road, exactly one
+  // gap after the last, and spawns once that spot is within SPAWN_LEAD_PX
+  // past the right edge. Its type, gap and widths read the score a run with no
+  // boost would have there. Nothing reads the frame it spawns on, so a
+  // dash or a launch never changes the course, and a Daily seed is the
+  // same course for everyone. Classic keeps its frame-based spawn.
+  const roadSpawn = isUpdatedMode();
+  const spawnDue = roadSpawn
+    ? game.lastObstacleX + game.nextSpawnGap <= GAME_CONFIG.CANVAS_W + GAME_CONFIG.SPAWN_LEAD_PX
+    : game.lastObstacleX <= GAME_CONFIG.CANVAS_W - game.nextSpawnGap;
+  if (spawnDue) {
     const consumedGap = game.nextSpawnGap;
-    const params = DifficultyProfile.nextObstacle(game.score, game.mode, game.rng);
+    // On screen, one gap after the last obstacle (the first at the right
+    // edge). On the road that is game.nextObstacleRoadX, kept exactly.
+    const spawnRoadX = game.nextObstacleRoadX;
+    const spawnX = roadSpawn
+      ? Math.max(GAME_CONFIG.CANVAS_W, game.lastObstacleX + game.nextSpawnGap)
+      : GAME_CONFIG.CANVAS_W;
+    const spawnScore = courseScore();
+    const spawnSpeed = roadSpawn ? DifficultyProfile.speedAtScore(spawnScore) : game.currentSpeed;
+    const params = DifficultyProfile.nextObstacle(spawnScore, game.mode, game.rng);
     // ?qaCluster=1 / ?qaBig=1 may replace this one type. The roll above already ran.
     const type = qaBigOverride(qaClusterOverride(params.type));
-    spawnObstacle(type);
+    spawnObstacle(type, spawnX, spawnSpeed);
+    noteGhostSpawns();
     noteSpawnForDeathLog(consumedGap, type.id, game.currentSpeed);
-    game.lastObstacleX = GAME_CONFIG.CANVAS_W;
+    game.lastObstacleX = spawnX;
     // The gap counts from an obstacle's left edge. A long row (M5) adds its
     // own width, so the gap after it is still a full gap of open ground.
     // A leap (G3) is two pieces; the gap counts from the far one.
@@ -384,8 +417,12 @@ function updateRunning() {
     // A gap in the ground (G1) does the same.
     const wide = spawned.render === 'row' || spawned.terrain;
     // After a ramp (G2) the gap also skips the launch flight.
-    const flight = spawned.render === 'ramp' ? launchFlightDistance(game.currentSpeed) : 0;
+    const flight = spawned.render === 'ramp' ? launchFlightDistance(spawnSpeed) : 0;
     game.nextSpawnGap = params.gap + (wide ? spawned.width : 0) + flight;
+    // The next spot on the road, from this one's spot (not the frame).
+    // A leap's far piece starts one ramp width on.
+    const far = type.id === 'leap' ? game.obstacles[game.obstacles.length - 2].width : 0;
+    game.nextObstacleRoadX = spawnRoadX + far + game.nextSpawnGap;
   }
 
   // Collision detection. A gap in the ground (G1) has no hitbox; the
@@ -393,7 +430,7 @@ function updateRunning() {
   for (let i = 0; i < game.obstacles.length; i++) {
     if (game.obstacles[i].terrain) continue;
     if (checkCollision(dinoHitbox(), game.obstacles[i])) {
-      endRun();
+      endRun(game.obstacles[i].type);
       return;
     }
   }
@@ -448,7 +485,7 @@ function updateRunning() {
       // Until then a second jump can still carry the dino out.
       dino.inPit = true;
       if (dino.y >= groundY + GAME_CONFIG.PIT_FALL_DEPTH || dinoFloorY() !== null) {
-        endRun();
+        endRun('gap');
         return;
       }
     } else if (floorY !== null && dino.y >= floorY) {
@@ -481,6 +518,7 @@ function updateRunning() {
   }
 
   updateRexMotion();
+  recordGhostFrame();
 
   // NEW BEST badge — first time this run's score exceeds the stored high score.
   // Updated and Daily start the shorter quiet countdown. Classic keeps
@@ -494,8 +532,10 @@ function updateRunning() {
 
 // The run ends: a hit, or a fall into a gap (G1). Everything a death does,
 // in one place.
-function endRun() {
+function endRun(cause) {
   game.state = STATE.DEAD;
+  audio.setWind(0);
+  game.moveTip = takeMoveTip(cause, mediaMatches('(hover: none) and (pointer: coarse)'));
   Animations.deathShakeFrames = deathShakeFrameCount();
   // PR-C: white flash + score pop, mode-gated. Reduce-motion caps flash to 1 frame.
   // The pop window matches the shake so Game Over does not open mid-scale.
@@ -508,6 +548,7 @@ function endRun() {
   audio.death();
   vibrateOnDeath();
   const finalScore = Math.floor(game.score);
+  finishGhostRun(finalScore);
   const runResult = computeRunResult(finalScore, game.highScore);
   game.isNewBest = runResult.isNewBest;
   game.isFirstRun = runResult.isFirst;
@@ -523,6 +564,7 @@ function endRun() {
     game.isNewTodayBest = todayResult.isNewBest || todayResult.isFirst;
     game.previousDailyBest = todayResult.previousHighScore;
     ScoreStore.saveDailyBest(finalScore);
+    game.dailyStreak = ScoreStore.recordDailyRun();
     game.dailyBest = ScoreStore.loadDailyBest();
   } else {
     game.isNewTodayBest = false;
@@ -561,6 +603,7 @@ function drawRunning() {
   drawGround();
   drawObstacles();
   runFeatureDraws('foreground'); // Particles.draw
+  drawGhost();
   drawDino();
   if (kick) ctx.restore();
   drawScore();
@@ -586,6 +629,7 @@ function pauseRun() {
   if (game.state !== STATE.RUNNING && !counting) return false;
   game.state = STATE.PAUSED;
   game.pauseHidden = true;
+  audio.setWind(0);
   game.resumeFrames = GAME_CONFIG.RESUME_COUNTDOWN_FRAMES;
   announce('Paused.');
   return true;

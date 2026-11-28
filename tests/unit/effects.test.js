@@ -9,13 +9,13 @@ describe('Ambient depth + confetti (PR-D)', () => {
     setMode(MODES.UPDATED);
     cancelAnimationFrame(game.animationFrameId);
     // Pin the RNG to a deterministic sequence.
-    game.rng = mulberry32(42);
+    game.sceneryRng = mulberry32(42);
     initHills();
     const snapshot1 = game.hills.map((h) => ({ x: h.x, w: h.width, h: h.height }));
     assertEquals(game.hills.length, GAME_CONFIG.HILL_COUNT, 'Hills count should match config');
 
     // Re-seed identically and re-init — same hills.
-    game.rng = mulberry32(42);
+    game.sceneryRng = mulberry32(42);
     initHills();
     game.hills.forEach((h, i) => {
       assertEquals(h.x, snapshot1[i].x, `Hill ${i} x should be deterministic`);
@@ -6929,5 +6929,29 @@ describe('Move combo HUD (M7)', () => {
     assertEquals(comboTexts(MODES.DAILY, 2).join(), 'COMBO x2');
     assertEquals(comboTexts(MODES.UPDATED, 1).length, 0, 'not for one');
     assertEquals(comboTexts(MODES.CLASSIC, 5).length, 0, 'never in Classic');
+  });
+});
+
+describe('Move tips (preview)', () => {
+  it('gives each tip once, in Updated and Daily only, with touch wording on touch', () => {
+    const origMode = game.mode;
+    const saved = localStorage.getItem('dino-move-tips-seen');
+    try {
+      localStorage.removeItem('dino-move-tips-seen');
+      game.mode = MODES.CLASSIC;
+      assertEquals(takeMoveTip('tower', false), null, 'never in Classic');
+      game.mode = MODES.UPDATED;
+      assertEquals(takeMoveTip('small', false), null, 'no tip for a plain cactus');
+      assertEquals(takeMoveTip('tower', false), MOVE_TIPS.tower.keys);
+      assertEquals(takeMoveTip('tower', false), null, 'only once');
+      game.mode = MODES.DAILY;
+      assertEquals(takeMoveTip('bird', true), MOVE_TIPS.bird.touch);
+      assertEquals(MoveTipStore.seen().join(','), 'tower,bird');
+    } finally {
+      game.mode = origMode;
+      saved === null
+        ? localStorage.removeItem('dino-move-tips-seen')
+        : localStorage.setItem('dino-move-tips-seen', saved);
+    }
   });
 });

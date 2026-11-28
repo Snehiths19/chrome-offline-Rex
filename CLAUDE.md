@@ -76,7 +76,7 @@ Add new code to the file for the section it belongs to; don't start a new file f
 2. **`src/02-config.js` — Section 2, Configuration.** `GAME_CONFIG` (frozen), the `cfg`/`loadTuning`/`saveTuning` live-tuning hook, `ScoreStore` (all localStorage score persistence), the `STATE` enum, `reducedMotion`/`setReducedMotion`, the QA switchboard (`QA_FLAGS`: one row per `?qaX=1` playtest flag, with its hold, gate and draw; `qa.x` says whether a flag is on, tests flip one with `setQaFlag('x', on)` and parse with `readQaFlag('x', search)`; the per-flag `drawQa*` overlays sit just above it; the bulk of this file), and the `audio` object.
 3. **`src/03-assets.js` — Section 3, Asset loading.** `canvas`/`ctx`, `a11yLive`/`announce`, `dino`, sprite preload with timeout fallback, and the canvas-sizing shell helpers (`computeCanvasCssWidth`, `fitCanvasCssSize`, `initCanvasScale`, `handleResize`).
 4. **`src/04-state.js` — Section 4, Game state.** The `mulberry32` seeded RNG, `DifficultyProfile.nextObstacle()` (type + gap; `pickObstacleType` and `computeNextSpawnGap` are internal helpers, not exported), `MODES`/`loadMode`, daily seed helpers, the `game` object, `Animations`, `setMode`, daily share, and the death-log debug tools.
-5. **`src/05-rendering.js` — Section 5, Rendering.** Pure draw functions: `drawBackground`, `drawDino`, `drawObstacles`, `drawClouds`, `drawHills`, `drawSkyTint`, `drawDeathFlash`, `drawScore`, `drawMilestoneFlash`, `drawNewBestBadge`, etc. Also `isDailyMode`/`isUpdatedMode` and `Particles`.
+5. **`src/05-rendering.js` — Section 5, Rendering.** Pure draw functions: `drawBackground`, `drawGhost` (Ghost Rex, with its recorder `recordGhostFrame`/`finishGhostRun`), `drawDino`, `drawObstacles`, `drawClouds`, `drawHills`, `drawSkyTint`, `drawDeathFlash`, `drawScore`, `drawMilestoneFlash`, `drawNewBestBadge`, etc. Also `isDailyMode`/`isUpdatedMode` and `Particles`.
 6. **Feature registry** (end of `src/05-rendering.js`). `FEATURES` array + `runFeatureUpdates` + `runFeatureDraws(layer)`. Declarative ordering for ambient features (hills, clouds, speed streaks, particles, skyTint).
 7. **`src/06-physics.js` — Section 6, Physics & game logic.** `spawnObstacle`, `updateObstacles`, `checkCollision`, `computeRunResult`, `jump`.
 8. **`src/07-input.js` — Section 7, Input handlers.** `handleAction`, keyboard + mouse + touch. Jump, mute, mode-toggle, share and daily buttons live here too.
@@ -116,7 +116,7 @@ Add one row to `QA_FLAGS` (id, `?param`, and if it shows an overlay: `hold`, `ga
 
 ### Adding a test
 
-Add a `describe`/`it` block to the area file it belongs to in `tests/unit/`: `physics` (jump, collision, score, speed, states, restart, sim clock), `spawning` (obstacle types and gaps), `rendering` (sky, hills, clouds, stars, ground, dino, HUD and screens), `effects` (particles, dust, flashes, shakes, pops, badges, pulses), `daily`, `shell` (audio, mode toggle, sizing, storage, tuning, feature registry, offline) or `qa` (`?qa…=1` flags and the death log). A new area is a new file that starts with `beginTestFile('<area>');` plus one entry in `tests/unit/files.js`. Top-level helpers in one area file share a global scope with the others in the browser, so give them names no other file uses. Manage state by snapshot-mutate-restore inside each `it`:
+Add a `describe`/`it` block to the area file it belongs to in `tests/unit/`: `physics` (jump, collision, score, speed, states, restart, sim clock), `spawning` (obstacle types and gaps), `rendering` (sky, hills, clouds, stars, ground, dino, HUD and screens), `effects` (particles, dust, flashes, shakes, pops, badges, pulses), `daily`, `shell` (audio, mode toggle, sizing, storage, tuning, feature registry, offline), `qa` (`?qa…=1` flags and the death log) or `ghost` (Ghost Rex). A new area is a new file that starts with `beginTestFile('<area>');` plus one entry in `tests/unit/files.js`. Top-level helpers in one area file share a global scope with the others in the browser, so give them names no other file uses. Manage state by snapshot-mutate-restore inside each `it`:
 
 ```js
 it('does the thing', () => {
@@ -131,7 +131,9 @@ The harness has no JSDOM. Canvas and document are stubbed in `src/01-node-stubs.
 
 ## Determinism contract
 
-`game.rng()` is the **only** source of gameplay-affecting randomness. It's seeded from `Date.now()` at each `resetGame()`. Used for: hill init/respawn, obstacle spawn-gap jitter, obstacle type selection.
+`game.rng()` is the **only** source of gameplay-affecting randomness. It's seeded from `Date.now()` at each `resetGame()`. Used for: obstacle spawn-gap jitter and obstacle type selection. The hills draw on their own stream, `game.sceneryRng()`, seeded from the same run seed (`sceneryRunSeed`), so their clock-timed respawns never shift the course.
+
+**The course is laid out on the road (Updated and Daily).** Each obstacle has a fixed spot on the road (`game.nextObstacleRoadX`: the first at a fixed spot, each next exactly one gap on), and its type, gap and widths read `courseScore()`, the score a run with no dash or ramp boost would have at that spot, never the frame it happens to spawn on. It spawns once that spot is within `SPAWN_LEAD_PX` past the right edge. So a seed is one course however the player moves, which keeps the Daily the same for everyone and lets Ghost Rex follow it. On a run with no boost the course is laid out as before. Classic keeps its frame-based spawn.
 
 `Math.random()` is reserved for **cosmetic** randomness only — particle emit jitter, cloud positions, audio pitch wobble, star positions. These don't perturb the gameplay-determinism contract because they don't influence collision, scoring, or spawn timing.
 
@@ -170,6 +172,12 @@ const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matc
 | `dino-tuning` | JSON | `saveTuning()` | `loadTuning()` at boot |
 | `dino-daily-date` | YYYYMMDD integer string | `ScoreStore.saveDailyBest()` | `ScoreStore.loadDailyBest()` |
 | `dino-daily-best` | integer string | `ScoreStore.saveDailyBest()` | `ScoreStore.loadDailyBest()` |
+| `dino-ghost` | `'0'` / `'1'` (default on) | `GhostStore.saveEnabled()` | `GhostStore.loadEnabled()` |
+| `dino-ghost-daily` | JSON: today's best Daily run (score, seed, start date, base64 heights and poses, obstacle road positions) | `finishGhostRun()` | `GhostStore.load()` |
+| `dino-ghost-updated` | JSON: best Updated run, same shape, not shown yet | `finishGhostRun()` | `GhostStore.load()` |
+| `dino-daily-streak` | integer string | `ScoreStore.recordDailyRun()` | `ScoreStore.loadDailyStreak()` |
+| `dino-daily-streak-day` | `dailyNumber()` of the last counted day | `ScoreStore.recordDailyRun()` | `ScoreStore.loadDailyStreak()` |
+| `dino-move-tips-seen` | JSON list of obstacle type ids | `MoveTipStore.markSeen()` | `MoveTipStore.seen()` |
 | `dino-rotate-hint-seen` | `'1'` once seen | `markRotateHintSeen()` | `rotateHintSeen()` |
 
 Every read and write goes through `safeStorage.get(key, fallback)` / `safeStorage.set(key, value)` in Section 2, never `localStorage` directly.
@@ -259,7 +267,7 @@ Rules that apply across all call sites. Violating these silently misbehaves rath
 
 **All storage goes through `safeStorage`.** Browsers that block storage throw on every `localStorage` access, and one unguarded read at module load stops the game booting. `safeStorage.get` returns the fallback when the read throws, and `safeStorage.set` keeps a failed write in memory so it still reads back this session. Never call `localStorage` directly outside `safeStorage`.
 
-**`game.rng()` is the only source of gameplay randomness.** Obstacle type, spawn-gap jitter, hill init/respawn all use `game.rng()`. `Math.random()` is reserved for purely cosmetic effects (particles, clouds, audio pitch). Swapping them breaks the daily-challenge determinism contract.
+**`game.rng()` is the only source of gameplay randomness.** Obstacle type and spawn-gap jitter use `game.rng()`; hills use `game.sceneryRng()`, never the course stream. `Math.random()` is reserved for purely cosmetic effects (particles, clouds, audio pitch). Swapping them breaks the daily-challenge determinism contract.
 
 **Physics/spawning/scoring read `GAME_CONFIG.X` directly — never via `cfg()`.** `cfg()` is for visual tunables only. Any physics or spawning value routed through `cfg()` would allow live-tuning overrides to perturb the determinism contract.
 

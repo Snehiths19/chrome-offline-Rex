@@ -123,10 +123,10 @@ describe('Daily obstacle sequence vs reduced motion', () => {
         reduced.endX.every((x, i) => x === reduced.startX[i]),
         'Reduced motion must leave drawn hill positions unchanged'
       );
-      assertNotEquals(
+      assertEquals(
         moving.seq.join('|'),
         skipped.seq.join('|'),
-        'Skipping hill updates must be able to change later obstacle rolls'
+        'Hills draw on their own stream, so they never change the obstacle rolls'
       );
 
       const movingKey = moving.seq.join('|');
@@ -2263,5 +2263,120 @@ describe('Daily native share sheet', () => {
       Animations.copyFlashFrames = origFlash;
       shareBtn.textContent = origText;
     }
+  });
+});
+
+describe('One shared course: the course is laid out on the road', () => {
+  // Play a Daily run on a fixed seed with a simple autopilot, dashing in
+  // every flight when `dash` is set. Returns each obstacle's type, its spot
+  // on the road and its width.
+  function courseOf(dash, seed) {
+    replayRunSeed(seed);
+    cancelAnimationFrame(game.animationFrameId);
+    game.mode = MODES.DAILY;
+    game.state = STATE.IDLE;
+    resetGame();
+    const step = () => {
+      gameLoop();
+      cancelAnimationFrame(game.animationFrameId);
+    };
+    let guard = 0;
+    while (game.state !== STATE.RUNNING && guard++ < 1000) step();
+    const seen = new Set();
+    const course = [];
+    while (game.state === STATE.RUNNING && game.animFrame < 2500) {
+      const ahead = game.obstacles
+        .filter((o) => o.render !== 'ramp' && o.type !== 'leapGap' && o.x + o.width > dino.x)
+        .sort((a, b) => a.x - b.x)[0];
+      if (ahead && !dino.isJumping && ahead.x - (dino.x + dino.width) < game.currentSpeed * 8) {
+        handleAction();
+      }
+      if (dash && dino.isJumping && !dino.dashed && dino.velocityY > -1) dashDino();
+      step();
+      for (const o of game.obstacles) {
+        if (seen.has(o)) continue;
+        seen.add(o);
+        course.push(o.type + '@' + Math.round((game.roadX + o.x) * 1000) / 1000 + 'w' + o.width);
+      }
+    }
+    return course;
+  }
+
+  it('dashing in every flight meets exactly the same course', () => {
+    const origMode = game.mode;
+    try {
+      for (const seed of [20261127, 20261101]) {
+        const plain = courseOf(false, seed);
+        const dashing = courseOf(true, seed);
+        const n = Math.min(plain.length, dashing.length);
+        assert(n >= 15, 'both runs met plenty of obstacles (' + n + ')');
+        assertEquals(dashing.slice(0, n).join(' '), plain.slice(0, n).join(' '), 'seed ' + seed);
+      }
+    } finally {
+      game.mode = origMode;
+      cancelAnimationFrame(game.animationFrameId);
+      resetGame();
+      cancelAnimationFrame(game.animationFrameId);
+    }
+  });
+
+  it('with no boost, the course score is the score', () => {
+    let score = 0;
+    let road = 0;
+    for (let i = 0; i < 3000; i++) {
+      score += GAME_CONFIG.SCORE_INCREMENT;
+      road += DifficultyProfile.speedAtScore(score);
+      if (i % 250 === 0) assertEquals(roadScoreAt(road), score, 'frame ' + i);
+    }
+    assertEquals(roadScoreAt(0), 0);
+  });
+});
+
+describe('Daily streak (preview)', () => {
+  function withStreakStorage(fn) {
+    const keys = ['dino-daily-streak', 'dino-daily-streak-day'];
+    const saved = keys.map((k) => localStorage.getItem(k));
+    try {
+      keys.forEach((k) => localStorage.removeItem(k));
+      fn();
+    } finally {
+      keys.forEach((k, i) =>
+        saved[i] === null ? localStorage.removeItem(k) : localStorage.setItem(k, saved[i])
+      );
+    }
+  }
+
+  it('starts at 1, counts consecutive UTC days, and counts a day once', () => {
+    withStreakStorage(() => {
+      assertEquals(ScoreStore.loadDailyStreak(100), 0);
+      assertEquals(ScoreStore.recordDailyRun(100), 1);
+      assertEquals(ScoreStore.recordDailyRun(100), 1, 'second run the same day');
+      assertEquals(ScoreStore.recordDailyRun(101), 2);
+      assertEquals(ScoreStore.recordDailyRun(102), 3);
+      assertEquals(ScoreStore.loadDailyStreak(103), 3, 'still alive the next day');
+    });
+  });
+
+  it('resets to 1 after a missed day', () => {
+    withStreakStorage(() => {
+      ScoreStore.recordDailyRun(100);
+      ScoreStore.recordDailyRun(101);
+      assertEquals(ScoreStore.loadDailyStreak(103), 0, 'a whole day missed');
+      assertEquals(ScoreStore.recordDailyRun(103), 1);
+    });
+  });
+
+  it('shows on the Game Over title and in the share text from two days', () => {
+    const orig = game.dailyStreak;
+    const origBest = game.dailyBest;
+    game.dailyBest = 321;
+    game.dailyStreak = 1;
+    assert(!dailyGameOverTitle().includes('IN A ROW'), 'one day is not a streak');
+    assert(!dailyShareText().includes('Streak'), 'no streak line for one day');
+    game.dailyStreak = 4;
+    assert(dailyGameOverTitle().includes('4 DAYS IN A ROW'), dailyGameOverTitle());
+    assert(dailyShareText().includes('Streak: 4 days'), dailyShareText());
+    game.dailyStreak = orig;
+    game.dailyBest = origBest;
   });
 });

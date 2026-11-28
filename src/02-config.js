@@ -105,6 +105,10 @@ const GAME_CONFIG = Object.freeze({
   // Classic gap shrinks by this much per +1 speed above INITIAL_SPEED. 125 keeps
   // the gap at the plateau where it was (about 350px) now the start is faster.
   SPAWN_GAP_SPEED_FACTOR: 125,
+  // Updated and Daily spawn each obstacle exactly one gap after the last,
+  // as soon as that spot is within this many px past the right edge: more
+  // than one frame of the fastest scroll, so it never pops in on screen.
+  SPAWN_LEAD_PX: 24,
   SPAWN_GAP_JITTER: 0.3, // ±30% in Updated/Daily; classic skips jitter
   // Worst-case frames between Updated/Daily obstacles once the shrinking curve
   // would leave less than one focused jump. A jump is 49 frames at the current
@@ -604,6 +608,7 @@ const GAME_CONFIG = Object.freeze({
   UPDATED_DEATH_SHAKE_AMPLITUDE: 1,
   UPDATED_DEATH_SHAKE_FREQ: Math.PI / 8,
   DEATH_FLASH_FRAMES: 6, // PR-C: white-flash overlay length on collision
+  WIND_PEAK_GAIN: 0.035, // preview: wind bed loudness at full speed (blips are 0.04-0.05)
   DEATH_VIBRATE_MS: 30, // S5: one short buzz on death (phones that support it)
   DEATH_FLASH_COLOR_RGB: '255, 255, 255', // death-flash overlay colour (rgb triplet, alpha applied at draw)
   // Visual only. Peak scale of the white death-flash on the day sky, in
@@ -727,6 +732,27 @@ const GAME_CONFIG = Object.freeze({
   UPDATED_IDLE_PULSE_AMPLITUDE: 0.15,
   UPDATED_IDLE_PULSE_RATE: 0.05,
 
+  // --- Ghost Rex ---
+  // A faint copy of today's best Daily run runs the same course a little
+  // behind Rex, pinned to the obstacles (see Ghost Rex in 05-rendering.js).
+  // One sample of the dino's height and pose is kept every GHOST_SAMPLE_PX
+  // of road, at
+  // most GHOST_MAX_SAMPLES (about 10 minutes of play). Heights are stored
+  // as bytes offset by GHOST_Y_OFFSET so a fall into a gap still fits.
+  // Recording format only: nothing here feeds physics, spawning or scoring.
+  GHOST_SAMPLE_PX: 6,
+  GHOST_MAX_SAMPLES: 60000,
+  GHOST_Y_OFFSET: 40,
+  // Sim frames the ghost takes to fade once the courses part ways (an
+  // obstacle of a different type at the same place in the order).
+  GHOST_LOST_FADE_FRAMES: 30,
+  // Visual, through cfg(): how see-through the ghost is, how far behind Rex
+  // it runs, and over how many px of road it fades once you pass the spot
+  // where it fell.
+  GHOST_ALPHA: 0.3,
+  GHOST_LAG_PX: 26,
+  GHOST_FADE_PX: 120,
+
   // --- Asset loading ---
   ASSET_LOAD_TIMEOUT_MS: 5000, // force WAITING state even if assets never finish loading
 });
@@ -783,6 +809,9 @@ const TUNABLE_KEYS = Object.freeze([
   'DUSK_GLOW_ALPHA',
   'DUSK_GLOW_COLOR',
   'DUSK_GROUND_COLOR',
+  'GHOST_ALPHA',
+  'GHOST_FADE_PX',
+  'GHOST_LAG_PX',
   'HILL_COLOR_NIGHT',
   'NIGHT_CLOUD_ALPHA',
   'NIGHT_DEATH_FLASH_PEAK_ALPHA',
@@ -902,6 +931,99 @@ const ScoreStore = {
       safeStorage.set('dino-daily-date', dailySeed());
       safeStorage.set('dino-daily-best', score);
     }
+  },
+  // Daily streak (preview): UTC days in a row with at least one Daily run.
+  // dino-daily-streak-day holds the dailyNumber() of the last counted day.
+  loadDailyStreak(today = dailyNumber()) {
+    const day = parseInt(safeStorage.get('dino-daily-streak-day', '0'), 10) || 0;
+    const streak = parseInt(safeStorage.get('dino-daily-streak', '0'), 10) || 0;
+    // A streak still counts until a whole UTC day goes by without a run.
+    return day === today || day === today - 1 ? streak : 0;
+  },
+  recordDailyRun(today = dailyNumber()) {
+    const day = parseInt(safeStorage.get('dino-daily-streak-day', '0'), 10) || 0;
+    if (day === today) return this.loadDailyStreak(today);
+    const streak = day === today - 1 ? this.loadDailyStreak(today) + 1 : 1;
+    safeStorage.set('dino-daily-streak-day', today);
+    safeStorage.set('dino-daily-streak', streak);
+    return streak;
+  },
+};
+
+// Move tips (preview): one line on the Game Over card the first time an
+// Updated or Daily run ends on an obstacle that needs a move the player may
+// not know yet. Each tip shows once per device (dino-move-tips-seen, JSON
+// list of obstacle type ids). Never drawn during a run.
+const MOVE_TIPS = Object.freeze({
+  tower: Object.freeze({
+    keys: 'Tip: press jump again in the air to jump twice',
+    touch: 'Tip: tap again in the air to jump twice',
+  }),
+  row: Object.freeze({
+    keys: 'Tip: in the air, press \u2192 to dash across',
+    touch: 'Tip: in the air, swipe right to dash across',
+  }),
+  bird: Object.freeze({
+    keys: 'Tip: press \u2193 to slide under birds',
+    touch: 'Tip: swipe down to slide under birds',
+  }),
+});
+
+const MoveTipStore = {
+  seen() {
+    try {
+      const list = JSON.parse(safeStorage.get('dino-move-tips-seen', '[]'));
+      return Array.isArray(list) ? list : [];
+    } catch {
+      return [];
+    }
+  },
+  markSeen(id) {
+    const list = this.seen();
+    if (!list.includes(id)) list.push(id);
+    safeStorage.set('dino-move-tips-seen', JSON.stringify(list));
+  },
+};
+
+// The tip for a death on this obstacle type, or null. Marks it seen, so it
+// shows on this Game Over and never again.
+function takeMoveTip(typeId, touch) {
+  if (!isUpdatedMode()) return null;
+  const tip = MOVE_TIPS[typeId];
+  if (!tip || MoveTipStore.seen().includes(typeId)) return null;
+  MoveTipStore.markSeen(typeId);
+  return touch ? tip.touch : tip.keys;
+}
+
+// Ghost Rex: the best run's recorded path, one per mode. Daily keeps only
+// today's (a new UTC day is a new course). Updated is recorded but not shown
+// yet: its course changes every run, so it waits for a race on the same
+// course. Off switch in dino-ghost ('0' hides it). A bad or old record reads
+// as no ghost.
+const GhostStore = {
+  key(mode) {
+    return mode === MODES.DAILY ? 'dino-ghost-daily' : 'dino-ghost-updated';
+  },
+  load(mode) {
+    let g = null;
+    try {
+      g = JSON.parse(safeStorage.get(this.key(mode), 'null'));
+    } catch {
+      return null;
+    }
+    if (!g || g.v !== 2 || typeof g.score !== 'number' || typeof g.y !== 'string') return null;
+    if (typeof g.p !== 'string' || !(g.step > 0)) return null;
+    if (mode === MODES.DAILY && g.date !== dailySeed()) return null;
+    return g;
+  },
+  save(mode, record) {
+    safeStorage.set(this.key(mode), JSON.stringify(record));
+  },
+  loadEnabled() {
+    return safeStorage.get('dino-ghost', '1') !== '0';
+  },
+  saveEnabled(on) {
+    safeStorage.set('dino-ghost', on ? '1' : '0');
   },
 };
 
@@ -1886,6 +2008,48 @@ const audio = {
   milestone() {
     this.blip(880, 120, 'triangle', 0.05);
     setTimeout(() => this.blip(1320, 120, 'triangle', 0.05), 80);
+  },
+  // Wind bed (preview): looping filtered noise that fades in with the speed
+  // streaks and rises with speed. Updated and Daily only, silent when muted.
+  // Never creates the AudioContext itself (a jump already did, on a gesture).
+  windNodes: null,
+  setWind(level) {
+    const ctx = this.ctx;
+    if (!ctx || typeof ctx.createBufferSource !== 'function') return;
+    const target = this.muted || !isUpdatedMode() ? 0 : Math.max(0, Math.min(1, level));
+    if (!this.windNodes) {
+      if (target <= 0) return;
+      const len = ctx.sampleRate * 2;
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      let last = 0;
+      // Its own fixed-seed noise, so the wind never shifts the cosmetic
+      // Math.random() stream (clouds, stars) that screenshot tests seed.
+      let seed = 0x9e3779b9;
+      const noise = () => {
+        seed = (Math.imul(seed ^ (seed >>> 15), 0x2c1b3c6d) + 0x6d2b79f5) >>> 0;
+        return seed / 4294967296;
+      };
+      for (let i = 0; i < len; i++) {
+        // Brown-ish noise: softer than white, closer to moving air.
+        last = (last + 0.02 * (noise() * 2 - 1)) / 1.02;
+        data[i] = last * 3.5;
+      }
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.Q.value = 0.6;
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      src.connect(filter).connect(g).connect(ctx.destination);
+      src.start();
+      this.windNodes = { src, filter, g };
+    }
+    const now = ctx.currentTime;
+    this.windNodes.g.gain.setTargetAtTime(target * GAME_CONFIG.WIND_PEAK_GAIN, now, 0.4);
+    this.windNodes.filter.frequency.setTargetAtTime(350 + 650 * target, now, 0.4);
   },
   // Downward freq sweep for death — distinctly more dramatic than blip().
   death() {
