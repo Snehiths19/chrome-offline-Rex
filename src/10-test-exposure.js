@@ -50,6 +50,11 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.landSpring = landSpring;
   global.startRexRecoil = startRexRecoil;
   global.speedLinesAlpha = speedLinesAlpha;
+  global.windLevel = windLevel;
+  global.takeMoveTip = takeMoveTip;
+  global.MoveTipStore = MoveTipStore;
+  global.MOVE_TIPS = MOVE_TIPS;
+  global.dailyGameOverTitle = dailyGameOverTitle;
   global.drawSpeedLines = drawSpeedLines;
   global.slamKickOffset = slamKickOffset;
   global.canDoubleJump = canDoubleJump;

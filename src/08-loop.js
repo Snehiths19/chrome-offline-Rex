@@ -17,6 +17,8 @@ function resetGame() {
   // of this one are not a catch-up burst.
   resetSimClock();
   resetQaHzMeter();
+  game.moveTip = null;
+  audio.setWind(0);
   dino.y = GAME_CONFIG.CANVAS_H - dino.height;
   dino.velocityY = 0;
   dino.isJumping = false;
@@ -242,6 +244,7 @@ function drawWaiting() {
 }
 
 function updateRunning() {
+  audio.setWind(windLevel());
   // The LEVEL wash and NEW BEST badge count down once per slice, before
   // anything can start them again, so a fresh start paints its full first
   // frame and the draw (once per display frame) never moves a timer.
@@ -426,7 +429,7 @@ function updateRunning() {
   for (let i = 0; i < game.obstacles.length; i++) {
     if (game.obstacles[i].terrain) continue;
     if (checkCollision(dinoHitbox(), game.obstacles[i])) {
-      endRun();
+      endRun(game.obstacles[i].type);
       return;
     }
   }
@@ -481,7 +484,7 @@ function updateRunning() {
       // Until then a second jump can still carry the dino out.
       dino.inPit = true;
       if (dino.y >= groundY + GAME_CONFIG.PIT_FALL_DEPTH || dinoFloorY() !== null) {
-        endRun();
+        endRun('gap');
         return;
       }
     } else if (floorY !== null && dino.y >= floorY) {
@@ -528,8 +531,10 @@ function updateRunning() {
 
 // The run ends: a hit, or a fall into a gap (G1). Everything a death does,
 // in one place.
-function endRun() {
+function endRun(cause) {
   game.state = STATE.DEAD;
+  audio.setWind(0);
+  game.moveTip = takeMoveTip(cause, mediaMatches('(hover: none) and (pointer: coarse)'));
   Animations.deathShakeFrames = deathShakeFrameCount();
   // PR-C: white flash + score pop, mode-gated. Reduce-motion caps flash to 1 frame.
   // The pop window matches the shake so Game Over does not open mid-scale.
@@ -558,6 +563,7 @@ function endRun() {
     game.isNewTodayBest = todayResult.isNewBest || todayResult.isFirst;
     game.previousDailyBest = todayResult.previousHighScore;
     ScoreStore.saveDailyBest(finalScore);
+    game.dailyStreak = ScoreStore.recordDailyRun();
     game.dailyBest = ScoreStore.loadDailyBest();
   } else {
     game.isNewTodayBest = false;
@@ -622,6 +628,7 @@ function pauseRun() {
   if (game.state !== STATE.RUNNING && !counting) return false;
   game.state = STATE.PAUSED;
   game.pauseHidden = true;
+  audio.setWind(0);
   game.resumeFrames = GAME_CONFIG.RESUME_COUNTDOWN_FRAMES;
   announce('Paused.');
   return true;

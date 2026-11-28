@@ -2331,3 +2331,52 @@ describe('One shared course: the course is laid out on the road', () => {
     assertEquals(roadScoreAt(0), 0);
   });
 });
+
+describe('Daily streak (preview)', () => {
+  function withStreakStorage(fn) {
+    const keys = ['dino-daily-streak', 'dino-daily-streak-day'];
+    const saved = keys.map((k) => localStorage.getItem(k));
+    try {
+      keys.forEach((k) => localStorage.removeItem(k));
+      fn();
+    } finally {
+      keys.forEach((k, i) =>
+        saved[i] === null ? localStorage.removeItem(k) : localStorage.setItem(k, saved[i])
+      );
+    }
+  }
+
+  it('starts at 1, counts consecutive UTC days, and counts a day once', () => {
+    withStreakStorage(() => {
+      assertEquals(ScoreStore.loadDailyStreak(100), 0);
+      assertEquals(ScoreStore.recordDailyRun(100), 1);
+      assertEquals(ScoreStore.recordDailyRun(100), 1, 'second run the same day');
+      assertEquals(ScoreStore.recordDailyRun(101), 2);
+      assertEquals(ScoreStore.recordDailyRun(102), 3);
+      assertEquals(ScoreStore.loadDailyStreak(103), 3, 'still alive the next day');
+    });
+  });
+
+  it('resets to 1 after a missed day', () => {
+    withStreakStorage(() => {
+      ScoreStore.recordDailyRun(100);
+      ScoreStore.recordDailyRun(101);
+      assertEquals(ScoreStore.loadDailyStreak(103), 0, 'a whole day missed');
+      assertEquals(ScoreStore.recordDailyRun(103), 1);
+    });
+  });
+
+  it('shows on the Game Over title and in the share text from two days', () => {
+    const orig = game.dailyStreak;
+    const origBest = game.dailyBest;
+    game.dailyBest = 321;
+    game.dailyStreak = 1;
+    assert(!dailyGameOverTitle().includes('IN A ROW'), 'one day is not a streak');
+    assert(!dailyShareText().includes('Streak'), 'no streak line for one day');
+    game.dailyStreak = 4;
+    assert(dailyGameOverTitle().includes('4 DAYS IN A ROW'), dailyGameOverTitle());
+    assert(dailyShareText().includes('Streak: 4 days'), dailyShareText());
+    game.dailyStreak = orig;
+    game.dailyBest = origBest;
+  });
+});
