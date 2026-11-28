@@ -48,6 +48,8 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
               transform: () => {},
               setTransform: () => {},
               ellipse: () => {},
+              quadraticCurveTo: () => {},
+              createLinearGradient: () => ({ addColorStop: () => {} }),
               fillStyle: '',
               strokeStyle: '',
               font: '',

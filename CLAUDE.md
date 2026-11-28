@@ -76,7 +76,7 @@ Add new code to the file for the section it belongs to; don't start a new file f
 2. **`src/02-config.js` — Section 2, Configuration.** `GAME_CONFIG` (frozen), the `cfg`/`loadTuning`/`saveTuning` live-tuning hook, `ScoreStore` (all localStorage score persistence), the `STATE` enum, `reducedMotion`/`setReducedMotion`, the QA switchboard (`QA_FLAGS`: one row per `?qaX=1` playtest flag, with its hold, gate and draw; `qa.x` says whether a flag is on, tests flip one with `setQaFlag('x', on)` and parse with `readQaFlag('x', search)`; the per-flag `drawQa*` overlays sit just above it; the bulk of this file), and the `audio` object.
 3. **`src/03-assets.js` — Section 3, Asset loading.** `canvas`/`ctx`, `a11yLive`/`announce`, `dino`, sprite preload with timeout fallback, and the canvas-sizing shell helpers (`computeCanvasCssWidth`, `fitCanvasCssSize`, `initCanvasScale`, `handleResize`).
 4. **`src/04-state.js` — Section 4, Game state.** The `mulberry32` seeded RNG, `DifficultyProfile.nextObstacle()` (type + gap; `pickObstacleType` and `computeNextSpawnGap` are internal helpers, not exported), `MODES`/`loadMode`, daily seed helpers, the `game` object, `Animations`, `setMode`, daily share, and the death-log debug tools.
-5. **`src/05-rendering.js` — Section 5, Rendering.** Pure draw functions: `drawBackground`, `drawGhost` (Ghost Rex, with its recorder `recordGhostFrame`/`finishGhostRun`), `drawDino`, `drawObstacles`, `drawClouds`, `drawHills`, `drawSkyTint`, `drawDeathFlash`, `drawScore`, `drawMilestoneFlash`, `drawNewBestBadge`, etc. Also `isDailyMode`/`isUpdatedMode` and `Particles`.
+5. **`src/05-rendering.js` — Section 5, Rendering.** Pure draw functions: `drawBackground`, `drawGhost` (Ghost Rex, with its recorder `recordGhostFrame`/`finishGhostRun`), `drawDino` (the jointed Rex `drawNewRex`/`newRex` in Updated and Daily, M9; the sprite in Classic), `drawObstacles`, `drawClouds`, `drawHills`, `drawSkyTint`, `drawDeathFlash`, `drawScore`, `drawMilestoneFlash`, `drawNewBestBadge`, etc. Also `isDailyMode`/`isUpdatedMode` and `Particles`.
 6. **Feature registry** (end of `src/05-rendering.js`). `FEATURES` array + `runFeatureUpdates` + `runFeatureDraws(layer)`. Declarative ordering for ambient features (hills, clouds, speed streaks, particles, skyTint).
 7. **`src/06-physics.js` — Section 6, Physics & game logic.** `spawnObstacle`, `updateObstacles`, `checkCollision`, `computeRunResult`, `jump`.
 8. **`src/07-input.js` — Section 7, Input handlers.** `handleAction`, keyboard + mouse + touch. Jump, mute, mode-toggle, share and daily buttons live here too.
@@ -161,6 +161,7 @@ const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matc
 | Speed streaks | not drawn | not drawn |
 | Squash/stretch, slam kick, second-jump flip | off | off |
 | Rex motion: pitch, lean, faster stride, bob, recoil, idle breath | off | off (fixed stride) |
+| Jointed Rex (M9): tail swing, head lag, body bob, blink | off (legs still run) | sprite instead |
 
 ## `localStorage` keys
 

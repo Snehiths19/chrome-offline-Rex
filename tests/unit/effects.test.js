@@ -6390,8 +6390,10 @@ describe('Squash and stretch, landing slam (M1)', () => {
         args = a;
       };
       try {
+        setQaFlag('spriteRex', true); // the sprite Rex, not the jointed one (M9)
         drawDino();
       } finally {
+        setQaFlag('spriteRex', false);
         ctx.drawImage = orig;
       }
       assert(args, 'sprite drawn');

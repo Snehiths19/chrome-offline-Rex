@@ -1174,6 +1174,7 @@ describe('Soft day hills', () => {
     const origRng = game.rng;
     const paint = hillFillStyles();
     try {
+      setQaFlag('spriteRex', true); // the sprite Rex, not the jointed one (M9)
       setQaFlag('night', false);
       setReducedMotion(false);
       game.rng = mulberry32(1);
@@ -1211,6 +1212,7 @@ describe('Soft day hills', () => {
       drawHills();
       assertEquals(paint.seen.length, 0, 'Classic never draws hills');
     } finally {
+      setQaFlag('spriteRex', false);
       paint.restore();
       game.mode = origMode;
       game.score = origScore;
@@ -1760,6 +1762,7 @@ describe('Night dino contrast', () => {
     const origW = dino.width;
     const origH = dino.height;
     try {
+      setQaFlag('spriteRex', true); // the sprite Rex, not the jointed one (M9)
       setQaFlag('night', false);
       game.mode = MODES.UPDATED;
       game.score = 0;
@@ -1791,6 +1794,7 @@ describe('Night dino contrast', () => {
         'Classic night paint stays the dark sprite'
       );
     } finally {
+      setQaFlag('spriteRex', false);
       game.mode = origMode;
       game.score = origScore;
       ctx.filter = origFilter;
@@ -1812,6 +1816,7 @@ describe('Night dino contrast', () => {
       return origFill.apply(ctx, args);
     };
     try {
+      setQaFlag('spriteRex', true); // the sprite Rex, not the jointed one (M9)
       setQaFlag('night', false);
       game.mode = MODES.UPDATED;
       game.score = GAME_CONFIG.DAY_NIGHT_END;
@@ -1831,6 +1836,7 @@ describe('Night dino contrast', () => {
       assertEquals(seen[0].args[3], dino.height, 'the fallback keeps the dino height');
       assertEquals(ctx.filter, 'contrast(2)', 'the fallback lift must not leak');
     } finally {
+      setQaFlag('spriteRex', false);
       ctx.fillRect = origFill;
       ctx.filter = origFilter;
       dino.isJumping = origJumping;
@@ -3064,5 +3070,146 @@ describe('First run shows the plain score (R3)', () => {
       game.mode = origMode;
       resetGame();
     }
+  });
+});
+
+describe('Jointed Rex (M9)', () => {
+  function withJointedRex(mode, fn) {
+    const orig = {
+      mode: game.mode,
+      state: game.state,
+      x: dino.x,
+      y: dino.y,
+      w: dino.width,
+      h: dino.height,
+      vy: dino.velocityY,
+      jumping: dino.isJumping,
+      slide: dino.slideFrames,
+      rng: game.rng,
+      random: Math.random,
+      drawImage: ctx.drawImage,
+      alpha: ctx.globalAlpha,
+    };
+    try {
+      setQaFlag('spriteRex', false);
+      setReducedMotion(false);
+      game.mode = mode;
+      game.state = STATE.RUNNING;
+      dino.isJumping = false;
+      dino.slideFrames = 0;
+      dino.y = GAME_CONFIG.CANVAS_H - dino.height;
+      newRex.reset();
+      fn();
+    } finally {
+      game.mode = orig.mode;
+      game.state = orig.state;
+      dino.x = orig.x;
+      dino.y = orig.y;
+      dino.width = orig.w;
+      dino.height = orig.h;
+      dino.velocityY = orig.vy;
+      dino.isJumping = orig.jumping;
+      dino.slideFrames = orig.slide;
+      game.rng = orig.rng;
+      Math.random = orig.random;
+      ctx.drawImage = orig.drawImage;
+      ctx.globalAlpha = orig.alpha;
+      setQaFlag('spriteRex', false);
+      setReducedMotion(false);
+      newRex.reset();
+    }
+  }
+
+  it('is the Rex in Updated and Daily, and Classic keeps the sprite', () => {
+    withJointedRex(MODES.UPDATED, () => {
+      assert(newRexOn(), 'Updated draws the jointed Rex');
+      game.mode = MODES.DAILY;
+      assert(newRexOn(), 'Daily draws the jointed Rex');
+      game.mode = MODES.CLASSIC;
+      assert(!newRexOn(), 'Classic keeps the original sprite');
+      game.mode = MODES.UPDATED;
+      setQaFlag('spriteRex', true);
+      assert(!newRexOn(), '?qaSpriteRex=1 brings back the sprite in Updated');
+    });
+  });
+
+  it('draws no sprite in Updated and the sprite in Classic', () => {
+    withJointedRex(MODES.UPDATED, () => {
+      const drawn = [];
+      ctx.drawImage = (img) => drawn.push(img);
+      drawDino();
+      assertEquals(drawn.length, 0, 'the jointed Rex is drawn in code, not from a sprite');
+      game.mode = MODES.CLASSIC;
+      drawDino();
+      assertEquals(drawn.length, 1, 'Classic draws one sprite');
+    });
+  });
+
+  it('is visual only: no randomness, and the dino and hitbox stay as they were', () => {
+    withJointedRex(MODES.UPDATED, () => {
+      let draws = 0;
+      game.rng = () => {
+        draws++;
+        return 0.5;
+      };
+      Math.random = () => {
+        draws++;
+        return 0.5;
+      };
+      const before = [dino.x, dino.y, dino.width, dino.height, dino.velocityY];
+      for (let i = 0; i < 40; i++) {
+        updateNewRex();
+        drawDino();
+      }
+      dino.isJumping = true;
+      dino.velocityY = -6;
+      updateNewRex();
+      drawDino();
+      dino.isJumping = false;
+      dino.velocityY = before[4];
+      dino.slideFrames = 5;
+      updateNewRex();
+      drawDino();
+      dino.slideFrames = 0;
+      assertEquals(draws, 0, 'the rig draws on no random stream');
+      assertEquals(
+        [dino.x, dino.y, dino.width, dino.height, dino.velocityY].join(),
+        before.join(),
+        'the rig never moves or resizes the dino'
+      );
+      assertEquals(ctx.globalAlpha, 1, 'the ground shadow puts globalAlpha back');
+    });
+  });
+
+  it('runs its legs, eases into the duck and swings its tail', () => {
+    withJointedRex(MODES.UPDATED, () => {
+      const start = newRex.phase;
+      for (let i = 0; i < 5; i++) updateNewRex();
+      assert(newRex.phase !== start, 'running moves the stride');
+      dino.slideFrames = 10;
+      for (let i = 0; i < 10; i++) updateNewRex();
+      assert(newRex.duck > 0.9, 'a slide eases the body down into the duck');
+      assert(newRexPose().head.y > -25, 'the head comes down low in the duck');
+      dino.slideFrames = 0;
+      assert(
+        newRex.tail.some((a) => a !== 0),
+        'the tail moves on its springs while running'
+      );
+    });
+  });
+
+  it('reduced motion keeps the tail and head still', () => {
+    withJointedRex(MODES.UPDATED, () => {
+      setReducedMotion(true);
+      for (let i = 0; i < 20; i++) {
+        dino.y -= 2;
+        updateNewRex();
+      }
+      assert(
+        newRex.tail.every((a) => a === 0),
+        'no tail swing under reduced motion'
+      );
+      assertEquals(newRex.head, 0, 'no head lag under reduced motion');
+    });
   });
 });

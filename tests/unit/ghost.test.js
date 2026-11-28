@@ -389,8 +389,10 @@ describe('Ghost Rex: drawing', () => {
       const calls = [];
       ctx.drawImage = (img) => calls.push({ img, alpha: ctx.globalAlpha });
       try {
+        setQaFlag('spriteRex', true); // the sprite Rex, not the jointed one (M9)
         drawRunning();
       } finally {
+        setQaFlag('spriteRex', false);
         ctx.drawImage = origDraw;
       }
       const ghostCall = calls.findIndex((c) => c.alpha === cfg('GHOST_ALPHA'));

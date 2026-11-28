@@ -1740,6 +1740,9 @@ const QA_FLAGS = Object.freeze([
   { id: 'night', param: 'qaNight' },
   // Late-run heel whisper from the first Updated/Daily frame.
   { id: 'trail', param: 'qaTrail' },
+  // Updated and Daily draw the original sprite Rex instead of the jointed
+  // Rex (M9), to compare the two side by side.
+  { id: 'spriteRex', param: 'qaSpriteRex' },
   {
     id: 'confetti',
     param: 'qaConfetti',
