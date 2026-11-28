@@ -233,6 +233,8 @@ const game = {
   sceneryRng: mulberry32(sceneryRunSeed(bootSeed)),
   mode: loadMode(),
   dailyBest: ScoreStore.loadDailyBest(),
+  dailyStreak: ScoreStore.loadDailyStreak(),
+  moveTip: null,
   // False until the player has died once this session. First IDLE → WAITING
   // keeps the full countdown; restarts after death can skip it.
   countdownSkippable: false,
@@ -277,6 +279,7 @@ function dailyShareText() {
   return [
     'Rex Daily #' + dailyNumber() + ' 🦕',
     'Score: ' + score,
+    ...(game.dailyStreak >= 2 ? ['Streak: ' + game.dailyStreak + ' days'] : []),
     'https://snehiths19.github.io/chrome-offline-Rex/',
   ].join('\n');
 }

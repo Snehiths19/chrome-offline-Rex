@@ -1422,11 +1422,7 @@ function drawGameOverScreen() {
       // it doesn't land on the title. Static text — no pulse.
       ctx.fillStyle = GAME_OVER_DAILY_COLOR;
       ctx.font = labelPx(13) + 'px ' + font;
-      ctx.fillText(
-        '📅 DAILY #' + dailyNumber(),
-        GAME_CONFIG.CANVAS_W / 2,
-        GAME_CONFIG.CANVAS_H / 2 - 70
-      );
+      ctx.fillText(dailyGameOverTitle(), GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 70);
 
       ctx.fillStyle = 'white';
       ctx.font = labelPx(15) + 'px ' + font;
@@ -1462,11 +1458,7 @@ function drawGameOverScreen() {
 
       ctx.fillStyle = GAME_OVER_DAILY_COLOR;
       ctx.font = labelPx(13) + 'px ' + font;
-      ctx.fillText(
-        '📅 DAILY #' + dailyNumber(),
-        GAME_CONFIG.CANVAS_W / 2,
-        GAME_CONFIG.CANVAS_H / 2 - 48
-      );
+      ctx.fillText(dailyGameOverTitle(), GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H / 2 - 48);
 
       ctx.fillStyle = GAME_OVER_LABEL_COLOR;
       ctx.font = labelPx(12) + 'px ' + font;
@@ -1522,6 +1514,7 @@ function drawGameOverScreen() {
       }
     }
     if (t >= 1) drawDailyDeathHint();
+    if (t >= 1) drawMoveTip();
   } else {
     if (game.isFirstRun) {
       // First run ever (R3): nothing to beat yet, so just the score.
@@ -1603,6 +1596,7 @@ function drawGameOverScreen() {
       GAME_CONFIG.CANVAS_W / 2,
       GAME_CONFIG.CANVAS_H - 16
     );
+    if (t >= 1) drawMoveTip();
   }
   drawDebugHud();
 }
@@ -1610,6 +1604,23 @@ function drawGameOverScreen() {
 // One shared run, on the death screen only. Self-gated so a WAITING or
 // RUNNING frame cannot paint it, and Classic/Updated never reach this call.
 // No frame-driven alpha — prefers-reduced-motion has nothing to suppress.
+// Daily Game Over title, with the streak once it reaches two days (preview).
+function dailyGameOverTitle() {
+  const title = '📅 DAILY #' + dailyNumber();
+  return game.dailyStreak >= 2 ? title + '  ·  ' + game.dailyStreak + ' DAYS IN A ROW' : title;
+}
+
+// Move tip (preview): one line above the bottom caption, after the count-up,
+// on the Game Over card only. game.moveTip is set by endRun() at most once
+// per obstacle type per device.
+function drawMoveTip() {
+  if (!game.moveTip) return;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = GAME_OVER_DAILY_COLOR;
+  ctx.font = labelPx(13) + 'px ' + cfg('SCORE_FONT_FAMILY');
+  ctx.fillText(game.moveTip, GAME_CONFIG.CANVAS_W / 2, GAME_CONFIG.CANVAS_H - 40);
+}
+
 function drawDailyDeathHint() {
   if (!isDailyMode()) return;
   if (Animations.deathAnimFrame < deathAnimFrames()) return;
@@ -2159,6 +2170,16 @@ function speedLinesAlpha() {
   if (game.currentSpeed <= start) return 0;
   const t = full > start ? Math.min(1, (game.currentSpeed - start) / (full - start)) : 1;
   return Math.max(0, Math.min(1, peak * t));
+}
+
+// Wind bed level (preview), 0..1: starts with the speed streaks and is full
+// at their full speed. Unlike the streaks it ignores reduced motion (it is
+// sound, not motion); mute and mode are checked in audio.setWind.
+function windLevel() {
+  const start = cfg('SPEED_LINES_START_SPEED');
+  const full = cfg('SPEED_LINES_FULL_SPEED');
+  if (game.currentSpeed <= start) return 0;
+  return full > start ? Math.min(1, (game.currentSpeed - start) / (full - start)) : 1;
 }
 
 // Positions come from the frame count, not randomness, so a streak glides

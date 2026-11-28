@@ -608,6 +608,7 @@ const GAME_CONFIG = Object.freeze({
   UPDATED_DEATH_SHAKE_AMPLITUDE: 1,
   UPDATED_DEATH_SHAKE_FREQ: Math.PI / 8,
   DEATH_FLASH_FRAMES: 6, // PR-C: white-flash overlay length on collision
+  WIND_PEAK_GAIN: 0.035, // preview: wind bed loudness at full speed (blips are 0.04-0.05)
   DEATH_VIBRATE_MS: 30, // S5: one short buzz on death (phones that support it)
   DEATH_FLASH_COLOR_RGB: '255, 255, 255', // death-flash overlay colour (rgb triplet, alpha applied at draw)
   // Visual only. Peak scale of the white death-flash on the day sky, in
@@ -931,7 +932,68 @@ const ScoreStore = {
       safeStorage.set('dino-daily-best', score);
     }
   },
+  // Daily streak (preview): UTC days in a row with at least one Daily run.
+  // dino-daily-streak-day holds the dailyNumber() of the last counted day.
+  loadDailyStreak(today = dailyNumber()) {
+    const day = parseInt(safeStorage.get('dino-daily-streak-day', '0'), 10) || 0;
+    const streak = parseInt(safeStorage.get('dino-daily-streak', '0'), 10) || 0;
+    // A streak still counts until a whole UTC day goes by without a run.
+    return day === today || day === today - 1 ? streak : 0;
+  },
+  recordDailyRun(today = dailyNumber()) {
+    const day = parseInt(safeStorage.get('dino-daily-streak-day', '0'), 10) || 0;
+    if (day === today) return this.loadDailyStreak(today);
+    const streak = day === today - 1 ? this.loadDailyStreak(today) + 1 : 1;
+    safeStorage.set('dino-daily-streak-day', today);
+    safeStorage.set('dino-daily-streak', streak);
+    return streak;
+  },
 };
+
+// Move tips (preview): one line on the Game Over card the first time an
+// Updated or Daily run ends on an obstacle that needs a move the player may
+// not know yet. Each tip shows once per device (dino-move-tips-seen, JSON
+// list of obstacle type ids). Never drawn during a run.
+const MOVE_TIPS = Object.freeze({
+  tower: Object.freeze({
+    keys: 'Tip: press jump again in the air to jump twice',
+    touch: 'Tip: tap again in the air to jump twice',
+  }),
+  row: Object.freeze({
+    keys: 'Tip: in the air, press \u2192 to dash across',
+    touch: 'Tip: in the air, swipe right to dash across',
+  }),
+  bird: Object.freeze({
+    keys: 'Tip: press \u2193 to slide under birds',
+    touch: 'Tip: swipe down to slide under birds',
+  }),
+});
+
+const MoveTipStore = {
+  seen() {
+    try {
+      const list = JSON.parse(safeStorage.get('dino-move-tips-seen', '[]'));
+      return Array.isArray(list) ? list : [];
+    } catch {
+      return [];
+    }
+  },
+  markSeen(id) {
+    const list = this.seen();
+    if (!list.includes(id)) list.push(id);
+    safeStorage.set('dino-move-tips-seen', JSON.stringify(list));
+  },
+};
+
+// The tip for a death on this obstacle type, or null. Marks it seen, so it
+// shows on this Game Over and never again.
+function takeMoveTip(typeId, touch) {
+  if (!isUpdatedMode()) return null;
+  const tip = MOVE_TIPS[typeId];
+  if (!tip || MoveTipStore.seen().includes(typeId)) return null;
+  MoveTipStore.markSeen(typeId);
+  return touch ? tip.touch : tip.keys;
+}
 
 // Ghost Rex: the best run's recorded path, one per mode. Daily keeps only
 // today's (a new UTC day is a new course). Updated is recorded but not shown
@@ -1944,6 +2006,48 @@ const audio = {
   milestone() {
     this.blip(880, 120, 'triangle', 0.05);
     setTimeout(() => this.blip(1320, 120, 'triangle', 0.05), 80);
+  },
+  // Wind bed (preview): looping filtered noise that fades in with the speed
+  // streaks and rises with speed. Updated and Daily only, silent when muted.
+  // Never creates the AudioContext itself (a jump already did, on a gesture).
+  windNodes: null,
+  setWind(level) {
+    const ctx = this.ctx;
+    if (!ctx || typeof ctx.createBufferSource !== 'function') return;
+    const target = this.muted || !isUpdatedMode() ? 0 : Math.max(0, Math.min(1, level));
+    if (!this.windNodes) {
+      if (target <= 0) return;
+      const len = ctx.sampleRate * 2;
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      let last = 0;
+      // Its own fixed-seed noise, so the wind never shifts the cosmetic
+      // Math.random() stream (clouds, stars) that screenshot tests seed.
+      let seed = 0x9e3779b9;
+      const noise = () => {
+        seed = (Math.imul(seed ^ (seed >>> 15), 0x2c1b3c6d) + 0x6d2b79f5) >>> 0;
+        return seed / 4294967296;
+      };
+      for (let i = 0; i < len; i++) {
+        // Brown-ish noise: softer than white, closer to moving air.
+        last = (last + 0.02 * (noise() * 2 - 1)) / 1.02;
+        data[i] = last * 3.5;
+      }
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.Q.value = 0.6;
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      src.connect(filter).connect(g).connect(ctx.destination);
+      src.start();
+      this.windNodes = { src, filter, g };
+    }
+    const now = ctx.currentTime;
+    this.windNodes.g.gain.setTargetAtTime(target * GAME_CONFIG.WIND_PEAK_GAIN, now, 0.4);
+    this.windNodes.filter.frequency.setTargetAtTime(350 + 650 * target, now, 0.4);
   },
   // Downward freq sweep for death — distinctly more dramatic than blip().
   death() {

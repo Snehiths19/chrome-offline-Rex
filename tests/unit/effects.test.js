@@ -6931,3 +6931,27 @@ describe('Move combo HUD (M7)', () => {
     assertEquals(comboTexts(MODES.CLASSIC, 5).length, 0, 'never in Classic');
   });
 });
+
+describe('Move tips (preview)', () => {
+  it('gives each tip once, in Updated and Daily only, with touch wording on touch', () => {
+    const origMode = game.mode;
+    const saved = localStorage.getItem('dino-move-tips-seen');
+    try {
+      localStorage.removeItem('dino-move-tips-seen');
+      game.mode = MODES.CLASSIC;
+      assertEquals(takeMoveTip('tower', false), null, 'never in Classic');
+      game.mode = MODES.UPDATED;
+      assertEquals(takeMoveTip('small', false), null, 'no tip for a plain cactus');
+      assertEquals(takeMoveTip('tower', false), MOVE_TIPS.tower.keys);
+      assertEquals(takeMoveTip('tower', false), null, 'only once');
+      game.mode = MODES.DAILY;
+      assertEquals(takeMoveTip('bird', true), MOVE_TIPS.bird.touch);
+      assertEquals(MoveTipStore.seen().join(','), 'tower,bird');
+    } finally {
+      game.mode = origMode;
+      saved === null
+        ? localStorage.removeItem('dino-move-tips-seen')
+        : localStorage.setItem('dino-move-tips-seen', saved);
+    }
+  });
+});

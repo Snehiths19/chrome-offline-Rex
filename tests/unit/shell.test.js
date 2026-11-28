@@ -2312,3 +2312,25 @@ describe('Link preview (PL2)', () => {
     assertEquals(metaContent(html, 'property', 'og:image:height'), '630', 'og height tag');
   });
 });
+
+describe('Wind bed (preview)', () => {
+  it('is silent below the speed streak start and full at their full speed', () => {
+    const orig = game.currentSpeed;
+    game.currentSpeed = cfg('SPEED_LINES_START_SPEED');
+    assertEquals(windLevel(), 0);
+    game.currentSpeed = cfg('SPEED_LINES_FULL_SPEED') + 1;
+    assertEquals(windLevel(), 1);
+    game.currentSpeed = orig;
+  });
+
+  it('does nothing without an AudioContext (Node, muted, before a gesture)', () => {
+    const origCtx = audio.ctx;
+    const origNodes = audio.windNodes;
+    audio.ctx = null;
+    audio.windNodes = null;
+    audio.setWind(1);
+    assertEquals(audio.windNodes, null);
+    audio.ctx = origCtx;
+    audio.windNodes = origNodes;
+  });
+});
