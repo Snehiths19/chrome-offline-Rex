@@ -814,8 +814,8 @@ function flipAngleForFrames(flipFrames) {
   return Math.PI * 2 * eased;
 }
 
-// New Rex prototype (?qaNewRex=1, Updated and Daily only). A jointed Rex
-// drawn in code instead of the two-frame sprite: hips, chest, neck, head and
+// New Rex (M9, Updated and Daily only; Classic keeps the sprite). A jointed
+// Rex drawn in code instead of the two-frame sprite: hips, chest, neck, head and
 // jaw, two legs solved with two-bone IK (knee forward, heel raised), small
 // arms and a five-link tail on springs. Visual only: it reads dino and game
 // but never writes them, and uses no randomness, so the hitbox, physics,
@@ -851,7 +851,7 @@ const newRex = {
 };
 
 function newRexOn() {
-  return !!qa.newRex && isUpdatedMode();
+  return isUpdatedMode() && !qa.spriteRex;
 }
 
 function newRexLerp(a, b, t) {
@@ -939,9 +939,9 @@ function newRexCapsule(c, x1, y1, r1, x2, y2, r2) {
   for (let i = 1; i < 4; i++) c.lineTo(pts[i][0], pts[i][1]);
   c.closePath();
   c.moveTo(x1 + r1, y1);
-  c.arc(x1, y1, r1, 0, Math.PI * 2);
+  c.ellipse(x1, y1, r1, r1, 0, 0, Math.PI * 2);
   c.moveTo(x2 + r2, y2);
-  c.arc(x2, y2, r2, 0, Math.PI * 2);
+  c.ellipse(x2, y2, r2, r2, 0, 0, Math.PI * 2);
 }
 
 // Where one foot is this frame, relative to the ground under the hip.
@@ -1025,131 +1025,50 @@ function newRexLeg(hip, foot, side) {
   return { hip: { x: hx, y: hy }, knee, ankle: { x: ax, y: ay }, toe };
 }
 
-function newRexTailPoints(pose, scale) {
+function newRexTailPoints(pose) {
   const pts = [{ x: pose.tailBase.x, y: pose.tailBase.y }];
   let a = pose.tailAngle;
   for (let i = 0; i < NEW_REX_TAIL_LINKS.length; i++) {
     a += newRex.tail[i] + (i > 1 ? -0.06 : 0);
     const p = pts[i];
     pts.push({
-      x: p.x + Math.cos(a) * NEW_REX_TAIL_LINKS[i] * (scale || 1),
-      y: p.y + Math.sin(a) * NEW_REX_TAIL_LINKS[i] * (scale || 1),
+      x: p.x + Math.cos(a) * NEW_REX_TAIL_LINKS[i],
+      y: p.y + Math.sin(a) * NEW_REX_TAIL_LINKS[i],
     });
   }
   return pts;
 }
 
-// Three looks for the new Rex test, picked with ?rexLook=chrome|cute|fierce
-// (chrome by default). Same rig and motion; only shapes, colours and details
-// change.
-const NEW_REX_LOOKS = {
-  chrome: {
-    head: 1.3,
-    tail: 1,
-    outline: 0,
-    fill: ['#636363', '#535353', '#454545'],
-    far: '#424242',
-    arm: '#535353',
-  },
-  cute: {
-    head: 1.5,
-    tail: 0.8,
-    outline: 1.9,
-    ink: '#34383d',
-    fill: ['#8a9096', '#6f757b', '#5d6268'],
-    far: '#50555a',
-    arm: '#6f757b',
-  },
-  fierce: {
-    head: 1.2,
-    tail: 1.12,
-    outline: 1.5,
-    ink: '#1c1c1c',
-    fill: ['#666666', '#474747', '#303030'],
-    far: '#2c2c2c',
-    arm: '#444444',
-  },
-};
+// The look (Chrome-style, chosen 2026-11-28): Chrome's boxy head and square
+// eye in flat grey, with a soft top-to-bottom shade, a light along the back
+// and head, and a darker far leg and arm for depth.
+const NEW_REX_HEAD_SCALE = 1.3;
+const NEW_REX_FILL = ['#636363', '#535353', '#454545'];
+const NEW_REX_FAR = '#424242';
+const NEW_REX_INK = '#2f2f2f';
 
-function newRexLookName() {
-  if (typeof window !== 'undefined' && window.__rexLook) return window.__rexLook;
-  try {
-    const look = new URLSearchParams(location.search).get('rexLook');
-    if (look && NEW_REX_LOOKS[look]) return look;
-  } catch {
-    // No page query (Node): the default look.
-  }
-  return 'chrome';
-}
-
-function newRexLook() {
-  return NEW_REX_LOOKS[newRexLookName()] || NEW_REX_LOOKS.chrome;
-}
-
-// A clockwise triangle (so it joins the body's fill without cutting a hole).
-function newRexTri(c, ax, ay, bx, by, tx, ty) {
-  const area = (bx - ax) * (ty - ay) - (by - ay) * (tx - ax);
-  c.moveTo(ax, ay);
-  if (area >= 0) {
-    c.lineTo(bx, by);
-    c.lineTo(tx, ty);
-  } else {
-    c.lineTo(tx, ty);
-    c.lineTo(bx, by);
-  }
-  c.closePath();
-}
-
-// Skull (head and upper jaw), facing right, anchored at the back of the skull.
-function newRexSkullPath(c, look) {
-  if (look === 'chrome') {
-    // Chrome's boxy head: a long flat-topped block with small rounded corners.
-    c.moveTo(-3, 4);
-    c.lineTo(-3, -6);
-    c.quadraticCurveTo(-3, -8, -1, -8);
-    c.lineTo(15.5, -8);
-    c.quadraticCurveTo(17.5, -8, 17.5, -6);
-    c.lineTo(17.5, 0);
-    c.quadraticCurveTo(17.5, 1.5, 16, 1.5);
-    c.lineTo(5, 1.5);
-    c.lineTo(2, 5);
-    c.closePath();
-    return;
-  }
-  if (look === 'cute') {
-    // A round dome with a short, soft snout.
-    c.moveTo(-3.5, 3);
-    c.bezierCurveTo(-5.5, -4, -1, -9, 5, -9);
-    c.bezierCurveTo(11, -9, 15, -6.5, 15, -2.5);
-    c.quadraticCurveTo(15, 1.8, 12, 1.8);
-    c.lineTo(5, 1.8);
-    c.lineTo(2, 5);
-    c.closePath();
-    return;
-  }
-  // Fierce: a heavy brow, a long snout and a squared upper jaw.
-  c.moveTo(-3.5, 3);
-  c.bezierCurveTo(-4.5, -3, -2.5, -7, 2, -7.5);
-  c.lineTo(7, -8.2);
-  c.lineTo(10, -6.8);
-  c.lineTo(17, -6);
-  c.quadraticCurveTo(19.5, -5.5, 19.5, -2.5);
-  c.lineTo(19.5, 1);
-  c.quadraticCurveTo(19.5, 2, 18, 2);
-  c.lineTo(5, 2);
+// Skull (head and upper jaw), facing right, anchored at the back of the
+// skull: a long flat-topped block with small rounded corners.
+function newRexSkullPath(c) {
+  c.moveTo(-3, 4);
+  c.lineTo(-3, -6);
+  c.quadraticCurveTo(-3, -8, -1, -8);
+  c.lineTo(15.5, -8);
+  c.quadraticCurveTo(17.5, -8, 17.5, -6);
+  c.lineTo(17.5, 0);
+  c.quadraticCurveTo(17.5, 1.5, 16, 1.5);
+  c.lineTo(5, 1.5);
   c.lineTo(2, 5);
   c.closePath();
 }
 
-function newRexJawPath(c, open, look) {
+function newRexJawPath(c, open) {
   c.save();
-  c.translate(4, 1.8);
-  c.rotate(open);
-  const len = look === 'cute' ? 9 : look === 'fierce' ? 14 : 12.5;
+  c.transform(Math.cos(open), Math.sin(open), -Math.sin(open), Math.cos(open), 4, 1.8);
   c.moveTo(-3, 0);
-  c.lineTo(len - 1.5, 0);
-  c.quadraticCurveTo(len, 0, len, 1.4);
-  c.quadraticCurveTo(len - 0.5, 3.6, len - 3.5, 3.8);
+  c.lineTo(11, 0);
+  c.quadraticCurveTo(12.5, 0, 12.5, 1.4);
+  c.quadraticCurveTo(12, 3.6, 9, 3.8);
   c.lineTo(1, 4.6);
   c.quadraticCurveTo(-3.5, 5, -4.5, 2);
   c.closePath();
@@ -1182,19 +1101,15 @@ function newRexSpineSegment(a, b) {
     ny = -ny;
   }
   return {
-    ux: dx / d,
-    uy: dy / d,
-    nx,
-    ny,
     mx: (a[0].x + b[0].x) / 2,
     my: (a[0].y + b[0].y) / 2,
+    nx,
+    ny,
     r: (a[1] + b[1]) / 2,
-    len: d,
   };
 }
 
-function newRexBodyShapes(c, pose, nearLeg, tailPts, lookName) {
-  const look = NEW_REX_LOOKS[lookName];
+function newRexBodyShapes(c, pose, nearLeg, tailPts) {
   // Tail: tapered links.
   for (let i = 0; i < tailPts.length - 1; i++) {
     const a = tailPts[i],
@@ -1203,69 +1118,48 @@ function newRexBodyShapes(c, pose, nearLeg, tailPts, lookName) {
       c,
       a.x,
       a.y,
-      (NEW_REX_TAIL_WIDTH[i] / 2 + 0.6) * (lookName === 'cute' ? 1.1 : 1),
+      NEW_REX_TAIL_WIDTH[i] / 2 + 0.6,
       b.x,
       b.y,
-      (NEW_REX_TAIL_WIDTH[i + 1] / 2 + 0.4) * (lookName === 'cute' ? 1.1 : 1)
+      NEW_REX_TAIL_WIDTH[i + 1] / 2 + 0.4
     );
   }
-  // Fierce: a row of back spikes, part of the silhouette.
-  if (lookName === 'fierce') {
-    const spine = newRexSpine(pose, tailPts);
-    for (let i = 0; i < spine.length - 1; i++) {
-      const s = newRexSpineSegment(spine[i], spine[i + 1]);
-      const n = Math.max(1, Math.round(s.len / 3.2));
-      for (let k = 0; k < n; k++) {
-        const t = (k + 0.5) / n - 0.5;
-        const bx = s.mx + s.ux * t * s.len + s.nx * s.r * 0.85,
-          by = s.my + s.uy * t * s.len + s.ny * s.r * 0.85;
-        const h = 1 + s.r * 0.32;
-        newRexTri(
-          c,
-          bx - s.ux * 1.2,
-          by - s.uy * 1.2,
-          bx + s.ux * 1.2,
-          by + s.uy * 1.2,
-          bx + s.nx * h - s.ux * 0.9,
-          by + s.ny * h - s.uy * 0.9
-        );
-      }
-    }
-  }
   // Torso: a tapered capsule from the hips to the chest, and the neck.
-  const fat = lookName === 'cute' ? 1.08 : 1;
-  newRexCapsule(
-    c,
-    pose.tailBase.x + 1,
-    pose.tailBase.y + 0.5,
-    5,
-    pose.hip.x,
-    pose.hip.y - 2.5,
-    8 * fat
-  );
-  newRexCapsule(c, pose.hip.x, pose.hip.y - 2.5, 8 * fat, pose.chest.x, pose.chest.y, 7.2 * fat);
-  newRexCapsule(c, pose.chest.x, pose.chest.y, 7.2 * fat, pose.neck.x, pose.neck.y, 5.8);
+  newRexCapsule(c, pose.tailBase.x + 1, pose.tailBase.y + 0.5, 5, pose.hip.x, pose.hip.y - 2.5, 8);
+  newRexCapsule(c, pose.hip.x, pose.hip.y - 2.5, 8, pose.chest.x, pose.chest.y, 7.2);
+  newRexCapsule(c, pose.chest.x, pose.chest.y, 7.2, pose.neck.x, pose.neck.y, 5.8);
   newRexCapsule(c, pose.neck.x, pose.neck.y, 5.8, pose.head.x + 3, pose.head.y + 2.5, 5.2);
-  // Near thigh: a big drumstick into the hip.
+  // Near leg: a big drumstick thigh into the hip, shin and foot.
   const L = nearLeg;
   newRexCapsule(c, L.hip.x, L.hip.y - 1.5, 6, L.knee.x, L.knee.y, 3);
   newRexCapsule(c, L.knee.x, L.knee.y, 3, L.ankle.x, L.ankle.y, 1.8);
   newRexCapsule(c, L.ankle.x, L.ankle.y, 1.8, L.toe.x, L.toe.y, 1.4);
-  void look;
 }
 
-function newRexHeadShapes(c, pose, lookName) {
-  const look = NEW_REX_LOOKS[lookName];
+// Moves the canvas into head space: at the back of the skull, turned and
+// scaled with the head.
+function newRexHeadSpace(c, pose) {
+  const k = NEW_REX_HEAD_SCALE,
+    a = pose.head.angle;
+  c.transform(
+    k * Math.cos(a),
+    k * Math.sin(a),
+    -k * Math.sin(a),
+    k * Math.cos(a),
+    pose.head.x,
+    pose.head.y
+  );
+}
+
+function newRexHeadShapes(c, pose) {
   c.save();
-  c.translate(pose.head.x, pose.head.y);
-  c.rotate(pose.head.angle);
-  c.scale(look.head, look.head);
-  newRexSkullPath(c, lookName);
-  newRexJawPath(c, pose.jaw, lookName);
+  newRexHeadSpace(c, pose);
+  newRexSkullPath(c);
+  newRexJawPath(c, pose.jaw);
   c.restore();
 }
 
-function newRexArm(c, pose, side, color, claws) {
+function newRexArm(c, pose, side, color) {
   const sx = pose.chest.x + 3 + side,
     sy = pose.chest.y + 3;
   const a = pose.armBase + pose.swing * (side ? -1 : 1);
@@ -1279,190 +1173,51 @@ function newRexArm(c, pose, side, color, claws) {
   newRexCapsule(c, ex, ey, 1.2, hx, hy, 0.9);
   c.fillStyle = color;
   c.fill();
-  if (claws) {
-    c.beginPath();
-    const cb = b - 0.5;
-    newRexTri(
-      c,
-      hx - 0.5,
-      hy - 0.5,
-      hx + 0.5,
-      hy + 0.5,
-      hx + Math.cos(cb) * 1.8,
-      hy + Math.sin(cb) * 1.8
-    );
-    c.fillStyle = '#d8d2c4';
-    c.fill();
-  }
 }
 
+// A short blink every 200 sim frames, and a double blink every third one.
+// Off under reduced motion.
 function newRexBlinking() {
   if (reducedMotion) return false;
   const t = newRex.frame % 200;
   return t < 7 || (t > 22 && t < 28 && newRex.frame % 600 < 200);
 }
 
-// Face details per look: mouth, brow, nostril, eye, teeth, blush.
-function newRexFace(c, pose, lookName, ink) {
+// Face, in head space: the open mouth or the jaw seam, the nostril and the
+// square eye (wide with a small pupil in the death pose).
+function newRexFace(c, pose) {
   const dead = game.state === STATE.DEAD;
-  const blink = newRexBlinking() && !dead;
-  const open = pose.jaw > 0.05;
-  if (open) {
-    const end = lookName === 'cute' ? 13.5 : lookName === 'fierce' ? 19 : 17;
-    const len = lookName === 'cute' ? 9 : lookName === 'fierce' ? 14 : 12.5;
-    c.beginPath();
+  c.beginPath();
+  if (pose.jaw > 0.05) {
     c.moveTo(5, 1.8);
-    c.lineTo(end, 1.8);
-    c.lineTo(4 + len * Math.cos(pose.jaw), 1.8 + len * Math.sin(pose.jaw));
+    c.lineTo(17, 1.8);
+    c.lineTo(4 + 12.5 * Math.cos(pose.jaw), 1.8 + 12.5 * Math.sin(pose.jaw));
     c.closePath();
-    c.fillStyle = lookName === 'cute' ? '#c75b6b' : lookName === 'chrome' ? '#2f2f2f' : '#6b1f1f';
+    c.fillStyle = NEW_REX_INK;
     c.fill();
-  }
-  if (lookName === 'fierce') {
-    // Teeth along the upper jaw (an overbite, so they show when closed too).
-    c.beginPath();
-    for (let x = 7; x <= 18; x += 2.2) newRexTri(c, x - 0.8, 1.9, x + 0.8, 1.9, x, 3.6);
-    if (open) {
-      const j = pose.jaw;
-      for (let x = 8; x <= 16; x += 2.4) {
-        const bx = 4 + (x - 4) * Math.cos(j),
-          by = 1.8 + (x - 4) * Math.sin(j);
-        newRexTri(c, bx + 0.8, by, bx - 0.8, by, bx, by - 1.6);
-      }
-    }
-    c.fillStyle = '#f2ede0';
-    c.fill();
-  }
-  if (!open) {
-    c.beginPath();
-    if (lookName === 'cute') {
-      c.moveTo(8, 1.2);
-      c.quadraticCurveTo(10.5, 2.8, 13, 0.8);
-    } else {
-      c.moveTo(6, 1.9);
-      c.lineTo(lookName === 'fierce' ? 18.5 : 16, 1.9);
-    }
-    c.lineWidth = 0.7;
-    c.strokeStyle = ink;
-    c.stroke();
-  }
-  // Nostril.
-  c.beginPath();
-  if (lookName === 'chrome') c.rect(14.5, -6, 1.2, 1);
-  else if (lookName === 'cute') c.ellipse(13.5, -4, 0.5, 0.4, 0, 0, Math.PI * 2);
-  else c.ellipse(17.5, -4.4, 0.9, 0.5, -0.3, 0, Math.PI * 2);
-  c.fillStyle = ink;
-  c.fill();
-  if (lookName === 'cute') {
-    // Blush.
-    c.beginPath();
-    c.ellipse(9.5, -0.6, 1.9, 1.1, 0, 0, Math.PI * 2);
-    c.fillStyle = 'rgba(235,120,140,0.55)';
-    c.fill();
-  }
-  // Eye.
-  if (lookName === 'chrome') {
-    if (blink) {
-      c.fillStyle = '#f7f7f7';
-      c.fillRect(1.5, -4.2, 2.8, 0.7);
-    } else {
-      c.fillStyle = '#f7f7f7';
-      c.fillRect(1.3, -6, 3, 3);
-      c.fillStyle = '#535353';
-      if (dead) c.fillRect(2.2, -5.1, 1.2, 1.2);
-      else c.fillRect(2.9, -5.2, 1.2, 1.4);
-    }
-    return;
-  }
-  if (lookName === 'cute') {
-    if (blink) {
-      c.beginPath();
-      c.moveTo(3, -3.5);
-      c.quadraticCurveTo(5.5, -1.8, 8, -3.5);
-      c.lineWidth = 0.9;
-      c.strokeStyle = ink;
-      c.stroke();
-      return;
-    }
-    c.beginPath();
-    c.ellipse(5.6, -4, 3.1, 3.5, 0, 0, Math.PI * 2);
-    c.fillStyle = '#ffffff';
-    c.fill();
-    c.lineWidth = 0.7;
-    c.strokeStyle = ink;
-    c.stroke();
-    c.beginPath();
-    c.ellipse(
-      dead ? 5.6 : 6.4,
-      dead ? -4 : -3.8,
-      dead ? 1 : 2.1,
-      dead ? 1 : 2.5,
-      0,
-      0,
-      Math.PI * 2
-    );
-    c.fillStyle = '#1d1f22';
-    c.fill();
-    if (!dead) {
-      c.beginPath();
-      c.arc(7.2, -5, 0.8, 0, Math.PI * 2);
-      c.arc(5.8, -2.6, 0.4, 0, Math.PI * 2);
-      c.fillStyle = '#fff';
-      c.fill();
-    }
-    return;
-  }
-  // Fierce: an amber eye with a slit pupil under a heavy, angry brow.
-  if (blink) {
-    c.beginPath();
-    c.moveTo(4.8, -3.6);
-    c.lineTo(8.6, -3.2);
-    c.lineWidth = 0.8;
-    c.strokeStyle = ink;
-    c.stroke();
   } else {
-    c.beginPath();
-    c.ellipse(6.8, -3.6, 2, 1.5, 0.15, 0, Math.PI * 2);
-    c.fillStyle = '#e5a823';
-    c.fill();
-    c.lineWidth = 0.5;
-    c.strokeStyle = ink;
-    c.stroke();
-    c.beginPath();
-    c.ellipse(7.2, -3.5, dead ? 0.8 : 0.45, dead ? 0.8 : 1.3, 0, 0, Math.PI * 2);
-    c.fillStyle = '#111';
-    c.fill();
-  }
-  c.beginPath();
-  c.moveTo(3.8, -6.6);
-  c.lineTo(9.8, -4.6);
-  c.lineWidth = 1.4;
-  c.lineCap = 'round';
-  c.strokeStyle = ink;
-  c.stroke();
-  c.lineCap = 'butt';
-}
-
-// Fierce: dark stripes across the back and tail, and a rim of light on top.
-function newRexStripes(c, pose, tailPts) {
-  const spine = newRexSpine(pose, tailPts);
-  c.save();
-  c.lineCap = 'round';
-  for (let i = 1; i < spine.length - 1; i++) {
-    const s = newRexSpineSegment(spine[i], spine[i + 1]);
-    c.beginPath();
-    c.moveTo(s.mx + s.nx * s.r * 0.8, s.my + s.ny * s.r * 0.8);
-    c.lineTo(s.mx + s.nx * s.r * 0.1 - s.ux * 0.8, s.my + s.ny * s.r * 0.1 - s.uy * 0.8);
-    c.lineWidth = Math.max(0.8, s.r * 0.28);
-    c.strokeStyle = 'rgba(0,0,0,0.35)';
+    c.moveTo(6, 1.9);
+    c.lineTo(16, 1.9);
+    c.lineWidth = 0.7;
+    c.strokeStyle = NEW_REX_INK;
     c.stroke();
   }
-  c.restore();
+  c.fillStyle = NEW_REX_INK;
+  c.fillRect(14.5, -6, 1.2, 1);
+  c.fillStyle = '#f7f7f7';
+  if (newRexBlinking() && !dead) {
+    c.fillRect(1.5, -4.2, 2.8, 0.7);
+    return;
+  }
+  c.fillRect(1.3, -6, 3, 3);
+  c.fillStyle = NEW_REX_FILL[1];
+  if (dead) c.fillRect(2.2, -5.1, 1.2, 1.2);
+  else c.fillRect(2.9, -5.2, 1.2, 1.4);
 }
 
-// Chrome look: a soft light along the top of the back, tail and head, and a
-// soft shade under the belly, so the flat grey reads as a solid body.
-function newRexHighlights(c, pose, tailPts, look) {
+// A soft light along the top of the back, tail and head, and a soft shade
+// under the belly, so the flat grey reads as a solid body.
+function newRexHighlights(c, pose, tailPts) {
   const spine = newRexSpine(pose, tailPts);
   c.save();
   c.lineCap = 'round';
@@ -1478,17 +1233,13 @@ function newRexHighlights(c, pose, tailPts, look) {
   c.lineWidth = 1.3;
   c.strokeStyle = 'rgba(255,255,255,0.13)';
   c.stroke();
-  // Belly shade.
   c.beginPath();
   c.moveTo(pose.tailBase.x + 2, pose.tailBase.y + 3.5);
   c.quadraticCurveTo(pose.hip.x + 2, pose.hip.y + 5.5, pose.chest.x + 2, pose.chest.y + 5);
   c.lineWidth = 2.2;
   c.strokeStyle = 'rgba(0,0,0,0.12)';
   c.stroke();
-  // Head: a light along the top of the skull.
-  c.translate(pose.head.x, pose.head.y);
-  c.rotate(pose.head.angle);
-  c.scale(look.head, look.head);
+  newRexHeadSpace(c, pose);
   c.beginPath();
   c.moveTo(-1.5, -7.1);
   c.lineTo(15.5, -7.1);
@@ -1501,95 +1252,37 @@ function newRexHighlights(c, pose, tailPts, look) {
 // Draws the rig at the dino's position. The caller applies the turn and the
 // night brightness.
 function drawNewRexRig(c) {
-  const lookName = newRexLookName();
-  const look = newRexLook();
   const pose = newRexPose();
   const nearLeg = newRexLeg(pose.hip, pose.near, 0);
   const farLeg = newRexLeg(pose.hip, pose.far, -2.5);
-  const tailPts = newRexTailPoints(pose, look.tail);
-  const ink = look.ink || look.far;
+  const tailPts = newRexTailPoints(pose);
   // Far leg and far arm, a shade darker, behind the body.
   c.beginPath();
   newRexCapsule(c, farLeg.hip.x, farLeg.hip.y - 1, 5, farLeg.knee.x, farLeg.knee.y, 2.8);
   newRexCapsule(c, farLeg.knee.x, farLeg.knee.y, 2.8, farLeg.ankle.x, farLeg.ankle.y, 1.7);
   newRexCapsule(c, farLeg.ankle.x, farLeg.ankle.y, 1.7, farLeg.toe.x, farLeg.toe.y, 1.3);
-  if (look.outline) {
-    c.lineWidth = look.outline * 0.9;
-    c.strokeStyle = ink;
-    c.stroke();
-  }
-  c.fillStyle = look.far;
+  c.fillStyle = NEW_REX_FAR;
   c.fill();
-  newRexArm(c, pose, -1.5, look.far, lookName === 'fierce');
-  // Body: stroke every shape first, then fill them all, so the outline only
-  // survives on the outer edge and the body reads as one silhouette.
+  newRexArm(c, pose, -1.5, NEW_REX_FAR);
+  // Body and head, one fill, so they read as one silhouette.
   const grad = c.createLinearGradient(0, -50, 0, 0);
-  grad.addColorStop(0, look.fill[0]);
-  grad.addColorStop(0.55, look.fill[1]);
-  grad.addColorStop(1, look.fill[2]);
-  if (look.outline) {
-    c.beginPath();
-    newRexBodyShapes(c, pose, nearLeg, tailPts, lookName);
-    c.lineWidth = look.outline;
-    c.lineJoin = 'round';
-    c.strokeStyle = ink;
-    c.stroke();
-    c.beginPath();
-    newRexHeadShapes(c, pose, lookName);
-    c.stroke();
-  }
+  grad.addColorStop(0, NEW_REX_FILL[0]);
+  grad.addColorStop(0.55, NEW_REX_FILL[1]);
+  grad.addColorStop(1, NEW_REX_FILL[2]);
   c.fillStyle = grad;
   c.beginPath();
-  newRexBodyShapes(c, pose, nearLeg, tailPts, lookName);
+  newRexBodyShapes(c, pose, nearLeg, tailPts);
   c.fill();
   c.beginPath();
-  newRexHeadShapes(c, pose, lookName);
+  newRexHeadShapes(c, pose);
   c.fill();
-  if (lookName === 'chrome') newRexHighlights(c, pose, tailPts, look);
-  if (lookName === 'fierce') {
-    newRexStripes(c, pose, tailPts);
-    // Toe claws.
-    c.beginPath();
-    for (const L of [nearLeg, farLeg]) {
-      newRexTri(
-        c,
-        L.toe.x - 0.6,
-        L.toe.y - 0.9,
-        L.toe.x - 0.6,
-        L.toe.y + 0.9,
-        L.toe.x + 1.8,
-        L.toe.y + 0.6
-      );
-    }
-    c.fillStyle = '#d8d2c4';
-    c.fill();
-  }
-  if (lookName === 'cute') {
-    // A lighter belly.
-    c.save();
-    c.beginPath();
-    c.ellipse(
-      pose.chest.x + 1.5,
-      pose.chest.y + 2.5,
-      4.2,
-      3.4,
-      Math.atan2(pose.chest.y - pose.hip.y, pose.chest.x - pose.hip.x),
-      0,
-      Math.PI * 2
-    );
-    c.fillStyle = 'rgba(205,210,214,0.45)';
-    c.fill();
-    c.restore();
-  }
-  // Head details.
+  newRexHighlights(c, pose, tailPts);
   c.save();
-  c.translate(pose.head.x, pose.head.y);
-  c.rotate(pose.head.angle);
-  c.scale(look.head, look.head);
-  newRexFace(c, pose, lookName, lookName === 'chrome' ? '#2f2f2f' : ink);
+  newRexHeadSpace(c, pose);
+  newRexFace(c, pose);
   c.restore();
   // Near arm last, over the chest.
-  newRexArm(c, pose, 0, look.arm, lookName === 'fierce');
+  newRexArm(c, pose, 0, NEW_REX_FILL[1]);
 }
 
 // The new Rex in place of the sprite, with the same pitch, flip and recoil
@@ -1602,13 +1295,14 @@ function drawNewRexShadow() {
   const up = Math.max(0, floor - dino.y);
   const k = Math.max(0.25, 1 - up / 110);
   const wide = newRex.duck > 0.5 ? 22 : 17;
-  ctx.save();
-  ctx.globalAlpha *= 0.16 * k;
+  // The Node canvas stub's save()/restore() do nothing, so put alpha back by hand.
+  const prevAlpha = ctx.globalAlpha;
+  ctx.globalAlpha = prevAlpha * 0.16 * k;
   ctx.fillStyle = '#000';
   ctx.beginPath();
   ctx.ellipse(dino.x + 17, floor + dino.height - 1, wide * k, 2.2 * k, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.restore();
+  ctx.globalAlpha = prevAlpha;
 }
 
 function drawNewRex() {
@@ -1619,15 +1313,27 @@ function drawNewRex() {
   const ox = dino.x + pose.dx,
     oy = dino.y + dino.height + pose.dy;
   ctx.save();
+  // One transform call: turn about the pivot, then move to the feet. Its
+  // own transform keeps the death shake the only translate in the frame.
+  let cos = 1,
+    sin = 0,
+    cx = 0,
+    cy = 0;
   if (turn) {
     const mid = flip || dino.isJumping;
-    const cx = dino.x + dino.width / 2 + pose.dx;
-    const cy = (mid ? dino.y + dino.height / 2 : dino.y + dino.height) + pose.dy;
-    ctx.translate(cx, cy);
-    ctx.rotate(turn);
-    ctx.translate(-cx, -cy);
+    cx = dino.x + dino.width / 2 + pose.dx;
+    cy = (mid ? dino.y + dino.height / 2 : dino.y + dino.height) + pose.dy;
+    cos = Math.cos(turn);
+    sin = Math.sin(turn);
   }
-  ctx.translate(ox, oy);
+  ctx.transform(
+    cos,
+    sin,
+    -sin,
+    cos,
+    cx + cos * (ox - cx) - sin * (oy - cy),
+    cy + sin * (ox - cx) + cos * (oy - cy)
+  );
   drawNewRexRig(ctx);
   ctx.restore();
 }

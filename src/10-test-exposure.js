@@ -43,6 +43,10 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
   global.airGravity = airGravity;
   global.dinoSquashScale = dinoSquashScale;
   global.rexMotion = rexMotion;
+  global.newRex = newRex;
+  global.newRexOn = newRexOn;
+  global.updateNewRex = updateNewRex;
+  global.newRexPose = newRexPose;
   global.rexPose = rexPose;
   global.updateRexMotion = updateRexMotion;
   global.rexPitchTarget = rexPitchTarget;
